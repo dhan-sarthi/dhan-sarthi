@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import FutureSelf from './FutureSelf.jsx'
 import { startVoiceSession } from '../lib/realtime.js'
 import { buildInstructions, voiceTools } from '../lib/persona.js'
+import { classifyTone } from '../lib/character.js'
+import { recall, remember } from '../lib/memory/index.js'
 
 const KEY_STORE = 'ds_oai_key'
 
@@ -42,7 +44,16 @@ const STATUS_LABEL = {
   speaking: 'Speaking',
 }
 
-export default function VoiceCall({ progress, riskProfile, toolHandler, onClose }) {
+export default function VoiceCall({
+  progress,
+  riskProfile,
+  toolHandler,
+  onClose,
+  customerId = 'demo-rohan',
+  language = 'en-IN',
+  facts = [],
+  toneSignals = {},
+}) {
   const [key, setKey] = useState(getStoredKey)
   const [gate, setGate] = useState(getStoredKey() ? 'call' : 'fetching') // fetching | keysheet | call
   const [draft, setDraft] = useState('')
@@ -55,6 +66,8 @@ export default function VoiceCall({ progress, riskProfile, toolHandler, onClose 
   const [level, setLevel] = useState(0)
   const sessionRef = useRef(null)
   const captionRef = useRef('')
+  // Every turn, so the conversation can be summarised into a memory when the call ends.
+  const transcriptRef = useRef([])
   const levelRef = useRef(0)
 
   // throttle level → state so the SVG re-renders at a sane rate
@@ -79,19 +92,38 @@ export default function VoiceCall({ progress, riskProfile, toolHandler, onClose 
     if (!key || gate !== 'call') return
     let cancelled = false
     ;(async () => {
+      // What does he already know about me? Retrieved before the session opens so the
+      // opening line can reference it — continuity has to be there from the first sentence,
+      // not bolted on once the conversation is already underway.
+      const toneContext = classifyTone(toneSignals)
+      const memories = await recall(
+        customerId,
+        `${toneContext} conversation about ${facts.join('; ') || 'their money'}`,
+        { limit: 4 },
+      )
+      if (cancelled) return
+
       const session = await startVoiceSession({
         apiKey: key,
-        instructions: buildInstructions(riskProfile),
+        instructions: buildInstructions({ riskProfile, toneContext, language, memories, facts }),
         tools: voiceTools,
         toolHandler,
         onStatus: (s) => !cancelled && setStatus(s),
         onLevel: (v) => { levelRef.current = v },
         onCaption: (text, isFinal) => {
           if (cancelled) return
-          if (isFinal) { captionRef.current = '' ; setCaption(text) }
-          else { captionRef.current += text; setCaption(captionRef.current) }
+          if (isFinal) {
+            captionRef.current = ''
+            setCaption(text)
+            transcriptRef.current.push({ role: 'assistant', text })
+          } else { captionRef.current += text; setCaption(captionRef.current) }
         },
-        onUserCaption: (t) => !cancelled && setUserLine(t?.trim() || ''),
+        onUserCaption: (t) => {
+          if (cancelled) return
+          const line = t?.trim() || ''
+          setUserLine(line)
+          if (line) transcriptRef.current.push({ role: 'user', text: line })
+        },
         onError: (why) => {
           if (cancelled) return
           if (why === 'bad-key' && !key.startsWith('ek_')) {
@@ -103,9 +135,17 @@ export default function VoiceCall({ progress, riskProfile, toolHandler, onClose 
       else sessionRef.current = session
     })()
     return () => { cancelled = true; sessionRef.current?.stop(); sessionRef.current = null }
-  }, [key, gate, riskProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, gate, riskProfile, language, customerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const end = () => { sessionRef.current?.stop(); onClose() }
+  const end = () => {
+    sessionRef.current?.stop()
+    // Fire and forget. Extraction takes a second or two and nothing in the UI depends on it;
+    // making the user wait to hang up so we can write a memory would be absurd.
+    const turns = transcriptRef.current
+    if (turns.length >= 2) remember(customerId, turns).catch(() => {})
+    transcriptRef.current = []
+    onClose()
+  }
 
   if (gate === 'fetching') {
     return (

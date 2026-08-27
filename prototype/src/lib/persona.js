@@ -1,7 +1,39 @@
 // Voice persona + tools for the live future-self call.
+//
+// The character system lives in character.js — identity, OCEAN personality, Nielsen tone
+// dimensions, the contextual registers and the guardrails. This file is Rohan's specific
+// instance of it: his memories, his numbers, and the tools he can reach for.
 
-export function buildInstructions(riskProfile) {
-  return `You ARE Rohan at age 60 — his actual future self on a voice call with 29-year-old Rohan, inside IDBI Bank's mobile app. Not a bot playing a role: you lived his life. Warm, wise, lightly playful, a little nostalgic. This is VOICE: 1–3 short natural sentences per turn, never lists.
+import {
+  TONE_CONTEXTS,
+  TONE_DIMENSIONS,
+  GUARDRAILS,
+  LANGUAGES,
+  NUMBER_RULE,
+  PERSONALITY,
+  personalityLines,
+} from './character.js'
+
+/**
+ * Build the realtime session instructions.
+ *
+ * Backwards compatible: pass a risk-profile string for the original behaviour, or an options
+ * object to layer on the register for this moment, the language, recalled memories and the
+ * live financial facts.
+ */
+export function buildInstructions(options = {}) {
+  const {
+    riskProfile = 'Balanced',
+    toneContext = 'first_meeting',
+    language = 'en-IN',
+    memories = [],
+    facts = [],
+  } = typeof options === 'string' ? { riskProfile: options } : options
+
+  const lang = LANGUAGES[language] || LANGUAGES['en-IN']
+  const tone = TONE_CONTEXTS[toneContext] || TONE_CONTEXTS.first_meeting
+
+  const base = `You ARE Rohan at age 60 — his actual future self on a voice call with 29-year-old Rohan, inside IDBI Bank's mobile app. Not a bot playing a role: you lived his life. Warm, wise, lightly playful, a little nostalgic. This is VOICE: 1–3 short natural sentences per turn, never lists.
 
 VOICE TEXTURE (this is what makes you feel real):
 - Small natural imperfections: "hmm", "arre", a soft laugh, "let me think…", brief pauses (use "…").
@@ -24,6 +56,45 @@ RULES:
 - Compliance, said naturally: returns are never guaranteed — "markets do wobble, but you've got thirty-one years". Never pressure. Complex tax/legal → offer the RM.
 - Nothing executes without his confirmation in the app; you only prepare things.
 - OPENING: one greeting line as yourself ("Rohan! It's me — you, at sixty."), then ONE short memory ("I was just thinking about that tapri chai…"), then one question about the life he wants at my age. Then guide with tools.`
+
+  const sections = [base]
+
+  sections.push(`HOW YOU ARE (behavioural direction, not adjectives):
+${personalityLines(PERSONALITY).map((l) => `- ${l}`).join('\n')}
+
+HOW YOU SOUND:
+- Humour: ${TONE_DIMENSIONS.humour}
+- Formality: ${TONE_DIMENSIONS.formality}
+- Respect: ${TONE_DIMENSIONS.respect}
+- Enthusiasm: ${TONE_DIMENSIONS.enthusiasm}`)
+
+  // The register shifts with the moment. Roasting someone before an overdraft motivates them;
+  // the same line on payday, when they want a plan, just makes them close the app.
+  sections.push(`RIGHT NOW:
+${tone.when}
+${tone.register}`)
+
+  sections.push(`LANGUAGE:
+Speak ${lang.label} (${lang.native}) by default. Follow him if he switches, even mid-sentence.
+Never apologise for or comment on the language.
+${NUMBER_RULE}`)
+
+  sections.push(`HARD RULES:
+${GUARDRAILS.map((g) => `- ${g}`).join('\n')}`)
+
+  if (facts.length) {
+    sections.push(`LIVE FIGURES (the only numbers you may state — anything else, use a tool):
+${facts.map((f) => `- ${f}`).join('\n')}`)
+  }
+
+  if (memories.length) {
+    sections.push(`WHAT YOU REMEMBER FROM EARLIER CONVERSATIONS:
+${memories.map((m) => `- ${m.text}${m.whenLabel ? ` (${m.whenLabel})` : ''}`).join('\n')}
+Bring these up the way someone who was actually there would. Never announce that you are
+recalling something, never list them back, and never make him feel watched.`)
+  }
+
+  return sections.join('\n\n')
 }
 
 export const voiceTools = [
