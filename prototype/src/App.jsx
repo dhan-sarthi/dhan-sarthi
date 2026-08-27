@@ -8,6 +8,10 @@ import {
   persona, spendCategories, spendTotal, insights, riskProfiles,
   sipFutureValue, corpusNeeded,
 } from './data.js'
+import { buildFacts, buildToneSignals } from './lib/facts.js'
+import { openCommitments, listMemories } from './lib/memory/index.js'
+
+const CUSTOMER_ID = 'demo-rohan'
 
 const TABS = [
   { id: 'home', label: 'Insights', icon: '◔' },
@@ -24,6 +28,9 @@ export default function App() {
   const [inCall, setInCall] = useState(false)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
+  // What he remembers from previous calls. Loaded once; drives whether this session opens as
+  // a first meeting, and whether he notices a commitment was kept.
+  const [past, setPast] = useState({ commitments: [], memoryCount: 0 })
 
   // live mirrors for the voice tool-handler (it runs outside React's render cycle)
   const live = useRef({ sip, riskProfile })
@@ -48,13 +55,32 @@ export default function App() {
 
   useEffect(() => () => clearTimeout(toastTimer.current), [])
 
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([openCommitments(CUSTOMER_ID), listMemories(CUSTOMER_ID)])
+      .then(([commitments, memories]) => {
+        if (!cancelled) setPast({ commitments, memoryCount: memories.length })
+      })
+      .catch(() => {}) // no memory is a valid state, not an error
+    return () => { cancelled = true }
+  }, [])
+
   const years = persona.retireAt - persona.age
   const needed = corpusNeeded(spendTotal, years)
   const projectFor = (amount, profile) => {
     const corpus = sipFutureValue(amount, years, riskProfiles[profile].rate)
     return { corpus, coverage: Math.min(1, corpus / needed) }
   }
-  const progress = projectFor(sip, riskProfile).coverage
+  const { corpus, coverage } = projectFor(sip, riskProfile)
+  const progress = coverage
+
+  // Everything the future self is allowed to say, and the register he says it in.
+  const voiceFacts = buildFacts({
+    persona, insights, spendTotal, sip, riskProfile, corpus, coverage, needed,
+  })
+  const toneSignals = buildToneSignals({
+    insights, coverage, sip, commitments: past.commitments, memoryCount: past.memoryCount,
+  })
 
   // ---- tools the live voice avatar can call ----
   const handleVoiceTool = async (name, args) => {
@@ -173,7 +199,17 @@ export default function App() {
               progress={progress}
               riskProfile={riskProfile}
               toolHandler={handleVoiceTool}
-              onClose={() => setInCall(false)}
+              customerId={CUSTOMER_ID}
+              facts={voiceFacts}
+              toneSignals={toneSignals}
+              onClose={() => {
+                setInCall(false)
+                // Re-read memory so the next call knows about the one that just ended.
+                Promise.all([openCommitments(CUSTOMER_ID), listMemories(CUSTOMER_ID)])
+                  .then(([commitments, memories]) =>
+                    setPast({ commitments, memoryCount: memories.length }))
+                  .catch(() => {})
+              }}
             />
           )}
 

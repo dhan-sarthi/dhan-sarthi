@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node test/memory.test.mjs"
+    "test": "node test/memory.test.mjs && node test/session.test.mjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

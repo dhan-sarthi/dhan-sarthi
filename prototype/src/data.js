@@ -20,13 +20,26 @@ export const spendCategories = [
 
 export const spendTotal = spendCategories.reduce((s, c) => s + c.amount, 0)
 
-// Behaviour-engine outputs
+// Behaviour-engine outputs.
+//
+// These mirror the derived-signal fields we asked IDBI for in the sandbox data spec
+// (docs/sandbox/data-requirements.html, group 07) — so the demo runs on exactly the shape
+// of feed we expect in Phase 2, and swapping mock for real is a data-source change only.
 export const insights = {
   avgMonthlySurplus: 18400, // income - spend - existing commitments, 6-mo avg
   idleBalance: 92000, // sits in savings a/c earning 3% for 4+ months
+  idleMonths: 4, // how long it has sat there
   fdMaturingDays: 12,
   fdAmount: 200000,
   existingSip: 5000,
+  daysSinceSalary: 1, // salary landed yesterday — drives the payday register
+  emergencyFundMonths: 1.9, // idle balance / monthly spend
+  dependents: 2,
+  hasTermCover: false, // the protection gap
+  hasHighInterestDebt: false,
+  missedEmi: false,
+  savingsAccountRate: 0.03,
+  inflationRate: 0.06,
 }
 
 export const nudges = [
