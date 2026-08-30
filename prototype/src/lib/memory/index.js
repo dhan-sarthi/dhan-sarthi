@@ -1,81 +1,65 @@
-// Dhan Sarthi's memory — public interface.
+// Memory, from the client's side: a thin API client.
 //
-//   remember(customerId, transcript)  after a conversation ends
-//   recall(customerId, query, opts)   before the next one starts
-//   forget / forgetAll                because consent has to be revocable to be real
+// The pipeline itself — extraction, safeguards, embedding, ranking — lives on the server
+// (server/src/memory.js). It moved there because a bank's memory of a customer has to be
+// auditable and revocable, and neither is true of a store that lives in the browser.
 //
-// Everything degrades to "no memory" rather than throwing. A failed embedding call must
-// never take down a voice session mid-demo.
+// Every call degrades to "no memory" rather than throwing. A failed request must never take
+// down a live voice session.
 
-import * as store from './store.js'
-import { extractMemory, embed } from './extract.js'
+const API = import.meta.env?.VITE_API_URL || ''
 
-const uid = () =>
-  (globalThis.crypto?.randomUUID?.() ?? `m_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`)
+async function post(path, body) {
+  const res = await fetch(`${API}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`${path} ${res.status}`)
+  return res.json()
+}
 
-/**
- * Process a finished conversation and store what matters.
- * Returns the stored memory, or null when there was nothing worth keeping.
- */
-export async function remember(customerId, transcript, { signal } = {}) {
+/** Process a finished conversation. Returns the stored memory, or null if nothing was kept. */
+export async function remember(customerId, transcript) {
   try {
-    const extracted = await extractMemory(transcript, { signal })
-    if (!extracted) return null
-
-    // Embed summary plus topics and felt tone together — Cleo's approach, and it means a
-    // later query about anxiety surfaces the anxious conversation even when the words differ.
-    const embedding = await embed(
-      `${extracted.summary}\nTopics: ${extracted.topics.join(', ')}\nFeeling: ${extracted.emotionalTone}`,
-      { signal },
-    )
-
-    const memory = {
-      id: uid(),
-      customerId,
-      text: extracted.summary,
-      topics: extracted.topics,
-      emotionalTone: extracted.emotionalTone,
-      commitment: extracted.commitment,
-      embedding,
-      createdAt: Date.now(),
-    }
-    await store.put(memory)
-    return memory
+    const r = await post('/api/memory/remember', { customerId, transcript })
+    if (!r.stored) console.info('[memory] not stored —', r.reason)
+    return r.stored ? r : null
   } catch (err) {
     console.warn('[memory] remember failed, continuing without:', err.message)
     return null
   }
 }
 
-/**
- * Retrieve the memories most worth having in mind for what is being discussed now.
- * Safe to call before every session; returns [] on any failure.
- */
-export async function recall(customerId, query, { topics = [], limit = 5, signal } = {}) {
+/** Memories worth having in mind for what is being discussed now. Safe to call every session. */
+export async function recall(customerId, query, { topics = [], limit = 5 } = {}) {
   try {
-    const memories = await store.all(customerId)
-    if (!memories.length) return []
-    const queryEmbedding = await embed(query, { signal })
-    return store.rank(memories, queryEmbedding, { topics, limit })
+    const { memories } = await post('/api/memory/recall', { customerId, query, topics, limit })
+    return memories || []
   } catch (err) {
     console.warn('[memory] recall failed, continuing without:', err.message)
     return []
   }
 }
 
-/** Open commitments, newest first — what the future self follows up on. */
-export async function openCommitments(customerId) {
-  try {
-    const memories = await store.all(customerId)
-    return memories
-      .filter((m) => m.commitment?.what)
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .map((m) => ({ ...m.commitment, since: m.createdAt, whenLabel: store.whenLabel(m.createdAt) }))
-  } catch {
-    return []
-  }
+async function get(customerId) {
+  const res = await fetch(`${API}/api/memory/${encodeURIComponent(customerId)}`)
+  if (!res.ok) throw new Error(`memory ${res.status}`)
+  return res.json()
 }
 
-export const forget = store.remove
-export const forgetAll = store.clear
-export const listMemories = store.all
+export async function openCommitments(customerId) {
+  try { return (await get(customerId)).commitments || [] } catch { return [] }
+}
+
+export async function listMemories(customerId) {
+  try { return (await get(customerId)).memories || [] } catch { return [] }
+}
+
+/** Consent revocation. Actually deletes. */
+export async function forgetAll(customerId) {
+  try {
+    const res = await fetch(`${API}/api/memory/${encodeURIComponent(customerId)}`, { method: 'DELETE' })
+    return res.ok ? res.json() : { deleted: 0 }
+  } catch { return { deleted: 0 } }
+}

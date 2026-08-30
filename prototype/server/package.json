@@ -1,0 +1,15 @@
+{
+  "name": "dhan-sarthi-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "migrate": "node src/migrate.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "pg": "^8.13.1",
+    "pino-pretty": "^13.1.3"
+  }
+}
