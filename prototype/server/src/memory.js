@@ -29,6 +29,20 @@ const IDENTIFIER_PATTERNS = [
   /\b(otp|password|pin)\b/i,
 ]
 
+// A second line of defence, scanning the summary itself.
+//
+// Topic matching alone is not enough: the model invents its own topic labels, and a real
+// conversation about a diabetes diagnosis came back tagged "medical-expenses" rather than
+// "medical" and was stored. The block-list must catch what the model calls things, not what
+// we hoped it would call them.
+const SENSITIVE_TERMS = [
+  'diabet', 'cancer', 'surgery', 'treatment', 'diagnos', 'illness', 'disease', 'hospital',
+  'medic', 'health condition', 'disabil', 'pregnan', 'therapy', 'psychiatr', 'depress',
+  'caste', 'religio', 'temple', 'mosque', 'church',
+  'divorce', 'sexual', 'orientation',
+  'arrest', 'lawsuit', 'litigation', 'convict',
+]
+
 export function redact(text = '') {
   return String(text)
     .replace(/\b\d{12}\b/g, '[id]')
@@ -36,9 +50,26 @@ export function redact(text = '') {
     .replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, '[card]')
 }
 
+/**
+ * Does a model-generated topic label touch a blocked category?
+ *
+ * Substring matching in both directions, because the model will return "medical-expenses"
+ * for a blocked category and "sip" for a permitted one, and only one of those should match
+ * anything. Exact equality is not a defence.
+ */
+function topicIsBlocked(topic) {
+  const t = String(topic).toLowerCase()
+  return NEVER_REMEMBER.some((blocked) => t.includes(blocked) || blocked.includes(t))
+}
+
 export function isSafeToStore({ topics = [], summary = '' } = {}) {
-  const blocked = topics.map((t) => String(t).toLowerCase()).filter((t) => NEVER_REMEMBER.includes(t))
+  const blocked = topics.filter(topicIsBlocked)
   if (blocked.length) return { safe: false, reason: `blocked topic: ${blocked.join(', ')}` }
+
+  const text = String(summary).toLowerCase()
+  const term = SENSITIVE_TERMS.find((t) => text.includes(t))
+  if (term) return { safe: false, reason: `summary mentions a sensitive subject ("${term}")` }
+
   if (IDENTIFIER_PATTERNS.some((re) => re.test(summary))) {
     return { safe: false, reason: 'summary contains identifier-like text' }
   }

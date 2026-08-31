@@ -54,19 +54,29 @@ export default {
       investedAmount: 200000, currentValue: 200000, sipActive: false, maturityDate: '2026-09-11', interestRate: 7.1 },
   ],
 
+  // Fields here are what the suitability gate reads: riskometer band, lock-in, whether the
+  // product bundles protection with investment, and the monthly ticket.
   productShelf: [
     { productId: 'IDBI_MF_00184', name: 'Nifty 50 Index Fund', category: 'Index Fund',
-      riskometer: 'Very High', minInvestment: 500, expenseRatio: 0.20, planType: 'Direct', transactable: true },
+      riskometer: 'Very High', minInvestment: 500, expenseRatio: 0.20, planType: 'Direct',
+      lockInYears: 0, transactable: true },
     { productId: 'IDBI_MF_00231', name: 'Short Duration Debt Fund', category: 'Debt',
-      riskometer: 'Moderate', minInvestment: 1000, expenseRatio: 0.35, planType: 'Direct', transactable: true },
+      riskometer: 'Moderate', minInvestment: 1000, expenseRatio: 0.35, planType: 'Direct',
+      lockInYears: 0, transactable: true },
     { productId: 'IDBI_MF_00412', name: 'Liquid Fund', category: 'Liquid',
-      riskometer: 'Low to Moderate', minInvestment: 500, expenseRatio: 0.15, planType: 'Direct', transactable: true },
+      riskometer: 'Low to Moderate', minInvestment: 500, expenseRatio: 0.15, planType: 'Direct',
+      lockInYears: 0, transactable: true },
+    { productId: 'IDBI_ELSS_0077', name: 'ELSS Tax Saver Fund', category: 'ELSS',
+      riskometer: 'Very High', minInvestment: 500, expenseRatio: 0.85, planType: 'Direct',
+      lockInYears: 3, transactable: true },
     { productId: 'LIC_TERM_0021', name: 'LIC Term Assurance, 1 Cr cover', category: 'Term Insurance',
-      riskometer: 'Not applicable', minInvestment: 850, insuranceProduct: true, transactable: true },
+      riskometer: 'Low', minInvestment: 850, insuranceProduct: true,
+      lockInYears: 0, transactable: true },
+    // On the shelf precisely so the advisor can refuse it. A product list containing only
+    // suitable products cannot demonstrate suitability.
     { productId: 'LIC_ULIP_0088', name: 'LIC Market Plus ULIP', category: 'ULIP',
-      riskometer: 'High', minInvestment: 2500, expenseRatio: 2.25, insuranceProduct: true, transactable: true,
-      // Present precisely so the advisor can refuse it. A shelf without unsuitable products
-      // on it cannot demonstrate suitability.
+      riskometer: 'High', minInvestment: 2500, expenseRatio: 2.25, insuranceProduct: true,
+      lockInYears: 5, bundlesProtectionAndInvestment: true, transactable: true,
       note: 'Bundled cover and investment. Five-year lock-in.' },
   ],
 }
