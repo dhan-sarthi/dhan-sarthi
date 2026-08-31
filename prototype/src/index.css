@@ -1,3 +1,4 @@
+@import "./styles/fonts.css";
 @import "./styles/tokens.css";
 @import "./styles/chat.css";
 
@@ -23,7 +24,7 @@
   --ink-3: #928d7d;
   --hairline: #e5e0d0;
 
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-display: var(--font);
 
   /* chart series (validated reference palette, fixed order) */
   --series-1: #2a78d6;
@@ -38,13 +39,14 @@
   --warning: #fab219;
   --critical: #d03b3b;
 
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
+  font-family: var(--font);
   background:
     radial-gradient(900px 500px at 12% 108%, rgba(240, 130, 30, 0.14) 0%, transparent 60%),
     radial-gradient(1200px 800px at 70% -10%, #10352d 0%, #0a1f1a 55%, #071512 100%);
@@ -351,7 +353,7 @@ input[type="range"]::-moz-range-thumb {
 
 /* stat units + pinch styling */
 .stat .v .unit {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-style: normal;
+  font-family: var(--font); font-style: normal;
   font-size: 10.5px; font-weight: 600; color: var(--ink-3); margin-left: 4px; letter-spacing: 0;
 }
 .stat .v.pinch { color: var(--ink-2); }

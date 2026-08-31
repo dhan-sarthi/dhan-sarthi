@@ -91,7 +91,11 @@ export default function Register() {
       </div>
 
       {records === null ? (
-        <div className="ds-empty"><p>Loading the register…</p></div>
+        <div className="skeleton" aria-busy="true" aria-label="Loading the register">
+          <div className="sk block" style={{ height: 110 }} />
+          <div className="sk block" style={{ height: 110 }} />
+          <div className="sk block" style={{ height: 110 }} />
+        </div>
       ) : records.length === 0 ? (
         <div className="ds-empty">
           <p>Nothing recorded yet. Ask your adviser about a product and the decision will appear here.</p>

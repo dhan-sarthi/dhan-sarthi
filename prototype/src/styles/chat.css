@@ -569,3 +569,43 @@
 
 /* A single action with a long label must wrap rather than run off the card. */
 .ds-actions .ds-btn { white-space: normal; text-wrap: balance; line-height: 1.25; }
+
+/* ---- typography and state polish ------------------------------------ */
+
+/* Manrope sets tight by default; body copy wants a touch back. */
+.bubble, .ds-sub, .ds-why, .nudge .tx, .screen-head .note { letter-spacing: .003em; }
+
+/* Every figure in this interface is money, so digits align by default. */
+.ds-figure, .hero .big, .record .stamp, .barlist .val, .kv dd, .ds-value,
+.stat .v, .figure { font-variant-numeric: tabular-nums; }
+
+/* A long primary label was wrapping while the secondary sat on one line, so the pair looked
+   broken. The primary now claims the room it needs. */
+.ds-actions .ds-btn-primary { flex: 1.6 1 0; }
+.ds-actions .ds-btn-quiet { flex: 1 1 0; }
+
+/* Inactive tabs were too faint to scan. */
+.tabbar button { color: var(--ink-2) !important; }
+
+/* Shadows carry the ground's hue rather than generic black. */
+.mic { box-shadow: 0 4px 14px -4px rgba(6, 47, 42, .45); }
+
+/* Radius varies by depth: softer on the container, tighter on things inside it. */
+.ds-card .ds-btn, .record .ds-btn { border-radius: var(--r-pill); }
+.avatar-slot, .nudge .ic { border-radius: var(--r-sm); }
+
+/* ---- loading, as a skeleton rather than a sentence ------------------- */
+.skeleton {
+  display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4);
+}
+.sk {
+  background: linear-gradient(90deg, var(--surface-sunk) 25%,
+    color-mix(in srgb, var(--surface-sunk) 55%, var(--surface)) 50%, var(--surface-sunk) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--r-md);
+  animation: shimmer 1.4s var(--ease) infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+.sk.line { height: 14px }
+.sk.line.short { width: 45% }
+.sk.block { height: 150px; border-radius: var(--r-lg) }

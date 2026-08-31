@@ -48,7 +48,7 @@
   --blocked:       #9B2A20;
   --watch:         #7E5F12;
 
-  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   /* Type scale with real contrast. The gap between a label and a figure is the whole effect. */

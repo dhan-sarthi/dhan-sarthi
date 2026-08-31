@@ -25,8 +25,17 @@ function Icon({ d }) {
 }
 
 export default function Dashboard({ snapshot, onToast, goPlan }) {
+  // A skeleton shaped like the screen it precedes, rather than a spinner or a sentence.
   if (!snapshot) {
-    return <div className="body"><div className="ds-empty"><p>Loading your accounts…</p></div></div>
+    return (
+      <div className="body">
+        <div className="skeleton" aria-busy="true" aria-label="Loading your accounts">
+          <div className="sk block" />
+          <div className="sk line short" />
+          <div className="sk block" style={{ height: 180 }} />
+        </div>
+      </div>
+    )
   }
 
   const d = snapshot.derived
