@@ -351,8 +351,8 @@
 /* The conversation supplies its own header, so the app chrome steps aside on this tab.
    Two stacked titles reading "Dhan Sarthi" is the kind of detail that makes a prototype
    look like a prototype. */
-.screen.on-chat > .appbar { display: none; }
-.screen.on-chat > .tabbar { border-top: 1px solid var(--line); }
+.screen.own-head > .appbar { display: none; }
+.screen.own-head > .tabbar { border-top: 1px solid var(--line); }
 
 
 /* No floating voice button. The microphone lives in the composer where the conversation is,
@@ -609,3 +609,143 @@
 .sk.line { height: 14px }
 .sk.line.short { width: 45% }
 .sk.block { height: 150px; border-radius: var(--r-lg) }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Chime-derived structure
+   ══════════════════════════════════════════════════════════════════════
+   Three moves carry their look, and none of them is the colour:
+
+   1. A deep forest header that content overlaps, so the fold is a soft edge rather
+      than a hard rule.
+   2. Buttons filled with the bright green and text in near-black green — not white
+      on green. It reads as confident rather than shouty.
+   3. Cards as plain white on a light ground, radius ~22px, and no borders at all.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ---- 1. the forest header -------------------------------------------- */
+.chat-head, .screen-head {
+  background: var(--forest) !important;
+  padding-bottom: var(--s7) !important;
+  position: relative; z-index: 1;
+}
+.chat-head .name, .screen-head h2 { color: #fff !important; }
+.chat-head .state { color: color-mix(in srgb, var(--mint) 78%, transparent) !important; }
+.chat-head .state .dot { background: var(--green) !important; }
+.screen-head .note { color: color-mix(in srgb, var(--mint) 72%, transparent) !important; }
+.avatar-slot { background: color-mix(in srgb, #fff 14%, transparent) !important; }
+.avatar-slot .initial { color: var(--mint) !important; }
+
+/* Content rises over the header's lower edge. This single overlap is most of why
+   their home screen feels designed rather than stacked. */
+.thread, .register-list, .body {
+  margin-top: calc(var(--s6) * -1);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--ground);
+  position: relative; z-index: 2;
+  padding-top: var(--s5) !important;
+}
+
+/* ---- 2. buttons ------------------------------------------------------ */
+.ds-btn-primary {
+  background: var(--green) !important;
+  color: var(--forest-deep) !important;
+  font-weight: 640 !important;
+}
+.ds-btn-primary:hover { background: var(--green-bright) !important; }
+.ds-btn-quiet {
+  background: #fff !important; color: var(--ink) !important;
+  border-color: transparent !important;
+}
+.ds-btn-quiet:hover { background: var(--surface-sunk) !important; }
+
+.mic { background: var(--green) !important; color: var(--forest-deep) !important; }
+.mic:hover { background: var(--green-bright) !important; }
+.mic.live { background: var(--blocked) !important; color: #fff !important; }
+
+/* ---- 3. cards -------------------------------------------------------- */
+.ds-card {
+  background: #fff !important; color: var(--ink) !important;
+  border-radius: var(--r-lg) !important;
+}
+.ds-card.money-block { background: var(--mint) !important; color: var(--block-mint-ink) !important; }
+.from-sarthi .bubble { background: #fff; color: var(--ink); }
+.from-you .bubble { background: var(--forest); color: #fff; }
+
+.ds-verdict.pass    { background: var(--mint) !important;      color: var(--block-mint-ink) !important; }
+.ds-verdict.blocked { background: var(--block-clay) !important; color: var(--block-clay-ink) !important; }
+
+.record.pass    { background: #fff !important; color: var(--ink) !important; }
+.record.blocked { background: var(--block-clay) !important; color: var(--block-clay-ink) !important; }
+.retention { background: var(--mint) !important; color: var(--block-mint-ink) !important; }
+
+/* Money's hero takes the "Available" treatment — forest field, white figure. */
+.hero {
+  background: var(--forest) !important; color: #fff !important;
+}
+.hero .label { color: color-mix(in srgb, var(--mint) 76%, transparent) !important; }
+.hero .big { color: #fff !important; }
+.hero .sub {
+  color: color-mix(in srgb, #fff 84%, transparent) !important;
+  border-top-color: color-mix(in srgb, #fff 18%, transparent) !important;
+}
+.hero .sub b { color: var(--green) !important; }
+
+/* ---- chrome ---------------------------------------------------------- */
+.composer { background: var(--ground); }
+.composer input { background: #fff; }
+.ds-chip { background: #fff; }
+.ds-chip:hover { background: var(--mint); color: var(--block-mint-ink); }
+.card { background: #fff !important; }
+.nudge .ic { background: var(--mint) !important; color: var(--block-mint-ink) !important; }
+.nudge .act button { color: var(--green-mid) !important; }
+.barlist .fill { background: var(--green-mid) !important; }
+.tabbar button.active {
+  background: var(--mint) !important; color: var(--forest-deep) !important;
+}
+.chat, .register, .body, .screen { background: var(--ground); }
+
+/* ---- spacing correction for Plus Jakarta Sans ------------------------ */
+/* PJS sets considerably tighter than Manrope, and at these sizes the word gaps closed up
+ * enough that "months of" read as one word. Negative tracking stays on the big display
+ * figures, where it belongs, and comes off everything meant to be read as a sentence. */
+body, .bubble, .ds-sub, .ds-why, .nudge .tx, .screen-head .note, .ds-chip,
+.composer input, .ds-btn, .tabbar button, .kv dd, .barlist .name, .disclaimer,
+.record .ds-why, .ds-basis li, .ds-verdict .reason {
+  letter-spacing: .01em;
+  word-spacing: .055em;
+}
+
+/* Labels and small caps want a little more air, not less. */
+.ds-card-head, .hero .label, .h-section, .ds-verdict .tag, .kv dt, .record .stamp {
+  letter-spacing: .02em;
+  word-spacing: .06em;
+}
+
+/* Tight tracking is for the figures and the titles only. */
+.ds-figure, .hero .big { letter-spacing: -.035em; word-spacing: normal; }
+.chat-head .name, .screen-head h2, .ds-verdict .product, .record .rec {
+  letter-spacing: -.025em; word-spacing: .02em;
+}
+
+/* The disclosure strip was reading as a separate lighter panel inside the card. */
+.ds-basis { background: transparent; }
+.ds-card > .ds-basis:last-child { border-bottom-left-radius: var(--r-lg); border-bottom-right-radius: var(--r-lg); }
+
+/* ---- app header ------------------------------------------------------ */
+/* The overlap only reads as designed if what sits above it is the forest field. On the tabs
+ * that keep the app header, it was a pale bar being half-covered by the content rising over
+ * it, which just looks like a z-index mistake. */
+.appbar {
+  background: var(--forest) !important;
+  padding: 38px 18px var(--s7) !important;
+  position: relative; z-index: 1;
+}
+.appbar .t1 { color: #fff !important; font-weight: 620; letter-spacing: -.015em; }
+.appbar .t2 { color: color-mix(in srgb, var(--mint) 72%, transparent) !important; }
+.appbar .bank-mark {
+  background: color-mix(in srgb, #fff 14%, transparent) !important;
+  color: var(--mint) !important; border-radius: var(--r-sm) !important;
+}
+
+/* The phone's own chrome should match, so the notch does not sit on a pale strip. */
+.screen { background: var(--forest); }

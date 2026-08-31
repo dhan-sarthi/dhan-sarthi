@@ -190,7 +190,7 @@ export default function App() {
       </div>
 
       <div className="phone">
-        <div className={`screen${phase === 'app' && tab === 'chat' ? ' on-chat' : ''}`}>
+        <div className={`screen${phase === 'app' && (tab === 'chat' || tab === 'record') ? ' own-head' : ''}`}>
           <div className="appbar">
             <div className="bank-mark">DS</div>
             <div className="titles">
