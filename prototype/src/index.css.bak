@@ -1,6 +1,3 @@
-@import "./styles/tokens.css";
-@import "./styles/chat.css";
-
 /* ============ Dhan Sarthi design tokens ============ */
 :root {
   /* IDBI-adjacent brand: deep teal + amber accent */

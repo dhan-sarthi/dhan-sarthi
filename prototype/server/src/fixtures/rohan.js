@@ -20,8 +20,12 @@ export default {
   },
 
   accounts: [
-    { accountNumberMasked: 'XXXXXX7412', accountType: 'Savings', currentBalance: 150000,
-      avgMonthlyBalance3m: 138400, avgMonthlyBalance12m: 121000, minBalance12m: 18400,
+    // Balance sized so the emergency buffer clears three months (3.3x monthly outflow).
+    // Below that floor the suitability gate correctly refuses any locked-in product — which
+    // is right, but it means the bundled-protection rule never gets reached. Fixing the
+    // persona is the honest fix; reordering the rules to suit a demo is not.
+    { accountNumberMasked: 'XXXXXX7412', accountType: 'Savings', currentBalance: 172000,
+      avgMonthlyBalance3m: 158400, avgMonthlyBalance12m: 141000, minBalance12m: 18400,
       accountOpeningDate: '2016-11-08' },
     { accountNumberMasked: 'XXXXXX9930', accountType: 'FD', currentBalance: 200000,
       maturityDate: '2026-09-11', interestRate: 7.1 },

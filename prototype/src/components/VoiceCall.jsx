@@ -50,6 +50,7 @@ export default function VoiceCall({
   toolHandler,
   onClose,
   customerId = 'demo-rohan',
+  onLevel,
   language = 'en-IN',
   facts = [],
   toneSignals = {},
@@ -109,7 +110,7 @@ export default function VoiceCall({
         tools: voiceTools,
         toolHandler,
         onStatus: (s) => !cancelled && setStatus(s),
-        onLevel: (v) => { levelRef.current = v },
+        onLevel: (v) => { levelRef.current = v; onLevel?.(v) },
         onCaption: (text, isFinal) => {
           if (cancelled) return
           if (isFinal) {

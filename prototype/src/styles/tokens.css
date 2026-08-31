@@ -1,0 +1,75 @@
+/* Dhan Sarthi — design tokens.
+ *
+ * The product sits inside IDBI GO Mobile+, so it should look like it belongs there without
+ * being a pastiche: IDBI's teal as the primary, a restrained gold reserved strictly for money,
+ * and a warm paper ground rather than clinical fintech white. The warmth does real work — this
+ * is a conversation about someone's life savings, not a dashboard.
+ */
+
+:root {
+  /* Ground and surfaces — warm neutrals, never pure white */
+  --ground:         #F6F5F2;
+  --surface:        #FFFFFF;
+  --surface-sunk:   #EFEEEA;
+
+  /* Ink — near-black carries a teal bias so text sits in the brand's family */
+  --ink:            #131C1A;
+  --ink-2:          #3D4B48;
+  --ink-3:          #6B7975;
+  --ink-inverse:    #FFFFFF;
+
+  --line:           #E3E1DB;
+  --line-strong:    #CFCCC4;
+
+  /* Primary — IDBI-adjacent teal, deepened for contrast on paper */
+  --primary:        #0C5B52;
+  --primary-hover:  #0A4C45;
+  --primary-tint:   #E4EFED;
+  --primary-ink:    #073D37;
+
+  /* Gold. Money only. Never decoration, never a third UI colour. */
+  --gold:           #9A6B1F;
+  --gold-tint:      #F6EFE1;
+
+  /* Semantic — deliberately outside the brand family, so a verdict never reads as branding */
+  --pass:           #1B6B4F;
+  --pass-tint:      #E6F1EC;
+  --blocked:        #A32B22;
+  --blocked-tint:   #FAEAE8;
+  --watch:          #8A6A18;
+  --watch-tint:     #F7F0DC;
+
+  /* Type. System stack: instant, no CDN, nothing to fail in a live demo. */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --t-display: 28px;
+  --t-title:   20px;
+  --t-lead:    17px;
+  --t-body:    15.5px;
+  --t-sm:      13.5px;
+  --t-xs:      12px;
+  --t-micro:   10.5px;
+
+  /* Spacing — 4px rhythm, named so layouts stay on it */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
+
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 999px;
+
+  /* Elevation — low and warm. Banking apps that float everything look like toys. */
+  --e1: 0 1px 2px rgba(19,28,26,.05);
+  --e2: 0 1px 3px rgba(19,28,26,.06), 0 6px 16px -10px rgba(19,28,26,.18);
+  --e3: 0 2px 6px rgba(19,28,26,.08), 0 18px 40px -24px rgba(19,28,26,.35);
+
+  --ease: cubic-bezier(.2, .7, .3, 1);
+  --fast: 140ms; --med: 240ms; --slow: 420ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

@@ -1,27 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
+import Chat from './screens/Chat.jsx'
 import Onboarding from './screens/Onboarding.jsx'
 import Dashboard from './screens/Dashboard.jsx'
 import Planner from './screens/Planner.jsx'
-import Advisor from './screens/Advisor.jsx'
 import VoiceCall from './components/VoiceCall.jsx'
 import {
   persona, spendCategories, spendTotal, insights, riskProfiles,
   sipFutureValue, corpusNeeded,
 } from './data.js'
 import { buildFacts, buildToneSignals } from './lib/facts.js'
+import { getSnapshot, evaluateAdvice } from './lib/api.js'
 import { openCommitments, listMemories } from './lib/memory/index.js'
 
 const CUSTOMER_ID = 'demo-rohan'
+const CIF = 'IDBI0009182731'
 
 const TABS = [
-  { id: 'home', label: 'Insights', icon: '◔' },
+  { id: 'chat', label: 'Adviser', icon: '◍' },
+  { id: 'home', label: 'Money', icon: '◔' },
   { id: 'future', label: 'Future Self', icon: '✦' },
-  { id: 'ask', label: 'Ask Sarthi', icon: '✉' },
 ]
 
 export default function App() {
   const [phase, setPhase] = useState('onboarding') // onboarding | app
-  const [tab, setTab] = useState('home')
+  const [tab, setTab] = useState('chat')
   const [riskProfile, setRiskProfile] = useState('Balanced')
   const [sip, setSip] = useState(5000)
   const [voiceOn, setVoiceOn] = useState(false)
@@ -31,6 +33,10 @@ export default function App() {
   // What he remembers from previous calls. Loaded once; drives whether this session opens as
   // a first meeting, and whether he notices a commitment was kept.
   const [past, setPast] = useState({ commitments: [], memoryCount: 0 })
+  // The one customer object every surface reads from. Loaded once; the advisor and the
+  // screens share it, so neither can show a number the other does not have.
+  const [snapshot, setSnapshot] = useState(null)
+  const [voiceLevel, setVoiceLevel] = useState(0)
 
   // live mirrors for the voice tool-handler (it runs outside React's render cycle)
   const live = useRef({ sip, riskProfile })
@@ -54,6 +60,14 @@ export default function App() {
   }
 
   useEffect(() => () => clearTimeout(toastTimer.current), [])
+
+  useEffect(() => {
+    let cancelled = false
+    getSnapshot(CIF)
+      .then((s) => { if (!cancelled) setSnapshot(s) })
+      .catch((err) => console.warn('[snapshot] unavailable:', err.message))
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -81,6 +95,23 @@ export default function App() {
   const toneSignals = buildToneSignals({
     insights, coverage, sip, commitments: past.commitments, memoryCount: past.memoryCount,
   })
+
+  /** Run a product through the gate. The advisor never decides suitability itself. */
+  const checkSuitability = async (productId, amount) => {
+    if (!snapshot) return null
+    try {
+      return await evaluateAdvice({
+        customerId: CUSTOMER_ID,
+        productId,
+        amount,
+        customer: { riskProfile },
+        facts: snapshot.derived,
+      })
+    } catch (err) {
+      console.warn('[suitability] unavailable:', err.message)
+      return null
+    }
+  }
 
   // ---- tools the live voice avatar can call ----
   const handleVoiceTool = async (name, args) => {
@@ -174,9 +205,17 @@ export default function App() {
             />
           ) : (
             <>
+              {tab === 'chat' && (
+                <Chat
+                  snapshot={snapshot}
+                  level={voiceLevel}
+                  speaking={inCall}
+                  onStartVoice={() => setInCall(true)}
+                  onEvaluate={checkSuitability}
+                />
+              )}
               {tab === 'home' && <Dashboard onToast={showToast} goPlan={() => setTab('future')} />}
               {tab === 'future' && <Planner riskProfile={riskProfile} sip={sip} setSip={setSip} onToast={showToast} />}
-              {tab === 'ask' && <Advisor speak={speak} onToast={showToast} />}
               <div className="tabbar">
                 {TABS.map((t) => (
                   <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
@@ -196,6 +235,7 @@ export default function App() {
 
           {inCall && (
             <VoiceCall
+              onLevel={setVoiceLevel}
               progress={progress}
               riskProfile={riskProfile}
               toolHandler={handleVoiceTool}

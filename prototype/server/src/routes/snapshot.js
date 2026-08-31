@@ -1,4 +1,5 @@
 import { bank, bankSource } from '../providers/bank.js'
+import { derive } from '../derive.js'
 
 export default async function snapshotRoutes(app) {
   // The single customer snapshot every surface reads from.
@@ -17,7 +18,10 @@ export default async function snapshotRoutes(app) {
         b.getHoldings(req.params.cif),
         b.getProductShelf(),
       ])
-      return { source: bankSource, customer, accounts, transactions, liabilities, holdings, productShelf }
+      const snapshot = { source: bankSource, customer, accounts, transactions, liabilities, holdings, productShelf }
+      // Derived signals travel with the snapshot so conversation and screens read one object.
+      snapshot.derived = derive(snapshot)
+      return snapshot
     } catch (err) {
       req.log.error({ err: err.message }, 'snapshot failed')
       return reply.code(502).send({ error: err.message })

@@ -1,0 +1,221 @@
+/* The conversation surface — the product.
+ *
+ * One thread, voice and text together. Everything the advisor says is a message; structured
+ * output (an insight, an action, a suitability verdict) is a message with a card inside it,
+ * not a separate panel. That is the difference between a chat bolted onto a dashboard and a
+ * product that is genuinely a conversation.
+ */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ground);
+  overflow: hidden;
+}
+
+/* ---- header ---------------------------------------------------------- */
+.chat-head {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.chat-head .who { min-width: 0; }
+.chat-head .name {
+  font-size: var(--t-body); font-weight: 620; color: var(--ink);
+  letter-spacing: -.01em; line-height: 1.2;
+}
+.chat-head .state {
+  font-size: var(--t-xs); color: var(--ink-3); margin-top: 1px;
+  display: flex; align-items: center; gap: 5px;
+}
+.chat-head .state .dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--pass);
+  flex: 0 0 auto;
+}
+.chat-head .state.thinking .dot { background: var(--watch); animation: pulse 1.4s var(--ease) infinite; }
+.chat-head .state.speaking .dot { background: var(--primary); animation: pulse .8s var(--ease) infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+
+/* The avatar slot. Deliberately a defined box: whatever goes in later — SVG, sprite,
+   generated face — drops in here without the layout moving. */
+.avatar-slot {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(160deg, var(--primary-tint), var(--surface-sunk));
+  border: 1px solid var(--line);
+  display: grid; place-items: center; flex: 0 0 auto;
+  overflow: hidden; position: relative;
+}
+.avatar-slot .initial {
+  font-size: var(--t-body); font-weight: 600; color: var(--primary);
+  letter-spacing: -.02em;
+}
+.avatar-slot.lg { width: 56px; height: 56px; }
+/* Mouth-level audio drives this ring, so the head reads as speaking before we have a face. */
+.avatar-slot .ring {
+  position: absolute; inset: -3px; border-radius: 50%;
+  border: 2px solid var(--primary); opacity: 0;
+  transition: transform 90ms linear, opacity 90ms linear;
+}
+
+/* ---- thread ---------------------------------------------------------- */
+.thread {
+  flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--s4) var(--s4) var(--s6);
+  display: flex; flex-direction: column; gap: var(--s3);
+  scroll-behavior: smooth;
+}
+.thread::-webkit-scrollbar { width: 0; }
+
+.turn { display: flex; gap: var(--s2); max-width: 100%; animation: rise var(--med) var(--ease) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.turn.from-you { justify-content: flex-end; }
+
+.bubble {
+  max-width: 84%;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-lg);
+  font-size: var(--t-body); line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.from-sarthi .bubble {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: var(--s1);
+  box-shadow: var(--e1);
+}
+.from-you .bubble {
+  background: var(--primary);
+  color: var(--ink-inverse);
+  border-bottom-right-radius: var(--s1);
+}
+.bubble strong { font-weight: 620; }
+
+/* Spoken lines get a subtle marker so a judge can tell voice from typing at a glance. */
+.bubble .spoken-mark {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--t-micro); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 4px;
+}
+
+/* thinking */
+.thinking-dots { display: inline-flex; gap: 4px; padding: 2px 0; }
+.thinking-dots i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3);
+  animation: bob 1.1s var(--ease) infinite;
+}
+.thinking-dots i:nth-child(2) { animation-delay: .15s }
+.thinking-dots i:nth-child(3) { animation-delay: .3s }
+@keyframes bob { 0%,100% { transform: translateY(0); opacity: .4 } 50% { transform: translateY(-3px); opacity: 1 } }
+
+/* ---- cards inside the thread ----------------------------------------- */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--e1);
+  overflow: hidden; max-width: 92%;
+}
+.card-head {
+  padding: var(--s3) var(--s4) 0;
+  font-size: var(--t-micro); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.card-body { padding: var(--s3) var(--s4) var(--s4); }
+
+/* The money figure. Gold appears here and essentially nowhere else. */
+.figure {
+  font-size: var(--t-display); font-weight: 640; letter-spacing: -.025em;
+  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.05;
+}
+.figure .unit { font-size: var(--t-lead); font-weight: 560; color: var(--ink-2); margin-left: 2px; }
+.figure.money { color: var(--gold); }
+.sub { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s2); line-height: 1.45; }
+
+/* actions */
+.actions { display: flex; gap: var(--s2); padding: 0 var(--s4) var(--s4); flex-wrap: wrap; }
+.btn {
+  font: inherit; font-size: var(--t-sm); font-weight: 560;
+  padding: 9px 16px; border-radius: var(--r-pill); cursor: pointer;
+  border: 1px solid transparent; transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.btn-primary { background: var(--primary); color: var(--ink-inverse); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-quiet { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line); }
+.btn-quiet:hover { background: var(--line); }
+
+/* ---- the suitability verdict — our signature component ---------------- */
+.verdict { border-left: 3px solid var(--line-strong); }
+.verdict.pass    { border-left-color: var(--pass);    background: var(--pass-tint); }
+.verdict.blocked { border-left-color: var(--blocked); background: var(--blocked-tint); }
+.verdict .tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--t-micro); font-weight: 640; letter-spacing: .1em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: var(--r-pill);
+}
+.verdict.pass .tag    { background: var(--pass);    color: #fff; }
+.verdict.blocked .tag { background: var(--blocked); color: #fff; }
+.verdict .product { font-size: var(--t-body); font-weight: 600; color: var(--ink); margin-top: var(--s2); }
+.verdict .reason  { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s1); line-height: 1.5; }
+
+/* ---- "why this advice" ------------------------------------------------ */
+.basis { border-top: 1px solid var(--line); background: var(--surface-sunk); }
+.basis summary {
+  list-style: none; cursor: pointer; padding: var(--s3) var(--s4);
+  font-size: var(--t-xs); font-weight: 560; color: var(--primary);
+  display: flex; align-items: center; gap: 6px;
+}
+.basis summary::-webkit-details-marker { display: none }
+.basis summary::after { content: '›'; margin-left: auto; transition: transform var(--fast) var(--ease); }
+.basis[open] summary::after { transform: rotate(90deg); }
+.basis ul { margin: 0; padding: 0 var(--s4) var(--s4) calc(var(--s4) + 14px); }
+.basis li {
+  font-size: var(--t-xs); color: var(--ink-2); line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- composer --------------------------------------------------------- */
+.composer {
+  flex: 0 0 auto; display: flex; align-items: flex-end; gap: var(--s2);
+  padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.composer input {
+  flex: 1 1 auto; min-width: 0; font: inherit; font-size: var(--t-body);
+  padding: 11px var(--s4); border-radius: var(--r-pill);
+  border: 1px solid var(--line); background: var(--ground); color: var(--ink);
+  transition: border-color var(--fast) var(--ease);
+}
+.composer input:focus { outline: none; border-color: var(--primary); }
+.composer input::placeholder { color: var(--ink-3); }
+
+.mic {
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--primary); color: #fff; border: none; cursor: pointer;
+  display: grid; place-items: center;
+  transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
+  box-shadow: var(--e2);
+}
+.mic:hover { background: var(--primary-hover); }
+.mic:active { transform: scale(.94); }
+.mic:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.mic.live { background: var(--blocked); }
+.mic.live::before {
+  content: ''; position: absolute; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid var(--blocked); animation: halo 1.6s var(--ease) infinite;
+}
+@keyframes halo { 0% { transform: scale(1); opacity: .7 } 100% { transform: scale(1.7); opacity: 0 } }
+
+/* ---- prompt chips ----------------------------------------------------- */
+.chips { display: flex; gap: var(--s2); flex-wrap: wrap; padding: 0 var(--s4) var(--s3); }
+.chip {
+  font: inherit; font-size: var(--t-sm); padding: 8px 14px;
+  border-radius: var(--r-pill); border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink-2); cursor: pointer;
+  transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.chip:hover { border-color: var(--primary); color: var(--primary); }
+.chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
