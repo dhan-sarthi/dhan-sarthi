@@ -1,4 +1,5 @@
 import { formatINR } from '../data.js'
+import Icon from '../components/Icon.jsx'
 
 /**
  * Money — the 360° view.
@@ -8,21 +9,6 @@ import { formatINR } from '../data.js'
  * screen read its own hardcoded constants and quoted ₹18,400 idle while the adviser said
  * ₹1.7 lakh; two numbers for the same thing is the fastest way to lose a room.
  */
-
-const NUDGE_ICONS = {
-  idle: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
-  maturity: 'M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2Zm1 5v5.6l4 2.37-.9 1.5L11 13.5V7h2Z',
-  cover: 'M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3Zm0 2.2 6 2.2V11c0 4-2.5 7.5-6 9-3.5-1.5-6-5-6-9V6.4l6-2.2Z',
-}
-
-function Icon({ d }) {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-         strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
-  )
-}
 
 export default function Dashboard({ snapshot, onToast, goPlan }) {
   // A skeleton shaped like the screen it precedes, rather than a spinner or a sentence.
@@ -50,19 +36,19 @@ export default function Dashboard({ snapshot, onToast, goPlan }) {
   // that justified it disappearing.
   const nudges = [
     d.idleBalance > 0 && {
-      key: 'idle', icon: NUDGE_ICONS.idle,
+      key: 'idle', icon: 'idle',
       title: 'Money sitting still.',
       text: `${formatINR(d.idleBalance)} has been in your savings account earning ${(d.savingsRate * 100).toFixed(0)}% while prices rise ${(d.inflation * 100).toFixed(0)}%. That gap costs about ${formatINR(d.idleCostPerYear)} a year.`,
       action: 'Set up an auto-sweep SIP',
     },
     fdDays !== null && fdDays <= 30 && {
-      key: 'fd', icon: NUDGE_ICONS.maturity,
+      key: 'fd', icon: 'maturity',
       title: `Your ${formatINR(fd.currentBalance)} deposit matures in ${fdDays} days.`,
       text: `Renewing all of it at ${fd.interestRate}% may be too conservative for a goal thirty years out — though some of it should stay exactly where it is.`,
       action: 'See a suitable split',
     },
     !d.hasTermCover && d.dependents > 0 && {
-      key: 'cover', icon: NUDGE_ICONS.cover,
+      key: 'cover', icon: 'cover',
       title: 'No life cover on record.',
       text: `With ${d.dependents} people depending on you, protection comes before investment. A ₹1 crore term policy is about ₹850 a month at your age.`,
       action: 'Get a quote via LIC',
@@ -102,7 +88,7 @@ export default function Dashboard({ snapshot, onToast, goPlan }) {
       <div className="h-section">Sarthi noticed</div>
       {nudges.map((n) => (
         <div className="card nudge" key={n.key}>
-          <div className="ic"><Icon d={n.icon} /></div>
+          <div className="ic"><Icon name={n.icon} size={20} /></div>
           <div>
             <div className="tx"><b>{n.title}</b> {n.text}</div>
             <div className="act">

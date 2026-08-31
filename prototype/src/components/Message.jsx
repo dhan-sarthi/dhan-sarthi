@@ -1,4 +1,5 @@
 import { formatINR } from '../data.js'
+import Icon from './Icon.jsx'
 
 /**
  * One turn in the conversation.
@@ -91,9 +92,7 @@ export default function Message({ msg, onAction }) {
       <div className="bubble">
         {msg.spoken && !mine && (
           <span className="spoken-mark">
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Zm7 9a7 7 0 0 1-6 6.93V21h-2v-3.07A7 7 0 0 1 5 11h2a5 5 0 0 0 10 0h2Z" />
-            </svg>
+            <Icon name="mic" size={11} />
             spoken
           </span>
         )}

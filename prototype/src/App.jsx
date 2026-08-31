@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Chat from './screens/Chat.jsx'
 import Register from './screens/Register.jsx'
-import TabIcon from './components/TabIcon.jsx'
+import Icon from './components/Icon.jsx'
 import Onboarding from './screens/Onboarding.jsx'
 import Dashboard from './screens/Dashboard.jsx'
 import Planner from './screens/Planner.jsx'
@@ -18,7 +18,7 @@ const CUSTOMER_ID = 'demo-rohan'
 const CIF = 'IDBI0009182731'
 
 const TABS = [
-  { id: 'chat', label: 'Adviser', icon: 'chat' },
+  { id: 'chat', label: 'Adviser', icon: 'adviser' },
   { id: 'home', label: 'Money', icon: 'money' },
   { id: 'future', label: 'Future Self', icon: 'future' },
   { id: 'record', label: 'Record', icon: 'record' },
@@ -222,7 +222,7 @@ export default function App() {
               <div className="tabbar">
                 {TABS.map((t) => (
                   <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-                    <TabIcon name={t.icon} />
+                    <Icon name={t.icon} size={22} filled={tab === t.id} />
                     {t.label}
                   </button>
                 ))}

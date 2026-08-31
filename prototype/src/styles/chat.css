@@ -749,3 +749,24 @@ body, .bubble, .ds-sub, .ds-why, .nudge .tx, .screen-head .note, .ds-chip,
 
 /* The phone's own chrome should match, so the notch does not sit on a pale strip. */
 .screen { background: var(--forest); }
+
+/* ---- mint, used sparingly -------------------------------------------- */
+/* A mint card immediately beneath the forest header put two greens of similar value next to
+ * each other and the screen flattened. Chime never does this: their mint promo sits on white
+ * ground well below the forest, with a white card between them.
+ *
+ * So insight cards are white, the figure carries the green, and a full mint fill is reserved
+ * for the passing verdict — where the colour is saying something rather than decorating. */
+.ds-card.money-block { background: #fff !important; color: var(--ink) !important; }
+.ds-card.money-block .ds-figure { color: var(--forest) !important; }
+.ds-card.money-block .ds-card-head {
+  display: inline-block;
+  background: var(--mint); color: var(--block-mint-ink);
+  padding: 5px 11px; border-radius: var(--r-pill);
+  margin: var(--s5) var(--s5) 0; font-weight: 580;
+}
+.ds-card.money-block .ds-card-body { padding-top: var(--s3); }
+.ds-card.money-block .ds-sub { border-top-color: var(--line) !important; color: var(--ink-2) !important; }
+.ds-card.money-block .ds-btn-quiet {
+  background: var(--surface-sunk) !important; color: var(--ink) !important;
+}

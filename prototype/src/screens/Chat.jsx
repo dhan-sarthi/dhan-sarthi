@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Avatar from '../components/Avatar.jsx'
 import Message from '../components/Message.jsx'
+import Icon from '../components/Icon.jsx'
 import { formatINR } from '../data.js'
 
 /**
@@ -122,9 +123,7 @@ export default function Chat({ snapshot, level = 0, speaking = false, onStartVoi
           aria-label="Ask about your money"
         />
         <button type="button" className="mic" onClick={onStartVoice} aria-label="Talk to your adviser">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Zm7 9a7 7 0 0 1-6 6.93V21h-2v-3.07A7 7 0 0 1 5 11h2a5 5 0 0 0 10 0h2Z" />
-          </svg>
+          <Icon name="mic" size={21} />
         </button>
       </form>
     </div>
