@@ -44,7 +44,7 @@ export const insights = {
 
 export const nudges = [
   {
-    icon: '💰',
+    icon: '',
     text: '<b>Salary credited yesterday.</b> Based on 6 months of your spending, ₹18,400 of it will likely sit idle. Moving it on salary day is the easiest way to invest without feeling it.',
     action: 'Set up an auto-sweep SIP',
   },
@@ -54,7 +54,7 @@ export const nudges = [
     action: 'See a suitable split',
   },
   {
-    icon: '🛡️',
+    icon: '',
     text: 'You have <b>no term insurance</b> on record. Protection comes before investment — a ₹1 Cr LIC term cover costs about ₹850/month at your age.',
     action: 'Get a quote via LIC',
   },
@@ -83,10 +83,10 @@ export function corpusNeeded(monthlySpendToday, yearsToRetire, inflation = 0.06)
 // Life events "unlocked" as goal coverage crosses thresholds (BitLife mechanic).
 // Written in the future self's first person — the writing IS the product (MIT Future You).
 export const lifeEvents = [
-  { at: 0.25, icon: '🛒', text: '2049 — I stopped doing the maths before every grocery run.' },
-  { at: 0.5, icon: '🎉', text: 'Age 60 — I retired on time. No "just two more years."' },
-  { at: 0.75, icon: '💍', text: "2054 — Meera's wedding. I paid for all of it. Happy tears." },
-  { at: 1.0, icon: '🏖️', text: '2057 — work became a choice. I chose the beach at Gokarna.' },
+  { at: 0.25, icon: '', text: '2049 — I stopped doing the maths before every grocery run.' },
+  { at: 0.5, icon: '', text: 'Age 60 — I retired on time. No "just two more years."' },
+  { at: 0.75, icon: '', text: "2054 — Meera's wedding. I paid for all of it. Happy tears." },
+  { at: 1.0, icon: '', text: '2057 — work became a choice. I chose the beach at Gokarna.' },
 ]
 
 // Everyday prices inflated to 2057 (6% for 31 years ≈ 6.1×) — the Merrill trick.
@@ -107,7 +107,7 @@ export const onboardingScript = [
   {
     key: 'intro',
     bot: [
-      'Namaste Rohan! 🙏 It\'s me — you, at sixty. I know how this sounds. Bear with me.',
+      'Namaste Rohan! It\'s me — you, at sixty. I know how this sounds. Bear with me.',
       'I remember 2026… salary on the 1st, gone by the 20th, chai at the tapri. I\'m here so my life turns out well — which means yours. A few quick questions?',
     ],
     chips: [{ label: "Let's do it", value: 'yes' }, { label: 'What do you do with my data?', value: 'privacy' }],
@@ -124,9 +124,9 @@ export const onboardingScript = [
     key: 'goal',
     bot: ['If we get this right, what matters most to you?'],
     chips: [
-      { label: '🏖️ Retire comfortably', value: 'retire' },
-      { label: '🏠 Buy a home', value: 'home' },
-      { label: '👨‍👩‍👧 Child\'s education', value: 'child' },
+      { label: 'Retire comfortably', value: 'retire' },
+      { label: 'Buy a home', value: 'home' },
+      { label: '‍‍Child\'s education', value: 'child' },
     ],
   },
   {
@@ -137,9 +137,9 @@ export const onboardingScript = [
     ],
     fineprint: 'Required by SEBI (IA) Regulations — your answers form your risk profile, recorded & editable anytime.',
     chips: [
-      { label: '😰 Sell before it gets worse', value: 'sell' },
-      { label: '😐 Wait it out', value: 'hold' },
-      { label: '😎 Invest more at the dip', value: 'buy' },
+      { label: 'Sell before it gets worse', value: 'sell' },
+      { label: 'Wait it out', value: 'hold' },
+      { label: 'Invest more at the dip', value: 'buy' },
     ],
   },
   {

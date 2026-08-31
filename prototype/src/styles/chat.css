@@ -17,7 +17,8 @@
 /* ---- header ---------------------------------------------------------- */
 .chat-head {
   display: flex; align-items: center; gap: var(--s3);
-  padding: var(--s3) var(--s4);
+  /* Top padding clears the notch the phone frame draws over the screen at z-index 60. */
+  padding: 38px var(--s4) var(--s3);
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
@@ -69,7 +70,10 @@
 }
 .thread::-webkit-scrollbar { width: 0; }
 
-.turn { display: flex; gap: var(--s2); max-width: 100%; animation: rise var(--med) var(--ease) both; }
+.turn {
+  display: flex; gap: var(--s2); max-width: 100%; flex: 0 0 auto;
+  animation: rise var(--med) var(--ease) both;
+}
 @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 .turn.from-you { justify-content: flex-end; }
 
@@ -112,67 +116,68 @@
 @keyframes bob { 0%,100% { transform: translateY(0); opacity: .4 } 50% { transform: translateY(-3px); opacity: 1 } }
 
 /* ---- cards inside the thread ----------------------------------------- */
-.card {
+.ds-card {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-lg); box-shadow: var(--e1);
   overflow: hidden; max-width: 92%;
 }
-.card-head {
+.ds-card-head {
   padding: var(--s3) var(--s4) 0;
   font-size: var(--t-micro); letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-3);
 }
-.card-body { padding: var(--s3) var(--s4) var(--s4); }
+.ds-card-body { padding: var(--s3) var(--s4) var(--s4); }
 
 /* The money figure. Gold appears here and essentially nowhere else. */
-.figure {
+.ds-figure {
   font-size: var(--t-display); font-weight: 640; letter-spacing: -.025em;
   color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.05;
 }
-.figure .unit { font-size: var(--t-lead); font-weight: 560; color: var(--ink-2); margin-left: 2px; }
-.figure.money { color: var(--gold); }
-.sub { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s2); line-height: 1.45; }
+.ds-figure .unit { font-size: var(--t-lead); font-weight: 560; color: var(--ink-2); margin-left: 2px; }
+.ds-figure.money { color: var(--gold); }
+.ds-sub { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s2); line-height: 1.45; }
 
 /* actions */
-.actions { display: flex; gap: var(--s2); padding: 0 var(--s4) var(--s4); flex-wrap: wrap; }
-.btn {
+.ds-actions { display: flex; gap: var(--s2); padding: 0 var(--s4) var(--s4); flex-wrap: wrap; }
+.ds-actions .ds-btn { flex: 0 1 auto; }
+.ds-btn {
   font: inherit; font-size: var(--t-sm); font-weight: 560;
   padding: 9px 16px; border-radius: var(--r-pill); cursor: pointer;
   border: 1px solid transparent; transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
 }
-.btn:active { transform: scale(.97); }
-.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.btn-primary { background: var(--primary); color: var(--ink-inverse); }
-.btn-primary:hover { background: var(--primary-hover); }
-.btn-quiet { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line); }
-.btn-quiet:hover { background: var(--line); }
+.ds-btn:active { transform: scale(.97); }
+.ds-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ds-btn-primary { background: var(--primary); color: var(--ink-inverse); }
+.ds-btn-primary:hover { background: var(--primary-hover); }
+.ds-btn-quiet { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line); }
+.ds-btn-quiet:hover { background: var(--line); }
 
 /* ---- the suitability verdict — our signature component ---------------- */
-.verdict { border-left: 3px solid var(--line-strong); }
-.verdict.pass    { border-left-color: var(--pass);    background: var(--pass-tint); }
-.verdict.blocked { border-left-color: var(--blocked); background: var(--blocked-tint); }
-.verdict .tag {
+.ds-verdict { border-left: 3px solid var(--line-strong); }
+.ds-verdict.pass    { border-left-color: var(--pass);    background: var(--pass-tint); }
+.ds-verdict.blocked { border-left-color: var(--blocked); background: var(--blocked-tint); }
+.ds-verdict .tag {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--t-micro); font-weight: 640; letter-spacing: .1em; text-transform: uppercase;
   padding: 3px 9px; border-radius: var(--r-pill);
 }
-.verdict.pass .tag    { background: var(--pass);    color: #fff; }
-.verdict.blocked .tag { background: var(--blocked); color: #fff; }
-.verdict .product { font-size: var(--t-body); font-weight: 600; color: var(--ink); margin-top: var(--s2); }
-.verdict .reason  { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s1); line-height: 1.5; }
+.ds-verdict.pass .tag    { background: var(--pass);    color: #fff; }
+.ds-verdict.blocked .tag { background: var(--blocked); color: #fff; }
+.ds-verdict .product { font-size: var(--t-body); font-weight: 600; color: var(--ink); margin-top: var(--s2); }
+.ds-verdict .reason  { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s1); line-height: 1.5; }
 
 /* ---- "why this advice" ------------------------------------------------ */
-.basis { border-top: 1px solid var(--line); background: var(--surface-sunk); }
-.basis summary {
+.ds-basis { border-top: 1px solid var(--line); background: var(--surface-sunk); }
+.ds-basis summary {
   list-style: none; cursor: pointer; padding: var(--s3) var(--s4);
   font-size: var(--t-xs); font-weight: 560; color: var(--primary);
   display: flex; align-items: center; gap: 6px;
 }
-.basis summary::-webkit-details-marker { display: none }
-.basis summary::after { content: '›'; margin-left: auto; transition: transform var(--fast) var(--ease); }
-.basis[open] summary::after { transform: rotate(90deg); }
-.basis ul { margin: 0; padding: 0 var(--s4) var(--s4) calc(var(--s4) + 14px); }
-.basis li {
+.ds-basis summary::-webkit-details-marker { display: none }
+.ds-basis summary::after { content: '›'; margin-left: auto; transition: transform var(--fast) var(--ease); }
+.ds-basis[open] summary::after { transform: rotate(90deg); }
+.ds-basis ul { margin: 0; padding: 0 var(--s4) var(--s4) calc(var(--s4) + 14px); }
+.ds-basis li {
   font-size: var(--t-xs); color: var(--ink-2); line-height: 1.6;
   font-variant-numeric: tabular-nums;
 }
@@ -210,15 +215,22 @@
 @keyframes halo { 0% { transform: scale(1); opacity: .7 } 100% { transform: scale(1.7); opacity: 0 } }
 
 /* ---- prompt chips ----------------------------------------------------- */
-.chips { display: flex; gap: var(--s2); flex-wrap: wrap; padding: 0 var(--s4) var(--s3); }
-.chip {
+.ds-chips {
+  display: flex; gap: var(--s2); padding: 0 var(--s4) var(--s3);
+  overflow-x: auto; scrollbar-width: none; flex: 0 0 auto;
+  /* Fade the trailing edge so a clipped chip reads as "more this way" rather than broken. */
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+.ds-chips::-webkit-scrollbar { height: 0 }
+.ds-chips .ds-chip { flex: 0 0 auto; white-space: nowrap; }
+.ds-chip {
   font: inherit; font-size: var(--t-sm); padding: 8px 14px;
   border-radius: var(--r-pill); border: 1px solid var(--line);
   background: var(--surface); color: var(--ink-2); cursor: pointer;
   transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease);
 }
-.chip:hover { border-color: var(--primary); color: var(--primary); }
-.chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ds-chip:hover { border-color: var(--primary); color: var(--primary); }
+.ds-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---- the advice register --------------------------------------------- */
 /* Every recommendation, its basis, and whether the gate let it through.
@@ -228,7 +240,7 @@
 .register { display: flex; flex-direction: column; height: 100%; background: var(--ground); overflow: hidden; }
 
 .screen-head {
-  flex: 0 0 auto; padding: var(--s5) var(--s4) var(--s4);
+  flex: 0 0 auto; padding: 38px var(--s4) var(--s4);
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
 .screen-head h2 {
@@ -244,6 +256,7 @@
 .register-list::-webkit-scrollbar { width: 0 }
 
 .record {
+  flex: 0 0 auto;
   background: var(--surface); border: 1px solid var(--line);
   border-left: 3px solid var(--line-strong); border-radius: var(--r-md);
   box-shadow: var(--e1); overflow: hidden;
@@ -272,7 +285,7 @@
 .record.pass .verdict-tag    { background: var(--pass-tint);    color: var(--pass) }
 .record.blocked .verdict-tag { background: var(--blocked-tint); color: var(--blocked) }
 
-.record .why {
+.record .ds-why {
   padding: 0 var(--s4) var(--s3);
   font-size: var(--t-sm); color: var(--ink-2); line-height: 1.5;
 }
@@ -304,11 +317,93 @@
   font-size: var(--t-xs); color: var(--primary-ink); line-height: 1.5;
 }
 
-.empty {
+.ds-empty {
   margin: auto; padding: var(--s7) var(--s5); text-align: center; max-width: 30ch;
 }
-.empty p { font-size: var(--t-sm); color: var(--ink-3); line-height: 1.55; margin: 0 }
+.ds-empty p { font-size: var(--t-sm); color: var(--ink-3); line-height: 1.55; margin: 0 }
 
 /* Four tabs in a 390px frame: shrink the label, keep the target size. */
-.tabbar button { min-width: 0 }
-.tabbar button .ticon { font-size: 15px }
+.tabbar button { min-width: 0; gap: 4px; font-size: 10px; letter-spacing: .01em }
+.tabbar button svg { width: 18px; height: 18px; display: block }
+.tabbar button.active svg { color: var(--primary) }
+
+
+/* The conversation supplies its own header, so the app chrome steps aside on this tab.
+   Two stacked titles reading "Dhan Sarthi" is the kind of detail that makes a prototype
+   look like a prototype. */
+.screen.on-chat > .appbar { display: none; }
+.screen.on-chat > .tabbar { border-top: 1px solid var(--line); }
+
+
+/* No floating voice button. The microphone lives in the composer where the conversation is,
+   which is the only place voice makes sense as an entry point — and a button floating over
+   a scrolling register was covering the records it was meant to sit beside. */
+.call-fab { display: none; }
+
+/* ---- hero card ------------------------------------------------------- */
+/* The legacy hero blended a heavy orange radial into teal, which muddies into olive where
+ * they meet. Gold belongs on money, not smeared across a background — so the card is a clean
+ * teal field and the gold appears only on the figure it refers to. */
+.hero {
+  background: linear-gradient(150deg, var(--primary) 0%, var(--primary-ink) 100%) !important;
+  border-radius: var(--r-lg) !important;
+  padding: var(--s5) var(--s4) !important;
+  box-shadow: 0 14px 30px -18px rgba(7, 61, 51, .5) !important;
+}
+.hero .label {
+  color: color-mix(in srgb, var(--primary-tint) 78%, transparent) !important;
+  letter-spacing: .12em !important;
+}
+.hero .big {
+  font-family: var(--font) !important;
+  font-size: 36px !important; font-weight: 640 !important;
+  letter-spacing: -.03em !important;
+  font-variant-numeric: tabular-nums;
+}
+.hero .sub { color: color-mix(in srgb, #ffffff 82%, transparent) !important; font-size: var(--t-sm) !important; }
+.hero .sub b { color: #F0C98A !important; font-weight: 620; }
+
+/* Section labels: quieter, so the figures carry the page. */
+.h-section { color: var(--ink-3) !important; letter-spacing: .12em !important; font-weight: 650 !important; }
+
+/* Nudge icons sit in a tinted square rather than floating loose. */
+.nudge .ic {
+  width: 34px; height: 34px; border-radius: var(--r-sm);
+  background: var(--primary-tint); color: var(--primary);
+  display: grid; place-items: center; flex: 0 0 auto;
+}
+.nudge { display: flex; gap: var(--s3); align-items: flex-start; }
+.nudge .tx { font-size: var(--t-sm); color: var(--ink-2); line-height: 1.5 }
+.nudge .tx b { color: var(--ink); font-weight: 620 }
+.nudge .act button {
+  background: none; border: 0; padding: var(--s2) 0 0; cursor: pointer;
+  font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--primary);
+}
+.nudge .act button:hover { color: var(--primary-hover) }
+
+/* ---- future self ------------------------------------------------------ */
+/* The illustration and the first-person caption carry this screen; the job here is only to
+ * stop the legacy accents fighting the palette. The serif numerals stay — on the one screen
+ * that is explicitly about a life thirty years out, an editorial figure reads as considered
+ * rather than inconsistent. */
+
+/* A bright system green sat next to a deep teal reads as two unrelated brands. */
+.proj .good, .proj b, .stat .good, .stat-good { color: var(--pass) !important; }
+
+/* The slider's orange halo was the last of the old accent on this screen. */
+.slider-card input[type="range"] { accent-color: var(--primary); }
+.slider-card input[type="range"]::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 16%, transparent) !important;
+  background: var(--surface) !important;
+  border: 3px solid var(--primary) !important;
+}
+.slider-head b, .slider-card .amount { color: var(--primary) !important; }
+
+/* Stat tiles: label and figure on their own lines, so a unit never orphans onto a third. */
+.stat { display: flex; flex-direction: column; gap: var(--s1); }
+.stat .k { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.3; }
+.stat .v { font-size: 26px; letter-spacing: -.02em; line-height: 1.1; }
+.stat .v small, .stat .v .unit {
+  font-size: var(--t-sm); color: var(--ink-3); font-weight: 500; margin-left: 2px;
+  white-space: nowrap;
+}

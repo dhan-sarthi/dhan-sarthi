@@ -11,7 +11,7 @@ import { formatINR } from '../data.js'
 function Basis({ items }) {
   if (!items?.length) return null
   return (
-    <details className="basis">
+    <details className="ds-basis">
       <summary>Why this advice</summary>
       <ul>{items.map((b, i) => <li key={i}>{b}</li>)}</ul>
     </details>
@@ -21,11 +21,11 @@ function Basis({ items }) {
 function Actions({ actions, onAction }) {
   if (!actions?.length) return null
   return (
-    <div className="actions">
+    <div className="ds-actions">
       {actions.map((a) => (
         <button
           key={a.id}
-          className={`btn ${a.tone === 'primary' ? 'btn-primary' : 'btn-quiet'}`}
+          className={`ds-btn ${a.tone === 'primary' ? 'ds-btn-primary' : 'ds-btn-quiet'}`}
           onClick={() => onAction?.(a)}
         >
           {a.label}
@@ -51,14 +51,14 @@ export default function Message({ msg, onAction }) {
   if (msg.kind === 'insight') {
     return (
       <div className="turn from-sarthi">
-        <div className="card">
-          {msg.label && <div className="card-head">{msg.label}</div>}
-          <div className="card-body">
-            <div className={`figure${msg.money ? ' money' : ''}`}>
+        <div className="ds-card">
+          {msg.label && <div className="ds-card-head">{msg.label}</div>}
+          <div className="ds-card-body">
+            <div className={`ds-figure${msg.money ? ' money' : ''}`}>
               {typeof msg.value === 'number' ? formatINR(msg.value) : msg.value}
               {msg.unit && <span className="unit">{msg.unit}</span>}
             </div>
-            {msg.text && <p className="sub">{msg.text}</p>}
+            {msg.text && <p className="ds-sub">{msg.text}</p>}
           </div>
           <Actions actions={msg.actions} onAction={onAction} />
           <Basis items={msg.basis} />
@@ -73,8 +73,8 @@ export default function Message({ msg, onAction }) {
     const blocked = msg.verdict === 'BLOCKED'
     return (
       <div className="turn from-sarthi">
-        <div className={`card verdict ${blocked ? 'blocked' : 'pass'}`}>
-          <div className="card-body">
+        <div className={`ds-card ds-verdict ${blocked ? 'blocked' : 'pass'}`}>
+          <div className="ds-card-body">
             <span className="tag">{blocked ? 'Not suitable' : 'Suitability check passed'}</span>
             <div className="product">{msg.product}</div>
             {msg.reason && <p className="reason">{msg.reason}</p>}

@@ -11,11 +11,12 @@ import { formatINR } from '../data.js'
  * interrupts it.
  */
 
+// Two of these are conversation starters; the third is the one that matters, because it
+// asks the adviser to sell something it should refuse.
 const OPENERS = [
+  'Should I buy the ULIP the branch offered?',
   'Where is my money going?',
   'Am I saving enough?',
-  'Should I buy the ULIP the branch offered?',
-  "What happens if I invest ₹18,000 a month?",
 ]
 
 let seq = 0
@@ -26,6 +27,9 @@ export default function Chat({ snapshot, level = 0, speaking = false, onStartVoi
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const threadRef = useRef(null)
+  // A ref, not state: StrictMode invokes effects twice in dev and both runs read the same
+  // stale `messages`, so a length check duplicates every opening line.
+  const openedRef = useRef(false)
 
   const surplus = snapshot?.derived?.investableSurplus ?? 0
   const idle = snapshot?.derived?.idleBalance ?? 0
@@ -33,7 +37,8 @@ export default function Chat({ snapshot, level = 0, speaking = false, onStartVoi
   // The opening. Deliberately a diagnosis before any recommendation — the advisor earns the
   // right to advise by proving it already understands the situation.
   useEffect(() => {
-    if (!snapshot || messages.length) return
+    if (!snapshot || openedRef.current) return
+    openedRef.current = true
     setMessages([
       { id: uid(), from: 'sarthi', kind: 'text',
         text: `Namaste ${snapshot.customer.custName.split(' ')[0]}. I've been through the last six months of your account.` },
@@ -51,7 +56,10 @@ export default function Chat({ snapshot, level = 0, speaking = false, onStartVoi
     ])
   }, [snapshot]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Follow the conversation, but never on the first paint — the opening diagnosis is the
+  // most important thing on the screen and scrolling past it defeats the point.
   useEffect(() => {
+    if (messages.length <= 2) return
     const el = threadRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [messages])
@@ -96,9 +104,9 @@ export default function Chat({ snapshot, level = 0, speaking = false, onStartVoi
       </div>
 
       {messages.length <= 2 && (
-        <div className="chips">
+        <div className="ds-chips">
           {OPENERS.map((o) => (
-            <button key={o} className="chip" onClick={() => ask(o)}>{o}</button>
+            <button key={o} className="ds-chip" onClick={() => ask(o)}>{o}</button>
           ))}
         </div>
       )}

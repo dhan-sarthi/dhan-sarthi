@@ -48,14 +48,14 @@ export default function Advisor({ speak, onToast }) {
 
       <div className="h-section">Prefer a human?</div>
       <div className="card rm-card">
-        <div className="face">🧑‍💼</div>
+        <div className="face">‍</div>
         <div className="tx">
           <b>Talk to your relationship manager</b><br />
           Sarthi shares your goals & risk profile (with consent), so you never repeat yourself.
         </div>
         <button
           className="btn ghost" style={{ width: 'auto', padding: '9px 13px', fontSize: 12 }}
-          onClick={() => onToast('✓ Callback booked for <b>today, 6:00 pm</b>. Your Sarthi summary has been shared with RM Priya Nair.')}
+          onClick={() => onToast('Callback booked for <b>today, 6:00 pm</b>. Your Sarthi summary has been shared with RM Priya Nair.')}
         >
           Book
         </button>

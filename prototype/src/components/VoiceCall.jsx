@@ -151,7 +151,7 @@ export default function VoiceCall({
   if (gate === 'fetching') {
     return (
       <div className="voice-overlay">
-        <button className="v-close" onClick={onClose}>✕</button>
+        <button className="v-close" onClick={onClose}></button>
         <div className="v-stage" style={{ margin: 'auto 0' }}>
           <div className="v-halo"><FutureSelf age={60} prosperity={progress} /></div>
           <div className="v-status">Waking up your future self…</div>
@@ -163,9 +163,9 @@ export default function VoiceCall({
   if (gate === 'keysheet') {
     return (
       <div className="voice-overlay">
-        <button className="v-close" onClick={onClose}>✕</button>
+        <button className="v-close" onClick={onClose}></button>
         <div className="v-keysheet">
-          <div className="v-keyhead">🎙 Enable live voice</div>
+          <div className="v-keyhead">Enable live voice</div>
           <p>
             Couldn't reach the public voice backend right now. You can still start the
             call with your own OpenAI key — it runs on the <b>gpt-realtime</b>
@@ -192,7 +192,7 @@ export default function VoiceCall({
   return (
     <div className="voice-overlay">
       <div className={`v-ring ${status}`} />
-      <button className="v-close" onClick={end}>✕</button>
+      <button className="v-close" onClick={end}></button>
 
       <div className="v-stage">
         <div className="v-halo" style={{ boxShadow: `0 0 0 ${6 + level * 26}px rgba(240,130,30,${0.12 + level * 0.25}), 0 18px 50px rgba(0,0,0,0.45)` }}>
@@ -200,7 +200,7 @@ export default function VoiceCall({
         </div>
         <div className="v-name">Rohan, 60 · live</div>
         <div className={`v-status ${status}`}>
-          {error ? 'Connection lost — tap ✕ and retry' : (STATUS_LABEL[status] || '…')}
+          {error ? 'Connection lost — tap and retry' : (STATUS_LABEL[status] || '…')}
         </div>
       </div>
 
@@ -232,7 +232,7 @@ export default function VoiceCall({
           className={`v-btn ${muted ? 'warn' : ''}`}
           onClick={() => { const m = !muted; setMuted(m); sessionRef.current?.setMuted(m) }}
         >
-          {muted ? '🔇 Unmute' : '🎙 Mute'}
+          {muted ? 'Unmute' : 'Mute'}
         </button>
         <button className="v-btn end" onClick={end}>End call</button>
       </div>

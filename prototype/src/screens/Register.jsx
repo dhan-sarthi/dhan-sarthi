@@ -35,7 +35,7 @@ function Record({ r }) {
         <span className="verdict-tag">{blocked ? 'Blocked' : 'Passed'}</span>
       </div>
 
-      {r.block_reason && <p className="why">{r.block_reason}</p>}
+      {r.block_reason && <p className="ds-why">{r.block_reason}</p>}
 
       <details>
         <summary>Basis for this decision</summary>
@@ -91,9 +91,9 @@ export default function Register() {
       </div>
 
       {records === null ? (
-        <div className="empty"><p>Loading the register…</p></div>
+        <div className="ds-empty"><p>Loading the register…</p></div>
       ) : records.length === 0 ? (
-        <div className="empty">
+        <div className="ds-empty">
           <p>Nothing recorded yet. Ask your adviser about a product and the decision will appear here.</p>
         </div>
       ) : (

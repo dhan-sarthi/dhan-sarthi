@@ -62,7 +62,7 @@ export default function Planner({ riskProfile, sip, setSip, onToast }) {
 
   const commit = () => {
     confetti({ particleCount: 130, spread: 75, origin: { y: 0.75 }, colors: ['#0e6e5c', '#f0821e', '#ffc188', '#8fd0be'] })
-    onToast(`✓ SIP mandate of <b>₹${sip.toLocaleString('en-IN')}/month</b> prepared. Review the fund split and e-sign in IDBI GO Mobile+ — nothing is invested without your explicit confirmation.`)
+    onToast(`SIP mandate of <b>₹${sip.toLocaleString('en-IN')}/month</b> prepared. Review the fund split and e-sign in IDBI GO Mobile+ — nothing is invested without your explicit confirmation.`)
   }
 
   return (
@@ -138,8 +138,8 @@ export default function Planner({ riskProfile, sip, setSip, onToast }) {
           drawn down at a safe 4%/year. Every input, and this explanation, is stored for audit.
         </p>
         <div className="basis">
-          <span className="pill brand">SEBI suitability ✓</span>
-          <span className="pill brand">AI-use disclosed ✓</span>
+          <span className="pill brand">SEBI suitability </span>
+          <span className="pill brand">AI-use disclosed </span>
           <span className="pill accent">Reviewed model v2.1</span>
         </div>
       </details>

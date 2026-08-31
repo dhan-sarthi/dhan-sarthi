@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Chat from './screens/Chat.jsx'
 import Register from './screens/Register.jsx'
+import TabIcon from './components/TabIcon.jsx'
 import Onboarding from './screens/Onboarding.jsx'
 import Dashboard from './screens/Dashboard.jsx'
 import Planner from './screens/Planner.jsx'
@@ -17,14 +18,16 @@ const CUSTOMER_ID = 'demo-rohan'
 const CIF = 'IDBI0009182731'
 
 const TABS = [
-  { id: 'chat', label: 'Adviser', icon: '◍' },
-  { id: 'home', label: 'Money', icon: '◔' },
-  { id: 'future', label: 'Future Self', icon: '✦' },
-  { id: 'record', label: 'Record', icon: '❑' },
+  { id: 'chat', label: 'Adviser', icon: 'chat' },
+  { id: 'home', label: 'Money', icon: 'money' },
+  { id: 'future', label: 'Future Self', icon: 'future' },
+  { id: 'record', label: 'Record', icon: 'record' },
 ]
 
 export default function App() {
-  const [phase, setPhase] = useState('onboarding') // onboarding | app
+  // Chat-first: the conversation is the product, so it is what the app opens on.
+  // Onboarding and consent live behind it rather than in front of it.
+  const [phase, setPhase] = useState('app') // onboarding | app
   const [tab, setTab] = useState('chat')
   const [riskProfile, setRiskProfile] = useState('Balanced')
   const [sip, setSip] = useState(5000)
@@ -160,7 +163,7 @@ export default function App() {
       }
       case 'book_rm_callback': {
         const time = args.time || 'today, 6:00 pm'
-        showToast(`✓ Callback booked for <b>${time}</b>. Your conversation summary has been shared with RM Priya Nair (with consent).`)
+        showToast(`Callback booked for <b>${time}</b>. Your conversation summary has been shared with RM Priya Nair (with consent).`)
         return { booked: true, rm: 'Priya Nair', time }
       }
       default:
@@ -175,7 +178,7 @@ export default function App() {
         <h1>Dhan Sarthi — advice from the one advisor you'll always trust: <em>future you</em>.</h1>
         <p>
           An AI wealth advisor inside IDBI GO Mobile+, embodied as your age-progressed
-          future self. Tap <b>🎙 Talk to future you</b> for a live voice conversation —
+          future self. Tap <b>Talk to future you</b> for a live voice conversation —
           say "what if I invest twenty thousand a month?" and watch your future change on screen.
         </p>
         <div className="pillars">
@@ -187,7 +190,7 @@ export default function App() {
       </div>
 
       <div className="phone">
-        <div className="screen">
+        <div className={`screen${phase === 'app' && tab === 'chat' ? ' on-chat' : ''}`}>
           <div className="appbar">
             <div className="bank-mark">DS</div>
             <div className="titles">
@@ -195,9 +198,6 @@ export default function App() {
               <div className="t2">inside IDBI GO Mobile+ · Rohan</div>
             </div>
             <div className="spacer" />
-            <button className={`voice-toggle ${voiceOn ? 'on' : ''}`} onClick={() => setVoiceOn(!voiceOn)}>
-              {voiceOn ? '🔊 Read aloud' : '🔈 Read aloud'}
-            </button>
           </div>
 
           {phase === 'onboarding' ? (
@@ -216,24 +216,18 @@ export default function App() {
                   onEvaluate={checkSuitability}
                 />
               )}
-              {tab === 'home' && <Dashboard onToast={showToast} goPlan={() => setTab('future')} />}
+              {tab === 'home' && <Dashboard snapshot={snapshot} onToast={showToast} goPlan={() => setTab('future')} />}
               {tab === 'record' && <Register key={tab} />}
               {tab === 'future' && <Planner riskProfile={riskProfile} sip={sip} setSip={setSip} onToast={showToast} />}
               <div className="tabbar">
                 {TABS.map((t) => (
                   <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-                    <span className="ticon">{t.icon}</span>
+                    <TabIcon name={t.icon} />
                     {t.label}
                   </button>
                 ))}
               </div>
             </>
-          )}
-
-          {!inCall && (
-            <button className="call-fab" onClick={() => setInCall(true)}>
-              🎙 Talk to future you
-            </button>
           )}
 
           {inCall && (
