@@ -147,15 +147,20 @@ async function respond(text, { snapshot, onEvaluate }) {
     if (verdict) {
       return [
         { kind: 'text', text: verdict.spoken },
+        // The card carries a human reason; the auditor's wording lives in the basis and the
+        // register, where an auditor will actually read it.
         { kind: 'verdict', verdict: verdict.verdict, product: verdict.product.name,
-          reason: verdict.recorded,
+          reason: verdict.alternative
+            ? `Roughly ${formatINR(verdict.alternative.monthly)} a month buys the same protection without the investment bundled in, and without a five-year lock-in.`
+            : 'This does not pass the suitability check for your profile.',
           basis: [
             `Rule applied: ${verdict.ruleId}`,
-            ...(verdict.alternative ? [`Suggested instead: ${verdict.alternative.name} at ${formatINR(verdict.alternative.monthly)}/month`] : []),
+            verdict.recorded,
+            ...(verdict.alternative ? [`Suggested instead: ${verdict.alternative.name}, ${formatINR(verdict.alternative.monthly)}/month`] : []),
             'Recorded in the advice register · retained 5 years',
           ],
           actions: verdict.alternative
-            ? [{ id: 'term', label: `See ${verdict.alternative.name}`, tone: 'primary' }]
+            ? [{ id: 'term', label: 'See term cover instead', tone: 'primary' }]
             : [] },
       ]
     }

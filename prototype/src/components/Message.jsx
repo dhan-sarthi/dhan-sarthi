@@ -51,10 +51,10 @@ export default function Message({ msg, onAction }) {
   if (msg.kind === 'insight') {
     return (
       <div className="turn from-sarthi">
-        <div className="ds-card">
+        <div className={`ds-card${msg.money ? ' money-block' : ''}`}>
           {msg.label && <div className="ds-card-head">{msg.label}</div>}
           <div className="ds-card-body">
-            <div className={`ds-figure${msg.money ? ' money' : ''}`}>
+            <div className="ds-figure">
               {typeof msg.value === 'number' ? formatINR(msg.value) : msg.value}
               {msg.unit && <span className="unit">{msg.unit}</span>}
             </div>

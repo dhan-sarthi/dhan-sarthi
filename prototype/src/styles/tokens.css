@@ -1,66 +1,77 @@
 /* Dhan Sarthi — design tokens.
  *
- * The product sits inside IDBI GO Mobile+, so it should look like it belongs there without
- * being a pastiche: IDBI's teal as the primary, a restrained gold reserved strictly for money,
- * and a warm paper ground rather than clinical fintech white. The warmth does real work — this
- * is a conversation about someone's life savings, not a dashboard.
+ * Structural language studied from Cleo's shipped app, which is the closest thing to a proven
+ * reference for this product. What makes theirs read expensive is not the palette; it is four
+ * structural decisions:
+ *
+ *   1. A warm cream ground, never white. White reads as an unfinished form.
+ *   2. No borders on cards. Blocks of colour, generous radius, hairlines only *inside* a card.
+ *   3. Extreme scale contrast — a small quiet label above an enormous figure.
+ *   4. Warm dark ink instead of black.
+ *
+ * The palette stays in IDBI's teal family rather than copying Cleo's cream-and-sky-blue,
+ * because this module has to look like it belongs inside GO Mobile+ — and because looking like
+ * a Cleo clone to anyone who knows Cleo is worse than looking generic.
  */
 
 :root {
-  /* Ground and surfaces — warm neutrals, never pure white */
-  --ground:         #F6F5F2;
-  --surface:        #FFFFFF;
-  --surface-sunk:   #EFEEEA;
+  /* Ground — warm cream. Everything sits on this. */
+  --ground:        #F5F2EC;
+  --surface:       #FBFAF6;   /* barely raised, for the rare card that needs separation */
+  --surface-sunk:  #EDE9E1;
 
-  /* Ink — near-black carries a teal bias so text sits in the brand's family */
-  --ink:            #131C1A;
-  --ink-2:          #3D4B48;
-  --ink-3:          #6B7975;
-  --ink-inverse:    #FFFFFF;
+  /* Ink — very dark, warm, in the brand's family. Not black. */
+  --ink:           #12211D;
+  --ink-2:         #4C5C56;
+  --ink-3:         #8B9791;
+  --ink-inverse:   #FBFAF6;
 
-  --line:           #E3E1DB;
-  --line-strong:    #CFCCC4;
+  /* Hairlines live inside cards, not around them. Kept faint on purpose. */
+  --line:          rgba(18, 33, 29, .09);
+  --line-strong:   rgba(18, 33, 29, .16);
 
-  /* Primary — IDBI-adjacent teal, deepened for contrast on paper */
-  --primary:        #0C5B52;
-  --primary-hover:  #0A4C45;
-  --primary-tint:   #E4EFED;
-  --primary-ink:    #073D37;
+  /* Primary — IDBI-adjacent teal */
+  --primary:       #0B564E;
+  --primary-hover: #094741;
+  --primary-ink:   #062F2A;
 
-  /* Gold. Money only. Never decoration, never a third UI colour. */
-  --gold:           #9A6B1F;
-  --gold-tint:      #F6EFE1;
+  /* Colour blocks. A card is one of these, filled, with no border. */
+  --block-teal:    #CBE3DC;
+  --block-teal-ink:#062F2A;
+  --block-sand:    #F0E3C9;   /* money */
+  --block-sand-ink:#4A3410;
+  --block-clay:    #F3DCD6;   /* a refusal */
+  --block-clay-ink:#6B2019;
 
-  /* Semantic — deliberately outside the brand family, so a verdict never reads as branding */
-  --pass:           #1B6B4F;
-  --pass-tint:      #E6F1EC;
-  --blocked:        #A32B22;
-  --blocked-tint:   #FAEAE8;
-  --watch:          #8A6A18;
-  --watch-tint:     #F7F0DC;
+  /* Semantic */
+  --pass:          #12604A;
+  --blocked:       #9B2A20;
+  --watch:         #7E5F12;
 
-  /* Type. System stack: instant, no CDN, nothing to fail in a live demo. */
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
-  --t-display: 28px;
-  --t-title:   20px;
+  /* Type scale with real contrast. The gap between a label and a figure is the whole effect. */
+  --t-hero:    54px;
+  --t-display: 34px;
+  --t-value:   30px;
+  --t-title:   21px;
   --t-lead:    17px;
-  --t-body:    15.5px;
+  --t-body:    15px;
   --t-sm:      13.5px;
-  --t-xs:      12px;
-  --t-micro:   10.5px;
+  --t-label:   12.5px;
+  --t-micro:   11px;
 
-  /* Spacing — 4px rhythm, named so layouts stay on it */
   --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
   --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
 
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px; --r-pill: 999px;
+  /* Bigger radii. Timid corners read as cheap. */
+  --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px; --r-pill: 999px;
 
-  /* Elevation — low and warm. Banking apps that float everything look like toys. */
-  --e1: 0 1px 2px rgba(19,28,26,.05);
-  --e2: 0 1px 3px rgba(19,28,26,.06), 0 6px 16px -10px rgba(19,28,26,.18);
-  --e3: 0 2px 6px rgba(19,28,26,.08), 0 18px 40px -24px rgba(19,28,26,.35);
+  /* Almost no elevation. Colour separates blocks; shadows are for things that actually float. */
+  --e1: none;
+  --e2: 0 2px 8px rgba(18, 33, 29, .06);
+  --e3: 0 8px 30px -12px rgba(18, 33, 29, .28);
 
   --ease: cubic-bezier(.2, .7, .3, 1);
   --fast: 140ms; --med: 240ms; --slow: 420ms;

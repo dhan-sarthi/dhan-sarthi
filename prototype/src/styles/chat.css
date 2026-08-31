@@ -78,18 +78,18 @@
 .turn.from-you { justify-content: flex-end; }
 
 .bubble {
-  max-width: 84%;
-  padding: var(--s3) var(--s4);
+  max-width: 86%;
+  padding: var(--s4) var(--s5);
   border-radius: var(--r-lg);
   font-size: var(--t-body); line-height: 1.5;
   color: var(--ink);
   overflow-wrap: anywhere;
 }
 .from-sarthi .bubble {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-bottom-left-radius: var(--s1);
-  box-shadow: var(--e1);
+  background: var(--surface); border: 0;
+  border-bottom-left-radius: var(--s2);
+  font-size: var(--t-lead); line-height: 1.45; color: var(--ink);
+  letter-spacing: -.005em;
 }
 .from-you .bubble {
   background: var(--primary);
@@ -117,69 +117,89 @@
 
 /* ---- cards inside the thread ----------------------------------------- */
 .ds-card {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-lg); box-shadow: var(--e1);
-  overflow: hidden; max-width: 92%;
+  background: var(--block-teal); color: var(--block-teal-ink);
+  border: 0; border-radius: var(--r-lg);
+  overflow: hidden; max-width: 94%;
 }
+/* Money gets the sand block. One card type per meaning, so colour carries information. */
+.ds-card.money-block { background: var(--block-sand); color: var(--block-sand-ink); }
 .ds-card-head {
-  padding: var(--s3) var(--s4) 0;
-  font-size: var(--t-micro); letter-spacing: .1em; text-transform: uppercase;
-  color: var(--ink-3);
+  padding: var(--s5) var(--s5) 0;
+  font-size: var(--t-label); font-weight: 520;
+  color: color-mix(in srgb, currentColor 62%, transparent);
 }
-.ds-card-body { padding: var(--s3) var(--s4) var(--s4); }
+.ds-card-body { padding: var(--s2) var(--s5) var(--s5); }
 
 /* The money figure. Gold appears here and essentially nowhere else. */
 .ds-figure {
-  font-size: var(--t-display); font-weight: 640; letter-spacing: -.025em;
-  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.05;
+  font-size: var(--t-hero); font-weight: 620; letter-spacing: -.04em;
+  color: currentColor; font-variant-numeric: tabular-nums; line-height: 1;
+  margin-top: var(--s1);
 }
-.ds-figure .unit { font-size: var(--t-lead); font-weight: 560; color: var(--ink-2); margin-left: 2px; }
-.ds-figure.money { color: var(--gold); }
-.ds-sub { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s2); line-height: 1.45; }
+.ds-figure .unit {
+  font-size: var(--t-title); font-weight: 540; letter-spacing: -.01em;
+  color: color-mix(in srgb, currentColor 60%, transparent); margin-left: 3px;
+}
+.ds-sub {
+  font-size: var(--t-sm); line-height: 1.5; margin-top: var(--s4);
+  color: color-mix(in srgb, currentColor 78%, transparent);
+  /* Hairline inside the card, never a border around it. */
+  padding-top: var(--s4); border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
 
 /* actions */
-.ds-actions { display: flex; gap: var(--s2); padding: 0 var(--s4) var(--s4); flex-wrap: wrap; }
-.ds-actions .ds-btn { flex: 0 1 auto; }
+.ds-actions { display: flex; gap: var(--s2); padding: 0 var(--s5) var(--s5); flex-wrap: wrap; }
+.ds-actions .ds-btn { flex: 1 1 auto; }
 .ds-btn {
-  font: inherit; font-size: var(--t-sm); font-weight: 560;
-  padding: 9px 16px; border-radius: var(--r-pill); cursor: pointer;
-  border: 1px solid transparent; transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
+  font: inherit; font-size: var(--t-body); font-weight: 580;
+  padding: 13px 20px; border-radius: var(--r-pill); cursor: pointer;
+  border: 1.5px solid transparent; white-space: nowrap;
+  transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
 }
 .ds-btn:active { transform: scale(.97); }
 .ds-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.ds-btn-primary { background: var(--primary); color: var(--ink-inverse); }
+.ds-btn-primary { background: var(--primary-ink); color: var(--ink-inverse); }
 .ds-btn-primary:hover { background: var(--primary-hover); }
-.ds-btn-quiet { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line); }
-.ds-btn-quiet:hover { background: var(--line); }
+.ds-btn-quiet {
+  background: transparent; color: currentColor;
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+.ds-btn-quiet:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
 
 /* ---- the suitability verdict — our signature component ---------------- */
-.ds-verdict { border-left: 3px solid var(--line-strong); }
-.ds-verdict.pass    { border-left-color: var(--pass);    background: var(--pass-tint); }
-.ds-verdict.blocked { border-left-color: var(--blocked); background: var(--blocked-tint); }
+.ds-verdict { border: 0; }
+.ds-verdict.pass    { background: var(--block-teal); color: var(--block-teal-ink); }
+.ds-verdict.blocked { background: var(--block-clay); color: var(--block-clay-ink); }
 .ds-verdict .tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: var(--t-micro); font-weight: 640; letter-spacing: .1em; text-transform: uppercase;
-  padding: 3px 9px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center;
+  font-size: var(--t-micro); font-weight: 640; letter-spacing: .09em; text-transform: uppercase;
+  padding: 5px 11px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
-.ds-verdict.pass .tag    { background: var(--pass);    color: #fff; }
-.ds-verdict.blocked .tag { background: var(--blocked); color: #fff; }
-.ds-verdict .product { font-size: var(--t-body); font-weight: 600; color: var(--ink); margin-top: var(--s2); }
-.ds-verdict .reason  { font-size: var(--t-sm); color: var(--ink-2); margin-top: var(--s1); line-height: 1.5; }
+.ds-verdict .product {
+  font-size: var(--t-display); font-weight: 620; letter-spacing: -.03em;
+  line-height: 1.08; margin-top: var(--s3);
+}
+.ds-verdict .reason {
+  font-size: var(--t-sm); line-height: 1.5; margin-top: var(--s4);
+  padding-top: var(--s4); border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  color: color-mix(in srgb, currentColor 80%, transparent);
+}
 
 /* ---- "why this advice" ------------------------------------------------ */
-.ds-basis { border-top: 1px solid var(--line); background: var(--surface-sunk); }
+.ds-basis { border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
 .ds-basis summary {
-  list-style: none; cursor: pointer; padding: var(--s3) var(--s4);
-  font-size: var(--t-xs); font-weight: 560; color: var(--primary);
+  list-style: none; cursor: pointer; padding: var(--s4) var(--s5);
+  font-size: var(--t-label); font-weight: 580; color: currentColor;
   display: flex; align-items: center; gap: 6px;
 }
 .ds-basis summary::-webkit-details-marker { display: none }
 .ds-basis summary::after { content: '›'; margin-left: auto; transition: transform var(--fast) var(--ease); }
 .ds-basis[open] summary::after { transform: rotate(90deg); }
-.ds-basis ul { margin: 0; padding: 0 var(--s4) var(--s4) calc(var(--s4) + 14px); }
+.ds-basis ul { margin: 0; padding: 0 var(--s5) var(--s5) calc(var(--s5) + 14px); }
 .ds-basis li {
-  font-size: var(--t-xs); color: var(--ink-2); line-height: 1.6;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--t-label); line-height: 1.65; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, currentColor 72%, transparent);
 }
 
 /* ---- composer --------------------------------------------------------- */
@@ -407,3 +427,145 @@
   font-size: var(--t-sm); color: var(--ink-3); font-weight: 500; margin-left: 2px;
   white-space: nowrap;
 }
+
+/* ---- screen headings ------------------------------------------------- */
+/* A large, tightly-tracked heading is most of what separates a considered app from a form.
+ * Cleo sets "Request" at display size; a 20px title in the same slot reads as a web page. */
+.chat-head .name {
+  font-size: var(--t-display); font-weight: 640;
+  letter-spacing: -.035em; line-height: 1.05; color: var(--ink);
+}
+.chat-head .state { font-size: var(--t-label); color: var(--ink-3); margin-top: 3px; }
+.chat-head { background: var(--ground); border-bottom: 0; align-items: flex-start; }
+.chat-head .avatar-slot { margin-top: 4px; }
+
+.screen-head { background: var(--ground); border-bottom: 0; }
+.screen-head h2 {
+  font-size: var(--t-display); font-weight: 640; letter-spacing: -.035em; line-height: 1.05;
+}
+.screen-head .note { font-size: var(--t-sm); color: var(--ink-3); margin-top: var(--s3); }
+
+/* ---- composer -------------------------------------------------------- */
+.composer { background: var(--ground); border-top: 0; padding-top: var(--s2); }
+.composer input {
+  background: var(--surface); border: 0; padding: 14px var(--s5);
+  font-size: var(--t-body);
+}
+.composer input:focus { box-shadow: 0 0 0 2px var(--primary); }
+.mic { width: 50px; height: 50px; background: var(--primary-ink); box-shadow: none; }
+.mic:hover { background: var(--primary); }
+
+/* ---- prompt chips ---------------------------------------------------- */
+.ds-chip {
+  background: var(--surface); border: 0; color: var(--ink-2);
+  padding: 11px 16px; font-size: var(--t-sm); font-weight: 500;
+}
+.ds-chip:hover { background: var(--block-teal); color: var(--block-teal-ink); }
+
+/* ---- thread ---------------------------------------------------------- */
+.thread { padding: var(--s2) var(--s4) var(--s6); gap: var(--s4); }
+.chat { background: var(--ground); }
+
+/* ---- tab bar --------------------------------------------------------- */
+.tabbar {
+  background: var(--ground) !important;
+  border-top: 1px solid var(--line) !important;
+  padding: var(--s2) var(--s2) calc(var(--s3) + env(safe-area-inset-bottom)) !important;
+}
+.tabbar button { color: var(--ink-3) !important; }
+.tabbar button.active {
+  color: var(--primary-ink) !important; font-weight: 640 !important;
+  background: var(--block-teal) !important; border-radius: var(--r-md) !important;
+}
+
+/* ---- register -------------------------------------------------------- */
+.register { background: var(--ground); }
+.register-list { gap: var(--s3); }
+.record {
+  background: var(--surface); border: 0; border-left: 0;
+  border-radius: var(--r-lg); box-shadow: none;
+}
+.record.blocked { background: var(--block-clay); color: var(--block-clay-ink); }
+.record.pass    { background: var(--surface); color: var(--ink); }
+.record-top { padding: var(--s4) var(--s5) var(--s2); }
+.record .rec { font-size: var(--t-title); font-weight: 620; letter-spacing: -.02em; line-height: 1.2; }
+.record .stamp { color: color-mix(in srgb, currentColor 55%, transparent); margin-top: var(--s2); }
+.record .verdict-tag {
+  background: color-mix(in srgb, currentColor 14%, transparent) !important;
+  color: currentColor !important; padding: 5px 10px; border-radius: var(--r-pill);
+}
+.record .ds-why {
+  padding: 0 var(--s5) var(--s4); font-size: var(--t-sm);
+  color: color-mix(in srgb, currentColor 78%, transparent);
+}
+.record details { background: transparent; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.record details summary { padding: var(--s4) var(--s5); color: currentColor; font-size: var(--t-label); font-weight: 580; }
+.kv { padding: 0 var(--s5) var(--s5); }
+.kv dt { color: color-mix(in srgb, currentColor 52%, transparent); }
+.kv dd { color: color-mix(in srgb, currentColor 82%, transparent); font-size: var(--t-label); }
+.retention {
+  background: var(--block-teal); color: var(--block-teal-ink);
+  border-radius: var(--r-md); padding: var(--s4); font-size: var(--t-label);
+}
+
+/* ---- money screen ---------------------------------------------------- */
+.body { background: var(--ground); }
+.hero {
+  background: var(--block-sand) !important; color: var(--block-sand-ink) !important;
+  border-radius: var(--r-xl) !important; padding: var(--s6) var(--s5) !important;
+  box-shadow: none !important; margin-bottom: var(--s4) !important;
+}
+.hero .label {
+  color: color-mix(in srgb, var(--block-sand-ink) 62%, transparent) !important;
+  font-size: var(--t-label) !important; text-transform: none !important;
+  letter-spacing: 0 !important; font-weight: 520 !important;
+}
+.hero .big {
+  font-size: var(--t-hero) !important; font-weight: 620 !important;
+  letter-spacing: -.045em !important; line-height: 1 !important; margin-top: var(--s1);
+}
+.hero .sub {
+  color: color-mix(in srgb, var(--block-sand-ink) 80%, transparent) !important;
+  margin-top: var(--s4) !important; padding-top: var(--s4);
+  border-top: 1px solid color-mix(in srgb, var(--block-sand-ink) 16%, transparent);
+}
+.hero .sub b { color: var(--block-sand-ink) !important; }
+
+.h-section {
+  color: var(--ink-3) !important; text-transform: none !important;
+  letter-spacing: 0 !important; font-size: var(--t-label) !important;
+  font-weight: 520 !important; margin: var(--s5) var(--s1) var(--s3) !important;
+}
+.card {
+  background: var(--surface) !important; border: 0 !important;
+  border-radius: var(--r-lg) !important; box-shadow: none !important;
+  padding: var(--s5) !important; margin-bottom: var(--s3) !important;
+}
+.barlist .name { font-size: var(--t-sm); color: var(--ink-2) }
+.barlist .val { font-size: var(--t-sm); font-weight: 580; color: var(--ink); font-variant-numeric: tabular-nums }
+.barlist .track { background: var(--surface-sunk); border-radius: var(--r-pill); height: 8px; overflow: hidden }
+.barlist .fill { height: 100%; border-radius: var(--r-pill) }
+.disclaimer { color: var(--ink-3); font-size: var(--t-micro); line-height: 1.6; padding: var(--s4) var(--s1) }
+
+/* ---- corrections after looking at it -------------------------------- */
+
+/* Two actions share one row. `flex: 1 1 auto` lets each claim its content width and wrap;
+   `1 1 0` makes them divide the space instead. */
+.ds-actions { flex-wrap: nowrap; }
+.ds-actions .ds-btn { flex: 1 1 0; min-width: 0; padding: 13px 12px; }
+.ds-actions .ds-btn:only-child { flex: 0 1 auto; padding: 13px 22px; }
+
+/* The chip rail was sitting flush against the card above it. */
+.ds-chips { padding-top: var(--s3); }
+
+/* A pale outlined circle in the header undercuts everything else. Make it a solid block. */
+.avatar-slot {
+  background: var(--primary-ink); border: 0;
+  width: 44px; height: 44px; border-radius: var(--r-md);
+}
+.avatar-slot .initial { color: var(--block-teal); font-weight: 640; font-size: var(--t-body); }
+.avatar-slot .ring { border-color: var(--block-teal); border-radius: var(--r-md); }
+.chat-head { gap: var(--s4); padding-bottom: var(--s4); }
+
+/* A single action with a long label must wrap rather than run off the card. */
+.ds-actions .ds-btn { white-space: normal; text-wrap: balance; line-height: 1.25; }
