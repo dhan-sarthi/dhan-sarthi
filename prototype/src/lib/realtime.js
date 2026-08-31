@@ -12,6 +12,8 @@ export async function startVoiceSession({
   onCaption, // (text, isFinal) — assistant transcript
   onUserCaption, // (text) — user's transcribed speech
   onLevel, // 0..1 output-audio energy, drives the avatar's mouth
+  onRemoteTrack, // (track, stream) — the model's audio, for an avatar to lip-sync against
+  onSpeechStarted, // fires the moment the user interrupts, so a face can stop mid-word
   onError,
 }) {
   let pc, dc, mic, audioCtx, rafId
@@ -49,6 +51,11 @@ export async function startVoiceSession({
 
   pc.ontrack = (e) => {
     const stream = e.streams[0]
+    // Hand the track out before we play it. If an avatar takes over, it returns the same
+    // audio frame-locked to video and this element is muted — playing both drifts apart
+    // within seconds and the lips stop matching.
+    const takenOver = onRemoteTrack?.(stream.getAudioTracks()[0], stream) === true
+    audioEl.muted = takenOver
     audioEl.srcObject = stream
     // analyser drives the talking-avatar animation
     audioCtx = new (window.AudioContext || window.webkitAudioContext)()
@@ -124,6 +131,8 @@ export async function startVoiceSession({
         break
       case 'input_audio_buffer.speech_started':
         onStatus?.('listening')
+        // Barge-in. The model stops mid-word, so anything downstream must stop too.
+        onSpeechStarted?.()
         break
       case 'output_audio_buffer.started':
         onStatus?.('speaking')
@@ -184,6 +193,10 @@ export async function startVoiceSession({
     },
     setMuted(muted) {
       mic.getAudioTracks().forEach((t) => { t.enabled = !muted })
+    },
+    /** Silence our own playback, for when an avatar is emitting the audio instead. */
+    setOutputMuted(muted) {
+      audioEl.muted = muted
     },
     sendText(text) {
       send({

@@ -51,7 +51,12 @@ function vercelApi() {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), vercelApi()],
+  // vercelApi() is deliberately not registered. It served the api/*.js functions during dev
+  // before the Fastify backend existed, and it takes precedence over the proxy below — which
+  // meant /api/realtime-token was being answered by the shim, reading an OPENAI_API_KEY that
+  // only exists in the server's environment, and returning 500. The real backend owns these
+  // routes now. The files stay on disk only because the public Vercel demo still serves them.
+  plugins: [react()],
   server: {
     port: 5173,
     strictPort: true,

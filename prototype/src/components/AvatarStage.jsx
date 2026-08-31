@@ -53,7 +53,10 @@ function Placeholder({ level, speaking }) {
   )
 }
 
-export default function AvatarStage({ mode = 'hero', level = 0, speaking = false, onTap }) {
+export default function AvatarStage({
+  mode = 'hero', level = 0, speaking = false, onTap,
+  videoRef, audioRef, live = false,
+}) {
   const docked = mode === 'docked'
   const [box, setBox] = useState({ w: 392, h: 700 })
   const wrapRef = useRef(null)
@@ -97,7 +100,16 @@ export default function AvatarStage({ mode = 'hero', level = 0, speaking = false
         {/* Docked, the frame tightens to the head. A full portrait at 92px reads as a smudge,
             and a real video stream will need the same crop change. */}
         <div className="avatar-crop" style={docked ? { transform: 'scale(1.75) translateY(-14%)' } : undefined}>
-          <Placeholder level={level} speaking={speaking} />
+          {/* The video and audio elements always exist so the avatar client has something to
+              attach to; they are simply invisible until a stream is actually running. The
+              placeholder is not a stand-in for a missing feature — it is the fallback that
+              keeps the demo alive when the service is unavailable. */}
+          <video
+            ref={videoRef} className="avatar-video" playsInline autoPlay muted={false}
+            style={{ opacity: live ? 1 : 0 }}
+          />
+          <audio ref={audioRef} autoPlay />
+          {!live && <Placeholder level={level} speaking={speaking} />}
         </div>
       </div>
     </div>

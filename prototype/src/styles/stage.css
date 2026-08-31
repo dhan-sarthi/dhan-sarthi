@@ -157,3 +157,13 @@
   text-decoration: underline; text-underline-offset: 3px;
 }
 .stage-type:hover { color: var(--mint); }
+
+/* The live stream fills the same box the placeholder occupies, so switching between them
+   moves nothing. */
+.avatar-video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  transition: opacity 300ms var(--ease);
+  background: var(--forest-deep);
+}
+.avatar-media { position: relative; }

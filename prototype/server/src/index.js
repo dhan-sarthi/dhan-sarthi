@@ -6,6 +6,7 @@ import memoryRoutes from './routes/memory.js'
 import sessionRoutes from './routes/session.js'
 import snapshotRoutes from './routes/snapshot.js'
 import adviceRoutes from './routes/advice.js'
+import avatarRoutes from './routes/avatar.js'
 
 const app = Fastify({
   logger: { transport: process.env.NODE_ENV === 'production' ? undefined : { target: 'pino-pretty' } },
@@ -35,6 +36,7 @@ await app.register(sessionRoutes)
 await app.register(memoryRoutes)
 await app.register(snapshotRoutes)
 await app.register(adviceRoutes)
+await app.register(avatarRoutes)
 
 const port = Number(process.env.PORT || 3001)
 await app.listen({ port, host: '127.0.0.1' })
