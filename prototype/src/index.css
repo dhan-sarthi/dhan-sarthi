@@ -1,6 +1,7 @@
 @import "./styles/fonts.css";
 @import "./styles/tokens.css";
 @import "./styles/chat.css";
+@import "./styles/stage.css";
 
 /* ============ Dhan Sarthi design tokens ============ */
 :root {

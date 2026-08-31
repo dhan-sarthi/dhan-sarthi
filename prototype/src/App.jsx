@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Chat from './screens/Chat.jsx'
 import Register from './screens/Register.jsx'
+import Stage from './screens/Stage.jsx'
 import Icon from './components/Icon.jsx'
 import Onboarding from './screens/Onboarding.jsx'
 import Dashboard from './screens/Dashboard.jsx'
@@ -18,7 +19,7 @@ const CUSTOMER_ID = 'demo-rohan'
 const CIF = 'IDBI0009182731'
 
 const TABS = [
-  { id: 'chat', label: 'Adviser', icon: 'adviser' },
+  { id: 'stage', label: 'Adviser', icon: 'adviser' },
   { id: 'home', label: 'Money', icon: 'money' },
   { id: 'future', label: 'Future Self', icon: 'future' },
   { id: 'record', label: 'Record', icon: 'record' },
@@ -28,7 +29,7 @@ export default function App() {
   // Chat-first: the conversation is the product, so it is what the app opens on.
   // Onboarding and consent live behind it rather than in front of it.
   const [phase, setPhase] = useState('app') // onboarding | app
-  const [tab, setTab] = useState('chat')
+  const [tab, setTab] = useState('stage')
   const [riskProfile, setRiskProfile] = useState('Balanced')
   const [sip, setSip] = useState(5000)
   const [voiceOn, setVoiceOn] = useState(false)
@@ -190,7 +191,7 @@ export default function App() {
       </div>
 
       <div className="phone">
-        <div className={`screen${phase === 'app' && (tab === 'chat' || tab === 'record') ? ' own-head' : ''}`}>
+        <div className={`screen${phase === 'app' && (tab === 'chat' || tab === 'record' || tab === 'stage') ? ' own-head' : ''}`}>
           <div className="appbar">
             <div className="bank-mark">DS</div>
             <div className="titles">
@@ -207,6 +208,7 @@ export default function App() {
             />
           ) : (
             <>
+              {tab === 'stage' && <Stage snapshot={snapshot} onType={() => setTab('chat')} />}
               {tab === 'chat' && (
                 <Chat
                   snapshot={snapshot}
