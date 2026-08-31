@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Chat from './screens/Chat.jsx'
+import Register from './screens/Register.jsx'
 import Onboarding from './screens/Onboarding.jsx'
 import Dashboard from './screens/Dashboard.jsx'
 import Planner from './screens/Planner.jsx'
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'chat', label: 'Adviser', icon: '◍' },
   { id: 'home', label: 'Money', icon: '◔' },
   { id: 'future', label: 'Future Self', icon: '✦' },
+  { id: 'record', label: 'Record', icon: '❑' },
 ]
 
 export default function App() {
@@ -215,6 +217,7 @@ export default function App() {
                 />
               )}
               {tab === 'home' && <Dashboard onToast={showToast} goPlan={() => setTab('future')} />}
+              {tab === 'record' && <Register key={tab} />}
               {tab === 'future' && <Planner riskProfile={riskProfile} sip={sip} setSip={setSip} onToast={showToast} />}
               <div className="tabbar">
                 {TABS.map((t) => (

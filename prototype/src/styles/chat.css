@@ -219,3 +219,96 @@
 }
 .chip:hover { border-color: var(--primary); color: var(--primary); }
 .chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---- the advice register --------------------------------------------- */
+/* Every recommendation, its basis, and whether the gate let it through.
+ * Styled as a record rather than a feed: a bank's risk function reads registers, and this
+ * screen exists for them more than for the customer. */
+
+.register { display: flex; flex-direction: column; height: 100%; background: var(--ground); overflow: hidden; }
+
+.screen-head {
+  flex: 0 0 auto; padding: var(--s5) var(--s4) var(--s4);
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.screen-head h2 {
+  margin: 0; font-size: var(--t-title); font-weight: 620;
+  letter-spacing: -.02em; color: var(--ink);
+}
+.screen-head .note { margin: var(--s2) 0 0; font-size: var(--t-sm); color: var(--ink-3); line-height: 1.45; }
+
+.register-list {
+  flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3);
+}
+.register-list::-webkit-scrollbar { width: 0 }
+
+.record {
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong); border-radius: var(--r-md);
+  box-shadow: var(--e1); overflow: hidden;
+}
+.record.pass    { border-left-color: var(--pass) }
+.record.blocked { border-left-color: var(--blocked) }
+
+.record-top {
+  padding: var(--s3) var(--s4);
+  display: flex; align-items: flex-start; gap: var(--s3);
+}
+.record-top .grow { flex: 1 1 auto; min-width: 0 }
+.record .rec {
+  font-size: var(--t-body); font-weight: 560; color: var(--ink);
+  line-height: 1.35; overflow-wrap: anywhere;
+}
+.record .stamp {
+  font-family: var(--font-mono); font-size: var(--t-micro);
+  color: var(--ink-3); margin-top: 3px; font-variant-numeric: tabular-nums;
+}
+.record .verdict-tag {
+  flex: 0 0 auto; font-size: var(--t-micro); font-weight: 640;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: var(--r-sm); white-space: nowrap;
+}
+.record.pass .verdict-tag    { background: var(--pass-tint);    color: var(--pass) }
+.record.blocked .verdict-tag { background: var(--blocked-tint); color: var(--blocked) }
+
+.record .why {
+  padding: 0 var(--s4) var(--s3);
+  font-size: var(--t-sm); color: var(--ink-2); line-height: 1.5;
+}
+
+.record details { border-top: 1px solid var(--line); background: var(--surface-sunk) }
+.record details summary {
+  list-style: none; cursor: pointer; padding: var(--s3) var(--s4);
+  font-size: var(--t-xs); font-weight: 560; color: var(--primary);
+  display: flex; align-items: center;
+}
+.record details summary::-webkit-details-marker { display: none }
+.record details summary::after { content: '›'; margin-left: auto; transition: transform var(--fast) var(--ease) }
+.record details[open] summary::after { transform: rotate(90deg) }
+
+.kv { padding: 0 var(--s4) var(--s4); display: grid; grid-template-columns: auto 1fr; gap: 5px var(--s4); }
+.kv dt {
+  font-size: var(--t-micro); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-3); white-space: nowrap; padding-top: 2px;
+}
+.kv dd {
+  margin: 0; font-size: var(--t-xs); color: var(--ink-2);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.kv dd .rule { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink) }
+
+.retention {
+  margin: 0 var(--s4) var(--s4); padding: var(--s3);
+  background: var(--primary-tint); border-radius: var(--r-sm);
+  font-size: var(--t-xs); color: var(--primary-ink); line-height: 1.5;
+}
+
+.empty {
+  margin: auto; padding: var(--s7) var(--s5); text-align: center; max-width: 30ch;
+}
+.empty p { font-size: var(--t-sm); color: var(--ink-3); line-height: 1.55; margin: 0 }
+
+/* Four tabs in a 390px frame: shrink the label, keep the target size. */
+.tabbar button { min-width: 0 }
+.tabbar button .ticon { font-size: 15px }
