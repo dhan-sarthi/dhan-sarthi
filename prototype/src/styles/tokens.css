@@ -1,0 +1,97 @@
+/* Dhan Sarthi — design tokens.
+ *
+ * Palette derived from Chime's, whose app is the reference we keep coming back to. Their
+ * signature green is #1EC677, pulled from their own stylesheet rather than guessed; the rest
+ * of the scale is that exact hue (152deg) held constant while lightness and saturation move.
+ * Deriving a scale from one hue is what keeps a palette coherent — hand-picking eight greens
+ * is how you end up with the muddy olive this file had two revisions ago.
+ *
+ * It works for us because IDBI's brand is already green, so a green-forward product looks
+ * like it belongs in GO Mobile+ rather than like a US neobank wearing a bank's logo.
+ *
+ * Structure taken from Chime too: a deep forest ground for hero surfaces, exactly one bright
+ * green used sparingly for accent and action, pale mint blocks for cards, and a near-black
+ * green for ink. No borders anywhere — colour separates surfaces.
+ */
+
+:root {
+  /* Neutral ground. Warm off-white, never pure white. */
+  --ground:        #F6F6F3;
+  --surface:       #FFFFFF;
+  --surface-sunk:  #ECEDE9;
+
+  /* The green scale — one hue (152deg), lightness doing the work */
+  --forest:        #103825;   /* hero and header surfaces */
+  --forest-deep:   #0C2A1C;
+  --green-mid:     #218355;
+  --green:         #1EC677;   /* Chime's signature, straight from their stylesheet */
+  --green-bright:  #3EE094;
+  --mint:          #B9E9D3;   /* card blocks */
+  --mint-wash:     #E5F5EE;   /* quiet fills */
+
+  /* Ink — near-black green, not black */
+  --ink:           #0F291D;
+  --ink-2:         #4A5A51;
+  --ink-3:         #7E8C84;
+  --ink-inverse:   #FFFFFF;
+
+  /* Hairlines live inside cards, never around them */
+  --line:          rgba(15, 41, 29, .09);
+  --line-strong:   rgba(15, 41, 29, .16);
+
+  /* Colour blocks. A card is one of these, filled, no border. */
+  --block-mint:     var(--mint);
+  --block-mint-ink: #0B3A26;
+  --block-forest:   var(--forest);
+  --block-forest-ink: #DCF3E7;
+  --block-sand:     #F3E7CC;   /* money */
+  --block-sand-ink: #4A3712;
+  --block-clay:     #F6DED8;   /* a refusal */
+  --block-clay-ink: #6E211A;
+
+  /* Semantic. Kept off the brand green so a verdict never reads as branding. */
+  --pass:          #147A4E;
+  --blocked:       #A32C22;
+  --watch:         #86671A;
+
+  --font: 'Jakarta', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  /* Scale with real contrast. The gap between a label and a figure is the whole effect. */
+  --t-hero:    54px;
+  --t-display: 34px;
+  --t-value:   30px;
+  --t-title:   21px;
+  --t-lead:    17px;
+  --t-body:    15px;
+  --t-sm:      13.5px;
+  --t-label:   12.5px;
+  --t-micro:   11px;
+
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
+
+  --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px; --r-pill: 999px;
+
+  --e1: none;
+  --e2: 0 2px 8px rgba(15, 41, 29, .06);
+  --e3: 0 8px 30px -12px rgba(15, 41, 29, .28);
+
+  --ease: cubic-bezier(.2, .7, .3, 1);
+  --fast: 140ms; --med: 240ms; --slow: 420ms;
+
+  /* Compatibility aliases, so the older rules keep resolving while they are migrated. */
+  --primary:       var(--forest);
+  --primary-hover: var(--green-mid);
+  --primary-ink:   var(--forest-deep);
+  --block-teal:    var(--block-mint);
+  --block-teal-ink: var(--block-mint-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

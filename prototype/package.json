@@ -1,0 +1,28 @@
+{
+  "name": "app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "test": "node test/memory.test.mjs && node test/session.test.mjs"
+  },
+  "dependencies": {
+    "@runwayml/avatars": "^0.17.0",
+    "@runwayml/avatars-react": "^0.17.0",
+    "canvas-confetti": "^1.9.4",
+    "livekit-client": "^2.22.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "vite": "^8.1.1"
+  }
+}
