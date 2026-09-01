@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react'
 
 const HERO_W = 300
 const HERO_H = 380
-const DOCK_W = 92
+const DOCK_W = 132
 
 function Placeholder({ speaking }) {
   // The Character's own reference portrait, proxied through our server because Runway's URL
@@ -99,9 +99,10 @@ export default function AvatarStage({
       aria-label={docked ? 'Expand your adviser' : 'Your adviser'}
     >
       <div className="avatar-media">
-        {/* Docked, the frame tightens to the head. A full portrait at 92px reads as a smudge,
-            so the live video gets the same crop change the placeholder does. */}
-        <div className="avatar-crop" style={docked ? { transform: 'scale(1.75) translateY(-14%)' } : undefined}>
+        {/* No extra crop when docked. The source is already framed head-and-shoulders and the
+            portrait box crops it hard through object-fit, so zooming again on top of the dock
+            scale only pushed his face out of the frame. */}
+        <div className="avatar-crop">
           {live ? children : <Placeholder speaking={speaking} />}
         </div>
       </div>

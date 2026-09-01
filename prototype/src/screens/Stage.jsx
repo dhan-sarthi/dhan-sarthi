@@ -89,18 +89,24 @@ function InCall({ artifacts, onEnd }) {
   const transcript = useTranscript({ interim: true })
   const caption = transcript.at(-1)?.text ?? ''
 
+  // He only gives up the middle of the screen when something needs it. With nothing to show,
+  // shrinking him into a corner costs the one thing the product is selling and buys nothing.
+  const mode = kind ? 'docked' : 'hero'
+
   return (
     <>
-      <AvatarStage mode="docked" live={ready} speaking={ready} onTap={onEnd}>
+      <AvatarStage mode={mode} live={ready} speaking={ready}>
         <AvatarVideo className="avatar-video-host" />
       </AvatarStage>
 
-      <div className="stage-convo">
+      <div className={`stage-convo is-${mode}`}>
         <div className="stage-status">
           <span className="dot" />
           {caption || (ready ? 'Listening · speak any time' : 'Connecting your adviser…')}
         </div>
-        <Artifact artifact={kind ? artifacts[kind] : null} />
+        {/* No empty state. During a live call the caption already says what is happening, and
+            an "ask me anything" card underneath it is two prompts competing for the same job. */}
+        {kind && <Artifact artifact={artifacts[kind]} />}
         <button className="stage-end" onClick={onEnd}>End conversation</button>
       </div>
     </>

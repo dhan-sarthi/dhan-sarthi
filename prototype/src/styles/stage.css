@@ -144,19 +144,28 @@
    which left two-thirds of the screen as empty forest. */
 .stage-convo { justify-content: center; padding-bottom: 92px; }
 .stage-convo .art { margin-bottom: auto; margin-top: auto; }
-/* The docked avatar occupies the top-right corner (92px wide, inset 14px), so the caption has
-   to stop short of it or the two overlap. align-items:flex-start because a caption that wraps
-   to three lines should keep its dot on the first line, not float to the vertical middle. */
-.stage-status {
+/* The caption sits wherever the avatar is not.
+   Large, he fills the top of the screen, so the caption goes under him. Docked, he is a
+   132px corner tile, so the caption takes the width and stops short of it. */
+.stage-convo .stage-status {
   position: absolute;
-  top: 62px;
-  left: var(--s4);
-  right: calc(92px + 14px + var(--s4));
   margin: 0;
   align-items: flex-start;
   line-height: 1.45;
   max-height: calc(1.45em * 3);
   overflow: hidden;
+  transition: top 320ms cubic-bezier(.22,1,.28,1);
+}
+.stage-convo.is-hero .stage-status {
+  top: 404px;                       /* clears the 380px portrait at its 8px offset */
+  left: var(--s5);
+  right: var(--s5);
+  text-align: left;
+}
+.stage-convo.is-docked .stage-status {
+  top: 62px;
+  left: var(--s4);
+  right: calc(132px + 14px + var(--s4));
 }
 .stage-status .dot { flex: 0 0 auto; margin-top: .5em; }
 
