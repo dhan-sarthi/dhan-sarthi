@@ -50,7 +50,7 @@ Do not add a code path where a model's output determines whether a product is su
 Runway Characters owns the entire conversation: microphone audio in, its own cloned voice
 ("Uday") out, photorealistic video out over WebRTC via LiveKit. We do not generate the voice.
 
-Verified working in the archived prototype:
+Verified working in the prototype:
 
 | Capability | Status |
 |---|---|
@@ -108,7 +108,7 @@ docker run -d --name dhan-sarthi-pg -p 5433:5432 \
   -e POSTGRES_USER=dhan -e POSTGRES_PASSWORD=dhan -e POSTGRES_DB=dhan pgvector/pgvector:pg16
 ```
 
-## What still needs porting from `../archive/prototype`
+## What still needs porting from `../prototype`
 
 Nothing has been ported yet — this is a scaffold. In rough dependency order:
 
@@ -136,5 +136,5 @@ Nothing has been ported yet — this is a scaffold. In rough dependency order:
 ## Where the research lives
 
 `../docs/` — competitor intelligence on all 23 shortlisted teams, the avatar technology
-evaluation, compliance and NDA analysis. `../archive/prototype/` — the working prototype this
+evaluation, compliance and NDA analysis. `../prototype/` — the working prototype this
 replaces, tagged `runway-working-prototype`.
