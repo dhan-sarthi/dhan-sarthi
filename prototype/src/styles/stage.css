@@ -156,8 +156,11 @@
   overflow: hidden;
   transition: top 320ms cubic-bezier(.22,1,.28,1);
 }
+/* The portrait is a share of the frame height now, so a fixed top would drift with the
+   viewport. Anchor the caption above the End button instead and let it grow upward. */
 .stage-convo.is-hero .stage-status {
-  top: 404px;                       /* clears the 380px portrait at its 8px offset */
+  top: auto;
+  bottom: 88px;
   left: var(--s5);
   right: var(--s5);
   text-align: left;
@@ -226,4 +229,14 @@
   color: #C2603F;
   font-size: 13.5px;
   margin-top: 10px;
+}
+
+/* Two wrappers sit between .stage-screen and the avatar: AvatarCall's own div, and LiveKit's
+   .lk-room-container inside it. Neither carries a height by default, and the portrait is now
+   sized as a share of its parent, so both have to be told to fill or it collapses to nothing. */
+.stage-call,
+.stage-call .lk-room-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }

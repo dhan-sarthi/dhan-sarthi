@@ -17,8 +17,10 @@ import { useEffect, useRef, useState } from 'react'
  * stream is a matter of replacing <Placeholder/> with the element and keeping the same box.
  */
 
-const HERO_W = 300
-const HERO_H = 380
+/* Docked size is fixed; the large size is a share of the frame, because the adviser is the
+   product and a 300px portrait left most of a phone screen empty. */
+const HERO_INSET = 10
+const HERO_H_RATIO = 0.78
 const DOCK_W = 132
 
 function Placeholder({ speaking }) {
@@ -74,10 +76,12 @@ export default function AvatarStage({
     return () => ro.disconnect()
   }, [])
 
-  const scale = docked ? DOCK_W / HERO_W : 1
-  // Hero sits centred and a little high; docked pins to the top-right inset.
-  const heroX = (box.w - HERO_W) / 2
-  const heroY = 8
+  const heroW = Math.max(1, box.w - HERO_INSET * 2)
+  const heroH = Math.max(1, Math.round(box.h * HERO_H_RATIO))
+
+  const scale = docked ? DOCK_W / heroW : 1
+  const heroX = HERO_INSET
+  const heroY = 6
   const dockX = box.w - DOCK_W - 14
   const dockY = 40   // clears the notch the phone frame draws over the screen
   const x = docked ? dockX : heroX
@@ -88,7 +92,7 @@ export default function AvatarStage({
       ref={wrapRef}
       className={`avatar-stage${docked ? ' is-docked' : ''}`}
       style={{
-        width: HERO_W, height: HERO_H,
+        width: heroW, height: heroH,
         transform: `translate3d(${x}px, ${y}px, 0) scale(${scale})`,
         transformOrigin: 'top left',
       }}

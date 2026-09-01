@@ -155,6 +155,7 @@ export default function Stage({ snapshot, onType }) {
     return (
       <div className="stage-screen">
         <AvatarCall
+          className="stage-call"
           avatarId={session.characterId}
           credentials={session}
           audio
