@@ -1,0 +1,13 @@
+{
+  "name": "@dhan/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types src/**/*.test.ts"
+  },
+  "devDependencies": { "typescript": "^5.7.2", "@types/node": "^22.10.2" }
+}
