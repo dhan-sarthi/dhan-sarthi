@@ -11,10 +11,11 @@
     "test": "node test/memory.test.mjs && node test/session.test.mjs"
   },
   "dependencies": {
+    "@runwayml/avatars": "^0.17.0",
     "canvas-confetti": "^1.9.4",
+    "livekit-client": "^2.22.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "simli-client": "^3.0.2"
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

@@ -21,7 +21,6 @@ const CIF = 'IDBI0009182731'
 const TABS = [
   { id: 'stage', label: 'Adviser', icon: 'adviser' },
   { id: 'home', label: 'Money', icon: 'money' },
-  { id: 'future', label: 'Future Self', icon: 'future' },
   { id: 'record', label: 'Record', icon: 'record' },
 ]
 

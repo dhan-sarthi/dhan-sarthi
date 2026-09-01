@@ -18,7 +18,17 @@ import { buildFacts, buildToneSignals } from '../lib/facts.js'
  * which is why every one of them is derived from the snapshot rather than written down here.
  */
 
+/**
+ * Which artifact a `show_artifact` tool call puts on screen.
+ *
+ * The Character calls this as it speaks, so the visual lands on the sentence rather than after
+ * it. The mapping is here rather than in the tool schema because the schema should name what
+ * the adviser is talking about, not our render order.
+ */
+const ARTIFACT_KIND = { idle: 'figure', projection: 'projection', suitability: 'suitability', comparison: 'comparison' }
+
 const RULES = [
+
   { id: 'HIGH_INTEREST_DEBT', label: 'High-interest debt' },
   { id: 'MISSED_REPAYMENT', label: 'Repayment history' },
   { id: 'EMERGENCY_BUFFER', label: 'Emergency buffer' },
@@ -33,6 +43,7 @@ export default function Stage({ snapshot, onClose, onType }) {
   const [step, setStep] = useState(-1)
   const [level, setLevel] = useState(0)
   const [live, setLive] = useState(false)   // true once a real avatar stream is running
+  const [caption, setCaption] = useState('')
   const timers = useRef([])
   const videoRef = useRef(null)
   const audioRef = useRef(null)
@@ -84,6 +95,37 @@ export default function Stage({ snapshot, onClose, onType }) {
     timers.current.forEach(clearTimeout)
     timers.current = script.map((_, i) => setTimeout(() => setStep(i), 700 + i * 3200))
 
+    // Runway first. It owns the whole conversation — it hears the microphone, thinks, and
+    // answers in the Character's voice — so if it comes up there is no second voice to start.
+    const runway = await startAvatar({
+      videoEl: videoRef.current,
+      audioEl: audioRef.current,
+      cif: snapshot?.customer?.cif,
+      onClientEvent: (tool, args) => {
+        if (tool !== 'show_artifact') return
+        const kind = ARTIFACT_KIND[args?.kind]
+        const i = script.findIndex((a) => a.kind === kind)
+        if (i >= 0) setStep(i)
+      },
+      onTranscript: (entries) => {
+        const last = entries[entries.length - 1]
+        if (last) setCaption(last.text)
+      },
+      onError: (detail) => console.warn('[avatar]', detail),
+    })
+    if (runway) {
+      avatarRef.current = runway
+      setLive(true)
+      // The scripted sequence was a stand-in for tool calls. With a live Character making
+      // them, it would fight the real thing.
+      timers.current.forEach(clearTimeout)
+      timers.current = []
+      setStep(-1)
+      return
+    }
+
+    // Runway unavailable. Fall back to the voice-only path with the built-in renderer: the
+    // conversation still happens, it just has no face.
     let key
     try {
       const r = await fetch('/api/realtime-token', { method: 'POST' })
@@ -98,25 +140,10 @@ export default function Stage({ snapshot, onClose, onType }) {
       tools: [],
       toolHandler: async () => ({ ok: true }),
       onLevel: (v) => { levelRef.current = v },
-      onSpeechStarted: () => avatarRef.current?.interrupt(),
-      onRemoteTrack: (track) => {
-        // Returning true tells the voice client to mute its own playback, because the avatar
-        // will emit the same audio frame-locked to the video.
-        startAvatar({
-          videoEl: videoRef.current,
-          audioEl: audioRef.current,
-          audioTrack: track,
-          onSpeaking: () => {},
-          onError: (d) => console.warn('[avatar]', d),
-        }).then((a) => {
-          if (!a) return
-          avatarRef.current = a
-          setLive(true)
-        })
-        // Optimistic mute would silence the demo if the avatar never starts, so let the
-        // voice element keep playing and mute it only once the stream is confirmed live.
-        return false
-      },
+      onCaption: (text, isFinal) => { if (isFinal) setCaption(text) },
+      // No avatar on this path: the face is Runway's, and Runway is the thing that failed.
+      // The placeholder's mouth is driven by onLevel, and the scripted sequence stands in for
+      // the tool calls a live Character would have made.
       onError: (why) => console.warn('[voice]', why),
     })
   }
@@ -129,14 +156,10 @@ export default function Stage({ snapshot, onClose, onType }) {
     sessionRef.current?.stop()
     sessionRef.current = null
     setLive(false)
+    setCaption('')
     setStep(-1)
     setMode('hero')
   }
-
-  // Mute our own playback only once the avatar is confirmed live, never optimistically.
-  useEffect(() => {
-    if (live) sessionRef.current?.setOutputMuted(true)
-  }, [live])
 
   useEffect(() => () => {
     timers.current.forEach(clearTimeout)
@@ -159,7 +182,7 @@ export default function Stage({ snapshot, onClose, onType }) {
       {mode === 'hero' ? (
         <div className="stage-hero">
           <h2>Talk to your adviser</h2>
-          <p>She has read the last six months of your account. Speak normally — she will interrupt herself if you do.</p>
+          <p>He has read the last six months of your account. Speak normally — just say what is on your mind.</p>
           <button className="stage-start" onClick={start}>Start talking</button>
           {onType && (
             <button className="stage-type" onClick={onType}>or type instead</button>
@@ -167,7 +190,10 @@ export default function Stage({ snapshot, onClose, onType }) {
         </div>
       ) : (
         <div className="stage-convo">
-          <div className="stage-status"><span className="dot" />Listening · speak any time</div>
+          <div className="stage-status">
+            <span className="dot" />
+            {caption || 'Listening · speak any time'}
+          </div>
           <Artifact artifact={step >= 0 ? script[step] : null} />
           <button className="stage-end" onClick={onClose ? onClose : end}>End conversation</button>
         </div>

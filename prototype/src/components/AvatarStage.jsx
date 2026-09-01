@@ -21,35 +21,38 @@ const HERO_W = 300
 const HERO_H = 380
 const DOCK_W = 92
 
-function Placeholder({ level, speaking }) {
-  // Portrait-proportioned and deliberately abstract. Its job is to be the right shape and
-  // the right size, so we can judge whether the artifact area survives — not to look human.
-  const open = 6 + Math.min(1, level) * 16
+function Placeholder({ speaking }) {
+  // The Character's own reference portrait, proxied through our server because Runway's URL
+  // carries a short-lived token. Using the real face here means the idle frame and the live
+  // video are the same person — the swap to WebRTC is a change of medium, not of identity.
+  const [failed, setFailed] = useState(false)
+
+  if (failed) {
+    // Only if the portrait cannot be fetched. Deliberately abstract: a wrong face reads worse
+    // than an obvious placeholder.
+    return (
+      <svg viewBox="0 0 300 380" width="100%" height="100%" aria-hidden="true">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#17402C" />
+            <stop offset="1" stopColor="#0C2A1C" />
+          </linearGradient>
+        </defs>
+        <rect width="300" height="380" rx="26" fill="url(#bg)" />
+      </svg>
+    )
+  }
+
   return (
-    <svg viewBox="0 0 300 380" width="100%" height="100%" aria-hidden="true">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#17402C" />
-          <stop offset="1" stopColor="#0C2A1C" />
-        </linearGradient>
-        <clipPath id="frame"><rect width="300" height="380" rx="26" /></clipPath>
-      </defs>
-      <g clipPath="url(#frame)">
-        <rect width="300" height="380" fill="url(#bg)" />
-        {/* shoulders */}
-        <path d="M40 380c0-58 48-96 110-96s110 38 110 96Z" fill="#1E6B4A" />
-        {/* neck, head, hair */}
-        <rect x="132" y="228" width="36" height="42" rx="16" fill="#C79A72" />
-        <ellipse cx="150" cy="188" rx="62" ry="72" fill="#D8AC84" />
-        <path d="M88 176c0-44 28-70 62-70s62 26 62 70c0 12-6 8-10-4-8-24-26-36-52-36s-44 12-52 36c-4 12-10 16-10 4Z" fill="#2B1B12" />
-        {/* eyes */}
-        <ellipse cx="128" cy="182" rx="6" ry="7" fill="#22160F" />
-        <ellipse cx="172" cy="182" rx="6" ry="7" fill="#22160F" />
-        {/* mouth, driven by the same audio level that will drive real lip-sync */}
-        <ellipse cx="150" cy="222" rx="15" ry={open / 2} fill="#7C3B33" />
-        {speaking && <circle cx="150" cy="188" r="86" fill="none" stroke="#1EC677" strokeWidth="2" opacity=".35" />}
-      </g>
-    </svg>
+    <>
+      <img
+        src="/api/avatar/portrait"
+        alt=""
+        className="avatar-portrait"
+        onError={() => setFailed(true)}
+      />
+      {speaking && <span className="avatar-ring" aria-hidden="true" />}
+    </>
   )
 }
 
@@ -109,7 +112,7 @@ export default function AvatarStage({
             style={{ opacity: live ? 1 : 0 }}
           />
           <audio ref={audioRef} autoPlay />
-          {!live && <Placeholder level={level} speaking={speaking} />}
+          {!live && <Placeholder speaking={speaking} />}
         </div>
       </div>
     </div>

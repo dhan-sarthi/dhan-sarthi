@@ -167,3 +167,22 @@
   background: var(--forest-deep);
 }
 .avatar-media { position: relative; }
+
+/* The Character's reference portrait, standing in before the live video attaches. Same box,
+   same radius, same crop as .avatar-video so the swap is invisible. */
+.avatar-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 22%;
+  border-radius: inherit;
+  display: block;
+}
+.avatar-ring {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 2px solid var(--green, #1EC677);
+  opacity: .35;
+  pointer-events: none;
+}
