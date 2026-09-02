@@ -76,16 +76,15 @@ pnpm dev                          # api on :3001, web on :5173 (proxies /api)
 `@dhan/fixtures` imports `@dhan/core` through its `dist/` export. The root `test` script does this
 for you; if you run a single package's tests, build first.
 
-Postgres with `pgvector` is planned for the memory and audit tables, not required today:
-
-```bash
-docker run -d --name dhan-sarthi-pg -p 5433:5432 \
-  -e POSTGRES_USER=dhan -e POSTGRES_PASSWORD=dhan -e POSTGRES_DB=dhan pgvector/pgvector:pg16
-```
+The team shares one Postgres database (Supabase, `pgvector` enabled). Ask a teammate for the
+connection string and put it in `apps/api/.env` as `DATABASE_URL`; `.env.example` shows the shape.
+Only the API ever connects to it. Browsers talk to the API and nothing else.
 
 ## Conventions
 
 - **TypeScript, strict.** `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are on.
+- **Tailwind utilities over the tokens in `tokens.css`.** No new hand-written component CSS.
+  `apps/web/DESIGN.md` has the recipes and the GO Mobile+ rules every screen follows.
 - **Node 22+, pnpm.** The `packageManager` field pins the pnpm version; pnpm switches to it
   automatically. The API runs `.ts` directly in dev via `--experimental-strip-types`.
 - **pnpm workspaces.** `workspace:*` for internal dependencies.
