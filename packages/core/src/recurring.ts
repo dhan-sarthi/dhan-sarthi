@@ -108,18 +108,20 @@ export interface Habit {
  * UPI reference is what stops a naive group-by from ever finding a series at all.
  */
 export function seriesKey(narration: string): string {
-  return narration
-    .toUpperCase()
-    .split(/[/\-]/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-    // Drop the variable parts. Pure digits are UPI references and card last-fours; mixed
-    // alphanumerics of any length are bank and branch codes, which change per transaction —
-    // leaving them in gave every salary credit a unique key, so the single most regular event
-    // in the entire ledger was the one thing that never formed a series.
-    .filter((part) => !/^\d{3,}$/.test(part))
-    .filter((part) => !(part.length >= 6 && /\d/.test(part) && /^[A-Z0-9]+$/.test(part)))
-    .join('/')
+  return (
+    narration
+      .toUpperCase()
+      .split(/[/-]/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+      // Drop the variable parts. Pure digits are UPI references and card last-fours; mixed
+      // alphanumerics of any length are bank and branch codes, which change per transaction —
+      // leaving them in gave every salary credit a unique key, so the single most regular event
+      // in the entire ledger was the one thing that never formed a series.
+      .filter((part) => !/^\d{3,}$/.test(part))
+      .filter((part) => !(part.length >= 6 && /\d/.test(part) && /^[A-Z0-9]+$/.test(part)))
+      .join('/')
+  )
 }
 
 function median(values: number[]): number {
@@ -285,7 +287,12 @@ function commitmentReason(stats: GroupStats, isCredit: boolean): Series['reason'
   return null
 }
 
-function buildSeries(key: string, stats: GroupStats, reason: Series['reason'], asOf: string): Series | null {
+function buildSeries(
+  key: string,
+  stats: GroupStats,
+  reason: Series['reason'],
+  asOf: string,
+): Series | null {
   const { sorted, cadence, intervalDays, amountVariation, daySpread, dayMean } = stats
   const last = sorted[sorted.length - 1]
   const first = sorted[0]

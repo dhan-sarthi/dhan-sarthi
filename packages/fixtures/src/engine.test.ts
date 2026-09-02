@@ -15,7 +15,6 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   categorize,
-  commitments,
   coverage,
   derive,
   detectHabits,
@@ -206,11 +205,18 @@ describe('the snapshot', () => {
       // And no transaction may be inside a counted commitment series *and* in a category the
       // snapshot treats as separate — that is the shape the double-count took.
       const overlap = debits.filter(
-        (t) => committedIds.has(t.txnId) && NEVER.includes(categorize(t).category) &&
-          categorize(t).category !== 'Investment' && categorize(t).category !== 'Loan EMI' &&
-          categorize(t).category !== 'Insurance' && categorize(t).category !== 'Education',
+        (t) =>
+          committedIds.has(t.txnId) &&
+          NEVER.includes(categorize(t).category) &&
+          categorize(t).category !== 'Investment' &&
+          categorize(t).category !== 'Loan EMI' &&
+          categorize(t).category !== 'Insurance' &&
+          categorize(t).category !== 'Education',
       )
-      assert.deepEqual(overlap.map((t) => t.narration), [])
+      assert.deepEqual(
+        overlap.map((t) => t.narration),
+        [],
+      )
 
       // Finally the headline arithmetic has to hold on its own terms.
       assert.equal(

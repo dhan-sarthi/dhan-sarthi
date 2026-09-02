@@ -37,15 +37,23 @@ export function approx(n: number): string {
 }
 
 const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 
 export const monthName = (iso: string): string => MONTHS[Number(iso.slice(5, 7)) - 1] ?? ''
 
 /** "18 September" — how a date is spoken, not ISO. */
-export const dayMonth = (iso: string): string =>
-  `${Number(iso.slice(8, 10))} ${monthName(iso)}`
+export const dayMonth = (iso: string): string => `${Number(iso.slice(8, 10))} ${monthName(iso)}`
 
-export const monthYear = (iso: string): string =>
-  `${monthName(iso)} ${iso.slice(0, 4)}`
+export const monthYear = (iso: string): string => `${monthName(iso)} ${iso.slice(0, 4)}`

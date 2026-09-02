@@ -35,11 +35,7 @@ import type { Verdict } from './suitability.ts'
 import type { Product } from './types.ts'
 
 export type GoalKind =
-  | 'emergency_fund'
-  | 'debt_payoff'
-  | 'protection'
-  | 'wealth_target'
-  | 'retirement'
+  'emergency_fund' | 'debt_payoff' | 'protection' | 'wealth_target' | 'retirement'
 
 export interface Goal {
   id: string
@@ -56,12 +52,7 @@ export interface Goal {
   createdAt: string
 }
 
-export type StageKind =
-  | 'free_up'
-  | 'get_cover'
-  | 'clear_debt'
-  | 'build_buffer'
-  | 'grow'
+export type StageKind = 'free_up' | 'get_cover' | 'clear_debt' | 'build_buffer' | 'grow'
 
 export interface Stage {
   index: number
@@ -183,7 +174,7 @@ export function buildRoadmap(
 
     stages.push({
       ...rest,
-      index: index += 1,
+      index: (index += 1),
       startsOn,
       completesOn,
       // The gate is only run for stages starting now. A later stage is evaluated against the
@@ -387,7 +378,10 @@ export function buildRoadmap(
 
   const horizonYears = Math.max(
     0.25,
-    Math.round(((new Date(goal.targetDate).getTime() - new Date(cursor).getTime()) / 86_400_000 / 365.25) * 100) / 100,
+    Math.round(
+      ((new Date(goal.targetDate).getTime() - new Date(cursor).getTime()) / 86_400_000 / 365.25) *
+        100,
+    ) / 100,
   )
 
   let projection: Projection | null = null

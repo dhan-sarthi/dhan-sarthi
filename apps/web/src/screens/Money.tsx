@@ -13,7 +13,17 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { CustomerFile, Snapshot } from '@dhan/core'
-import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Segments, Tile } from '../components/ui.tsx'
+import {
+  Amount,
+  Bar,
+  Card,
+  Eyebrow,
+  Head,
+  Leader,
+  Pill,
+  Segments,
+  Tile,
+} from '../components/ui.tsx'
 import { dayMonth, inr } from '../lib/money.ts'
 import { prettyMerchant } from './Today.tsx'
 
@@ -23,13 +33,7 @@ type Tab = 'accounts' | 'spending' | 'commitments'
 const META = 'm-0 text-[13px] text-ink-soft'
 const NOTE = 'm-0 text-xs leading-[1.5] text-ink-soft'
 
-export function Money({
-  snapshot,
-  file,
-}: {
-  snapshot: Snapshot
-  file: CustomerFile
-}): ReactNode {
+export function Money({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }): ReactNode {
   const [tab, setTab] = useState<Tab>('accounts')
 
   return (
@@ -100,8 +104,8 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
               </div>
               {h.heldOutsideIdbi ? (
                 <p className={`${NOTE} mt-2.5`}>
-                  Somebody else sold you this and it is doing its job. I am not going to tell you
-                  to move it so that IDBI earns the trail.
+                  Somebody else sold you this and it is doing its job. I am not going to tell you to
+                  move it so that IDBI earns the trail.
                 </p>
               ) : null}
             </Card>
@@ -113,21 +117,24 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
         <>
           <Eyebrow>What you owe</Eyebrow>
           {file.liabilities.map((l) => (
-            <Card key={l.loanType} {...(l.loanInterestRate >= 24 ? ({ tint: 'clay' } as const) : {})}>
+            <Card
+              key={l.loanType}
+              {...(l.loanInterestRate >= 24 ? ({ tint: 'clay' } as const) : {})}
+            >
               <div className="flex justify-between gap-2.5">
                 <div className="flex-1">
                   <div className="text-[15.5px] font-bold text-ink">{l.loanType}</div>
                   <p className={`${META} mt-[3px]`}>
-                    {inr(l.emiAmount)}/month at {l.loanInterestRate}% ·{' '}
-                    {l.tenureRemainingMonths} left
+                    {inr(l.emiAmount)}/month at {l.loanInterestRate}% · {l.tenureRemainingMonths}{' '}
+                    left
                   </p>
                 </div>
                 <Amount value={l.outstandingPrincipal} size="md" />
               </div>
               {l.dpdStatus > 0 ? (
                 <p className="m-0 mt-2.5 text-[13.5px] text-danger">
-                  {l.dpdStatus} days past due. This blocks every investment recommendation until
-                  it is cleared.
+                  {l.dpdStatus} days past due. This blocks every investment recommendation until it
+                  is cleared.
                 </p>
               ) : null}
             </Card>
@@ -220,12 +227,16 @@ function Spending({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
                 {(h.merchant ?? h.key)[0]}
               </span>
               <span className="min-w-0 flex-1">
-                <b className="block text-[14.5px] font-bold text-ink">{h.merchant ?? prettyMerchant(h.key)}</b>
+                <b className="block text-[14.5px] font-bold text-ink">
+                  {h.merchant ?? prettyMerchant(h.key)}
+                </b>
                 <span className="block text-xs text-ink-soft">
                   {h.timesPerMonth}× a month · typically {inr(h.typicalAmount)}
                 </span>
               </span>
-              <span className="text-[14.5px] font-bold tabular-nums text-ink">{inr(h.annualTotal)}/yr</span>
+              <span className="text-[14.5px] font-bold tabular-nums text-ink">
+                {inr(h.annualTotal)}/yr
+              </span>
             </div>
           ))}
         </div>
@@ -243,7 +254,9 @@ function Spending({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
                   {t.spendCategory[0]}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <b className="block text-[14.5px] font-bold text-ink">{prettyMerchant(t.narration)}</b>
+                  <b className="block text-[14.5px] font-bold text-ink">
+                    {prettyMerchant(t.narration)}
+                  </b>
                   <span className="block text-xs text-ink-soft">
                     {dayMonth(t.txnDate)} · {t.spendCategory} · {t.txnMode}
                   </span>
@@ -312,8 +325,9 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
           {s.priceChanges.length > 0 ? (
             <p className="m-0 mt-[11px] rounded-sm bg-accent-soft px-3 py-2.5 text-[13.5px] leading-normal text-accent-text">
               Went from {inr(s.priceChanges[0]?.from ?? 0)} to {inr(s.priceChanges[0]?.to ?? 0)} in{' '}
-              {dayMonth(s.priceChanges[0]?.on ?? '')} — {inr(((s.priceChanges[0]?.to ?? 0) - (s.priceChanges[0]?.from ?? 0)) * 12)} a
-              year you did not agree to.
+              {dayMonth(s.priceChanges[0]?.on ?? '')} —{' '}
+              {inr(((s.priceChanges[0]?.to ?? 0) - (s.priceChanges[0]?.from ?? 0)) * 12)} a year you
+              did not agree to.
             </p>
           ) : null}
 

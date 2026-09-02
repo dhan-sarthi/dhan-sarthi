@@ -16,8 +16,7 @@ import { PRODUCT_SHELF, productById } from './shelf.ts'
 const ASOF = '2026-09-01'
 const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
 
-const snap = (spec: typeof ROHAN): Snapshot =>
-  derive(generateCustomerFile(spec, OPTS), ASOF)
+const snap = (spec: typeof ROHAN): Snapshot => derive(generateCustomerFile(spec, OPTS), ASOF)
 
 const check = (
   snapshot: Snapshot,
@@ -166,8 +165,14 @@ describe('matching the product to the goal', () => {
 
   it('lets the right product through for the customer it suits', () => {
     const s = snap(ROHAN)
-    assert.equal(check(s, 'MF_INDEX_103', 6_000, { kind: 'wealth_target', horizonYears: 15 }).verdict, 'PASS')
-    assert.equal(check(s, 'IDBI_SSP_002', 5_000, { kind: 'emergency_fund', horizonYears: 1 }).verdict, 'PASS')
+    assert.equal(
+      check(s, 'MF_INDEX_103', 6_000, { kind: 'wealth_target', horizonYears: 15 }).verdict,
+      'PASS',
+    )
+    assert.equal(
+      check(s, 'IDBI_SSP_002', 5_000, { kind: 'emergency_fund', horizonYears: 1 }).verdict,
+      'PASS',
+    )
     assert.equal(check(s, 'LIC_TERM_201', 880).verdict, 'PASS')
   })
 })
@@ -189,7 +194,10 @@ describe('the rule book', () => {
       const v = evaluate({ product, snapshot: s, amount: 5_000, alternatives: PRODUCT_SHELF })
       assert.ok(v.recorded.length > 0, `${product.productId} produced no audit line`)
       if (v.verdict === 'BLOCKED') {
-        assert.ok(v.spoken && v.spoken.length > 20, `${product.productId} blocked with nothing to say`)
+        assert.ok(
+          v.spoken && v.spoken.length > 20,
+          `${product.productId} blocked with nothing to say`,
+        )
       }
     }
   })

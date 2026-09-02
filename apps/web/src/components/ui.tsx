@@ -44,7 +44,9 @@ export function Amount({
   const p = parts(value)
   const sizeCls = fit ? 'text-[clamp(17px,6.2vw,22px)] font-bold' : AMOUNT_SIZE[size]
   return (
-    <span className={`flex min-w-0 items-baseline leading-none tracking-tight tabular-nums ${sizeCls}`}>
+    <span
+      className={`flex min-w-0 items-baseline leading-none tracking-tight tabular-nums ${sizeCls}`}
+    >
       <span className="mr-[0.06em] text-[0.55em] opacity-70">{p.cur}</span>
       <span>{p.int}</span>
       {paise && p.frac ? <span className="text-[0.55em] opacity-70">{p.frac}</span> : null}
@@ -141,7 +143,9 @@ export function Leader({
       />
       <span className={total ? 'font-semibold text-ink' : 'text-ink-mid'}>{label}</span>
       <span className="flex-1 -translate-y-1 border-b-[1.5px] border-dotted border-hairline-mint" />
-      <span className={`font-semibold tabular-nums ${total ? 'text-brand' : 'text-ink'}`}>{value}</span>
+      <span className={`font-semibold tabular-nums ${total ? 'text-brand' : 'text-ink'}`}>
+        {value}
+      </span>
     </div>
   )
 }

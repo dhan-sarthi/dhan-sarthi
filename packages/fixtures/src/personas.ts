@@ -10,7 +10,7 @@
  * Three customers, chosen so a different suitability rule fires for each. A shelf of
  * suitable products cannot demonstrate suitability, and neither can one customer.
  */
-import type { Account, Customer, Holding, Liability, SpendCategory } from '@dhan/core'
+import type { Account, Customer, Holding, SpendCategory } from '@dhan/core'
 
 /** A subscription: same merchant, same amount, same day. Detectable precisely because of that. */
 export interface SubscriptionSpec {
@@ -94,7 +94,7 @@ export interface PersonaSpec {
   /** Envelope the generator spends inside, and the split across categories. */
   discretionary: {
     monthlyBudget: number
-    mix: Partial<Record<keyof typeof MIX_KEYS, number>>
+    mix: Partial<Record<MixKey, number>>
     /** How hard spending clusters after payday. Cleo: 35% spend most of it within five days. */
     paydayBias: number
   }
@@ -113,14 +113,8 @@ export interface PersonaSpec {
   demonstrates: string
 }
 
-const MIX_KEYS = {
-  'Food & dining': 0,
-  Groceries: 0,
-  Transport: 0,
-  Shopping: 0,
-  Entertainment: 0,
-  Health: 0,
-}
+/** The discretionary categories a persona's monthly budget is split across. */
+type MixKey = 'Food & dining' | 'Groceries' | 'Transport' | 'Shopping' | 'Entertainment' | 'Health'
 
 /* ------------------------------------------------------------------ *
  * Rohan — the headline customer. Surplus and a protection gap.
@@ -216,10 +210,28 @@ export const ROHAN: PersonaSpec = {
   },
   drift: { category: 'Food & dining', overMonths: 6, endMultiplier: 1.9 },
   lumps: [
-    { narration: 'POS/MAKEMYTRIP/4471', category: 'Shopping', amount: 38_400, monthsAgo: 14, day: 18 },
+    {
+      narration: 'POS/MAKEMYTRIP/4471',
+      category: 'Shopping',
+      amount: 38_400,
+      monthsAgo: 14,
+      day: 18,
+    },
     { narration: 'POS/CROMA/2210', category: 'Shopping', amount: 52_900, monthsAgo: 9, day: 22 },
-    { narration: 'UPI/CHOITHRAM HOSPITAL/418293047711', category: 'Health', amount: 31_600, monthsAgo: 6, day: 11 },
-    { narration: 'IMPS/P2A/WEDDING GIFT', category: 'Transfers', amount: 21_000, monthsAgo: 3, day: 26 },
+    {
+      narration: 'UPI/CHOITHRAM HOSPITAL/418293047711',
+      category: 'Health',
+      amount: 31_600,
+      monthsAgo: 6,
+      day: 11,
+    },
+    {
+      narration: 'IMPS/P2A/WEDDING GIFT',
+      category: 'Transfers',
+      amount: 21_000,
+      monthsAgo: 3,
+      day: 26,
+    },
   ],
   openingBalance: 22_000,
   extraAccounts: [
@@ -248,7 +260,8 @@ export const ROHAN: PersonaSpec = {
   // be the rule that fires when the ULIP is proposed.
   policies: [],
   pitch: '29, Indore. ₹85,000 a month, two dependents, no life cover.',
-  demonstrates: 'BUNDLED_PROTECTION — the ULIP refusal, plus idle surplus and a forgotten subscription',
+  demonstrates:
+    'BUNDLED_PROTECTION — the ULIP refusal, plus idle surplus and a forgotten subscription',
 }
 
 /* ------------------------------------------------------------------ *
@@ -289,7 +302,14 @@ export const PRIYA: PersonaSpec = {
     { merchant: 'Netflix', amount: 649, day: 4, category: 'Entertainment', startsMonthsAgo: 23 },
     { merchant: 'Cultfit', amount: 2_499, day: 2, category: 'Health', startsMonthsAgo: 12 },
     { merchant: 'Audible', amount: 199, day: 15, category: 'Entertainment', startsMonthsAgo: 20 },
-    { merchant: 'Adobe', amount: 1_675, day: 20, category: 'Shopping', startsMonthsAgo: 18, forgotten: true },
+    {
+      merchant: 'Adobe',
+      amount: 1_675,
+      day: 20,
+      category: 'Shopping',
+      startsMonthsAgo: 18,
+      forgotten: true,
+    },
   ],
   emis: [
     // 42% a year. No fund on any shelf beats paying this off, which is exactly the point.
@@ -380,7 +400,12 @@ export const SUNIL: PersonaSpec = {
   utilities: true,
   obligations: [
     { narration: 'IMPS/P2A/PARENTS', category: 'Transfers', amount: 10_000, day: 10 },
-    { narration: 'UPI/SARASWATI VIDYALAYA/418290471102', category: 'Education', amount: 12_400, day: 12 },
+    {
+      narration: 'UPI/SARASWATI VIDYALAYA/418290471102',
+      category: 'Education',
+      amount: 12_400,
+      day: 12,
+    },
   ],
   subscriptions: [
     { merchant: 'Jiocinema', amount: 299, day: 9, category: 'Entertainment', startsMonthsAgo: 14 },
@@ -412,8 +437,20 @@ export const SUNIL: PersonaSpec = {
     paydayBias: 0.35,
   },
   lumps: [
-    { narration: 'UPI/ORANGE CITY HOSPITAL/771029384410', category: 'Health', amount: 74_000, monthsAgo: 11, day: 9 },
-    { narration: 'IMPS/P2A/DAUGHTER FEES', category: 'Education', amount: 46_000, monthsAgo: 5, day: 3 },
+    {
+      narration: 'UPI/ORANGE CITY HOSPITAL/771029384410',
+      category: 'Health',
+      amount: 74_000,
+      monthsAgo: 11,
+      day: 9,
+    },
+    {
+      narration: 'IMPS/P2A/DAUGHTER FEES',
+      category: 'Education',
+      amount: 46_000,
+      monthsAgo: 5,
+      day: 3,
+    },
   ],
   // He had savings, and the hospital took them. Sized so the balance bottoms out just above
   // zero right after that bill — which is the whole argument for a buffer, sitting in the data
@@ -430,6 +467,7 @@ export const PERSONAS: readonly PersonaSpec[] = [ROHAN, PRIYA, SUNIL]
 
 export function personaBySlug(slug: string): PersonaSpec {
   const found = PERSONAS.find((p) => p.slug === slug)
-  if (!found) throw new Error(`no persona "${slug}" — have ${PERSONAS.map((p) => p.slug).join(', ')}`)
+  if (!found)
+    throw new Error(`no persona "${slug}" — have ${PERSONAS.map((p) => p.slug).join(', ')}`)
   return found
 }

@@ -63,7 +63,8 @@ export function summarise(file: CustomerFile, asOf: string, months: number): Led
       bucket.in += t.txnAmount
     } else {
       bucket.out += t.txnAmount
-      if (FIXED.has(t.spendCategory) || t.spendCategory === 'Investment') bucket.fixed += t.txnAmount
+      if (FIXED.has(t.spendCategory) || t.spendCategory === 'Investment')
+        bucket.fixed += t.txnAmount
       else bucket.disc += t.txnAmount
     }
     monthly.set(key, bucket)
@@ -124,7 +125,9 @@ export function formatSummary(s: LedgerSummary): string {
     '  spend by category, last 12 months:',
     ...s.byCategory.map(([c, v]) => `    ${c.padEnd(16)} ${inr(v).padStart(12)}`),
     '  recurring mandates detected in the narrations:',
-    ...s.recurring.slice(0, 10).map(([m, n, v]) => `    ${m.padEnd(16)} ${String(n).padStart(3)}x  ${inr(v).padStart(10)}`),
+    ...s.recurring
+      .slice(0, 10)
+      .map(([m, n, v]) => `    ${m.padEnd(16)} ${String(n).padStart(3)}x  ${inr(v).padStart(10)}`),
   ]
   return lines.join('\n')
 }

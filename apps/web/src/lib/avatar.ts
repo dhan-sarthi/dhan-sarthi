@@ -26,7 +26,8 @@ export interface AvatarSession {
   /** Why we are in text mode, in words a customer can read. */
   reason: string | null
   /** The element the LiveKit video track is attached to. */
-  videoRef: React.RefObject<HTMLVideoElement | null>
+  /** Callback ref for the <video>. A function, so the hook hands out no ref object. */
+  attachVideo: (el: HTMLVideoElement | null) => void
   start: () => Promise<void>
   stop: () => void
   muted: boolean
@@ -71,6 +72,10 @@ export function useAvatar(personality: string): AvatarSession {
   const roomRef = useRef<{ disconnect: () => void } | null>(null)
   const sessionRef = useRef<string | null>(null)
   const meterRef = useRef<{ ctx: AudioContext; raf: number } | null>(null)
+
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el
+  }, [])
 
   /**
    * Read his speaking level off the incoming track.
@@ -270,7 +275,9 @@ export function useAvatar(personality: string): AvatarSession {
   const toggleMute = useCallback(() => {
     setMuted((m) => {
       const next = !m
-      const room = roomRef.current as { localParticipant?: { setMicrophoneEnabled: (v: boolean) => void } } | null
+      const room = roomRef.current as {
+        localParticipant?: { setMicrophoneEnabled: (v: boolean) => void }
+      } | null
       room?.localParticipant?.setMicrophoneEnabled(!next)
       return next
     })
@@ -279,7 +286,7 @@ export function useAvatar(personality: string): AvatarSession {
   return {
     mode,
     reason,
-    videoRef,
+    attachVideo,
     start,
     stop,
     muted,

@@ -36,13 +36,7 @@ export interface AuditEntry {
   shown: string
 }
 
-export function Record({
-  view,
-  audit,
-}: {
-  view: View
-  audit: AuditEntry[]
-}): ReactNode {
+export function Record({ view, audit }: { view: View; audit: AuditEntry[] }): ReactNode {
   const [tab, setTab] = useState<Tab>('decisions')
 
   return (
@@ -158,8 +152,8 @@ function Rules({ view }: { view: View }): ReactNode {
       <Eyebrow>What is on the shelf</Eyebrow>
       <Card>
         <p className={`${NOTE} m-0 mb-3`}>
-          Including the ones we will refuse. A product list containing only suitable products
-          cannot demonstrate suitability.
+          Including the ones we will refuse. A product list containing only suitable products cannot
+          demonstrate suitability.
         </p>
         <div className="divide-y divide-solid divide-hairline-mint">
           {view.shelf.map((p) => (

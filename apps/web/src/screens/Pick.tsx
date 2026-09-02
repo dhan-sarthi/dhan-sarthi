@@ -29,8 +29,8 @@ export function Pick({ onPick }: { onPick: (slug: string) => void }): ReactNode 
       </p>
 
       <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
-        Pick a customer to try it. These are synthetic ledgers — twenty-four months each,
-        generated, not written. Every number you see is arithmetic over them.
+        Pick a customer to try it. These are synthetic ledgers — twenty-four months each, generated,
+        not written. Every number you see is arithmetic over them.
       </p>
 
       {personas.map((p) => (

@@ -24,7 +24,7 @@ import {
   consumeSession,
   createSession,
   describeCharacter,
-  RunwayError,
+  type RunwayError,
   waitUntilReady,
 } from '../providers/runway.ts'
 import type { RunwayCredential } from '../providers/runway.ts'
@@ -43,16 +43,24 @@ import type { RunwayCredential } from '../providers/runway.ts'
  * A single key with a single character id is the ordinary case and needs no commas.
  */
 function loadCredentials(): RunwayCredential[] {
-  const keys = (process.env['RUNWAY_API_KEY'] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-  const ids = (process.env['RUNWAY_CHARACTER_ID'] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  const keys = (process.env['RUNWAY_API_KEY'] ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const ids = (process.env['RUNWAY_CHARACTER_ID'] ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
 
-  return keys.map((key, i) => ({
-    key,
-    // One character id shared across keys is not usable — a Character belongs to the account
-    // that created it — so fall back to the first only to keep a single-key setup working.
-    characterId: ids[i] ?? ids[0] ?? '',
-    label: `runway-${i + 1}`,
-  })).filter((c) => c.characterId !== '')
+  return keys
+    .map((key, i) => ({
+      key,
+      // One character id shared across keys is not usable — a Character belongs to the account
+      // that created it — so fall back to the first only to keep a single-key setup working.
+      characterId: ids[i] ?? ids[0] ?? '',
+      label: `runway-${i + 1}`,
+    }))
+    .filter((c) => c.characterId !== '')
 }
 
 interface Lease {

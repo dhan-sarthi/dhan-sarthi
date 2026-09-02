@@ -308,7 +308,8 @@ const RULES: readonly Rule[] = [
   },
   {
     id: 'HORIZON_VS_LOCKIN',
-    description: "A product's lock-in may not exceed the horizon of the goal it is recommended for.",
+    description:
+      "A product's lock-in may not exceed the horizon of the goal it is recommended for.",
     check: ({ product, goal }) =>
       goal && product.lockInYears > goal.horizonYears
         ? {

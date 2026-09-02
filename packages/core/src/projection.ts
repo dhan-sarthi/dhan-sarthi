@@ -75,8 +75,7 @@ export function futureValue(
   if (n <= 0) return existingCorpus
 
   const growthOfExisting = existingCorpus * (1 + i) ** n
-  const growthOfContributions =
-    i === 0 ? monthly * n : monthly * (((1 + i) ** n - 1) / i) * (1 + i)
+  const growthOfContributions = i === 0 ? monthly * n : monthly * (((1 + i) ** n - 1) / i) * (1 + i)
 
   return Math.round(growthOfExisting + growthOfContributions)
 }
@@ -146,11 +145,7 @@ export function project(
  * thirty years. *"Every ₹500 you do not leak this week is ₹500 that compounds. It becomes
  * ₹8,700."* Without it, a spending intervention is nagging.
  */
-export function compoundedValueOf(
-  extraMonthly: number,
-  years: number,
-  annualRatePct = 10,
-): number {
+export function compoundedValueOf(extraMonthly: number, years: number, annualRatePct = 10): number {
   return futureValue(extraMonthly, years, annualRatePct, 0)
 }
 
@@ -195,11 +190,7 @@ export function monthsToClear(
 }
 
 /** The smallest payment that actually retires a debt within `months`. */
-export function paymentToClear(
-  principal: number,
-  annualRatePct: number,
-  months: number,
-): number {
+export function paymentToClear(principal: number, annualRatePct: number, months: number): number {
   if (months <= 0) return principal
   const r = annualRatePct / 100 / 12
   if (r === 0) return Math.ceil(principal / months)

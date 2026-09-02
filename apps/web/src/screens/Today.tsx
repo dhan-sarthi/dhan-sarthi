@@ -21,7 +21,7 @@ import { approx, dayMonth, inr } from '../lib/money.ts'
 const CHIP =
   'relative grid size-10 shrink-0 place-items-center rounded-pill border border-solid border-hairline-mint bg-white text-ink'
 const CHIP_BADGE =
-  "after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-white after:content-[attr(data-count)]"
+  'after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-white after:content-[attr(data-count)]'
 
 /* Card subtitle and footnote text. */
 const META = 'm-0 text-sm text-ink-soft'
@@ -59,9 +59,10 @@ export function Today({
   const spent = envelope - s.pot
   const usedPct = envelope > 0 ? (spent / envelope) * 100 : 100
 
-  const primary = plan.primary && !accepted.includes(plan.primary.id) && !declined.includes(plan.primary.id)
-    ? plan.primary
-    : (plan.secondary.find((a) => !accepted.includes(a.id) && !declined.includes(a.id)) ?? null)
+  const primary =
+    plan.primary && !accepted.includes(plan.primary.id) && !declined.includes(plan.primary.id)
+      ? plan.primary
+      : (plan.secondary.find((a) => !accepted.includes(a.id) && !declined.includes(a.id)) ?? null)
 
   return (
     <>
@@ -100,7 +101,8 @@ export function Today({
             <Amount value={s.pot} size="xl" />
           </div>
           <p className={`${META} mb-3.5`}>
-            Left of <b className="text-ink">{inr(envelope)}</b> · about <b className="text-ink">{inr(s.perDay)}</b> a day
+            Left of <b className="text-ink">{inr(envelope)}</b> · about{' '}
+            <b className="text-ink">{inr(s.perDay)}</b> a day
           </p>
 
           <Bar used={usedPct} />
@@ -130,9 +132,7 @@ export function Today({
         ) : (
           <Card tint="sky">
             <h2>Nothing needs you today</h2>
-            <p className={`${META} mt-1.5`}>
-              {plan.routeNote}
-            </p>
+            <p className={`${META} mt-1.5`}>{plan.routeNote}</p>
           </Card>
         )}
 
@@ -149,20 +149,27 @@ export function Today({
                 </span>
               </div>
               <div className="mt-2 divide-y divide-solid divide-hairline-mint">
-                {plan.since.transactions.slice(-6).reverse().map((t) => (
-                  <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
-                    <span className="grid size-8 shrink-0 place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
-                      {t.spendCategory[0]}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <b className="block text-[15px] font-semibold text-ink">{prettyMerchant(t.narration)}</b>
-                      <span className="text-xs text-ink-soft">
-                        {dayMonth(t.txnDate)} · {t.spendCategory}
+                {plan.since.transactions
+                  .slice(-6)
+                  .reverse()
+                  .map((t) => (
+                    <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
+                        {t.spendCategory[0]}
                       </span>
-                    </span>
-                    <span className="shrink-0 text-[15px] font-semibold tabular-nums text-ink">−{inr(t.txnAmount)}</span>
-                  </div>
-                ))}
+                      <span className="min-w-0 flex-1">
+                        <b className="block text-[15px] font-semibold text-ink">
+                          {prettyMerchant(t.narration)}
+                        </b>
+                        <span className="text-xs text-ink-soft">
+                          {dayMonth(t.txnDate)} · {t.spendCategory}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[15px] font-semibold tabular-nums text-ink">
+                        −{inr(t.txnAmount)}
+                      </span>
+                    </div>
+                  ))}
               </div>
             </Card>
           </>
@@ -203,9 +210,7 @@ function ActionCard({
       <div className="flex justify-between gap-2.5">
         <h2>{action.label}</h2>
       </div>
-      <p className="mb-0 mt-2 text-[14.5px] leading-normal opacity-80">
-        {action.detail}
-      </p>
+      <p className="mb-0 mt-2 text-[14.5px] leading-normal opacity-80">{action.detail}</p>
 
       {/* Never a promise. The rate is on screen and the wording is conditional. */}
       {action.projected ? (
@@ -229,7 +234,11 @@ function ActionCard({
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" className={BTN_ON_INK_PRIMARY} onClick={() => onDecide(action, 'did_it')}>
+        <button
+          type="button"
+          className={BTN_ON_INK_PRIMARY}
+          onClick={() => onDecide(action, 'did_it')}
+        >
           Do it
         </button>
         <button
@@ -263,7 +272,8 @@ function ActionCard({
 
 function InsightCard({ insight }: { insight: Insight }): ReactNode {
   const [open, setOpen] = useState(false)
-  const tone = insight.severity === 'urgent' ? 'bad' : insight.severity === 'important' ? 'warn' : 'ok'
+  const tone =
+    insight.severity === 'urgent' ? 'bad' : insight.severity === 'important' ? 'warn' : 'ok'
 
   return (
     <Card>
@@ -280,12 +290,8 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
         ) : null}
       </div>
 
-      <div className="text-[16.5px] font-semibold leading-snug text-ink">
-        {insight.headline}
-      </div>
-      <p className="mb-0 mt-2 text-sm leading-normal text-ink-mid">
-        {insight.detail}
-      </p>
+      <div className="text-[16.5px] font-semibold leading-snug text-ink">{insight.headline}</div>
+      <p className="mb-0 mt-2 text-sm leading-normal text-ink-mid">{insight.detail}</p>
 
       {open ? (
         <div className="mt-3 border-t border-solid border-hairline-mint pt-[11px]">
@@ -310,9 +316,15 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
 
 /** `UPI/SWIGGY/412683940281` reads as "Swiggy" to a person. */
 export function prettyMerchant(narration: string): string {
-  const parts = narration.split(/[/\-]/).map((p) => p.trim()).filter(Boolean)
+  const parts = narration
+    .split(/[/-]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
   const named = parts.find(
-    (p) => p.length > 2 && !/^\d+$/.test(p) && !['UPI', 'POS', 'NEFT', 'IMPS', 'ACH', 'D', 'CR', 'SI', 'ATW', 'P2A'].includes(p),
+    (p) =>
+      p.length > 2 &&
+      !/^\d+$/.test(p) &&
+      !['UPI', 'POS', 'NEFT', 'IMPS', 'ACH', 'D', 'CR', 'SI', 'ATW', 'P2A'].includes(p),
   )
   const raw = named ?? parts[0] ?? narration
   return raw

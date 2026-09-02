@@ -34,27 +34,75 @@ export const MERCHANTS: readonly MerchantRule[] = [
   { match: ['ZEPTO'], merchant: 'Zepto', category: 'Groceries' },
   { match: ['BIGBASKET', 'BB DAILY'], merchant: 'BigBasket', category: 'Groceries' },
   { match: ['DMART', 'AVENUE SUPERMART'], merchant: 'DMart', category: 'Groceries' },
-  { match: ['RELIANCE FRESH', 'RELIANCE SMART', 'JIOMART'], merchant: 'Reliance Retail', category: 'Groceries' },
-  { match: ['MORE RETAIL', 'SPENCER', 'STAR BAZAAR'], merchant: 'Supermarket', category: 'Groceries' },
-  { match: ['KIRANA', 'GENERAL STORE', 'PROVISION'], merchant: 'Local kirana', category: 'Groceries' },
-  { match: ['LICIOUS', 'FRESHTOHOME', 'ZAPPFRESH'], merchant: 'Meat delivery', category: 'Groceries' },
+  {
+    match: ['RELIANCE FRESH', 'RELIANCE SMART', 'JIOMART'],
+    merchant: 'Reliance Retail',
+    category: 'Groceries',
+  },
+  {
+    match: ['MORE RETAIL', 'SPENCER', 'STAR BAZAAR'],
+    merchant: 'Supermarket',
+    category: 'Groceries',
+  },
+  {
+    match: ['KIRANA', 'GENERAL STORE', 'PROVISION'],
+    merchant: 'Local kirana',
+    category: 'Groceries',
+  },
+  {
+    match: ['LICIOUS', 'FRESHTOHOME', 'ZAPPFRESH'],
+    merchant: 'Meat delivery',
+    category: 'Groceries',
+  },
 
   // Food and dining.
   { match: ['SWIGGY'], merchant: 'Swiggy', category: 'Food & dining' },
   { match: ['ZOMATO', 'EATSURE'], merchant: 'Zomato', category: 'Food & dining' },
-  { match: ['DOMINOS', 'PIZZA HUT', 'MCDONALD', 'BURGER KING', 'KFC', 'SUBWAY'], merchant: 'Fast food', category: 'Food & dining' },
-  { match: ['STARBUCKS', 'THIRD WAVE', 'BLUE TOKAI', 'CAFE COFFEE DAY', 'CCD', 'CHAAYOS', 'CHAI POINT'], merchant: 'Coffee shop', category: 'Food & dining' },
+  {
+    match: ['DOMINOS', 'PIZZA HUT', 'MCDONALD', 'BURGER KING', 'KFC', 'SUBWAY'],
+    merchant: 'Fast food',
+    category: 'Food & dining',
+  },
+  {
+    match: [
+      'STARBUCKS',
+      'THIRD WAVE',
+      'BLUE TOKAI',
+      'CAFE COFFEE DAY',
+      'CCD',
+      'CHAAYOS',
+      'CHAI POINT',
+    ],
+    merchant: 'Coffee shop',
+    category: 'Food & dining',
+  },
   { match: ['TAPRI', 'CHAI', 'TEA STALL'], merchant: 'Tapri', category: 'Food & dining' },
-  { match: ['RESTAURANT', 'DHABA', 'BHOJANALAY', 'BAZAAR', 'FOODS', 'KITCHEN', 'BIRYANI'], merchant: 'Restaurant', category: 'Food & dining' },
+  {
+    match: ['RESTAURANT', 'DHABA', 'BHOJANALAY', 'BAZAAR', 'FOODS', 'KITCHEN', 'BIRYANI'],
+    merchant: 'Restaurant',
+    category: 'Food & dining',
+  },
 
   // Transport.
   { match: ['RAPIDO'], merchant: 'Rapido', category: 'Transport' },
   { match: ['UBER'], merchant: 'Uber', category: 'Transport' },
   { match: ['OLA', 'ANI TECHNOLOGIES'], merchant: 'Ola', category: 'Transport' },
   { match: ['NAMMA YATRI'], merchant: 'Namma Yatri', category: 'Transport' },
-  { match: ['INDIAN OIL', 'IOCL', 'HPCL', 'BHARAT PETRO', 'BPCL', 'SHELL', 'NAYARA'], merchant: 'Fuel', category: 'Transport' },
-  { match: ['IRCTC', 'REDBUS', 'ABHIBUS', 'RAILWAY'], merchant: 'Rail & bus', category: 'Transport' },
-  { match: ['METRO', 'CITY BUS', 'MSRTC', 'BEST UNDERTAKING', 'FASTAG'], merchant: 'Public transport', category: 'Transport' },
+  {
+    match: ['INDIAN OIL', 'IOCL', 'HPCL', 'BHARAT PETRO', 'BPCL', 'SHELL', 'NAYARA'],
+    merchant: 'Fuel',
+    category: 'Transport',
+  },
+  {
+    match: ['IRCTC', 'REDBUS', 'ABHIBUS', 'RAILWAY'],
+    merchant: 'Rail & bus',
+    category: 'Transport',
+  },
+  {
+    match: ['METRO', 'CITY BUS', 'MSRTC', 'BEST UNDERTAKING', 'FASTAG'],
+    merchant: 'Public transport',
+    category: 'Transport',
+  },
 
   // Shopping.
   { match: ['AMAZON', 'AMZN'], merchant: 'Amazon', category: 'Shopping' },
@@ -64,39 +112,167 @@ export const MERCHANTS: readonly MerchantRule[] = [
   { match: ['MEESHO', 'SNAPDEAL'], merchant: 'Meesho', category: 'Shopping' },
   { match: ['NYKAA', 'PURPLLE'], merchant: 'Nykaa', category: 'Shopping' },
   { match: ['DECATHLON'], merchant: 'Decathlon', category: 'Shopping' },
-  { match: ['CROMA', 'RELIANCE DIGITAL', 'VIJAY SALES', 'APPLE INDIA'], merchant: 'Electronics', category: 'Shopping' },
-  { match: ['LENSKART', 'TITAN', 'TANISHQ', 'WESTSIDE', 'PANTALOONS', 'LIFESTYLE', 'MAX FASHION', 'ZUDIO'], merchant: 'Retail', category: 'Shopping' },
-  { match: ['MALL', 'TREASURE ISLAND', 'PHOENIX'], merchant: 'Shopping mall', category: 'Shopping' },
-  { match: ['MAKEMYTRIP', 'GOIBIBO', 'IXIGO', 'CLEARTRIP', 'OYO', 'AIRBNB', 'INDIGO', 'AIR INDIA', 'VISTARA'], merchant: 'Travel', category: 'Shopping' },
+  {
+    match: ['CROMA', 'RELIANCE DIGITAL', 'VIJAY SALES', 'APPLE INDIA'],
+    merchant: 'Electronics',
+    category: 'Shopping',
+  },
+  {
+    match: [
+      'LENSKART',
+      'TITAN',
+      'TANISHQ',
+      'WESTSIDE',
+      'PANTALOONS',
+      'LIFESTYLE',
+      'MAX FASHION',
+      'ZUDIO',
+    ],
+    merchant: 'Retail',
+    category: 'Shopping',
+  },
+  {
+    match: ['MALL', 'TREASURE ISLAND', 'PHOENIX'],
+    merchant: 'Shopping mall',
+    category: 'Shopping',
+  },
+  {
+    match: [
+      'MAKEMYTRIP',
+      'GOIBIBO',
+      'IXIGO',
+      'CLEARTRIP',
+      'OYO',
+      'AIRBNB',
+      'INDIGO',
+      'AIR INDIA',
+      'VISTARA',
+    ],
+    merchant: 'Travel',
+    category: 'Shopping',
+  },
 
   // Entertainment.
   { match: ['NETFLIX'], merchant: 'Netflix', category: 'Entertainment' },
   { match: ['SPOTIFY', 'GAANA', 'WYNK'], merchant: 'Spotify', category: 'Entertainment' },
-  { match: ['HOTSTAR', 'JIOCINEMA', 'JIOHOTSTAR', 'SONYLIV', 'ZEE5', 'PRIME VIDEO'], merchant: 'Streaming', category: 'Entertainment' },
-  { match: ['AUDIBLE', 'KINDLE', 'CROSSWORD', 'BOOK'], merchant: 'Books', category: 'Entertainment' },
-  { match: ['BOOKMYSHOW', 'PVR', 'INOX', 'CINEPOLIS'], merchant: 'Cinema', category: 'Entertainment' },
-  { match: ['STEAM', 'PLAYSTATION', 'XBOX', 'NINTENDO', 'SMAAASH'], merchant: 'Games', category: 'Entertainment' },
+  {
+    match: ['HOTSTAR', 'JIOCINEMA', 'JIOHOTSTAR', 'SONYLIV', 'ZEE5', 'PRIME VIDEO'],
+    merchant: 'Streaming',
+    category: 'Entertainment',
+  },
+  {
+    match: ['AUDIBLE', 'KINDLE', 'CROSSWORD', 'BOOK'],
+    merchant: 'Books',
+    category: 'Entertainment',
+  },
+  {
+    match: ['BOOKMYSHOW', 'PVR', 'INOX', 'CINEPOLIS'],
+    merchant: 'Cinema',
+    category: 'Entertainment',
+  },
+  {
+    match: ['STEAM', 'PLAYSTATION', 'XBOX', 'NINTENDO', 'SMAAASH'],
+    merchant: 'Games',
+    category: 'Entertainment',
+  },
 
   // Health. Gym memberships sit here because that is where a customer looks for them.
-  { match: ['CULTFIT', 'CULT.FIT', 'CUREFIT', 'GOLDS GYM', 'ANYTIME FITNESS'], merchant: 'Cult.fit', category: 'Health' },
-  { match: ['APOLLO', 'PHARMEASY', '1MG', 'TATA 1MG', 'NETMEDS', 'MEDPLUS', 'WELLNESS FOREVER'], merchant: 'Pharmacy', category: 'Health' },
-  { match: ['PRACTO', 'HOSPITAL', 'CLINIC', 'DIAGNOSTIC', 'PATHLABS', 'LAL PATH', 'THYROCARE'], merchant: 'Healthcare', category: 'Health' },
+  {
+    match: ['CULTFIT', 'CULT.FIT', 'CUREFIT', 'GOLDS GYM', 'ANYTIME FITNESS'],
+    merchant: 'Cult.fit',
+    category: 'Health',
+  },
+  {
+    match: ['APOLLO', 'PHARMEASY', '1MG', 'TATA 1MG', 'NETMEDS', 'MEDPLUS', 'WELLNESS FOREVER'],
+    merchant: 'Pharmacy',
+    category: 'Health',
+  },
+  {
+    match: ['PRACTO', 'HOSPITAL', 'CLINIC', 'DIAGNOSTIC', 'PATHLABS', 'LAL PATH', 'THYROCARE'],
+    merchant: 'Healthcare',
+    category: 'Health',
+  },
 
   // Bills and utilities.
-  { match: ['JIO', 'AIRTEL', 'VODAFONE', 'VI', 'BSNL'], merchant: 'Mobile', category: 'Rent & bills' },
-  { match: ['ACT FIBERNET', 'HATHWAY', 'EXCITEL', 'BROADBAND'], merchant: 'Broadband', category: 'Rent & bills' },
-  { match: ['MPPKVVCL', 'MSEDCL', 'BESCOM', 'TATA POWER', 'ADANI ELECTRICITY', 'TORRENT POWER', 'ELECTRICITY', 'DISCOM'], merchant: 'Electricity', category: 'Rent & bills' },
+  {
+    match: ['JIO', 'AIRTEL', 'VODAFONE', 'VI', 'BSNL'],
+    merchant: 'Mobile',
+    category: 'Rent & bills',
+  },
+  {
+    match: ['ACT FIBERNET', 'HATHWAY', 'EXCITEL', 'BROADBAND'],
+    merchant: 'Broadband',
+    category: 'Rent & bills',
+  },
+  {
+    match: [
+      'MPPKVVCL',
+      'MSEDCL',
+      'BESCOM',
+      'TATA POWER',
+      'ADANI ELECTRICITY',
+      'TORRENT POWER',
+      'ELECTRICITY',
+      'DISCOM',
+    ],
+    merchant: 'Electricity',
+    category: 'Rent & bills',
+  },
   { match: ['GAS', 'INDANE', 'HP GAS', 'MAHANAGAR'], merchant: 'Gas', category: 'Rent & bills' },
   { match: ['MUNICIPAL', 'WATER', 'PROPERTY TAX'], merchant: 'Civic', category: 'Rent & bills' },
 
   // Education.
-  { match: ['VIDYALAYA', 'SCHOOL', 'COLLEGE', 'UNIVERSITY', 'TUITION', 'FEES', 'BYJU', 'UNACADEMY', 'COURSERA', 'UDEMY'], merchant: 'Education', category: 'Education' },
+  {
+    match: [
+      'VIDYALAYA',
+      'SCHOOL',
+      'COLLEGE',
+      'UNIVERSITY',
+      'TUITION',
+      'FEES',
+      'BYJU',
+      'UNACADEMY',
+      'COURSERA',
+      'UDEMY',
+    ],
+    merchant: 'Education',
+    category: 'Education',
+  },
 
   // Investment and insurance mandates.
-  { match: ['MUTUAL FUND', 'MF', 'AMC', 'FOLIO', 'NIPPON', 'HDFC MF', 'ICICI PRU', 'AXIS FLEXI', 'UTI NIFTY', 'LIC MF'], merchant: 'Mutual fund', category: 'Investment' },
+  {
+    match: [
+      'MUTUAL FUND',
+      'MF',
+      'AMC',
+      'FOLIO',
+      'NIPPON',
+      'HDFC MF',
+      'ICICI PRU',
+      'AXIS FLEXI',
+      'UTI NIFTY',
+      'LIC MF',
+    ],
+    merchant: 'Mutual fund',
+    category: 'Investment',
+  },
   { match: ['NPS', 'PROTEAN', 'PFRDA'], merchant: 'NPS', category: 'Investment' },
   { match: ['PPF', 'SUKANYA'], merchant: 'Small savings', category: 'Investment' },
-  { match: ['LIC OF INDIA', 'PREMIUM', 'NIVA BUPA', 'STAR HEALTH', 'HDFC LIFE', 'ICICI LOMBARD', 'TATA AIG', 'NEW INDIA ASSURANCE', 'INSURANCE'], merchant: 'Insurance', category: 'Insurance' },
+  {
+    match: [
+      'LIC OF INDIA',
+      'PREMIUM',
+      'NIVA BUPA',
+      'STAR HEALTH',
+      'HDFC LIFE',
+      'ICICI LOMBARD',
+      'TATA AIG',
+      'NEW INDIA ASSURANCE',
+      'INSURANCE',
+    ],
+    merchant: 'Insurance',
+    category: 'Insurance',
+  },
 ]
 
 /**

@@ -21,13 +21,7 @@ import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
 const META = 'm-0 text-[13px] text-ink-soft'
 const NOTE = 'text-xs leading-relaxed text-ink-soft'
 
-export function Plan({
-  snapshot,
-  roadmap,
-}: {
-  snapshot: Snapshot
-  roadmap: Roadmap
-}): ReactNode {
+export function Plan({ snapshot, roadmap }: { snapshot: Snapshot; roadmap: Roadmap }): ReactNode {
   const [rate, setRate] = useState(10)
   const growth = roadmap.stages.find((s) => s.kind === 'grow')
   const contribution = growth?.monthly ?? snapshot.surplus.deployable
@@ -69,9 +63,9 @@ export function Plan({
 
           {!roadmap.feasible ? (
             <p className="mb-0 mt-3 text-[13.5px] leading-normal text-ink-mid">
-              I would rather show you that than move the number until it fits. We can push the
-              date, lower the target, or find the difference in your spending — and the last one
-              is usually the least painful.
+              I would rather show you that than move the number until it fits. We can push the date,
+              lower the target, or find the difference in your spending — and the last one is
+              usually the least painful.
             </p>
           ) : null}
         </Card>
@@ -106,10 +100,7 @@ export function Plan({
                   />
                 ))}
                 <Leader label="Of which you put in" value={approx(mid?.contributed ?? 0)} />
-                <Leader
-                  label={`Your target`}
-                  value={approx(roadmap.goal.targetAmount)}
-                />
+                <Leader label={`Your target`} value={approx(roadmap.goal.targetAmount)} />
               </div>
 
               <label className="mt-4 block text-[12.5px] text-ink-soft">
@@ -140,8 +131,8 @@ export function Plan({
           <p className="m-0 text-[15px] leading-normal text-ink">{roadmap.reasonForChange}</p>
           <p className={`${NOTE} mb-0 mt-3`}>
             Every version of this plan is kept, with the reason it changed and the figures it was
-            built on. That record is what makes the advice auditable five years from now — and it
-            is the same record that lets the plan learn what you actually do.
+            built on. That record is what makes the advice auditable five years from now — and it is
+            the same record that lets the plan learn what you actually do.
           </p>
         </Card>
       </div>

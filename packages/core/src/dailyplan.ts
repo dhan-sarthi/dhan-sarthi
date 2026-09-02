@@ -10,7 +10,7 @@
  * keep someone oriented, and **that is how the app earns the right to give the monthly advice.**
  */
 import type { Action } from './actions.ts'
-import { addDays, daysBetween, monthKey } from './dates.ts'
+import { addDays, monthKey } from './dates.ts'
 import type { Snapshot } from './derive.ts'
 import { findInsights } from './insights.ts'
 import type { Insight } from './insights.ts'
@@ -101,12 +101,6 @@ export function buildDailyPlan(
 
   /* Safe to spend ------------------------------------------------------ */
 
-  // Bills already paid this month do not need holding back again. Only what is still due
-  // between now and the next salary comes out of the pot.
-  const stillDue = snapshot.commitments.series
-    .filter((s) => s.dayOfMonth !== null && s.dayOfMonth > Number(asOf.slice(-2)))
-    .reduce((sum, s) => sum + s.monthlyCost, 0)
-
   // The stage the customer is actually funding right now.
   const commitment = roadmap?.monthlyCommitment ?? 0
 
@@ -121,8 +115,12 @@ export function buildDailyPlan(
       if (committedIds.has(txn.txnId)) return false
       const c = txn.spendCategory
       return (
-        c !== 'Investment' && c !== 'Insurance' && c !== 'Loan EMI' &&
-        c !== 'Income' && c !== 'Education' && c !== 'Fees & charges'
+        c !== 'Investment' &&
+        c !== 'Insurance' &&
+        c !== 'Loan EMI' &&
+        c !== 'Income' &&
+        c !== 'Education' &&
+        c !== 'Fees & charges'
       )
     })
     .reduce((sum, txn) => sum + txn.txnAmount, 0)
@@ -197,8 +195,18 @@ export function buildDailyPlan(
 
 function monthName(iso: string): string {
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ]
   return months[Number(iso.slice(5, 7)) - 1] ?? ''
 }
@@ -232,45 +240,58 @@ function toAction(
       const product = pickBy((p) => p.category === 'Sweep-in FD')
       const amount = Math.max(0, Math.round(snapshot.balances.idleFloor * 0.8))
       if (!product || amount < product.minInvestment) return null
-      return withVerdict({
-        ...base,
-        label: `Sweep ${inr(amount)} into a deposit`,
-        detail:
-          `Moves the part of your balance you never touch into ${product.name} at about ` +
-          `${product.indicativeReturn ?? 6.8}%. It comes straight back the day you need it — ` +
-          `no lock-in, no risk, no new paperwork.`,
-        amount,
-        productId: product.productId,
-        productName: product.name,
-      }, product, snapshot, shelf, 0)
+      return withVerdict(
+        {
+          ...base,
+          label: `Sweep ${inr(amount)} into a deposit`,
+          detail:
+            `Moves the part of your balance you never touch into ${product.name} at about ` +
+            `${product.indicativeReturn ?? 6.8}%. It comes straight back the day you need it — ` +
+            `no lock-in, no risk, no new paperwork.`,
+          amount,
+          productId: product.productId,
+          productName: product.name,
+        },
+        product,
+        snapshot,
+        shelf,
+        0,
+      )
     }
 
     case 'start_sip':
     case 'increase_sip': {
       const freed = snapshot.debt.endingSoon?.emiAmount ?? deployable
       const amount = Math.min(Math.max(freed, 500), Math.max(deployable, 500))
-      const product = horizonYears >= 3
-        ? pickBy((p) => p.category === 'Index Fund')
-        : pickBy((p) => p.category === 'Recurring Deposit')
+      const product =
+        horizonYears >= 3
+          ? pickBy((p) => p.category === 'Index Fund')
+          : pickBy((p) => p.category === 'Recurring Deposit')
       if (!product) return null
-      return withVerdict({
-        ...base,
-        label:
-          insight.suggests === 'increase_sip'
-            ? `Add ${inr(amount)} a month to your SIP`
-            : `Start ${inr(amount)} a month`,
-        detail:
-          `Into ${product.name}. Set it for the day after your salary lands, so it goes before ` +
-          `you can spend it.`,
-        amount,
-        productId: product.productId,
-        productName: product.name,
-        projected: {
-          years: horizonYears,
-          ratePct,
-          becomes: compoundedValueOf(amount, horizonYears, ratePct),
+      return withVerdict(
+        {
+          ...base,
+          label:
+            insight.suggests === 'increase_sip'
+              ? `Add ${inr(amount)} a month to your SIP`
+              : `Start ${inr(amount)} a month`,
+          detail:
+            `Into ${product.name}. Set it for the day after your salary lands, so it goes before ` +
+            `you can spend it.`,
+          amount,
+          productId: product.productId,
+          productName: product.name,
+          projected: {
+            years: horizonYears,
+            ratePct,
+            becomes: compoundedValueOf(amount, horizonYears, ratePct),
+          },
         },
-      }, product, snapshot, shelf, horizonYears)
+        product,
+        snapshot,
+        shelf,
+        horizonYears,
+      )
     }
 
     case 'buy_term_cover': {
@@ -285,29 +306,41 @@ function toAction(
 
       const product = affordable ?? [...life].sort((a, b) => a.minInvestment - b.minInvestment)[0]
       if (!product) return null
-      return withVerdict({
-        ...base,
-        label: `Take ${inr(product.coverAmount ?? 0)} of cover for ${inr(product.minInvestment)} a month`,
-        detail:
-          `${product.name}. Pure cover — no maturity value, nothing to cash in, which is exactly ` +
-          `why it is this cheap.`,
-        amount: product.minInvestment,
-        productId: product.productId,
-        productName: product.name,
-      }, product, snapshot, shelf, 30)
+      return withVerdict(
+        {
+          ...base,
+          label: `Take ${inr(product.coverAmount ?? 0)} of cover for ${inr(product.minInvestment)} a month`,
+          detail:
+            `${product.name}. Pure cover — no maturity value, nothing to cash in, which is exactly ` +
+            `why it is this cheap.`,
+          amount: product.minInvestment,
+          productId: product.productId,
+          productName: product.name,
+        },
+        product,
+        snapshot,
+        shelf,
+        30,
+      )
     }
 
     case 'enrol_pmjjby': {
       const product = pickBy((p) => p.category === 'Government Insurance' && p.coverType === 'life')
       if (!product) return null
-      return withVerdict({
-        ...base,
-        label: `Enrol in ${product.name}`,
-        detail: `About ${inr(product.minInvestment * 12)} a year for ${inr(product.coverAmount ?? 0)} of cover. It pays the bank almost nothing.`,
-        amount: product.minInvestment,
-        productId: product.productId,
-        productName: product.name,
-      }, product, snapshot, shelf, 30)
+      return withVerdict(
+        {
+          ...base,
+          label: `Enrol in ${product.name}`,
+          detail: `About ${inr(product.minInvestment * 12)} a year for ${inr(product.coverAmount ?? 0)} of cover. It pays the bank almost nothing.`,
+          amount: product.minInvestment,
+          productId: product.productId,
+          productName: product.name,
+        },
+        product,
+        snapshot,
+        shelf,
+        30,
+      )
     }
 
     case 'set_category_cap': {
@@ -366,7 +399,8 @@ function toAction(
       return {
         ...base,
         label: 'Book a call with your relationship manager',
-        detail: 'They will have all of this in front of them. You will not have to explain it again.',
+        detail:
+          'They will have all of this in front of them. You will not have to explain it again.',
         amount: 0,
         verdictId: null,
       }

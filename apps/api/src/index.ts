@@ -21,9 +21,7 @@ import { avatarRoutes } from './routes/avatar.ts'
 
 const app = Fastify({
   logger:
-    process.env['NODE_ENV'] === 'production'
-      ? true
-      : { transport: { target: 'pino-pretty' } },
+    process.env['NODE_ENV'] === 'production' ? true : { transport: { target: 'pino-pretty' } },
 })
 
 await app.register(cors, {

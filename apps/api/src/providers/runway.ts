@@ -69,7 +69,7 @@ async function call(
 
   if (res.status === 204) return null
   const text = await res.text()
-  let json: Record<string, unknown> | null = null
+  let json: Record<string, unknown> | null
   try {
     json = text ? (JSON.parse(text) as Record<string, unknown>) : null
   } catch {
@@ -153,9 +153,7 @@ export async function waitUntilReady(
 
   // Queued for the entire window is real contention. Anything else is a slow provision.
   throw new RunwayError(
-    wasQueued
-      ? 'The avatar service is at capacity.'
-      : `Session not ready within ${timeoutMs}ms.`,
+    wasQueued ? 'The avatar service is at capacity.' : `Session not ready within ${timeoutMs}ms.`,
     { status: wasQueued ? 409 : 504, ...(wasQueued ? { code: 'QUEUED' } : {}) },
   )
 }

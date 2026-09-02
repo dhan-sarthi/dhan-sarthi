@@ -61,7 +61,7 @@ export function addMonths(iso: string, months: number): string {
   const { year, month, day } = ymd(iso)
   const target = month - 1 + months
   const y = year + Math.floor(target / 12)
-  const m = ((target % 12) + 12) % 12 + 1
+  const m = (((target % 12) + 12) % 12) + 1
   return fromYmd(y, m, Math.min(day, daysInMonth(y, m)))
 }
 
@@ -108,7 +108,12 @@ export function festivalsFor(year: number): FestivalWindow[] {
   return [
     { name: 'Diwali', from: fromYmd(year, 10, 18), to: fromYmd(year, 11, 4), intensity: 2.4 },
     { name: 'Holi', from: fromYmd(year, 3, 6), to: fromYmd(year, 3, 12), intensity: 1.4 },
-    { name: 'Wedding season', from: fromYmd(year, 11, 20), to: fromYmd(year, 12, 15), intensity: 1.6 },
+    {
+      name: 'Wedding season',
+      from: fromYmd(year, 11, 20),
+      to: fromYmd(year, 12, 15),
+      intensity: 1.6,
+    },
   ]
 }
 
