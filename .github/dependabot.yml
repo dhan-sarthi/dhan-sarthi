@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the whole toolchain, one for runtime dependencies. Fewer, larger PRs are
+      # easier to review than a dozen one-line bumps.
+      tooling:
+        dependency-type: development
+      runtime:
+        dependency-type: production
+    ignore:
+      # Major versions of the framework and the avatar SDK are reviewed by hand.
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: livekit-client
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@runwayml/*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

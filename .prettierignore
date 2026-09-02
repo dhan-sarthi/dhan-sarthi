@@ -1,0 +1,14 @@
+# Build output and dependencies
+dist/
+node_modules/
+*.tsbuildinfo
+pnpm-lock.yaml
+
+# Generated or third-party content we do not reformat
+docs/engineering/evidence/
+docs/assets/
+apps/web/public/
+
+# Markdown is written by hand with deliberate line breaks; Prettier leaves prose alone but would
+# still rewrap tables and lists in ways that hurt review diffs.
+*.md
