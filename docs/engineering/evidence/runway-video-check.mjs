@@ -2,16 +2,23 @@
  * The check that has been open for weeks: does the Runway video track actually render in a
  * real browser?
  *
- * CLAUDE.md says it could not be tested because "headless Chromium has no H.264". That is not
- * true of this Chromium build — RTCRtpReceiver.getCapabilities('video') lists video/H264 — so
- * the test is possible after all.
+ * The engineering notes said it could not be tested because "headless Chromium has no H.264".
+ * That is not true of the Chromium that ships with Playwright — RTCRtpReceiver.getCapabilities
+ * ('video') lists video/H264 — so the test is possible after all.
  *
  * Billing is real ($0.20/min), so the session is cancelled in a finally block no matter what.
+ *
+ * Run from the repository root after `pnpm install`, with apps/api/.env filled in:
+ *   node docs/engineering/evidence/runway-video-check.mjs
+ * Set ENV_FILE to point at a different env file, and CHROMIUM_PATH to use a specific binary
+ * instead of the installed Google Chrome.
  */
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
-const ENV = '/home/coder/projects/hack/IDBI/prototype/server/.env'
+const ENV = process.env.ENV_FILE ?? fileURLToPath(new URL('../../../apps/api/.env', import.meta.url))
 const env = Object.fromEntries(
   readFileSync(ENV, 'utf8')
     .split('\n')
@@ -22,10 +29,10 @@ const env = Object.fromEntries(
 const BASE = env.RUNWAY_API_BASE || 'https://api.dev.runwayml.com'
 const KEY = env.RUNWAY_API_KEY
 const CHARACTER = env.RUNWAY_CHARACTER_ID
-const LIVEKIT_UMD =
-  '/home/coder/projects/hack/IDBI/dhan-sarthi/node_modules/.pnpm/' +
-  'livekit-client@2.22.2_@types+dom-mediacapture-record@1.0.22' +
-  '/node_modules/livekit-client/dist/livekit-client.umd.js'
+// Resolved through apps/web, which is the package that depends on livekit-client.
+const LIVEKIT_UMD = createRequire(new URL('../../../apps/web/package.json', import.meta.url)).resolve(
+  'livekit-client/dist/livekit-client.umd.js',
+)
 
 const call = async (path, { method = 'GET', bearer, body } = {}) => {
   const headers = { Authorization: `Bearer ${bearer || KEY}`, 'X-Runway-Version': '2024-11-06' }
@@ -90,7 +97,7 @@ try {
 
   console.log('5. connecting a real browser…')
   browser = await chromium.launch({
-    executablePath: '/home/coder/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome',
+    ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: 'chrome' }),
     args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
            '--autoplay-policy=no-user-gesture-required'],
   })
