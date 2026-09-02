@@ -1,72 +1,92 @@
 /*
  * Design tokens.
  *
- * The structure is borrowed openly from Cleo, because their layout language is
- * the right one for this product: one enormous number per card, pill segmented controls, big
- * soft-cornered cards on a warm ground, and a five-item tab bar with the assistant in the middle.
- * What is *not* borrowed is the palette. Cleo's espresso-and-peach reads as a consumer fintech;
- * ours has to read as a bank a risk committee would sign off, so the ink is a deep forest green
- * close to IDBI's own mark, with amber for anything that needs attention.
+ * The values follow IDBI Bank GO Mobile+, the app this module is meant to live inside, sampled
+ * from the current App Store and Play Store captures and cross-checked against the logo SVG:
+ * a pure white ground, the brand green #00836c used as a surface and money colour rather than a
+ * text ink, IDBI orange #f58220 for every action, mint and peach tints to tell kinds of card
+ * apart, ten-pixel tiles, and full pills for buttons. Body text is near-black, never green.
  *
- * No web fonts. "Degrade gracefully" is a guardrail, and a demo
- * that must survive a hotel wifi should not block its first paint on fonts.googleapis.com. The
- * system stack is also the only reliable way to render ₹ across platforms — the default Latin
- * subsets of most webfonts do not carry U+20B9.
+ * Two deliberate departures from the bank's own app. Small orange text uses --accent-text, which
+ * passes WCAG AA; the app's raw #f58220 on white does not. And one large number leads each card,
+ * because wealth advice is a different job from transacting.
+ *
+ * No web fonts. "Degrade gracefully" is a guardrail, and a demo that must survive a hotel wifi
+ * should not block its first paint on fonts.googleapis.com. The system stack is also the only
+ * reliable way to render ₹ across platforms; the default Latin subsets of most webfonts do not
+ * carry U+20B9. GO Mobile+ itself uses the platform sans.
  */
 
 :root {
-  /* Ground and surfaces */
-  --ground: #f5f2ec;
-  --ground-deep: #ebe6dd;
+  /* Ground and surfaces. GO Mobile+ runs on white; #f4f4f4 is its sunk container grey. */
+  --ground: #ffffff;
+  --ground-deep: #f4f4f4;
   --surface: #ffffff;
-  --surface-sunk: #f0ece4;
+  --surface-sunk: #ececec;
 
-  /* Ink */
-  --ink: #16342a;
-  --ink-mid: #3d5a4e;
-  --ink-soft: #6b8377;
-  --ink-faint: #9aada3;
-  --on-dark: #f4f1ea;
+  /* Ink. Near-black body text; --ink-faint is placeholder grey only, it fails AA for copy. */
+  --ink: #1d1d1d;
+  --ink-mid: #4a4a4a;
+  --ink-soft: #6b6f6f;
+  --ink-faint: #929292;
+  --on-dark: #ffffff;
 
-  /* Accents. Amber is for attention, never for decoration. */
-  --accent: #d9772e;
-  --accent-soft: #f6c79b;
-  --danger: #a83a2a;
-  --danger-soft: #f0c5bd;
-  --good: #2f6b4f;
+  /* Brand. Green is a surface and money colour; orange is the action colour. */
+  --brand: #00836c;
+  --brand-deep: #164c3f;
+  --accent: #f58220;
+  --accent-soft: #fdf0e8;
+  --accent-text: #b5560b;
+  --danger: #b3261e;
+  --danger-soft: #fbe3e0;
+  --good: #00836c;
 
-  /* Card tints, used to distinguish *kinds* of card rather than to brighten the page */
-  --tint-sage: #c8dcd0;
-  --tint-sky: #c2d9ea;
-  --tint-clay: #e8d7c6;
-  --tint-ink: #16342a;
+  /* Card tints, straight from the app's tile palette. */
+  --tint-sage: #e0f1eb;
+  --tint-sky: #dff6f3;
+  --tint-clay: #fff3e7;
+  --tint-ink: #00836c;
+  --legend-chip: #e9fcfa;
 
-  /* Geometry */
-  --r-sm: 12px;
-  --r-md: 18px;
-  --r-lg: 26px;
+  /* Structural colours specific to the GO Mobile+ chrome. */
+  --header-mint: #bce3db;
+  --nav-top: #42a392;
+  --nav-bottom: #0c806b;
+  --hairline: rgb(245 130 32 / 38%);
+  --hairline-mint: #bbdbd6;
+  --chart-hi: #fa7401;
+  --chart-idle: #ececec;
+
+  /* Geometry. Tiles ~10px, inputs and cards 14–20px, every button a full pill. */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
   --r-pill: 999px;
 
-  --pad: 20px;
-  --gap: 14px;
+  --pad: 16px;
+  --gap: 12px;
 
   /* The app is a phone. On a desktop it stays a phone, centred. */
   --app-max: 430px;
 
-  --shadow-card: 0 1px 2px rgb(22 52 42 / 4%), 0 8px 24px rgb(22 52 42 / 5%);
-  --shadow-lift: 0 2px 6px rgb(22 52 42 / 8%), 0 18px 44px rgb(22 52 42 / 12%);
+  --shadow-card: 0 1px 2px rgb(0 131 108 / 6%), 0 6px 18px rgb(0 131 108 / 8%);
+  --shadow-lift: 0 2px 6px rgb(0 131 108 / 10%), 0 14px 32px rgb(0 131 108 / 14%);
 
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     'Noto Sans', sans-serif;
   --font-num: var(--font);
 }
 
-* { box-sizing: border-box; }
+/* ---------------------------------------------------------------- Base */
 
-html, body { height: 100%; }
+/*
+ * Tailwind's preflight (layer base) handles the reset. These few rules are the bank-specific
+ * defaults on top of it: the document ground, the ink, the system stack, and a pointer on buttons
+ * (preflight deliberately leaves `cursor` alone). tokens.css is imported unlayered, so they beat
+ * preflight without needing a layer of their own.
+ */
 
 body {
-  margin: 0;
   background: var(--ground-deep);
   color: var(--ink);
   font-family: var(--font);
@@ -74,7 +94,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-button { font: inherit; color: inherit; cursor: pointer; }
+button { cursor: pointer; }
 
 /* ---------------------------------------------------------------- Shell */
 
@@ -128,7 +148,7 @@ body {
     height: min(calc(100dvh - 6vh), 940px);
     margin: 3vh auto;
     border-radius: 34px;
-    box-shadow: var(--shadow-lift);
+    box-shadow: var(--shadow-card);
   }
 }
 
@@ -141,346 +161,4 @@ body {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 0 var(--pad) 24px;
-}
-
-/* ---------------------------------------------------------------- Header */
-
-.head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 22px var(--pad) 10px;
-}
-
-.head h1 {
-  margin: 0;
-  font-size: 40px;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-weight: 800;
-}
-
-.head .sub {
-  margin: 6px 0 0;
-  font-size: 13.5px;
-  color: var(--ink-soft);
-}
-
-.chips { display: flex; gap: 8px; }
-
-.chip-btn {
-  width: 40px; height: 40px;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: var(--ground-deep);
-  display: grid;
-  place-items: center;
-  position: relative;
-}
-
-.chip-btn[data-count]::after {
-  content: attr(data-count);
-  position: absolute;
-  top: -2px; right: -2px;
-  min-width: 17px; height: 17px;
-  border-radius: var(--r-pill);
-  background: var(--accent);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-  padding: 0 4px;
-}
-
-/* ---------------------------------------------------------------- Segments */
-
-.segments {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 8px;
-  padding: 4px var(--pad) 16px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.segments::-webkit-scrollbar { display: none; }
-/* Fade the trailing edge so a clipped tab reads as "scroll me", not as a rendering fault. */
-@media (max-width: 420px) {
-  .segments {
-    mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
-    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 88%, transparent 100%);
-  }
-}
-
-.segment {
-  border: 0;
-  border-radius: var(--r-pill);
-  padding: 11px 20px;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  background: var(--surface);
-  color: var(--ink-soft);
-  white-space: nowrap;
-  transition: background 140ms ease, color 140ms ease;
-}
-
-.segment[aria-selected='true'] {
-  background: var(--ink);
-  color: var(--on-dark);
-}
-
-/* ---------------------------------------------------------------- Cards */
-
-.card {
-  background: var(--surface);
-  border-radius: var(--r-lg);
-  padding: var(--pad);
-  box-shadow: var(--shadow-card);
-  margin-bottom: var(--gap);
-}
-
-.card.tint-sage { background: var(--tint-sage); box-shadow: none; }
-.card.tint-sky { background: var(--tint-sky); box-shadow: none; }
-.card.tint-clay { background: var(--tint-clay); box-shadow: none; }
-.card.tint-ink { background: var(--tint-ink); color: var(--on-dark); box-shadow: none; }
-.card.flat { background: transparent; box-shadow: none; padding-left: 0; padding-right: 0; }
-
-.card h2 {
-  margin: 0 0 2px;
-  font-size: 22px;
-  letter-spacing: -0.02em;
-  font-weight: 800;
-}
-
-.card .meta {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-.card.tint-ink .meta { color: rgb(244 241 234 / 62%); }
-
-/* ---------------------------------------------------------------- Amount */
-
-/* The Cleo device: currency small, integer enormous, paise small and raised. */
-.amount {
-  display: flex;
-  align-items: baseline;
-  letter-spacing: -0.045em;
-  font-weight: 800;
-  min-width: 0;
-}
-.amount .cur { font-size: 0.42em; margin-right: 0.06em; opacity: 0.75; }
-.amount .int { font-size: 1em; line-height: 0.95; font-variant-numeric: tabular-nums; }
-.amount .frac { font-size: 0.42em; opacity: 0.75; }
-
-.amount.xl { font-size: 60px; }
-.amount.lg { font-size: 42px; }
-.amount.md { font-size: 27px; }
-.amount.sm { font-size: 19px; }
-
-/* ---------------------------------------------------------------- Rows */
-
-.leader {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 14.5px;
-  padding: 7px 0;
-}
-.leader .dot {
-  width: 9px; height: 9px;
-  border-radius: var(--r-pill);
-  border: 2px solid currentColor;
-  flex: 0 0 auto;
-  transform: translateY(-1px);
-}
-.leader .dot.fill { background: currentColor; }
-.leader .rule {
-  flex: 1;
-  border-bottom: 1.5px dotted currentColor;
-  opacity: 0.28;
-  transform: translateY(-4px);
-}
-.leader .val { font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* ---------------------------------------------------------------- Bar */
-
-.bar {
-  height: 13px;
-  border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 65%);
-  overflow: hidden;
-  display: flex;
-}
-.bar > span { height: 100%; }
-.bar .used { background: var(--ink); }
-.bar .soft { background: rgb(22 52 42 / 32%); }
-
-/* ---------------------------------------------------------------- Tiles */
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.tile {
-  background: rgb(255 255 255 / 55%);
-  border-radius: var(--r-md);
-  padding: 13px 15px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* A seven-digit balance at a fixed 27px overflowed a half-width tile on a 375px screen. Scale
-   it to the space available rather than clipping the number, which is the one thing a balance
-   must never do. */
-.tile .amount { font-size: clamp(17px, 6.2vw, 27px); }
-.tile .k { font-size: 12.5px; color: var(--ink-mid); margin-top: 3px; }
-
-/* ---------------------------------------------------------------- Buttons */
-
-.btn {
-  border: 0;
-  border-radius: var(--r-pill);
-  padding: 15px 22px;
-  font-size: 15.5px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  background: var(--ink);
-  color: var(--on-dark);
-  width: 100%;
-  transition: transform 90ms ease, opacity 140ms ease;
-}
-.btn:active { transform: scale(0.985); }
-.btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px rgb(22 52 42 / 18%); }
-.btn.on-dark { background: var(--on-dark); color: var(--ink); }
-.btn.on-dark.ghost { background: transparent; color: var(--on-dark); box-shadow: inset 0 0 0 1.5px rgb(244 241 234 / 40%); }
-.btn.sm { padding: 11px 14px; font-size: 14px; }
-/* "+1 week" wrapping onto two lines made the row look broken. */
-.btn { white-space: nowrap; }
-
-.btn-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
-.btn-row .btn { width: auto; flex: 1 1 auto; min-width: 0; }
-
-/* ---------------------------------------------------------------- Tab bar */
-
-.tabs {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  background: rgb(245 242 236 / 96%);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid rgb(22 52 42 / 9%);
-  padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
-}
-
-.tab {
-  border: 0;
-  background: none;
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  padding: 4px 0;
-  color: var(--ink-soft);
-}
-
-.tab .glyph {
-  width: 34px; height: 34px;
-  border-radius: var(--r-pill);
-  border: 1.8px solid currentColor;
-  display: grid;
-  place-items: center;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.tab .label { font-size: 11px; font-weight: 600; letter-spacing: -0.01em; }
-
-.tab[aria-current='page'] { color: var(--ink); }
-.tab[aria-current='page'] .glyph {
-  background: var(--ink);
-  color: var(--on-dark);
-  border-color: var(--ink);
-}
-
-/* The assistant tab sits in the middle and is always emphasised. */
-.tab.centre .glyph {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.tab.centre[aria-current='page'] .glyph { background: var(--ink); border-color: var(--ink); }
-
-/* ---------------------------------------------------------------- Misc */
-
-.eyebrow {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin: 26px 0 10px;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border-radius: var(--r-pill);
-  padding: 5px 11px;
-  font-size: 12px;
-  font-weight: 700;
-  background: var(--ground-deep);
-  color: var(--ink-mid);
-}
-.pill.warn { background: var(--accent-soft); color: #6d3a10; }
-.pill.bad { background: var(--danger-soft); color: #6d1e14; }
-.pill.ok { background: var(--tint-sage); color: #14402d; }
-
-.note {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ink-soft);
-}
-
-.txn { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
-.txn + .txn { border-top: 1px solid rgb(22 52 42 / 7%); }
-.txn .who { flex: 1; min-width: 0; }
-.txn .who b { display: block; font-size: 14.5px; font-weight: 700; }
-.txn .who span { font-size: 12px; color: var(--ink-soft); }
-.txn .amt { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14.5px; }
-
-.avatar-glyph {
-  width: 38px; height: 38px;
-  border-radius: var(--r-pill);
-  background: var(--tint-sage);
-  color: var(--ink);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 14px;
-  flex: 0 0 auto;
-}
-
-/* ---------------------------------------------------------------- Inputs */
-
-input[type='range'] {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  min-width: 0;
-  accent-color: var(--ink);
-}
-
-label { min-width: 0; }
-
-/* A last line of defence. Every card is a flex or grid parent somewhere up the tree, and a
-   single long unbroken string should push the layout sideways at no point. */
-.card,
-.card > * {
-  min-width: 0;
 }

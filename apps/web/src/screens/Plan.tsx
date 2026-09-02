@@ -17,6 +17,10 @@ import type { Roadmap, Snapshot, Stage } from '@dhan/core'
 import { Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
 
+/* Card meta line (the old `.card .meta`) and the small grey note (the old `.note`). */
+const META = 'm-0 text-[13px] text-ink-soft'
+const NOTE = 'text-xs leading-relaxed text-ink-soft'
+
 export function Plan({
   snapshot,
   roadmap,
@@ -48,33 +52,23 @@ export function Plan({
         {/* ------------------------------------------------ Destination */}
         <Card tint="sky">
           <h2>Where you are going</h2>
-          <p className="meta">
+          <p className={META}>
             {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)}
           </p>
           {/* "₹2.18 crore" is a number somebody can hold in their head; ₹2,18,00,000 is a
               number they have to count the digits of — and at eleven digits it ran off the card. */}
-          <div
-            style={{
-              margin: '14px 0 4px',
-              fontSize: 46,
-              fontWeight: 800,
-              letterSpacing: '-0.04em',
-              lineHeight: 1,
-            }}
-          >
+          <div className="mb-1 mt-3.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink">
             {approx(roadmap.goal.targetAmount)}
           </div>
-          <p className="meta" style={{ marginBottom: 6 }}>
-            in today&rsquo;s money
-          </p>
-          <p className="meta">
+          <p className={`${META} mb-1.5`}>in today&rsquo;s money</p>
+          <p className={META}>
             {roadmap.feasible
               ? `${inr(roadmap.monthlyCommitment)} a month, starting now.`
               : `${inr(roadmap.shortfallMonthly)} a month short at your present pace.`}
           </p>
 
           {!roadmap.feasible ? (
-            <p style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 12, color: '#1c3d55' }}>
+            <p className="mb-0 mt-3 text-[13.5px] leading-normal text-ink-mid">
               I would rather show you that than move the number until it fits. We can push the
               date, lower the target, or find the difference in your spending — and the last one
               is usually the least painful.
@@ -97,12 +91,12 @@ export function Plan({
                   two have to be comparable. Quoting the nominal figure first invites someone to
                   read ₹3.15 crore against a ₹2.18 crore target and conclude they are ahead. */}
               <h2>{approx(mid?.realCorpus ?? 0)}</h2>
-              <p className="meta">
+              <p className={META}>
                 in today&rsquo;s money, after {years} years at an assumed {rate}% — which is{' '}
                 {approx(mid?.corpus ?? 0)} in {Number(new Date().getFullYear()) + years} rupees
               </p>
 
-              <div style={{ margin: '18px 0 6px' }}>
+              <div className="mb-1.5 mt-[18px]">
                 {band.scenarios.map((sc) => (
                   <Leader
                     key={sc.label}
@@ -118,14 +112,7 @@ export function Plan({
                 />
               </div>
 
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 12.5,
-                  color: 'var(--ink-soft)',
-                  marginTop: 16,
-                }}
-              >
+              <label className="mt-4 block text-[12.5px] text-ink-soft">
                 Assumed annual return — change it and see
                 <input
                   type="range"
@@ -134,13 +121,11 @@ export function Plan({
                   step={0.5}
                   value={rate}
                   onChange={(e) => setRate(Number(e.target.value))}
-                  style={{ width: '100%', marginTop: 8, accentColor: 'var(--ink)' }}
+                  className="mt-2 block w-full accent-accent"
                 />
               </label>
 
-              <p className="note" style={{ marginTop: 6 }}>
-                {band.disclaimer}
-              </p>
+              <p className={`${NOTE} mb-0 mt-1.5`}>{band.disclaimer}</p>
             </Card>
           </>
         ) : null}
@@ -148,12 +133,12 @@ export function Plan({
         {/* ------------------------------------------------ Recalculation */}
         <Eyebrow>Why this version</Eyebrow>
         <Card>
-          <div style={{ display: 'flex', gap: 9, marginBottom: 10 }}>
+          <div className="mb-2.5 flex gap-2">
             <Pill>Version {roadmap.version}</Pill>
             <Pill>{dayMonth(roadmap.createdAt)}</Pill>
           </div>
-          <p style={{ fontSize: 15, lineHeight: 1.5, margin: 0 }}>{roadmap.reasonForChange}</p>
-          <p className="note" style={{ marginTop: 12 }}>
+          <p className="m-0 text-[15px] leading-normal text-ink">{roadmap.reasonForChange}</p>
+          <p className={`${NOTE} mb-0 mt-3`}>
             Every version of this plan is kept, with the reason it changed and the figures it was
             built on. That record is what makes the advice auditable five years from now — and it
             is the same record that lets the plan learn what you actually do.
@@ -178,66 +163,44 @@ function StageCard({ stage, last }: { stage: Stage; last: boolean }): ReactNode 
   const [open, setOpen] = useState(stage.index === 1)
 
   return (
-    <div style={{ display: 'flex', gap: 13 }}>
+    <div className="flex gap-3">
       {/* The spine. Makes the order the point rather than a detail. */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 22 }}>
+      <div className="flex flex-col items-center pt-[22px]">
         <span
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 999,
-            flex: '0 0 auto',
-            background: stage.isGoal ? 'var(--accent)' : 'var(--ink)',
-            color: '#fff',
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 13,
-            fontWeight: 800,
-          }}
+          className={`grid size-[30px] shrink-0 place-items-center rounded-pill text-[13px] font-bold text-white ${
+            stage.isGoal ? 'bg-accent' : 'bg-brand'
+          }`}
         >
           {stage.index}
         </span>
-        {!last ? (
-          <span style={{ flex: 1, width: 2, background: 'rgb(22 52 42 / 14%)', marginTop: 6 }} />
-        ) : null}
+        {!last ? <span className="mt-1.5 w-0.5 flex-1 bg-hairline-mint" /> : null}
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="min-w-0 flex-1">
         <Card>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 9, flexWrap: 'wrap' }}>
+          <div className="mb-2 flex flex-wrap gap-2">
             <Pill tone={stage.isGoal ? 'warn' : 'plain'}>{STAGE_LABEL[stage.kind]}</Pill>
             {stage.cadence === 'ongoing' ? <Pill>Ongoing</Pill> : null}
             {stage.verdict?.verdict === 'PASS' ? <Pill tone="ok">Suitability passed</Pill> : null}
           </div>
 
-          <div style={{ fontSize: 16.5, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3 }}>
-            {stage.label}
-          </div>
+          <div className="text-[16.5px] font-semibold leading-snug text-ink">{stage.label}</div>
 
           {stage.monthly > 0 ? (
-            <p className="meta" style={{ marginTop: 6 }}>
+            <p className={`${META} mt-1.5`}>
               {inr(stage.monthly)} a month
               {stage.productName ? ` · ${stage.productName}` : ''}
             </p>
           ) : null}
 
           {open ? (
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--ink-mid)', margin: '11px 0 0' }}>
-              {stage.why}
-            </p>
+            <p className="mb-0 mt-[11px] text-sm leading-relaxed text-ink-mid">{stage.why}</p>
           ) : null}
 
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            style={{
-              border: 0,
-              background: 'none',
-              color: 'var(--ink-soft)',
-              fontSize: 13,
-              padding: '10px 0 0',
-              textDecoration: 'underline',
-            }}
+            className="-mb-1.5 mt-1 h-10 border-0 bg-transparent px-0 text-sm font-semibold text-brand underline-offset-2 hover:underline"
           >
             {open ? 'Hide' : 'Why this first?'}
           </button>

@@ -17,6 +17,22 @@ import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../compone
 import { Clock } from '../components/Clock.tsx'
 import { approx, dayMonth, inr } from '../lib/money.ts'
 
+/* Header chips: white pills with a mint hairline. The count badge is a small orange disc. */
+const CHIP =
+  'relative grid size-10 shrink-0 place-items-center rounded-pill border border-solid border-hairline-mint bg-white text-ink'
+const CHIP_BADGE =
+  "after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-white after:content-[attr(data-count)]"
+
+/* Card subtitle and footnote text. */
+const META = 'm-0 text-sm text-ink-soft'
+const NOTE = 'text-xs leading-relaxed text-ink-soft'
+
+/* Buttons on the brand-green hero card: primary stays orange, secondary becomes a white outline. */
+const BTN_ON_INK_PRIMARY =
+  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985]'
+const BTN_ON_INK_SECONDARY =
+  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[15px] font-semibold text-on-dark transition-transform duration-100 active:scale-[0.985]'
+
 export function Today({
   snapshot,
   plan,
@@ -53,16 +69,16 @@ export function Today({
         title="Today"
         sub={`${dayMonth(asOf)} · ${snapshot.customer.name.split(' ')[0]}`}
         right={
-          <div className="chips">
+          <div className="flex gap-2">
             <button
               type="button"
-              className="chip-btn"
+              className={plan.insights.length > 0 ? `${CHIP} ${CHIP_BADGE}` : CHIP}
               data-count={plan.insights.length > 0 ? String(plan.insights.length) : undefined}
               aria-label="Insights"
             >
               ◔
             </button>
-            <button type="button" className="chip-btn" aria-label="Profile" onClick={onAsk}>
+            <button type="button" className={CHIP} aria-label="Profile" onClick={onAsk}>
               U
             </button>
           </div>
@@ -75,16 +91,16 @@ export function Today({
         {/* ------------------------------------------------ Safe to spend */}
         <Card tint="sage">
           <h2>Safe to spend</h2>
-          <p className="meta">
+          <p className={META}>
             {s.daysToSalary} {s.daysToSalary === 1 ? 'day' : 'days'} until your salary on{' '}
             {dayMonth(s.nextSalaryDate)}
           </p>
 
-          <div style={{ margin: '14px 0 4px' }}>
+          <div className="mb-1 mt-3.5">
             <Amount value={s.pot} size="xl" />
           </div>
-          <p className="meta" style={{ marginBottom: 14 }}>
-            Left of <b>{inr(envelope)}</b> · about <b>{inr(s.perDay)}</b> a day
+          <p className={`${META} mb-3.5`}>
+            Left of <b className="text-ink">{inr(envelope)}</b> · about <b className="text-ink">{inr(s.perDay)}</b> a day
           </p>
 
           <Bar used={usedPct} />
@@ -92,23 +108,17 @@ export function Today({
           {/* A waterfall, with signs, that visibly sums. Listing the reserved amounts without
               them read as though ₹52,488 of bills came out of a ₹20,266 envelope — the figures
               were all correct and the panel still looked like it did not add up. */}
-          <div style={{ marginTop: 12 }}>
+          <div className="mt-3">
             <Leader label="Comes in" value={inr(snapshot.income.monthly)} filled />
             {s.reserved.map((r) => (
               <Leader key={r.label} label={r.label} value={`−${inr(r.amount)}`} />
             ))}
-            <div
-              style={{
-                borderTop: '1.5px solid rgb(22 52 42 / 22%)',
-                marginTop: 6,
-                paddingTop: 2,
-              }}
-            >
+            <div className="mt-1.5 border-t-[1.5px] border-solid border-hairline-mint pt-0.5">
               <Leader label="Still yours to spend" value={inr(s.pot)} filled />
             </div>
           </div>
 
-          <div className="tiles">
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
             <Tile label="Comes in each month" value={snapshot.income.monthly} />
             <Tile label="Goes out each month" value={snapshot.commitments.total} />
           </div>
@@ -120,7 +130,7 @@ export function Today({
         ) : (
           <Card tint="sky">
             <h2>Nothing needs you today</h2>
-            <p className="meta" style={{ marginTop: 6 }}>
+            <p className={`${META} mt-1.5`}>
               {plan.routeNote}
             </p>
           </Card>
@@ -131,26 +141,26 @@ export function Today({
           <>
             <Eyebrow>Since {dayMonth(plan.since.from)}</Eyebrow>
             <Card>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div className="flex items-baseline gap-2">
                 <Amount value={plan.since.spent} size="md" />
-                <span className="meta">
+                <span className={META}>
                   across {plan.since.transactions.length}{' '}
                   {plan.since.transactions.length === 1 ? 'payment' : 'payments'}
                 </span>
               </div>
-              <div style={{ marginTop: 8 }}>
+              <div className="mt-2 divide-y divide-solid divide-hairline-mint">
                 {plan.since.transactions.slice(-6).reverse().map((t) => (
-                  <div className="txn" key={t.txnId}>
-                    <span className="avatar-glyph" style={{ width: 32, height: 32, fontSize: 12 }}>
+                  <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
+                    <span className="grid size-8 shrink-0 place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
                       {t.spendCategory[0]}
                     </span>
-                    <span className="who">
-                      <b>{prettyMerchant(t.narration)}</b>
-                      <span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block text-[15px] font-semibold text-ink">{prettyMerchant(t.narration)}</b>
+                      <span className="text-xs text-ink-soft">
                         {dayMonth(t.txnDate)} · {t.spendCategory}
                       </span>
                     </span>
-                    <span className="amt">−{inr(t.txnAmount)}</span>
+                    <span className="shrink-0 text-[15px] font-semibold tabular-nums text-ink">−{inr(t.txnAmount)}</span>
                   </div>
                 ))}
               </div>
@@ -164,7 +174,7 @@ export function Today({
           <InsightCard key={i.kind} insight={i} />
         ))}
 
-        <p className="note" style={{ marginTop: 20 }}>
+        <p className={`${NOTE} mb-0 mt-5`}>
           Every figure on this screen is computed from {snapshot.quality.transactions} transactions
           across {snapshot.quality.monthsOfHistory} months.{' '}
           {Math.round(snapshot.quality.categorisedShare * 100)}% of them could be matched to a
@@ -190,64 +200,48 @@ function ActionCard({
 
   return (
     <Card tint="ink">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-        <h2 style={{ fontSize: 20, lineHeight: 1.2 }}>{action.label}</h2>
+      <div className="flex justify-between gap-2.5">
+        <h2>{action.label}</h2>
       </div>
-      <p style={{ fontSize: 14.5, lineHeight: 1.5, margin: '9px 0 0', opacity: 0.82 }}>
+      <p className="mb-0 mt-2 text-[14.5px] leading-normal opacity-80">
         {action.detail}
       </p>
 
       {/* Never a promise. The rate is on screen and the wording is conditional. */}
       {action.projected ? (
-        <p style={{ fontSize: 13.5, margin: '12px 0 0', opacity: 0.72 }}>
+        <p className="mb-0 mt-3 text-[13.5px] leading-normal opacity-70">
           Over {action.projected.years} years at an assumed {action.projected.ratePct}%, that would
           be about <b>{approx(action.projected.becomes)}</b>. An illustration, not a promise.
         </p>
       ) : null}
 
       {showWhy ? (
-        <div
-          style={{
-            marginTop: 14,
-            paddingTop: 13,
-            borderTop: '1px solid rgb(244 241 234 / 18%)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10.5,
-              fontWeight: 800,
-              letterSpacing: '0.09em',
-              textTransform: 'uppercase',
-              opacity: 0.6,
-              marginBottom: 7,
-            }}
-          >
+        <div className="mt-3.5 border-t border-solid border-white/20 pt-3">
+          <div className="mb-[7px] text-[11px] font-semibold uppercase tracking-wide opacity-70">
             What this is based on
           </div>
           {action.evidence.map((e) => (
-            <div key={e} style={{ fontSize: 13, opacity: 0.85, padding: '3px 0' }}>
+            <div key={e} className="py-[3px] text-[13px] opacity-85">
               · {e}
             </div>
           ))}
         </div>
       ) : null}
 
-      <div className="btn-row">
-        <button type="button" className="btn on-dark" onClick={() => onDecide(action, 'did_it')}>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" className={BTN_ON_INK_PRIMARY} onClick={() => onDecide(action, 'did_it')}>
           Do it
         </button>
         <button
           type="button"
-          className="btn on-dark ghost"
+          className={BTN_ON_INK_SECONDARY}
           onClick={() => onDecide(action, 'declined')}
         >
           Not now
         </button>
         <button
           type="button"
-          className="btn on-dark ghost"
-          style={{ paddingInline: 18 }}
+          className={`${BTN_ON_INK_SECONDARY} px-[18px]`}
           onClick={() => setShowWhy((v) => !v)}
         >
           Why?
@@ -257,15 +251,7 @@ function ActionCard({
       <button
         type="button"
         onClick={onWhy}
-        style={{
-          border: 0,
-          background: 'none',
-          color: 'inherit',
-          opacity: 0.62,
-          fontSize: 13,
-          padding: '12px 0 0',
-          textDecoration: 'underline',
-        }}
+        className="border-0 bg-transparent p-0 pt-3 text-[13px] font-medium text-inherit underline underline-offset-2 opacity-60"
       >
         Talk to Uday about this
       </button>
@@ -281,7 +267,7 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
 
   return (
     <Card>
-      <div style={{ display: 'flex', gap: 9, alignItems: 'center', marginBottom: 8 }}>
+      <div className="mb-2 flex items-center gap-[9px]">
         <Pill tone={tone}>
           {insight.severity === 'urgent'
             ? 'Needs attention'
@@ -290,21 +276,21 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
               : 'Opportunity'}
         </Pill>
         {insight.monthlyValue > 0 ? (
-          <span className="note">{inr(insight.monthlyValue)}/month</span>
+          <span className={`${NOTE} tabular-nums`}>{inr(insight.monthlyValue)}/month</span>
         ) : null}
       </div>
 
-      <div style={{ fontSize: 16.5, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3 }}>
+      <div className="text-[16.5px] font-semibold leading-snug text-ink">
         {insight.headline}
       </div>
-      <p style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--ink-mid)', margin: '8px 0 0' }}>
+      <p className="mb-0 mt-2 text-sm leading-normal text-ink-mid">
         {insight.detail}
       </p>
 
       {open ? (
-        <div style={{ marginTop: 12, paddingTop: 11, borderTop: '1px solid rgb(22 52 42 / 8%)' }}>
+        <div className="mt-3 border-t border-solid border-hairline-mint pt-[11px]">
           {insight.evidence.map((e) => (
-            <div key={e} style={{ fontSize: 13, color: 'var(--ink-mid)', padding: '3px 0' }}>
+            <div key={e} className="py-[3px] text-[13px] text-ink-mid">
               · {e}
             </div>
           ))}
@@ -314,14 +300,7 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        style={{
-          border: 0,
-          background: 'none',
-          color: 'var(--ink-soft)',
-          fontSize: 13,
-          padding: '11px 0 0',
-          textDecoration: 'underline',
-        }}
+        className="border-0 bg-transparent p-0 pt-[11px] text-[13px] font-medium text-brand underline underline-offset-2"
       >
         {open ? 'Hide the numbers' : 'Show me the numbers'}
       </button>

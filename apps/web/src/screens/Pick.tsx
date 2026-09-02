@@ -13,32 +13,22 @@ import { personas } from '../lib/view.ts'
 
 export function Pick({ onPick }: { onPick: (slug: string) => void }): ReactNode {
   return (
-    <div className="scroll" style={{ paddingTop: 40 }}>
-      <p
-        className="eyebrow"
-        style={{ marginTop: 0, color: 'var(--accent)' }}
-      >
+    /* `.scroll` is unlayered and sets a `padding` shorthand, so the top padding needs `!` to win. */
+    <div className="scroll pt-10!">
+      <p className="m-0 mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
         IDBI Innovate 2026 · Team Atomic
       </p>
 
-      <h1
-        style={{
-          fontSize: 42,
-          lineHeight: 1.02,
-          letterSpacing: '-0.035em',
-          fontWeight: 800,
-          margin: '0 0 12px',
-        }}
-      >
+      <h1 className="m-0 mb-3 text-[30px] font-bold leading-tight text-ink">
         A private banker for every IDBI account
       </h1>
 
-      <p style={{ fontSize: 15.5, lineHeight: 1.5, color: 'var(--ink-mid)', margin: '0 0 8px' }}>
+      <p className="m-0 mb-2 text-[15px] leading-normal text-ink-mid">
         Uday reads every transaction, tells you the one thing to do today, and refuses to sell you
         an IDBI product that is wrong for you.
       </p>
 
-      <p className="note" style={{ marginBottom: 30 }}>
+      <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
         Pick a customer to try it. These are synthetic ledgers — twenty-four months each,
         generated, not written. Every number you see is arithmetic over them.
       </p>
@@ -48,37 +38,27 @@ export function Pick({ onPick }: { onPick: (slug: string) => void }): ReactNode 
           key={p.slug}
           type="button"
           onClick={() => onPick(p.slug)}
-          style={{
-            display: 'block',
-            width: '100%',
-            textAlign: 'left',
-            border: 0,
-            background: 'var(--surface)',
-            borderRadius: 'var(--r-lg)',
-            padding: 20,
-            marginBottom: 12,
-            boxShadow: 'var(--shadow-card)',
-          }}
+          className="mb-3 block w-full rounded-md border border-solid border-hairline-mint bg-white p-4 text-left font-sans text-ink transition-transform duration-100 active:scale-[0.985]"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-            <span className="avatar-glyph" style={{ width: 46, height: 46, fontSize: 17 }}>
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 flex-none place-items-center rounded-pill bg-tint-sage text-[16px] font-bold text-brand">
               {p.customer.custName
                 .split(' ')
                 .map((n) => n[0])
                 .join('')}
             </span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em' }}>
+            <div className="min-w-0 flex-1">
+              <div className="text-[18px] font-semibold leading-tight text-ink">
                 {p.customer.custName}
               </div>
-              <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>{p.pitch}</div>
+              <div className="mt-0.5 text-[13px] leading-snug text-ink-soft">{p.pitch}</div>
             </div>
-            <span style={{ fontSize: 20, color: 'var(--ink-faint)' }}>›</span>
+            <span className="text-[20px] leading-none text-ink-faint">›</span>
           </div>
         </button>
       ))}
 
-      <p className="note" style={{ marginTop: 24 }}>
+      <p className="m-0 mt-6 text-sm leading-normal text-ink-soft">
         Nothing here is a real customer, and no data leaves your browser.
       </p>
     </div>

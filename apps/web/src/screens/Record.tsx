@@ -19,6 +19,11 @@ import type { View } from '../lib/view.ts'
 
 type Tab = 'decisions' | 'rules' | 'consent'
 
+/* Recurring text styles. Preflight is not loaded, so every <p> carries its own margins. */
+const BODY = 'm-0 mt-[9px] text-[14.5px] leading-[1.55] text-ink'
+const META = 'm-0 text-[13px] text-ink-soft'
+const NOTE = 'text-xs leading-relaxed text-ink-soft'
+
 export interface AuditEntry {
   actionId: string
   label: string
@@ -69,12 +74,12 @@ function Decisions({ audit, plan }: { audit: AuditEntry[]; plan: DailyPlan }): R
     return (
       <Card>
         <h2>Nothing yet</h2>
-        <p className="meta" style={{ marginTop: 7 }}>
+        <p className={`${META} mt-[7px]`}>
           Every recommendation you accept or decline is recorded here with the figures it was based
           on and the exact words you were shown. Retained five years.
         </p>
         {plan.primary ? (
-          <p className="note" style={{ marginTop: 14 }}>
+          <p className={`${NOTE} m-0 mt-3.5`}>
             The one waiting for you on Today is “{plan.primary.label}”.
           </p>
         ) : null}
@@ -89,7 +94,7 @@ function Decisions({ audit, plan }: { audit: AuditEntry[]; plan: DailyPlan }): R
         .reverse()
         .map((entry) => (
           <Card key={`${entry.actionId}-${entry.at}`}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 9, flexWrap: 'wrap' }}>
+            <div className="mb-[9px] flex flex-wrap gap-2">
               <Pill tone={entry.kind === 'did_it' ? 'ok' : 'plain'}>
                 {entry.kind === 'did_it' ? 'Accepted' : 'Declined'}
               </Pill>
@@ -97,32 +102,20 @@ function Decisions({ audit, plan }: { audit: AuditEntry[]; plan: DailyPlan }): R
               {entry.amount > 0 ? <Pill>{inr(entry.amount)}</Pill> : null}
             </div>
 
-            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em' }}>
+            <div className="text-[16px] font-bold leading-snug tracking-tight text-ink">
               {entry.label}
             </div>
-            {entry.productName ? <p className="meta" style={{ marginTop: 4 }}>{entry.productName}</p> : null}
+            {entry.productName ? <p className={`${META} mt-1`}>{entry.productName}</p> : null}
 
-            <div
-              style={{
-                marginTop: 12,
-                paddingTop: 11,
-                borderTop: '1px solid rgb(22 52 42 / 8%)',
-              }}
-            >
-              <div className="note" style={{ fontWeight: 700, marginBottom: 5 }}>
-                What you were shown
-              </div>
-              <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: 0, color: 'var(--ink-mid)' }}>
-                “{entry.shown}”
-              </p>
+            <div className="mt-3 border-t border-solid border-hairline-mint pt-[11px]">
+              <div className={`${NOTE} mb-[5px] font-bold`}>What you were shown</div>
+              <p className="m-0 text-[13.5px] leading-normal text-ink-mid">“{entry.shown}”</p>
             </div>
 
-            <div style={{ marginTop: 12 }}>
-              <div className="note" style={{ fontWeight: 700, marginBottom: 5 }}>
-                The figures behind it
-              </div>
+            <div className="mt-3">
+              <div className={`${NOTE} mb-[5px] font-bold`}>The figures behind it</div>
               {entry.evidence.map((e) => (
-                <div key={e} className="note" style={{ padding: '2px 0' }}>
+                <div key={e} className={`${NOTE} py-0.5`}>
                   · {e}
                 </div>
               ))}
@@ -140,7 +133,7 @@ function Rules({ view }: { view: View }): ReactNode {
     <>
       <Card tint="sage">
         <h2>The model does not decide</h2>
-        <p style={{ fontSize: 14.5, lineHeight: 1.55, margin: '9px 0 0' }}>
+        <p className={BODY}>
           Whether a product suits you is decided by the rules below, in this order, before anything
           reaches you. Uday reads back the verdict — he cannot overrule it, and he cannot reach a
           recommendation by any other path. That is enforced in the code, not asked for in a prompt.
@@ -150,34 +143,13 @@ function Rules({ view }: { view: View }): ReactNode {
       <Eyebrow>{view.rules.length} rules · earliest failure wins</Eyebrow>
       {view.rules.map((r, i) => (
         <Card key={r.id}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <span
-              style={{
-                width: 26,
-                height: 26,
-                flex: '0 0 auto',
-                borderRadius: 999,
-                background: 'var(--ground-deep)',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: 12,
-                fontWeight: 800,
-              }}
-            >
+          <div className="flex gap-2.5">
+            <span className="grid size-[26px] flex-none place-items-center rounded-pill bg-legend-chip text-xs font-bold text-brand">
               {i + 1}
             </span>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  letterSpacing: '0.04em',
-                  color: 'var(--ink-soft)',
-                }}
-              >
-                {r.id}
-              </div>
-              <p style={{ fontSize: 14.5, lineHeight: 1.5, margin: '4px 0 0' }}>{r.description}</p>
+            <div className="flex-1">
+              <div className="text-xs font-bold text-ink-soft">{r.id}</div>
+              <p className="m-0 mt-1 text-[14.5px] leading-normal text-ink">{r.description}</p>
             </div>
           </div>
         </Card>
@@ -185,22 +157,24 @@ function Rules({ view }: { view: View }): ReactNode {
 
       <Eyebrow>What is on the shelf</Eyebrow>
       <Card>
-        <p className="note" style={{ marginTop: 0, marginBottom: 12 }}>
+        <p className={`${NOTE} m-0 mb-3`}>
           Including the ones we will refuse. A product list containing only suitable products
           cannot demonstrate suitability.
         </p>
-        {view.shelf.map((p) => (
-          <div className="txn" key={p.productId}>
-            <span className="who">
-              <b>{p.name}</b>
-              <span>
-                {p.manufacturer} · {p.riskometer}
-                {p.lockInYears > 0 ? ` · ${p.lockInYears}y lock-in` : ' · no lock-in'}
+        <div className="divide-y divide-solid divide-hairline-mint">
+          {view.shelf.map((p) => (
+            <div className="flex items-center gap-3 py-[11px]" key={p.productId}>
+              <span className="min-w-0 flex-1">
+                <b className="block text-[14.5px] font-bold text-ink">{p.name}</b>
+                <span className="text-xs text-ink-soft">
+                  {p.manufacturer} · {p.riskometer}
+                  {p.lockInYears > 0 ? ` · ${p.lockInYears}y lock-in` : ' · no lock-in'}
+                </span>
               </span>
-            </span>
-            {p.bundlesProtectionAndInvestment ? <Pill tone="bad">Refused</Pill> : null}
-          </div>
-        ))}
+              {p.bundlesProtectionAndInvestment ? <Pill tone="bad">Refused</Pill> : null}
+            </div>
+          ))}
+        </div>
       </Card>
     </>
   )
@@ -236,7 +210,7 @@ function Consent({ snapshot }: { snapshot: Snapshot }): ReactNode {
     <>
       <Card tint="sky">
         <h2>What we read, and why</h2>
-        <p style={{ fontSize: 14.5, lineHeight: 1.55, margin: '9px 0 0' }}>
+        <p className={BODY}>
           Four things, each with a reason. You can withdraw any of them and the advice recomputes in
           front of you — including getting worse, which is the honest consequence.
         </p>
@@ -244,27 +218,27 @@ function Consent({ snapshot }: { snapshot: Snapshot }): ReactNode {
 
       {items.map((i) => (
         <Card key={i.what}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 700 }}>{i.what}</div>
-              <p style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-mid)', margin: '5px 0 0' }}>
-                {i.why}
-              </p>
-              <p className="note" style={{ marginTop: 7 }}>{i.detail}</p>
+          <div className="flex justify-between gap-2.5">
+            <div className="flex-1">
+              <div className="text-[15.5px] font-bold text-ink">{i.what}</div>
+              <p className="m-0 mt-[5px] text-[13.5px] leading-normal text-ink-mid">{i.why}</p>
+              <p className={`${NOTE} m-0 mt-[7px]`}>{i.detail}</p>
             </div>
-            <Pill tone="ok">Shared</Pill>
+            <div className="flex-none self-start">
+              <Pill tone="ok">Shared</Pill>
+            </div>
           </div>
         </Card>
       ))}
 
       <Card>
-        <h2 style={{ fontSize: 17 }}>Never stored</h2>
-        <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink-mid)', margin: '8px 0 0' }}>
+        <h2>Never stored</h2>
+        <p className="m-0 mt-2 text-[13.5px] leading-[1.55] text-ink-mid">
           Health and medical details, caste, religion, politics, sexuality, legal matters, and
           anyone else&rsquo;s finances. Card numbers, PAN and Aadhaar are stripped before anything
           is written down.
         </p>
-        <p className="note" style={{ marginTop: 11 }}>
+        <p className={`${NOTE} m-0 mt-[11px]`}>
           There is a product reason as well as a legal one: an advisor that remembers your medical
           history is not reassuring, it is uncanny — and the moment this feels like surveillance it
           is finished.
