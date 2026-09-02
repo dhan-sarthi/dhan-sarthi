@@ -131,12 +131,7 @@ export interface Holding {
 
 /** SEBI's six-band riskometer, plus Low for protection products that carry no market risk. */
 export type Riskometer =
-  | 'Low'
-  | 'Low to Moderate'
-  | 'Moderate'
-  | 'Moderately High'
-  | 'High'
-  | 'Very High'
+  'Low' | 'Low to Moderate' | 'Moderate' | 'Moderately High' | 'High' | 'Very High'
 
 export type ProductCategory =
   | 'Sweep-in FD'

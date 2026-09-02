@@ -35,7 +35,11 @@ export interface Enriched {
  * only reason it surfaced is that `disagreements()` compares against the bank's own label.
  */
 function normalise(text: string): string {
-  return ` ${text.toUpperCase().replace(/[/\-_|.,]+/g, ' ').replace(/\s+/g, ' ').trim()} `
+  return ` ${text
+    .toUpperCase()
+    .replace(/[/\-_|.,]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `
 }
 
 /** Match on whole words only. Tokens go through the same normalisation as the haystack. */
@@ -60,7 +64,13 @@ export function categorize(t: Transaction): Enriched {
   if (t.txnType === 'CREDIT') {
     const salary = /\b(SALARY|PAYROLL|WAGES|SAL CR)\b/.test(haystack)
     if (salary || t.isSalaryCredit) {
-      return { txnId: t.txnId, merchant: null, category: 'Income', confidence: 'high', method: 'keyword' }
+      return {
+        txnId: t.txnId,
+        merchant: null,
+        category: 'Income',
+        confidence: 'high',
+        method: 'keyword',
+      }
     }
   }
 

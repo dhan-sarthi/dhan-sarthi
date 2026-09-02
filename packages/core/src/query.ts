@@ -39,7 +39,10 @@ const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
  * ------------------------------------------------------------------ */
 
 const CATEGORY_WORDS: readonly [RegExp, SpendCategory][] = [
-  [/\b(food|eat|eating|dining|restaurant|swiggy|zomato|takeaway|delivery|order(ing)?\s*in)\b/i, 'Food & dining'],
+  [
+    /\b(food|eat|eating|dining|restaurant|swiggy|zomato|takeaway|delivery|order(ing)?\s*in)\b/i,
+    'Food & dining',
+  ],
   [/\b(grocer(y|ies)|kirana|vegetables|supermarket|blinkit|zepto|bigbasket|dmart)\b/i, 'Groceries'],
   [/\b(transport|travel|cab|taxi|uber|ola|rapido|fuel|petrol|diesel|auto)\b/i, 'Transport'],
   [/\b(shopping|clothes|amazon|flipkart|myntra|electronics|gadget)\b/i, 'Shopping'],
@@ -68,8 +71,18 @@ function resolveCategory(q: string): SpendCategory | null {
  * `resolved` says which was used either way.
  */
 const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 
 /** "August" reads as a month; "2026-08" reads as a database key. */
@@ -207,7 +220,9 @@ export function answer(question: string, snapshot: Snapshot, file: CustomerFile)
       text:
         `${subs.length} live: ${subs.map((x) => `${x.merchant ?? x.key} at ${inr(x.amount)}`).join(', ')}. ` +
         `That is ${inr(annual)} a year. I cannot tell which you still use — that part is yours.`,
-      evidence: subs.map((x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`),
+      evidence: subs.map(
+        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`,
+      ),
     }
   }
 
@@ -260,7 +275,11 @@ export function answer(question: string, snapshot: Snapshot, file: CustomerFile)
   if (/\b(debt|card|credit card|loan|emi|interest|owe)\b/i.test(q)) {
     const d = snapshot.debt
     if (d.total === 0) {
-      return { matched: true, text: 'Nothing outstanding. That is a good position to be in.', evidence: [] }
+      return {
+        matched: true,
+        text: 'Nothing outstanding. That is a good position to be in.',
+        evidence: [],
+      }
     }
     const monthly = Math.round((d.total * d.highestRate) / 100 / 12)
     return {
@@ -360,7 +379,8 @@ export function openingLine(snapshot: Snapshot): Answer {
 export function suggestedQuestions(snapshot: Snapshot): string[] {
   const out = ['How much did I spend on food last month?', 'What are my subscriptions costing me?']
   if (snapshot.debt.total > 0) out.push('Should I invest or clear my debt first?')
-  if (snapshot.protection.dependents > 0) out.push('My cousin says I should take a LIC savings plan')
+  if (snapshot.protection.dependents > 0)
+    out.push('My cousin says I should take a LIC savings plan')
   out.push('What can I safely spend today?', 'Why are you telling me this?')
   return out
 }

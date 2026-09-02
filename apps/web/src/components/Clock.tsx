@@ -61,8 +61,8 @@ export function Clock({
       </div>
 
       <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">
-        Move time forward and the ledger produces the days it always had. Nothing is scripted —
-        the plan below is recomputed from the transactions.
+        Move time forward and the ledger produces the days it always had. Nothing is scripted — the
+        plan below is recomputed from the transactions.
       </p>
     </section>
   )

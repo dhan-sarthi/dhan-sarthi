@@ -19,14 +19,10 @@ import type { ReactNode } from 'react'
 import type { Snapshot } from '@dhan/core'
 import { useAvatar } from '../lib/avatar.ts'
 
-export function Ask({
-  snapshot,
-  onClose,
-}: {
-  snapshot: Snapshot
-  onClose: () => void
-}): ReactNode {
-  const avatar = useAvatar(buildBrief(snapshot))
+export function Ask({ snapshot, onClose }: { snapshot: Snapshot; onClose: () => void }): ReactNode {
+  // The callback ref is taken out here on purpose: once a property of `avatar` is passed to a
+  // `ref` prop, the React Compiler lint treats every later read of `avatar` as a ref read.
+  const { attachVideo, ...avatar } = useAvatar(buildBrief(snapshot))
 
   const connecting = avatar.mode === 'connecting'
   const connected = avatar.mode === 'live'
@@ -114,7 +110,7 @@ export function Ask({
           />
 
           <video
-            ref={avatar.videoRef}
+            ref={attachVideo}
             autoPlay
             playsInline
             className={`absolute inset-0 size-full object-cover object-[center_28%] transition-opacity duration-[900ms] ease-in-out ${
@@ -245,7 +241,12 @@ function MicIcon(): ReactNode {
 function EndIcon(): ReactNode {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      <path
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -253,7 +254,12 @@ function EndIcon(): ReactNode {
 function CloseIcon(): ReactNode {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <path
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -283,7 +289,9 @@ function buildBrief(s: Snapshot): string {
     `Savings ${inr(s.balances.savings)}; ${inr(s.balances.idleFloor)} untouched for ${s.balances.idleMonths} months.`,
     `Buffer covers ${s.buffer.monthsCovered} months. Debt ${inr(s.debt.total)} at up to ${s.debt.highestRate}%.`,
     ...(s.debt.endingSoon
-      ? [`${s.debt.endingSoon.loanType} ends in ${s.debt.endingSoon.monthsLeft} months, freeing ${inr(s.debt.endingSoon.emiAmount)}/month.`]
+      ? [
+          `${s.debt.endingSoon.loanType} ends in ${s.debt.endingSoon.monthsLeft} months, freeing ${inr(s.debt.endingSoon.emiAmount)}/month.`,
+        ]
       : []),
     `Life cover in force ${inr(s.protection.lifeCoverInForce)}; indicative need ${inr(s.protection.lifeCoverNeeded)}.`,
     '',

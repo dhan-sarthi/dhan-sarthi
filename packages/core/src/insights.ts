@@ -72,7 +72,9 @@ export function findInsights(snapshot: Snapshot): Insight[] {
         'Until it is cleared I cannot recommend putting money anywhere else. The mark it leaves ' +
         'on your credit file will cost you more, for longer, than anything I could earn you.',
       monthlyValue: 0,
-      evidence: [`${s.debt.monthlyOutgo ? `EMI outgo ${inr(s.debt.monthlyOutgo)}/month` : ''}`].filter(Boolean),
+      evidence: [
+        `${s.debt.monthlyOutgo ? `EMI outgo ${inr(s.debt.monthlyOutgo)}/month` : ''}`,
+      ].filter(Boolean),
       suggests: 'talk_to_rm',
     })
   }

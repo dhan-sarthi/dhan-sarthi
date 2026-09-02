@@ -11,13 +11,7 @@
  * be in a production bundle at all. The rule from CONTRIBUTING.md that does hold here: nothing in this
  * file touches a provider or a secret. Runway and the model are reached only through the API.
  */
-import {
-  buildDailyPlan,
-  buildRoadmap,
-  derive,
-  findInsights,
-  ruleBook,
-} from '@dhan/core'
+import { buildDailyPlan, buildRoadmap, derive, findInsights, ruleBook } from '@dhan/core'
 import type { CustomerFile, DailyPlan, Goal, Insight, Roadmap, Snapshot } from '@dhan/core'
 import { PERSONAS, PRODUCT_SHELF, generateCustomerFile, personaBySlug } from '@dhan/fixtures'
 import type { PersonaSpec } from '@dhan/fixtures'

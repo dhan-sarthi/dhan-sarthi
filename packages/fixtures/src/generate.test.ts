@@ -152,7 +152,11 @@ describe('the patterns the product has to find', () => {
       // Routine discretionary spending only. The persona's lump sums are one-offs an order of
       // magnitude larger, and three of the four happen to fall late in their month — left in,
       // they swamp the signal this test exists to check.
-      (t) => t.txnType === 'DEBIT' && !t.isRecurring && t.txnAmount < 10_000 && t.spendCategory !== 'Cash',
+      (t) =>
+        t.txnType === 'DEBIT' &&
+        !t.isRecurring &&
+        t.txnAmount < 10_000 &&
+        t.spendCategory !== 'Cash',
     )
     const early = txns.filter((t) => Number(t.txnDate.slice(-2)) <= 10)
     const late = txns.filter((t) => Number(t.txnDate.slice(-2)) >= 21)
@@ -180,7 +184,10 @@ describe('the patterns the product has to find', () => {
   it('varies a trader’s income so it cannot be read off one field', () => {
     const file = generateCustomerFile(SUNIL, OPTS)
     const credits = file.transactions.filter((t) => t.txnType === 'CREDIT')
-    assert.ok(credits.every((t) => !t.isSalaryCredit), 'a trader has no payroll flag to lean on')
+    assert.ok(
+      credits.every((t) => !t.isSalaryCredit),
+      'a trader has no payroll flag to lean on',
+    )
 
     const byMonth = new Map<string, number>()
     for (const c of credits) {
@@ -199,7 +206,9 @@ describe('the customer file', () => {
     const last = file.transactions[file.transactions.length - 1]
     assert.ok(savings && last)
     assert.equal(savings.currentBalance, last.balanceAfterTxn)
-    assert.ok(savings.minBalance12m !== undefined && savings.minBalance12m <= savings.currentBalance)
+    assert.ok(
+      savings.minBalance12m !== undefined && savings.minBalance12m <= savings.currentBalance,
+    )
   })
 
   it('keeps outstanding principal consistent with the tenure left', () => {
@@ -245,7 +254,10 @@ describe('the headline numbers', () => {
 
     assert.equal(s.monthlyIncome, 85_000)
     assert.ok(s.monthlySurplus > 8_000, `surplus of ₹${s.monthlySurplus} is too thin to invest`)
-    assert.ok(s.discretionary > 12_000, `discretionary of ₹${s.discretionary} leaves nothing to recover`)
+    assert.ok(
+      s.discretionary > 12_000,
+      `discretionary of ₹${s.discretionary} leaves nothing to recover`,
+    )
     assert.ok(s.idleFloor > 20_000, `an idle floor of ₹${s.idleFloor} is not an idle-cash story`)
   })
 

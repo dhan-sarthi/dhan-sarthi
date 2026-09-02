@@ -129,8 +129,7 @@ export const narrate = { upi, pos, ach, si }
 export const salaryNarration = (r: Rng, employer: string): string =>
   `NEFT-CR-IDIB000M${ref(r, 3)}-${employer.toUpperCase()}-SALARY`
 
-export const emiNarration = (_r: Rng, lender: string): string =>
-  `ACH-D/${lender.toUpperCase()}/EMI`
+export const emiNarration = (_r: Rng, lender: string): string => `ACH-D/${lender.toUpperCase()}/EMI`
 
 export const rentNarration = (r: Rng): string => `IMPS/P2A/RENT/${ref(r, 9)}`
 

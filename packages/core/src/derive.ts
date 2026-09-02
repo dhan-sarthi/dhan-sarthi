@@ -254,8 +254,7 @@ export function derive(
   const from = addMonths(asOf, -opts.window)
   const window = file.transactions.filter((t) => t.txnDate >= from && t.txnDate <= asOf)
   const months = completeMonths(window)
-  const inMonth = (key: string): Transaction[] =>
-    window.filter((t) => monthKey(t.txnDate) === key)
+  const inMonth = (key: string): Transaction[] => window.filter((t) => monthKey(t.txnDate) === key)
 
   /* Recurring analysis, which everything else leans on ---------------- */
 
@@ -351,7 +350,9 @@ export function derive(
   }
 
   const discretionaryByMonth = months.map((k) =>
-    inMonth(k).filter(isDiscretionary).reduce((s, t) => s + t.txnAmount, 0),
+    inMonth(k)
+      .filter(isDiscretionary)
+      .reduce((s, t) => s + t.txnAmount, 0),
   )
 
   const byCategory = new Map<SpendCategory, number>()
@@ -374,7 +375,11 @@ export function derive(
   }
 
   const monthlyFor = (predicate: (t: Transaction) => boolean): number[] =>
-    months.map((k) => inMonth(k).filter(predicate).reduce((s, t) => s + t.txnAmount, 0))
+    months.map((k) =>
+      inMonth(k)
+        .filter(predicate)
+        .reduce((s, t) => s + t.txnAmount, 0),
+    )
 
   const trendPct = shift(discretionaryByMonth)
 
@@ -465,9 +470,7 @@ export function derive(
 
   const debt: DebtFacts = {
     total: file.liabilities.reduce((s, l) => s + l.outstandingPrincipal, 0),
-    hasHighInterest: file.liabilities.some(
-      (l) => l.loanInterestRate >= opts.highInterestThreshold,
-    ),
+    hasHighInterest: file.liabilities.some((l) => l.loanInterestRate >= opts.highInterestThreshold),
     highestRate: rates.length > 0 ? Math.max(...rates) : 0,
     missedRepayment: file.liabilities.some((l) => l.dpdStatus > 0),
     monthlyOutgo: file.liabilities.reduce((s, l) => s + l.emiAmount, 0),
