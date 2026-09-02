@@ -60,12 +60,47 @@ Verified working in the prototype:
 | Tool calling | `backend_rpc` (round-trip to us) and `client_event` (fire-and-forget to UI) |
 | Barge-in | **unverified** — Runway documents it nowhere; do not claim it in UI copy |
 
-### Open question, highest risk
+### Resolved 2 Sep 2026 — video renders
 
-**We have never confirmed the video track renders in a real browser.** The session runs, the
-Character speaks, the transcript returns, and a recording MP4 is produced — all verified. But
-headless Chromium has no H.264, so the WebRTC video path could not be tested locally. If video
-does not appear, debug that before building anything on top of it.
+**The WebRTC video path is verified end to end in a real browser.** This was the project's
+highest open risk for weeks, on the belief that "headless Chromium has no H.264" made it
+untestable locally. That belief was wrong for the Chromium that ships with Playwright:
+`RTCRtpReceiver.getCapabilities('video')` lists `video/H264`, and `canPlayType` returns
+"probably". The check was possible all along.
+
+What was measured (`docs/avatar/evidence/runway-video-check.mjs`, frame captured alongside it):
+
+| | |
+|---|---|
+| Session lifecycle | create → `NOT_READY` → `READY` in ~2s → `/consume` → LiveKit creds |
+| Room | `wss://runway-*.livekit.cloud`, region India South, LiveKit 1.13.6 |
+| Worker | joins as `worker:<sessionId>`, publishes audio **and** video |
+| Resolution | 556×360, ramping to **1088×704** |
+| Frames | decoding continuously — 16 / 38 / 62 / 88 / 115 over 5s (~26fps) |
+| Pixels | mean luma 71.6, ~220 distinct colours — a lit, photorealistic face, not a black frame |
+
+Two things worth carrying forward. **Measure pixels, not track subscription** — the first
+attempt reported success on a subscribed track and produced a black screenshot, because the room
+was disconnected inside the page before the capture and the first 15 frames are keyframe
+warm-up. And **the first ~5 seconds have no video at all** while the worker provisions, so the
+UI needs a designed waiting state rather than an empty `<video>`.
+
+**`queued: true` is not contention.** Runway raises it on the first poll of essentially every
+session and clears it a second later. Treating it as a tier ceiling — throwing a 409 the moment
+it appeared — aborted and deleted every session about a second after creating it, and the app
+reported "the avatar service is at capacity" permanently while the account sat completely idle.
+It cost twelve dead sessions to find. Only `FAILED`, `CANCELLED` and the timeout may end the
+wait; queued for the whole window is the only thing that means capacity.
+
+**Cancelling a session before it reaches READY does not free the slot immediately.** The worker
+carries on provisioning, so an aborted session keeps Tier 1 occupied and the *next* request looks
+like contention. Any diagnosis of "we are at capacity" has to rule out our own orphans first —
+`/v1/avatar_conversations?limit=25` lists sessions with status, and there is no
+`GET /v1/realtime_sessions` to list live ones.
+
+Still open: `/v1/avatar_conversations/{id}` returned 0 turns immediately after the session. Either
+it populates asynchronously or it needs the session to end cleanly rather than be cancelled —
+worth pinning down before the transcript is relied on for the audit trail.
 
 ### Cost discipline
 
@@ -125,10 +160,18 @@ Nothing has been ported yet — this is a scaffold. In rough dependency order:
 
 ## Product decisions already made — do not relitigate
 
-- **Future Self is cut.** Dropped as too hard to land and not universally liked.
+- **Future Self is cut.** Dropped as too hard to land and not universally liked. What replaces
+  it as the spine is Autopilot — see `../docs/product/07-autopilot.md`, which is canonical for
+  product scope.
 - **The avatar is male** ("Uday"). UI copy must not say "she".
-- **Chat as a separate screen is gone.** The conversation with the avatar is the primary surface.
-- **Three tabs:** Adviser, Money, Record.
+- **Chat as a separate screen is gone.** The conversation with the avatar is a mode reached from
+  the persistent mic, not a surface of its own.
+- **Four tabs:** Today, Plan, Money, Record. The avatar is not a tab.
+- **The avatar is a moment, not a surface.** $0.20/min and one concurrent session on Tier 1. It
+  handles the diagnosis, a trigger-event decision and the refusal; the daily loop is text + tap
+  over the same engine.
+- **Nothing may hard-fail.** Three tiers: live avatar, then text plus a pre-recorded clip, then
+  fully deterministic phrasing out of `packages/core`. A spinner is not a fallback.
 - **Screens exist for the judge as much as the customer.** A remote 60-year-old banker cannot
   feel a conversation, but recognises a compliance artifact. The supporting screens are the paper
   trail the conversation leaves behind.

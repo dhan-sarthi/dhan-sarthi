@@ -10,6 +10,12 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
+    // Node's --experimental-strip-types resolves the real file, so source imports carry a
+    // .ts extension. These two let tsc accept that and rewrite it to .js on emit, which is
+    // what keeps `node src/index.ts` in dev and `node dist/index.js` in production both
+    // working off one set of import specifiers.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "isolatedModules": true,
     "skipLibCheck": true,
     "declaration": true,

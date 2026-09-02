@@ -60,6 +60,12 @@ importers:
       '@dhan/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@dhan/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@dhan/fixtures':
+        specifier: workspace:*
+        version: link:../../packages/fixtures
       '@runwayml/avatars':
         specifier: ^0.17.0
         version: 0.17.0(@types/dom-mediacapture-record@1.0.22)
@@ -109,7 +115,14 @@ importers:
         version: 5.9.3
 
   packages/fixtures:
+    dependencies:
+      '@dhan/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
