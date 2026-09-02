@@ -1,183 +1,185 @@
-# Dhan Sarthi
+# Contributing
 
-Conversational wealth advisor for IDBI Bank customers. Built for IDBI Innovate 2026,
-Problem Statement 1 (Digital Wealth Management), by Team Atomic.
-
-This file is the contract for anyone — human or agent — working in this repo.
+This file is the engineering contract for the repository. Read it before changing anything;
+it records the rules that keep the compliance story true, the decisions we have already made,
+and the provider behaviour we learned the hard way.
 
 ## What the product is
 
-An advisor that **diagnoses before it prescribes**, and **refuses to sell an IDBI product when
-that product is wrong for the customer**. The refusal is the differentiator, not a caveat: it is
-the thing no competing entry does, and it is what makes the pitch credible to a bank.
+Dhan Sarthi is a conversational wealth advisor for IDBI Bank customers, built for IDBI Innovate
+2026 (Problem Statement 1, Digital Wealth Management) by Team Atomic.
 
-The target user sits below the ₹50L threshold where SEBI-registered portfolio management becomes
-available — the mass-market customer a relationship manager cannot afford to serve.
+It **diagnoses before it prescribes**, and it **refuses to sell an IDBI product when that product
+is wrong for the customer**. The refusal is the differentiator, not a caveat. It is what makes
+the product credible inside a bank, and it is enforced by deterministic rules rather than by a
+prompt.
+
+The target customer sits below the threshold where a relationship manager is economical to
+assign: the mass-market account that has a surplus and has never been told what to do with it.
 
 ## Architecture
 
 ```
-apps/api        the ONLY process that holds a secret or calls a provider
-apps/web        React client
-packages/core   domain logic — PURE, zero I/O
-packages/contracts   request/response schemas; the reason a second client is cheap
-packages/fixtures    synthetic customers and product shelf
-infra           AWS infrastructure as code
+apps/api             the ONLY process that holds a secret or calls a provider (Fastify)
+apps/web             React client, mobile-first, runs the engine in the browser for the demo
+packages/core        domain logic — PURE, zero I/O; the suitability rules live here
+packages/contracts   request/response schemas shared by API and clients (zod)
+packages/fixtures    synthetic customers and the product shelf; never real data
 ```
+
+Infrastructure as code for the AWS deployment is planned under `infra/` once the sandbox exists.
 
 ### Three rules that decide where code goes
 
-1. **Secrets and provider calls live in `apps/api`.** A client that can reach Runway or OpenAI
-   directly is a client that can leak a key. Clients get short-lived, scoped tokens.
+1. **Secrets and provider calls live in `apps/api`.** A client that can reach Runway or an LLM
+   directly is a client that can leak a key. Clients receive short-lived, scoped tokens.
 2. **Decisions live in `packages/core`, and it does no I/O.** No database, no network, no
    `process.env`. Pure functions over data the caller supplies. The suitability rules are the
    compliance story; a rule you can only exercise by standing up a server is a rule nobody can
-   audit.
+   audit. `pnpm test` proves the whole advisory brain with zero providers configured.
 3. **A route may not return a shape that is not declared in `packages/contracts`.** The API
-   validates against those schemas and clients import the inferred types.
+   validates against those schemas and clients import the inferred types. This is what makes a
+   second client cheap.
 
 ### The invariant that matters most
 
-**The model never decides suitability.** It calls `check_suitability` and receives a verdict plus
-the sentence the rules wrote. It phrases; it does not judge. This is enforced architecturally —
-the rules are a tool boundary, not a prompt instruction — and `toolResults` in the Runway
-conversation record proves after the fact that the gate fired.
+**The model never decides suitability.** It asks the rules through a tool boundary
+(`check_suitability`) and receives a verdict plus the sentence the rules wrote. It phrases; it
+does not judge. The Runway conversation record's `toolResults` then prove, after the fact, that
+the gate fired.
 
 Do not add a code path where a model's output determines whether a product is suitable.
+
+Status, so nobody is misled: the deterministic path (Today, Plan, Record) runs every product
+action through `evaluate()` in `packages/core/src/suitability.ts` today. The avatar path in this
+repository does not yet register the `check_suitability` tool with Runway; the archived prototype
+did, and porting it is the top item on the roadmap. Until it lands, the personality brief tells
+Uday to defer to the rules but nothing forces it.
+
+## Running it
+
+```bash
+pnpm install
+pnpm build              # builds packages first, then apps
+pnpm test               # builds packages/*, then runs every test
+pnpm dev:web            # web on :5173 — runs fully offline, no keys needed
+```
+
+The avatar call needs the API and Runway credentials:
+
+```bash
+cp .env.example apps/api/.env    # fill RUNWAY_API_KEY and RUNWAY_CHARACTER_ID
+pnpm dev                          # api on :3001, web on :5173 (proxies /api)
+```
+
+`pnpm test` on a fresh clone requires the packages to be built first because
+`@dhan/fixtures` imports `@dhan/core` through its `dist/` export. The root `test` script does this
+for you; if you run a single package's tests, build first.
+
+Postgres with `pgvector` is planned for the memory and audit tables, not required today:
+
+```bash
+docker run -d --name dhan-sarthi-pg -p 5433:5432 \
+  -e POSTGRES_USER=dhan -e POSTGRES_PASSWORD=dhan -e POSTGRES_DB=dhan pgvector/pgvector:pg16
+```
+
+## Conventions
+
+- **TypeScript, strict.** `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are on.
+- **Node 22+, pnpm.** The `packageManager` field pins the pnpm version; pnpm switches to it
+  automatically. The API runs `.ts` directly in dev via `--experimental-strip-types`.
+- **pnpm workspaces.** `workspace:*` for internal dependencies.
+- **Comments explain why, not what.** Match the density of the surrounding file.
+- **No app-specific branching in shared modules.** Per-customer facts belong in fixtures or that
+  customer's own record, never `if (cif === ...)` in a shared path. Rules stay principles, not
+  product names.
+- **Every rupee figure on a screen is arithmetic over the ledger.** Nothing is typed alongside
+  the data. If a demo script needs a number, derive it from the snapshot the screen reads.
+- **Commits.** Imperative subject under 72 characters; a body that explains why and what it
+  found, not what changed line by line. No tool attribution trailers.
+- **Never commit `.env`.** Run `git status --short | grep -i "\.env$"` before every commit.
 
 ## The avatar
 
 Runway Characters owns the entire conversation: microphone audio in, its own cloned voice
 ("Uday") out, photorealistic video out over WebRTC via LiveKit. We do not generate the voice.
 
-Verified working in the prototype:
-
 | Capability | Status |
 |---|---|
 | Transcript | live over the data channel, and fetchable after the call |
-| Context injection | at session start via `personality` (10k) / `startScript` (2k) |
-| Mid-call context push | **does not exist** — the model pulls via tools instead |
-| Tool calling | `backend_rpc` (round-trip to us) and `client_event` (fire-and-forget to UI) |
-| Barge-in | **unverified** — Runway documents it nowhere; do not claim it in UI copy |
+| Context injection | at session start via `personality` (10k chars) / `startScript` (2k) |
+| Mid-call context push | **does not exist**; the model pulls via tools instead |
+| Tool calling | `backend_rpc` (round trip to us) and `client_event` (fire-and-forget to the UI) |
+| Video | **verified** in a real browser, 1088×704 at ~26 fps, measured on decoded pixels |
+| Barge-in | **unverified**; Runway documents it nowhere; do not claim it in UI copy |
 
-### Resolved 2 Sep 2026 — video renders
-
-**The WebRTC video path is verified end to end in a real browser.** This was the project's
-highest open risk for weeks, on the belief that "headless Chromium has no H.264" made it
-untestable locally. That belief was wrong for the Chromium that ships with Playwright:
-`RTCRtpReceiver.getCapabilities('video')` lists `video/H264`, and `canPlayType` returns
-"probably". The check was possible all along.
-
-What was measured (`docs/avatar/evidence/runway-video-check.mjs`, frame captured alongside it):
-
-| | |
-|---|---|
-| Session lifecycle | create → `NOT_READY` → `READY` in ~2s → `/consume` → LiveKit creds |
-| Room | `wss://runway-*.livekit.cloud`, region India South, LiveKit 1.13.6 |
-| Worker | joins as `worker:<sessionId>`, publishes audio **and** video |
-| Resolution | 556×360, ramping to **1088×704** |
-| Frames | decoding continuously — 16 / 38 / 62 / 88 / 115 over 5s (~26fps) |
-| Pixels | mean luma 71.6, ~220 distinct colours — a lit, photorealistic face, not a black frame |
-
-Two things worth carrying forward. **Measure pixels, not track subscription** — the first
-attempt reported success on a subscribed track and produced a black screenshot, because the room
-was disconnected inside the page before the capture and the first 15 frames are keyframe
-warm-up. And **the first ~5 seconds have no video at all** while the worker provisions, so the
-UI needs a designed waiting state rather than an empty `<video>`.
-
-**`queued: true` is not contention.** Runway raises it on the first poll of essentially every
-session and clears it a second later. Treating it as a tier ceiling — throwing a 409 the moment
-it appeared — aborted and deleted every session about a second after creating it, and the app
-reported "the avatar service is at capacity" permanently while the account sat completely idle.
-It cost twelve dead sessions to find. Only `FAILED`, `CANCELLED` and the timeout may end the
-wait; queued for the whole window is the only thing that means capacity.
-
-**Cancelling a session before it reaches READY does not free the slot immediately.** The worker
-carries on provisioning, so an aborted session keeps Tier 1 occupied and the *next* request looks
-like contention. Any diagnosis of "we are at capacity" has to rule out our own orphans first —
-`/v1/avatar_conversations?limit=25` lists sessions with status, and there is no
-`GET /v1/realtime_sessions` to list live ones.
-
-Still open: `/v1/avatar_conversations/{id}` returned 0 turns immediately after the session. Either
-it populates asynchronously or it needs the session to end cleanly rather than be cancelled —
-worth pinning down before the transcript is relied on for the audit trail.
+Operational findings, including the `queued: true` behaviour that cost twelve dead sessions, are
+in [`docs/engineering/runway.md`](docs/engineering/runway.md). Read it before touching
+`apps/api/src/providers/runway.ts`.
 
 ### Cost discipline
 
-$0.20/min. Teardown is wired, but a hard-killed browser bills until the session cap.
-**Tier 1 allows one concurrent session** — two people demoing at once will queue.
+Runway bills $0.20 per minute from session creation. Teardown is wired on every path, but a
+hard-killed browser bills until the session cap. **Tier 1 allows one concurrent session**, so two
+people demoing at once will queue; the API answers 409 and the client must degrade honestly.
 
 ## Deployment
 
-Target is IDBI's AWS sandbox. Not yet provisioned as of 1 Sep 2026.
-
-**The API cannot be fully serverless.** The Runway backend-RPC handler joins the LiveKit room as
-a participant and holds that connection for the conversation's life. So:
+Target is IDBI's AWS sandbox in `ap-south-1`. **The API cannot be fully serverless**: the Runway
+backend-RPC handler joins the LiveKit room as a participant and holds that connection for the
+conversation's life.
 
 - API → **ECS Fargate** or EC2 (persistent process required)
 - Database → **RDS Postgres** with the `pgvector` extension
-- Web → **S3 + CloudFront** (static build)
+- Web → **S3 + CloudFront** (static build; the built app must reach the API by a configured
+  base URL, not only through the dev proxy)
 - Secrets → **AWS Secrets Manager**, fetched at startup and cached in memory, not per request
 
-## Conventions
+The sandbox request and the network-egress caveat are in
+[`docs/integration/aws-sandbox.md`](docs/integration/aws-sandbox.md).
 
-- **TypeScript, strict.** `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are on.
-- **Node 22+.** The API runs `.ts` directly in dev via `--experimental-strip-types`.
-- **pnpm workspaces.** `workspace:*` for internal dependencies.
-- **Comments explain why, not what.** Match the density of the surrounding file.
-- **No app-specific branching in shared modules.** Per-customer facts belong in fixtures or that
-  customer's own record, never `if (cif === ...)` in a shared path.
-- **Never commit `.env`.** Run `git status --short | grep -i "\.env$"` before every commit.
+## Product decisions already made
 
-## Running it
+These are settled. Rationale and reversal costs are in
+[`docs/product/decisions.md`](docs/product/decisions.md).
 
-```bash
-pnpm install
-cp .env.example apps/api/.env    # then fill in the keys
-pnpm dev                          # api on :3001, web on :5173 (proxied at /api)
-```
+- **Autopilot is the spine.** The customer names a destination; the engine builds a versioned
+  roadmap; every day it emits exactly one primary action, gated by the rules, one-tap consented,
+  and written to the record. See [`docs/product/autopilot.md`](docs/product/autopilot.md).
+- **Future Self is cut.** No photo age-progression, no first-person future voice.
+- **The avatar is male ("Uday").** UI copy must not say "she".
+- **Five tabs:** Today · Plan · Ask Uday · Money · Record. Ask Uday takes the whole screen.
+- **The avatar is a moment, not a surface.** It handles the diagnosis, a trigger-event decision
+  and the refusal; the daily loop is text and tap over the same engine.
+- **Nothing may hard-fail.** Three tiers: live avatar; then an honest "Uday is with another
+  customer" with a text conversation; then fully deterministic phrasing out of `packages/core`.
+  A spinner is not a fallback.
+- **Projections are bands, never a single number.** Three scenarios, the rate visible and
+  adjustable, labelled as an illustration, with a real-terms line.
+- **The customer raises the ULIP; the app never offers it.**
+- **No web fonts.** System stack only, so first paint is instant and the ₹ glyph always renders.
+- **A visible simulated clock** on Today, so time-dependent behaviour can be verified in seconds.
+- **No branded name for the loop in the UI.** Screens say "Today" and "your plan".
 
-Postgres for local work:
-```bash
-docker run -d --name dhan-sarthi-pg -p 5433:5432 \
-  -e POSTGRES_USER=dhan -e POSTGRES_PASSWORD=dhan -e POSTGRES_DB=dhan pgvector/pgvector:pg16
-```
+## What is still to port from the archived prototype
 
-## What still needs porting from `../prototype`
+The earlier prototype (React + a single Fastify/Postgres server) is archived in a private
+repository. Its engine and Runway transport have been re-implemented here in TypeScript; the
+pieces below have not, in rough dependency order.
 
-Nothing has been ported yet — this is a scaffold. In rough dependency order:
-
-| From | To | Notes |
+| Piece | Where it goes | Notes |
 |---|---|---|
-| `server/src/suitability.js` | `packages/core/src/suitability.ts` | 7 rules as data. Order matters; earliest failure is the one reported. Keep rules as principles, not product names. |
-| `server/src/derive.js` | `packages/core/src/derive.ts` | One snapshot, one source of truth. Screens and conversation must read the same object. |
-| `server/src/providers/bank.js` | `packages/fixtures/src/` | Fixtures branch only. |
-| `server/src/providers/runway.js` | `apps/api/src/providers/runway.ts` | Verified working. Note: every POST needs `Content-Type: application/json` even with an empty body, or `/consume` returns 400. |
-| `server/src/avatar-brief.js` | `apps/api/src/avatar-brief.ts` | Builds the personality brief and the tool handlers. |
-| `server/src/memory.js` | `apps/api/src/memory.ts` | **Port `test/safeguard.test.mjs` with it.** That test pins a real leak: exact-string topic matching let a medical conversation through. Matching must stay bidirectional-substring plus a summary keyword scan. |
-| `server/src/routes/avatar.js` | `apps/api/src/routes/avatar.ts` | Includes the portrait proxy — Runway's image URL carries an expiring token, so the browser cannot hold it. Field is `referenceImageUri` on the character endpoint and `imageUrl` on the conversation record. |
-| `src/styles/tokens.css` | `apps/web/src/styles/` | Chime-derived palette, single hue at 152°. Plus Jakarta Sans, self-hosted, with U+20B9 in the subset — the default latin subsets do not cover ₹. |
+| `check_suitability` tool + `backend_rpc` handler | `apps/api/src/avatar-brief.ts`, `providers/runway.ts` | Open the RPC handler **before** handing the browser its LiveKit credentials; an ungated session must never be issued. Needs `@runwayml/avatars-node-rpc`. |
+| Server-side personality brief | `apps/api` | The brief sits behind a compliance claim and must not be client-editable. The client should send a customer id, not prose. |
+| Advice record writer + route | `apps/api`, `packages/contracts` | One row per proposal: snapshot hash, rule, verdict, the exact sentence shown, decision, timestamp. |
+| `show_artifact` client event + canvas | `apps/web` | The rule ladder and the ULIP-vs-term comparison the customer sees while Uday speaks. |
+| Semantic memory + safeguard | `apps/api/src/memory.ts` | **Port the safeguard test with it.** It pins a real leak: exact-string topic matching let a medical conversation through. Matching must stay bidirectional-substring plus a summary keyword scan. |
+| Tone registers | `packages/core` | Six registers: candid, encouraging, firm, pleased, steady, careful. Chosen deterministically from the snapshot before any model call. |
+| Portrait proxy | `apps/api/src/routes/avatar.ts` | Runway's image URL carries an expiring token; the browser cannot hold it. Today a static portrait is served instead. |
+| Per-IP session limit | `apps/api` | The daily minute budget exists; the per-IP limiter does not. |
 
-## Product decisions already made — do not relitigate
+## Where the docs live
 
-- **Future Self is cut.** Dropped as too hard to land and not universally liked. What replaces
-  it as the spine is Autopilot — see `../docs/product/07-autopilot.md`, which is canonical for
-  product scope.
-- **The avatar is male** ("Uday"). UI copy must not say "she".
-- **Chat as a separate screen is gone.** The conversation with the avatar is a mode reached from
-  the persistent mic, not a surface of its own.
-- **Four tabs:** Today, Plan, Money, Record. The avatar is not a tab.
-- **The avatar is a moment, not a surface.** $0.20/min and one concurrent session on Tier 1. It
-  handles the diagnosis, a trigger-event decision and the refusal; the daily loop is text + tap
-  over the same engine.
-- **Nothing may hard-fail.** Three tiers: live avatar, then text plus a pre-recorded clip, then
-  fully deterministic phrasing out of `packages/core`. A spinner is not a fallback.
-- **Screens exist for the judge as much as the customer.** A remote 60-year-old banker cannot
-  feel a conversation, but recognises a compliance artifact. The supporting screens are the paper
-  trail the conversation leaves behind.
-
-## Where the research lives
-
-`../docs/` — competitor intelligence on all 23 shortlisted teams, the avatar technology
-evaluation, compliance and NDA analysis. `../prototype/` — the working prototype this
-replaces, tagged `runway-working-prototype`.
+[`docs/README.md`](docs/README.md) is the reading order. Product reasoning is under
+`docs/product/`, provider and deployment notes under `docs/engineering/`, the IDBI integration
+specification under `docs/integration/`, and the Phase 1 submission under `docs/submission/`.
