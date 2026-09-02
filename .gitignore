@@ -1,24 +1,8 @@
 node_modules/
 dist/
-build/
-.next/
-.DS_Store
-*.log
-
-# Credentials — hack2skill session state. Never commit.
-automation/session/
-**/cookies.json
-**/localstorage.json
+*.tsbuildinfo
 .env
-.env.*
-!.env.example
-
-# Superseded by docs/ and prototype/ — kept locally as the original working copy.
-# It also contains a nested git repo (app/ -> Krishna3451/dhan-sarthi).
-Problem Statement 1/
-
-# Scrape artifacts from the hack2skill portal — derived from an authenticated session
-# (routes-report.json contained a partial bearer token). Tooling is kept, outputs are not.
-automation/*report*.json
-automation/endpoints.json
-automation/shots/
+.env.local
+.DS_Store
+coverage/
+.turbo/
