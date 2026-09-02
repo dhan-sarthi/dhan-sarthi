@@ -25,7 +25,7 @@ import {
   Tile,
 } from '../components/ui.tsx'
 import { dayMonth, inr } from '../lib/money.ts'
-import { prettyMerchant } from './Today.tsx'
+import { prettyMerchant } from '../lib/merchant.ts'
 
 type Tab = 'accounts' | 'spending' | 'commitments'
 
