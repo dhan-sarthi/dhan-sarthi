@@ -1,7 +1,7 @@
 # Dhan Sarthi — Final PPT Content
 *This is the Phase 1 submission text as submitted. Future Self / photo age-progression were later cut in favour of the Autopilot spine — see [docs/product/autopilot.md](../product/autopilot.md).*
 
-*Paste-ready text for the official Hack2skill 14-slide template. Screenshots referenced are in `app/docs/screens/`. Keep bullets on slides short — anything in [brackets] is an instruction, not slide text.*
+*Paste-ready text for the official Hack2skill 14-slide template. Screenshots referenced were captured from the earlier prototype. Keep bullets on slides short — anything in [brackets] is an instruction, not slide text.*
 
 ---
 
