@@ -116,17 +116,15 @@ each rule writes both the sentence the customer hears and the line the record ke
 
 ```mermaid
 flowchart TB
-    P["a product and a monthly amount"] --> R1{"HIGH_INTEREST_DEBT"}
-    R1 -->|passes| R2{"MISSED_REPAYMENT"}
-    R2 -->|passes| R3{"EMERGENCY_BUFFER"}
-    R3 -->|passes| R4{"RISK_CEILING"}
-    R4 -->|passes| R5{"VOLATILITY_VS_HORIZON"}
-    R5 -->|passes| R6{"AFFORDABILITY"}
-    R6 -->|passes| R7{"HORIZON_VS_LOCKIN"}
-    R7 -->|passes| R8{"TAX_BENEFIT_UNAVAILABLE"}
-    R8 -->|passes| R9{"BUNDLED_PROTECTION"}
-    R9 -->|passes| OK["PASS<br/>recorded: all nine rules passed"]
-    R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 -->|fails| B["BLOCKED<br/>rule id · rules cleared · the sentence shown<br/>a better product where one exists"]
+    P["a product and a monthly amount"] --> R1
+    subgraph chain["evaluated in this order"]
+      direction TB
+      R1["1 · HIGH_INTEREST_DEBT"] --> R2["2 · MISSED_REPAYMENT"] --> R3["3 · EMERGENCY_BUFFER"]
+      R3 --> R4["4 · RISK_CEILING"] --> R5["5 · VOLATILITY_VS_HORIZON"] --> R6["6 · AFFORDABILITY"]
+      R6 --> R7["7 · HORIZON_VS_LOCKIN"] --> R8["8 · TAX_BENEFIT_UNAVAILABLE"] --> R9["9 · BUNDLED_PROTECTION"]
+    end
+    R9 -->|all nine pass| OK["PASS<br/>recorded: all nine rules passed"]
+    chain -.->|the first rule that fails, and only that one| B["BLOCKED<br/>rule id · rules cleared · the sentence shown<br/>a better product where one exists"]
 
     style B fill:#a83a2a,color:#fff,stroke:#16342a
     style OK fill:#2f6b4f,color:#fff,stroke:#16342a
