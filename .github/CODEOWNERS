@@ -1,0 +1,12 @@
+# Review routing. GitHub requests a review from the listed owners when a pull request touches
+# these paths. Ownership follows the three rules in CONTRIBUTING.md: the engine, the API, the app.
+
+# The compliance story lives here; changes to the rules need a second pair of eyes.
+/packages/core/                 @mohit-1710 @Krishna3451
+/packages/contracts/            @mohit-1710 @Krishna3451
+
+/packages/fixtures/             @Krishna3451 @mohit-1710
+/apps/api/                      @Krishna3451 @mohit-1710
+/apps/web/                      @mohit-1710
+/docs/                          @mohit-1710 @Krishna3451
+/.github/                       @mohit-1710

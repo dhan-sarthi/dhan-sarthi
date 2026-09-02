@@ -9,9 +9,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  verify:
-    name: typecheck · test · build
+  quality:
+    name: lint · format · typecheck · test · build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -22,10 +25,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Formatting
+        run: pnpm format:check
 
       - name: Typecheck every workspace
         run: pnpm typecheck
@@ -36,10 +45,30 @@ jobs:
       - name: Build the apps
         run: pnpm -r --filter './apps/*' build
 
+  hygiene:
+    name: secrets · env files · dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
       - name: Refuse committed secrets or environment files
         run: |
           set -e
           if git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -v '\.example$'; then
             echo "an environment file is tracked"; exit 1; fi
-          if git grep -nE 'key_[0-9a-f]{40,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}' -- . ':!.github/workflows/ci.yml'; then
+          if git grep -nE 'key_[0-9a-f]{40,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|postgres(ql)?://[^:/]+:[^@/]+@' -- . ':!.github/workflows/ci.yml' ':!.env.example'; then
             echo "a credential-shaped string is tracked"; exit 1; fi
+
+      - name: Audit production dependencies
+        # High and critical advisories fail the build; lower ones are reported in the log.
+        run: pnpm audit --prod --audit-level=high
