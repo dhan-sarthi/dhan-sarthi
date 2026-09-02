@@ -2,16 +2,22 @@
 
 > A wealth advisor for the IDBI customer no relationship manager can afford to serve. It reads **twenty-four months of transactions**, tells the customer **the one thing to do today**, and **refuses to sell an IDBI product when that product is wrong for them**. Nine **deterministic suitability rules** sit between the advice and the shelf; every verdict leaves an **audit record**. The face and voice are a live **photorealistic avatar**; the decisions are never his.
 
-![TypeScript](https://img.shields.io/badge/TypeScript-16342a?style=flat-square&logo=typescript&logoColor=white)
-![React 19](https://img.shields.io/badge/React%2019-16342a?style=flat-square&logo=react&logoColor=white)
-![Vite 6](https://img.shields.io/badge/Vite%206-16342a?style=flat-square&logo=vite&logoColor=white)
-![Tailwind 4](https://img.shields.io/badge/Tailwind%204-16342a?style=flat-square&logo=tailwindcss&logoColor=white)
-![Fastify 5](https://img.shields.io/badge/Fastify%205-16342a?style=flat-square&logo=fastify&logoColor=white)
-![Runway Characters](https://img.shields.io/badge/Runway%20Characters-16342a?style=flat-square)
-![LiveKit](https://img.shields.io/badge/LiveKit-16342a?style=flat-square)
-![suitability rules](https://img.shields.io/badge/suitability%20rules-9-16342a?style=flat-square)
-![tests](https://img.shields.io/badge/tests-54%20passing-16342a?style=flat-square)
-![keys in the browser](https://img.shields.io/badge/keys%20in%20the%20browser-0-16342a?style=flat-square)
+![TypeScript](https://img.shields.io/badge/TypeScript-6f4cff?style=flat-square&logo=typescript&logoColor=white)
+![React 19](https://img.shields.io/badge/React%2019-6f4cff?style=flat-square&logo=react&logoColor=white)
+![Vite 6](https://img.shields.io/badge/Vite%206-6f4cff?style=flat-square&logo=vite&logoColor=white)
+![Tailwind 4](https://img.shields.io/badge/Tailwind%204-6f4cff?style=flat-square&logo=tailwindcss&logoColor=white)
+![Fastify 5](https://img.shields.io/badge/Fastify%205-6f4cff?style=flat-square&logo=fastify&logoColor=white)
+![Runway Characters](https://img.shields.io/badge/Runway%20Characters-6f4cff?style=flat-square)
+![LiveKit](https://img.shields.io/badge/LiveKit-6f4cff?style=flat-square)
+![suitability rules](https://img.shields.io/badge/suitability%20rules-9-6f4cff?style=flat-square)
+![tests](https://img.shields.io/badge/tests-54%20passing-6f4cff?style=flat-square)
+![keys in the browser](https://img.shields.io/badge/keys%20in%20the%20browser-0-6f4cff?style=flat-square)
+
+> [!TIP]
+> **Try it in two minutes.** `pnpm install && pnpm dev:web`, open the phone-sized page, pick
+> **Rohan**. Press **+1 month** on the simulated clock and watch the plan re-cut itself. Open
+> **Record → The rules** to see the nine rules and the two shelf products marked *Refused*. Ask
+> Uday about "the LIC plan my cousin recommends" and he will refuse it, on the record.
 
 > [!NOTE]
 > Every customer, transaction and balance in this repository is synthetic, generated from a seed by
@@ -25,8 +31,9 @@
 Three rules decide where code goes. **Secrets and provider calls live only in `apps/api`**, so a
 key can never reach a browser. **Decisions live only in `packages/core`, which does no I/O**, so
 the suitability rules can be exercised and audited without standing anything up. **A route may not
-return a shape not declared in `packages/contracts`.** The two pieces in green are where the
-compliance story lives.
+return a shape not declared in `packages/contracts`.** The four pieces in **purple** are where the
+interesting decisions live: the rules, the contracts, the one process allowed to hold a secret,
+and the clock that lets a reviewer verify time-dependent behaviour in seconds.
 
 ```mermaid
 flowchart TB
@@ -62,8 +69,12 @@ flowchart TB
     RUNWAY --> LK
     ROUTE -.->|shapes declared in| CON
 
-    style GATE fill:#2f6b4f,color:#fff,stroke:#16342a
-    style CON fill:#2f6b4f,color:#fff,stroke:#16342a
+    style GATE fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style CON fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style ROUTE fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style CLOCK fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style RUNWAY fill:#f3f0ff,stroke:#5a3de0
+    style LK fill:#f3f0ff,stroke:#5a3de0
 ```
 
 ### One avatar call
@@ -89,6 +100,7 @@ sequenceDiagram
     C->>L: join room · publish microphone
     R->>L: publish Uday's voice and video
 
+    rect rgb(243, 240, 255)
     Note over C,K: THE GATE — designed boundary, being ported
     R->>A: tool call · check_suitability(product, amount)
     A->>K: evaluate(snapshot, product, amount)
@@ -100,6 +112,7 @@ sequenceDiagram
     A-->>R: tool result
     R->>L: Uday speaks the verdict
     A->>A: audit record
+    end
 ```
 
 Reasoning behind every decision, with what it costs to reverse, is in
@@ -111,23 +124,35 @@ billed sessions is in **[docs/engineering/runway.md](docs/engineering/runway.md)
 
 ## How a recommendation is decided
 
-Nine rules as data, evaluated in this order. The earliest failing rule is the one reported, and
-each rule writes both the sentence the customer hears and the line the record keeps.
+Nine rules as data, evaluated left to right and top to bottom. A product and a monthly amount go
+in; the earliest failing rule is the one reported, and each rule writes both the sentence the
+customer hears and the line the record keeps.
 
 ```mermaid
 flowchart TB
-    P["a product and a monthly amount"] --> R1
-    subgraph chain["evaluated in this order"]
+    subgraph S4["any rule fails"]
+      direction TB
+      B["BLOCKED<br/>the first failing rule, and only that one<br/>rules cleared · the sentence shown<br/>a better product where one exists"]
+    end
+    subgraph S3["last · does it fit the goal?"]
+      direction TB
+      R7["7 · HORIZON_VS_LOCKIN"] --> R8["8 · TAX_BENEFIT_UNAVAILABLE"] --> R9["9 · BUNDLED_PROTECTION"] --> OK["PASS<br/>all nine rules passed"]
+    end
+    subgraph S2["then · does it fit the customer?"]
+      direction TB
+      R4["4 · RISK_CEILING"] --> R5["5 · VOLATILITY_VS_HORIZON"] --> R6["6 · AFFORDABILITY"]
+    end
+    subgraph S1["first · is the customer safe?"]
       direction TB
       R1["1 · HIGH_INTEREST_DEBT"] --> R2["2 · MISSED_REPAYMENT"] --> R3["3 · EMERGENCY_BUFFER"]
-      R3 --> R4["4 · RISK_CEILING"] --> R5["5 · VOLATILITY_VS_HORIZON"] --> R6["6 · AFFORDABILITY"]
-      R6 --> R7["7 · HORIZON_VS_LOCKIN"] --> R8["8 · TAX_BENEFIT_UNAVAILABLE"] --> R9["9 · BUNDLED_PROTECTION"]
     end
-    R9 -->|all nine pass| OK["PASS<br/>recorded: all nine rules passed"]
-    chain -.->|the first rule that fails, and only that one| B["BLOCKED<br/>rule id · rules cleared · the sentence shown<br/>a better product where one exists"]
 
-    style B fill:#a83a2a,color:#fff,stroke:#16342a
-    style OK fill:#2f6b4f,color:#fff,stroke:#16342a
+    style OK fill:#2f6b4f,color:#fff,stroke:#1f4a36
+    style B fill:#a83a2a,color:#fff,stroke:#7d2a1e
+    style S1 fill:#f3f0ff,stroke:#c9bdfc
+    style S2 fill:#f3f0ff,stroke:#c9bdfc
+    style S3 fill:#f3f0ff,stroke:#c9bdfc
+    style S4 fill:#fff5f3,stroke:#e6b8b0
 ```
 
 | # | Rule | Fires when | What the customer hears |
@@ -164,7 +189,10 @@ flowchart LR
     T["Triggers<br/>salary · EMI ends · FD matures · idle balance"] -.-> D
     K["Simulated clock"] -.-> L
 
-    style G fill:#2f6b4f,color:#fff,stroke:#16342a
+    style G fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style A fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style K fill:#f3f0ff,stroke:#5a3de0
+    style D fill:#f3f0ff,stroke:#5a3de0
 ```
 
 Deployment decisions happen only on triggers; the daily loop is awareness. Every figure on every
