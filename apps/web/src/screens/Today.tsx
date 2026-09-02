@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import type { Action, DailyPlan, Insight, Snapshot } from '@dhan/core'
 import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
+import { prettyMerchant } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
 
 /* Header chips: white pills with a mint hairline. The count badge is a small orange disc. */
@@ -312,24 +313,4 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
       </button>
     </Card>
   )
-}
-
-/** `UPI/SWIGGY/412683940281` reads as "Swiggy" to a person. */
-export function prettyMerchant(narration: string): string {
-  const parts = narration
-    .split(/[/-]/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-  const named = parts.find(
-    (p) =>
-      p.length > 2 &&
-      !/^\d+$/.test(p) &&
-      !['UPI', 'POS', 'NEFT', 'IMPS', 'ACH', 'D', 'CR', 'SI', 'ATW', 'P2A'].includes(p),
-  )
-  const raw = named ?? parts[0] ?? narration
-  return raw
-    .toLowerCase()
-    .split(' ')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
 }
