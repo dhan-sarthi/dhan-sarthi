@@ -140,7 +140,7 @@ export function findInsights(snapshot: Snapshot): Insight[] {
   if (s.debt.endingSoon) {
     const { loanType, emiAmount, monthsLeft } = s.debt.endingSoon
     // A loan finishing is a raise nobody notices, and the money vanishes into spending unless
-    // it is claimed before it arrives. Deterministic, verifiable, and no rival is reading the
+    // it is claimed before it arrives. Deterministic, verifiable, and few advisors read the
     // ledger deeply enough to find it.
     out.push({
       kind: 'emi_ending',
