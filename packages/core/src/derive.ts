@@ -1,7 +1,7 @@
 /**
  * The Snapshot: one object, one set of numbers, derived once.
  *
- * This is the engineering guardrail from `docs/product/03-app-ux.md` that eliminates a whole
+ * This is the engineering guardrail that eliminates a whole
  * class of hallucination for almost no effort. The conversation reads the same object the
  * screens render, so the avatar physically cannot quote a figure the UI does not show. Nothing
  * downstream of here may touch a transaction directly.

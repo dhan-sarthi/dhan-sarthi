@@ -5,7 +5,7 @@
  * projected corpus as a fact.** There is no assured return on a market-linked product, and a
  * single confident figure — "you will have ₹41 lakh" — is the thing a risk officer marks us down
  * for. So every projection here returns *scenarios*, carries its rate, and carries the sentence
- * that has to appear alongside it. See `docs/product/09-decisions.md` §B2.
+ * that has to appear alongside it. See `docs/product/decisions.md` §B2.
  *
  * Two smaller decisions worth knowing:
  *

@@ -15,8 +15,8 @@
  * objection wins rather than the most technical one. A customer with a card at 42% should hear
  * about the card, not about their risk profile.
  *
- * Ported from ../../../prototype/server/src/suitability.js, with the ladder in
- * docs/product/08-product-shelf.md added: volatility against horizon, and the tax regime.
+ * Ported from the archived prototype's suitability module, with the ladder in
+ * docs/product/product-shelf.md added: volatility against horizon, and the tax regime.
  */
 import type { Snapshot } from './derive.ts'
 import type { Product, Riskometer, RiskProfile } from './types.ts'

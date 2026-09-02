@@ -16,7 +16,7 @@
  * decodable frame; `/consume` is **one shot**, so a failed WebRTC connection spends the session;
  * and billing runs from creation, which is why every path that opens one can close it.
  *
- * Ported from prototype/server/src/providers/runway.js.
+ * Ported from the archived prototype's Runway provider.
  */
 
 const BASE = process.env['RUNWAY_API_BASE'] ?? 'https://api.dev.runwayml.com'
