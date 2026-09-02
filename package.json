@@ -2,14 +2,17 @@
   "name": "dhan-sarthi",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "dev:api": "pnpm --filter @dhan/api dev",
     "dev:web": "pnpm --filter @dhan/web dev",
     "build": "pnpm -r --filter './packages/*' build && pnpm -r --filter './apps/*' build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --filter './packages/*' build && pnpm -r test",
     "lint": "pnpm -r lint"
   },
   "devDependencies": {

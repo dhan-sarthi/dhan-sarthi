@@ -1,8 +1,21 @@
+# Dependencies and build output
 node_modules/
 dist/
-*.tsbuildinfo
-.env
-.env.local
-.DS_Store
+build/
 coverage/
+*.tsbuildinfo
 .turbo/
+.vite/
+
+# Environment. Never commit a real one; .env.example is the template.
+.env
+.env.*
+!.env.example
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
