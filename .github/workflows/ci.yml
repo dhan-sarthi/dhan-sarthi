@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # Version comes from the packageManager field in package.json.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck every workspace
+        run: pnpm typecheck
+
+      - name: Build packages, then run every test
+        run: pnpm test
+
+      - name: Build the apps
+        run: pnpm -r --filter './apps/*' build
+
+      - name: Refuse committed secrets or environment files
+        run: |
+          set -e
+          if git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -v '\.example$'; then
+            echo "an environment file is tracked"; exit 1; fi
+          if git grep -nE 'key_[0-9a-f]{40,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}' -- . ':!.github/workflows/ci.yml'; then
+            echo "a credential-shaped string is tracked"; exit 1; fi
