@@ -63,27 +63,9 @@ export function Ask({
         : null
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'radial-gradient(130% 90% at 50% 8%, #1e4033 0%, #143025 48%, #0b1a15 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        color: '#f4f1ea',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-b from-brand to-brand-deep text-white">
       {/* --------------------------------------------------- Top bar */}
-      <div
-        style={{
-          flex: '0 0 auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: 'max(16px, env(safe-area-inset-top)) 18px 6px',
-        }}
-      >
+      <div className="flex flex-none items-center gap-2.5 px-4 pb-1.5 pt-[max(16px,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={() => {
@@ -91,43 +73,17 @@ export function Ask({
             onClose()
           }}
           aria-label="Close"
-          style={{
-            width: 38,
-            height: 38,
-            flex: '0 0 auto',
-            borderRadius: 999,
-            border: 0,
-            background: 'rgb(244 241 234 / 14%)',
-            color: 'inherit',
-            display: 'grid',
-            placeItems: 'center',
-          }}
+          className="grid size-[38px] flex-none place-items-center rounded-pill border-0 bg-white/15 text-white"
         >
           <CloseIcon />
         </button>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         {status ? (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              borderRadius: 999,
-              padding: '6px 12px',
-              fontSize: 11.5,
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              background: connected ? 'rgb(47 107 79 / 92%)' : 'rgb(244 241 234 / 14%)',
-            }}
-          >
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill bg-white/15 px-3 py-1.5 text-[11.5px] font-bold text-white">
             <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 999,
-                background: connected ? '#8fe0b0' : '#f6c79b',
-                animation: connecting ? 'blink 1.1s ease-in-out infinite' : 'none',
-              }}
+              className={`size-[7px] rounded-pill ${connected ? 'bg-tint-sage' : 'bg-accent'} ${
+                connecting ? 'animate-pulse' : ''
+              }`}
             />
             {status}
           </span>
@@ -135,29 +91,13 @@ export function Ask({
       </div>
 
       {/* --------------------------------------------------- The tile */}
-      <div
-        style={{
-          flex: '1 1 auto',
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          padding: '0 18px',
-        }}
-      >
+      <div className="flex min-h-0 flex-1 flex-col justify-center px-4">
         <div
+          className="relative aspect-[4/5] max-h-full w-full overflow-hidden rounded-lg bg-brand-deep shadow-lift transition-[box-shadow,transform] duration-100 ease-out"
           style={{
-            position: 'relative',
-            width: '100%',
-            aspectRatio: '4 / 5',
-            maxHeight: '100%',
-            borderRadius: 28,
-            overflow: 'hidden',
-            background: '#0d1f19',
-            // Two shadows: the settled one, and a warm ring that swells with his voice.
-            boxShadow: `0 24px 70px rgb(0 0 0 / 45%), 0 0 0 ${(2 + glow * 5).toFixed(1)}px rgb(143 224 176 / ${(glow * 0.5).toFixed(2)})`,
+            // Two shadows: the settled one, and a mint ring that swells with his voice.
+            boxShadow: `var(--shadow-lift), 0 0 0 ${(2 + glow * 5).toFixed(1)}px rgb(224 241 235 / ${(glow * 0.5).toFixed(2)})`,
             transform: `scale(${(1 + glow * 0.008).toFixed(4)})`,
-            transition: 'box-shadow 90ms linear, transform 120ms ease-out',
           }}
         >
           {/* His actual reference portrait, pulled from the Character and served locally —
@@ -165,54 +105,26 @@ export function Ask({
           <img
             src="/uday.jpg"
             alt="Uday, your IDBI advisor"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: 'center 28%',
-              opacity: showVideo ? 0 : 1,
-              // Longer than feels necessary, on purpose: the poster and the first video frame
-              // are the same man in the same chair, so a slow dissolve reads as him settling
-              // into focus. A quick swap reads as a glitch.
-              transition: 'opacity 900ms ease-in-out, filter 400ms ease',
-              filter: connecting ? 'brightness(0.7) saturate(0.85)' : 'none',
-            }}
+            // Longer than feels necessary, on purpose: the poster and the first video frame
+            // are the same man in the same chair, so a slow dissolve reads as him settling
+            // into focus. A quick swap reads as a glitch.
+            className={`absolute inset-0 size-full object-cover object-[center_28%] transition-[opacity,filter] duration-[900ms] ease-in-out ${
+              showVideo ? 'opacity-0' : 'opacity-100'
+            } ${connecting ? 'brightness-[0.7] saturate-[0.85]' : ''}`}
           />
 
           <video
             ref={avatar.videoRef}
             autoPlay
             playsInline
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: 'center 28%',
-              opacity: showVideo ? 1 : 0,
-              transition: 'opacity 900ms ease-in-out',
-            }}
+            className={`absolute inset-0 size-full object-cover object-[center_28%] transition-opacity duration-[900ms] ease-in-out ${
+              showVideo ? 'opacity-100' : 'opacity-0'
+            }`}
           />
 
           {/* Only ever one line, and only while something is happening. */}
           {connecting || (connected && !avatar.videoLive) ? (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 'auto 0 0 0',
-                padding: '44px 18px 18px',
-                background: 'linear-gradient(180deg, transparent, rgb(11 26 21 / 90%))',
-                fontSize: 13.5,
-                textAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 9,
-              }}
-            >
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-[9px] bg-gradient-to-t from-brand-deep/90 to-transparent px-4 pb-4 pt-11 text-center text-[13.5px] text-white">
               {speaking ? <Waveform level={avatar.audioLevel} /> : null}
               {connecting
                 ? 'Connecting to Uday…'
@@ -223,26 +135,15 @@ export function Ask({
           ) : null}
 
           {avatar.muted && connected ? (
-            <span
-              style={{
-                position: 'absolute',
-                top: 14,
-                left: 14,
-                borderRadius: 999,
-                padding: '5px 11px',
-                fontSize: 11.5,
-                fontWeight: 700,
-                background: 'rgb(168 58 42 / 92%)',
-              }}
-            >
+            <span className="absolute left-3.5 top-3.5 rounded-pill bg-danger px-[11px] py-[5px] text-[11.5px] font-bold text-white">
               Muted
             </span>
           ) : null}
         </div>
 
-        <div style={{ textAlign: 'center', padding: '20px 4px 0' }}>
-          <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em' }}>Uday</div>
-          <div style={{ fontSize: 14, opacity: 0.66, marginTop: 3 }}>
+        <div className="px-1 pt-5 text-center">
+          <div className="text-[22px] font-bold leading-tight text-white">Uday</div>
+          <div className="mt-1 text-sm text-white/70">
             {connected
               ? avatar.videoLive
                 ? 'Interrupt him whenever you like'
@@ -253,33 +154,20 @@ export function Ask({
       </div>
 
       {/* --------------------------------------------------- Controls */}
-      <div
-        style={{
-          flex: '0 0 auto',
-          padding: '10px 18px max(20px, env(safe-area-inset-bottom))',
-        }}
-      >
+      <div className="flex-none px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-2.5">
         {avatar.reason && !connected ? (
-          <p
-            style={{
-              margin: '0 0 12px',
-              fontSize: 13,
-              lineHeight: 1.5,
-              textAlign: 'center',
-              opacity: 0.66,
-            }}
-          >
+          <p className="m-0 mb-3 text-center text-[13px] leading-normal text-white/70">
             {avatar.reason}
           </p>
         ) : null}
 
         {connected ? (
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <div className="flex justify-center gap-3">
             <button
               type="button"
               onClick={avatar.toggleMute}
               aria-label={avatar.muted ? 'Unmute' : 'Mute'}
-              style={round(avatar.muted ? 'rgb(244 241 234 / 18%)' : 'rgb(47 107 79 / 92%)')}
+              className={`${ROUND} ${avatar.muted ? 'bg-white text-brand-deep' : 'bg-white/20 text-white'}`}
             >
               <MicIcon />
             </button>
@@ -287,7 +175,7 @@ export function Ask({
               type="button"
               onClick={avatar.stop}
               aria-label="End call"
-              style={round('#a83a2a')}
+              className={`${ROUND} bg-danger text-white`}
             >
               <EndIcon />
             </button>
@@ -297,31 +185,13 @@ export function Ask({
             type="button"
             onClick={avatar.start}
             disabled={connecting}
-            style={{
-              width: '100%',
-              border: 0,
-              borderRadius: 999,
-              padding: '18px 22px',
-              fontSize: 17,
-              fontWeight: 800,
-              letterSpacing: '-0.01em',
-              background: connecting ? 'rgb(217 119 46 / 55%)' : '#d9772e',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-            }}
+            className="flex h-12 w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985] disabled:bg-accent/55"
           >
             <MicIcon />
             {connecting ? 'Connecting…' : 'Talk to Uday'}
           </button>
         )}
       </div>
-
-      <style>{`
-        @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
-      `}</style>
     </div>
   )
 }
@@ -335,20 +205,12 @@ export function Ask({
 function Waveform({ level }: { level: number }): ReactNode {
   const offsets = [0.55, 0.85, 1, 0.8, 0.5]
   return (
-    <span
-      aria-hidden="true"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, height: 15 }}
-    >
+    <span aria-hidden="true" className="inline-flex h-[15px] items-center gap-[3px]">
       {offsets.map((o, i) => (
         <span
           key={i}
-          style={{
-            width: 3,
-            borderRadius: 999,
-            background: '#8fe0b0',
-            height: `${Math.max(3, Math.min(15, level * 22 * o + 3)).toFixed(1)}px`,
-            transition: 'height 110ms ease-out',
-          }}
+          className="w-[3px] rounded-pill bg-tint-sage transition-[height] duration-[110ms] ease-out"
+          style={{ height: `${Math.max(3, Math.min(15, level * 22 * o + 3)).toFixed(1)}px` }}
         />
       ))}
     </span>
@@ -361,17 +223,8 @@ function Waveform({ level }: { level: number }): ReactNode {
 const fmt = (seconds: number): string =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
-const round = (bg: string): React.CSSProperties => ({
-  width: 62,
-  height: 62,
-  flex: '0 0 auto',
-  borderRadius: 999,
-  border: 0,
-  background: bg,
-  color: '#fff',
-  display: 'grid',
-  placeItems: 'center',
-})
+/* The two in-call controls: 62px discs, coloured by the caller. */
+const ROUND = 'grid size-[62px] flex-none place-items-center rounded-pill border-0'
 
 /* Inline SVG rather than emoji: 🎙 renders as a tofu box wherever the platform ships no emoji
    font, and these are the only controls on the screen. */

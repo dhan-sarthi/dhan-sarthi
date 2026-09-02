@@ -9,9 +9,15 @@
  * So the judge moves the clock themselves. Advance a week and real transactions appear, the
  * safe-to-spend figure falls, and the plan recalculates — all computed, none scripted. Labelled
  * plainly as a simulation, because the moment it looks like a trick the credibility is gone.
+ *
+ * Styled as the peach "attention" card: orange eyebrow, three identical secondary outline pills
+ * to advance, and Reset as a quiet text button so it never competes with them.
  */
 import type { ReactNode } from 'react'
 import { dayMonth } from '../lib/money.ts'
+
+const ADVANCE_BTN =
+  'h-11 min-w-0 flex-1 whitespace-nowrap rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]'
 
 export function Clock({
   asOf,
@@ -23,42 +29,38 @@ export function Clock({
   onReset: () => void
 }): ReactNode {
   return (
-    <section className="card tint-clay" style={{ paddingBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <div>
-          <div
-            style={{
-              fontSize: 10.5,
-              fontWeight: 800,
-              letterSpacing: '0.09em',
-              textTransform: 'uppercase',
-              color: '#7a5a3c',
-            }}
-          >
+    <section className="mb-3 min-w-0 rounded-md bg-tint-clay p-4 pb-3.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-accent-text">
             Simulated clock
           </div>
-          <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 3 }}>
+          <div className="mt-0.5 text-[18px] font-semibold leading-tight tabular-nums text-ink">
             {dayMonth(asOf)} {asOf.slice(0, 4)}
           </div>
         </div>
-        <button type="button" className="btn ghost sm" style={{ width: 'auto' }} onClick={onReset}>
+        <button
+          type="button"
+          className="h-10 shrink-0 rounded-pill border-0 bg-transparent px-2 text-[15px] font-semibold text-brand underline-offset-2 hover:underline"
+          onClick={onReset}
+        >
           Reset
         </button>
       </div>
 
-      <div className="btn-row" style={{ marginTop: 13 }}>
-        <button type="button" className="btn sm" onClick={() => onAdvance(1)}>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" className={ADVANCE_BTN} onClick={() => onAdvance(1)}>
           +1 day
         </button>
-        <button type="button" className="btn sm" onClick={() => onAdvance(7)}>
+        <button type="button" className={ADVANCE_BTN} onClick={() => onAdvance(7)}>
           +1 week
         </button>
-        <button type="button" className="btn sm" onClick={() => onAdvance(30)}>
+        <button type="button" className={ADVANCE_BTN} onClick={() => onAdvance(30)}>
           +1 month
         </button>
       </div>
 
-      <p className="note" style={{ marginTop: 11, color: '#7a5a3c' }}>
+      <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">
         Move time forward and the ledger produces the days it always had. Nothing is scripted —
         the plan below is recomputed from the transactions.
       </p>

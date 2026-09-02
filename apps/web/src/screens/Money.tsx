@@ -19,6 +19,10 @@ import { prettyMerchant } from './Today.tsx'
 
 type Tab = 'accounts' | 'spending' | 'commitments'
 
+/* Shared strings for the small text on this screen (the retired `.meta` / `.note` classes). */
+const META = 'm-0 text-[13px] text-ink-soft'
+const NOTE = 'm-0 text-xs leading-[1.5] text-ink-soft'
+
 export function Money({
   snapshot,
   file,
@@ -57,21 +61,21 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
     <>
       {file.accounts.map((a) => (
         <Card key={a.accountNumberMasked}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-            <p className="meta">{a.accountNumberMasked}</p>
+          <div className="flex items-start justify-between">
+            <p className={META}>{a.accountNumberMasked}</p>
             <Pill>{a.accountType}</Pill>
           </div>
-          <div style={{ marginTop: 8 }}>
+          <div className="mt-2">
             <Amount value={a.currentBalance} size="lg" paise />
           </div>
           {a.minBalance12m !== undefined ? (
-            <p className="note" style={{ marginTop: 8 }}>
+            <p className={`${NOTE} mt-2`}>
               Never fell below {inr(a.minBalance12m)} in twelve months — that part has not been
               needed once.
             </p>
           ) : null}
           {a.maturityDate ? (
-            <p className="note" style={{ marginTop: 8 }}>
+            <p className={`${NOTE} mt-2`}>
               Matures {dayMonth(a.maturityDate)} at {a.interestRate}%.
             </p>
           ) : null}
@@ -83,10 +87,10 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
           <Eyebrow>Investments</Eyebrow>
           {file.holdings.map((h) => (
             <Card key={h.name}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 700 }}>{h.name}</div>
-                  <p className="meta" style={{ marginTop: 3 }}>
+              <div className="flex justify-between gap-2.5">
+                <div className="flex-1">
+                  <div className="text-[15.5px] font-bold text-ink">{h.name}</div>
+                  <p className={`${META} mt-[3px]`}>
                     {h.assetClass}
                     {h.sipActive && h.sipAmount ? ` · ${inr(h.sipAmount)}/month` : ''}
                     {h.heldOutsideIdbi ? ' · held elsewhere' : ''}
@@ -95,7 +99,7 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
                 <Amount value={h.currentValue} size="md" />
               </div>
               {h.heldOutsideIdbi ? (
-                <p className="note" style={{ marginTop: 10 }}>
+                <p className={`${NOTE} mt-2.5`}>
                   Somebody else sold you this and it is doing its job. I am not going to tell you
                   to move it so that IDBI earns the trail.
                 </p>
@@ -110,10 +114,10 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
           <Eyebrow>What you owe</Eyebrow>
           {file.liabilities.map((l) => (
             <Card key={l.loanType} {...(l.loanInterestRate >= 24 ? ({ tint: 'clay' } as const) : {})}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 700 }}>{l.loanType}</div>
-                  <p className="meta" style={{ marginTop: 3 }}>
+              <div className="flex justify-between gap-2.5">
+                <div className="flex-1">
+                  <div className="text-[15.5px] font-bold text-ink">{l.loanType}</div>
+                  <p className={`${META} mt-[3px]`}>
                     {inr(l.emiAmount)}/month at {l.loanInterestRate}% ·{' '}
                     {l.tenureRemainingMonths} left
                   </p>
@@ -121,7 +125,7 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
                 <Amount value={l.outstandingPrincipal} size="md" />
               </div>
               {l.dpdStatus > 0 ? (
-                <p style={{ fontSize: 13.5, marginTop: 10, color: 'var(--danger)' }}>
+                <p className="m-0 mt-2.5 text-[13.5px] text-danger">
                   {l.dpdStatus} days past due. This blocks every investment recommendation until
                   it is cleared.
                 </p>
@@ -133,7 +137,7 @@ function Accounts({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
 
       <Eyebrow>Position</Eyebrow>
       <Card tint="sage">
-        <div className="tiles" style={{ marginTop: 0 }}>
+        <div className="grid grid-cols-2 gap-2.5">
           <Tile label="Reachable savings" value={snapshot.balances.total} />
           <Tile label="Invested" value={snapshot.holdings.total} />
           <Tile label="Owed" value={snapshot.debt.total} />
@@ -157,14 +161,14 @@ function Spending({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
     <>
       <Card tint="sage">
         <h2>A normal month</h2>
-        <p className="meta">Median of the last twelve, so one Diwali does not distort it</p>
-        <div style={{ margin: '14px 0 4px' }}>
+        <p className={META}>Median of the last twelve, so one Diwali does not distort it</p>
+        <div className="mb-1 mt-3.5">
           <Amount value={snapshot.discretionary.monthly} size="xl" />
         </div>
-        <p className="meta">
+        <p className={META}>
           on everything you choose, out of {inr(snapshot.income.monthly)} coming in
         </p>
-        <div className="tiles">
+        <div className="mt-4 grid grid-cols-2 gap-2.5">
           <Tile label="Committed each month" value={snapshot.commitments.total} />
           <Tile label="Left over" value={snapshot.surplus.monthly} />
         </div>
@@ -175,30 +179,27 @@ function Spending({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
         {cats.map(([category, total]) => {
           const trend = snapshot.discretionary.categoryTrends.find((t) => t.category === category)
           return (
-            <div key={category} style={{ padding: '9px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5 }}>
-                <span style={{ fontWeight: 600 }}>
+            <div key={category} className="py-[9px]">
+              <div className="flex justify-between text-[14.5px]">
+                <span className="font-semibold text-ink">
                   {category}
                   {trend ? (
                     <span
-                      style={{
-                        marginLeft: 7,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: trend.changePct > 0 ? 'var(--danger)' : 'var(--good)',
-                      }}
+                      className={`ml-[7px] text-xs font-bold ${
+                        trend.changePct > 0 ? 'text-danger' : 'text-good'
+                      }`}
                     >
                       {trend.changePct > 0 ? '▲' : '▼'}
                       {Math.round(Math.abs(trend.changePct) * 100)}%
                     </span>
                   ) : null}
                 </span>
-                <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                <span className="font-bold tabular-nums text-ink">
                   {inr(total / 12)}
-                  <span style={{ color: 'var(--ink-faint)', fontWeight: 500 }}>/mo</span>
+                  <span className="font-medium text-ink-soft">/mo</span>
                 </span>
               </div>
-              <div style={{ marginTop: 6 }}>
+              <div className="mt-1.5">
                 <Bar used={(total / max) * 100} />
               </div>
             </div>
@@ -208,48 +209,56 @@ function Spending({ snapshot, file }: { snapshot: Snapshot; file: CustomerFile }
 
       <Eyebrow>Habits · not commitments</Eyebrow>
       <Card>
-        <p className="note" style={{ marginTop: 0, marginBottom: 12 }}>
+        <p className={`${NOTE} mb-3`}>
           Merchants you use often. These are choices, not obligations — which is exactly why they
           are the only real lever you have.
         </p>
-        {snapshot.discretionary.topHabits.map((h) => (
-          <div className="txn" key={h.key}>
-            <span className="avatar-glyph" style={{ width: 34, height: 34, fontSize: 12 }}>
-              {(h.merchant ?? h.key)[0]}
-            </span>
-            <span className="who">
-              <b>{h.merchant ?? prettyMerchant(h.key)}</b>
-              <span>
-                {h.timesPerMonth}× a month · typically {inr(h.typicalAmount)}
+        <div className="divide-y divide-solid divide-hairline-mint">
+          {snapshot.discretionary.topHabits.map((h) => (
+            <div className="flex items-center gap-3 py-[11px]" key={h.key}>
+              <span className="grid size-[34px] flex-none place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
+                {(h.merchant ?? h.key)[0]}
               </span>
-            </span>
-            <span className="amt">{inr(h.annualTotal)}/yr</span>
-          </div>
-        ))}
+              <span className="min-w-0 flex-1">
+                <b className="block text-[14.5px] font-bold text-ink">{h.merchant ?? prettyMerchant(h.key)}</b>
+                <span className="block text-xs text-ink-soft">
+                  {h.timesPerMonth}× a month · typically {inr(h.typicalAmount)}
+                </span>
+              </span>
+              <span className="text-[14.5px] font-bold tabular-nums text-ink">{inr(h.annualTotal)}/yr</span>
+            </div>
+          ))}
+        </div>
       </Card>
 
       <Eyebrow>Recent</Eyebrow>
       <Card>
-        {file.transactions
-          .slice(-14)
-          .reverse()
-          .map((t) => (
-            <div className="txn" key={t.txnId}>
-              <span className="avatar-glyph" style={{ width: 32, height: 32, fontSize: 11 }}>
-                {t.spendCategory[0]}
-              </span>
-              <span className="who">
-                <b>{prettyMerchant(t.narration)}</b>
-                <span>
-                  {dayMonth(t.txnDate)} · {t.spendCategory} · {t.txnMode}
+        <div className="divide-y divide-solid divide-hairline-mint">
+          {file.transactions
+            .slice(-14)
+            .reverse()
+            .map((t) => (
+              <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
+                <span className="grid size-8 flex-none place-items-center rounded-pill bg-tint-sage text-[11px] font-bold text-brand">
+                  {t.spendCategory[0]}
                 </span>
-              </span>
-              <span className="amt" style={{ color: t.txnType === 'CREDIT' ? 'var(--good)' : undefined }}>
-                {t.txnType === 'CREDIT' ? '+' : '−'}
-                {inr(t.txnAmount)}
-              </span>
-            </div>
-          ))}
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[14.5px] font-bold text-ink">{prettyMerchant(t.narration)}</b>
+                  <span className="block text-xs text-ink-soft">
+                    {dayMonth(t.txnDate)} · {t.spendCategory} · {t.txnMode}
+                  </span>
+                </span>
+                <span
+                  className={`text-[14.5px] font-bold tabular-nums ${
+                    t.txnType === 'CREDIT' ? 'text-good' : 'text-ink'
+                  }`}
+                >
+                  {t.txnType === 'CREDIT' ? '+' : '−'}
+                  {inr(t.txnAmount)}
+                </span>
+              </div>
+            ))}
+        </div>
       </Card>
     </>
   )
@@ -264,13 +273,13 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
     <>
       <Card tint="clay">
         <h2>Gone before you decide</h2>
-        <p className="meta">Detected from the pattern of your statements, not from a form</p>
-        <div style={{ margin: '14px 0 4px' }}>
+        <p className={META}>Detected from the pattern of your statements, not from a form</p>
+        <div className="mb-1 mt-3.5">
           <Amount value={c.total} size="xl" />
         </div>
-        <p className="meta">a month, {inr(c.total * 12)} a year</p>
+        <p className={META}>a month, {inr(c.total * 12)} a year</p>
 
-        <div style={{ marginTop: 16 }}>
+        <div className="mt-4">
           <Leader label="Rent" value={inr(c.rent)} filled />
           <Leader label="Loan repayments" value={inr(c.emis)} filled />
           <Leader label="Bills" value={inr(c.bills)} filled />
@@ -283,42 +292,32 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
       <Eyebrow>Every mandate we found</Eyebrow>
       {c.series.map((s) => (
         <Card key={s.key}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15.5, fontWeight: 700 }}>
+          <div className="flex justify-between gap-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="text-[15.5px] font-bold text-ink">
                 {s.merchant ?? prettyMerchant(s.key)}
               </div>
-              <p className="meta" style={{ marginTop: 3 }}>
+              <p className={`${META} mt-[3px]`}>
                 {s.cadence}
                 {s.dayOfMonth ? ` on day ${s.dayOfMonth}` : ''} · {s.occurrences} charges ·{' '}
                 {s.fixed ? 'same amount every time' : 'varies'}
               </p>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div className="text-right">
               <Amount value={s.monthlyCost} size="md" />
-              <div className="note">{inr(s.annualCost)}/yr</div>
+              <div className={NOTE}>{inr(s.annualCost)}/yr</div>
             </div>
           </div>
 
           {s.priceChanges.length > 0 ? (
-            <p
-              style={{
-                fontSize: 13.5,
-                lineHeight: 1.5,
-                marginTop: 11,
-                padding: '10px 12px',
-                borderRadius: 'var(--r-sm)',
-                background: 'var(--accent-soft)',
-                color: '#6d3a10',
-              }}
-            >
+            <p className="m-0 mt-[11px] rounded-sm bg-accent-soft px-3 py-2.5 text-[13.5px] leading-normal text-accent-text">
               Went from {inr(s.priceChanges[0]?.from ?? 0)} to {inr(s.priceChanges[0]?.to ?? 0)} in{' '}
               {dayMonth(s.priceChanges[0]?.on ?? '')} — {inr(((s.priceChanges[0]?.to ?? 0) - (s.priceChanges[0]?.from ?? 0)) * 12)} a
               year you did not agree to.
             </p>
           ) : null}
 
-          <p className="note" style={{ marginTop: 9 }}>
+          <p className={`${NOTE} mt-[9px]`}>
             Counted as a commitment because: {s.reason.replace(/-/g, ' ')}.
           </p>
         </Card>

@@ -1,14 +1,15 @@
 /*
  * Stylesheet entry.
  *
- * Tailwind v4 is layered in additively: its theme and utilities load, its preflight reset does
- * not, so every existing screen renders exactly as before until it is converted. The brand
- * values from tokens.css are exposed to Tailwind through @theme, so `bg-ground`, `text-ink`,
- * `text-accent` and `rounded-md` resolve to the same colours and radii the hand-written rules use.
- * Add the preflight import once the last screen has moved to utilities.
+ * Tailwind v4 in full: theme, preflight reset and utilities. Every screen is built from utilities
+ * over the tokens in tokens.css, which are exposed to Tailwind through @theme, so `bg-ground`,
+ * `text-ink`, `text-accent-text` and `rounded-md` resolve to the bank's values. tokens.css itself
+ * now carries only the :root tokens and the phone-shell layout invariants (.app / .scroll); it is
+ * imported unlayered so those invariants always win.
  */
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @import './tokens.css';
 
@@ -31,6 +32,17 @@
   --color-tint-sky: var(--tint-sky);
   --color-tint-clay: var(--tint-clay);
   --color-tint-ink: var(--tint-ink);
+  --color-legend-chip: var(--legend-chip);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-accent-text: var(--accent-text);
+  --color-header-mint: var(--header-mint);
+  --color-nav-top: var(--nav-top);
+  --color-nav-bottom: var(--nav-bottom);
+  --color-hairline: var(--hairline);
+  --color-hairline-mint: var(--hairline-mint);
+  --color-chart-hi: var(--chart-hi);
+  --color-chart-idle: var(--chart-idle);
 
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
