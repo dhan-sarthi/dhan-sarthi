@@ -12,7 +12,7 @@
  * question was interpreted so a wrong answer can be diagnosed rather than argued about.
  *
  * When no key is available this module is also the whole conversation — the Tier-3 fallback in
- * `docs/product/09-decisions.md`. Every figure is still real, because the engine is pure.
+ * `docs/product/decisions.md`. Every figure is still real, because the engine is pure.
  */
 import { categorize } from './categorize.ts'
 import { addMonths, monthKey, ymd } from './dates.ts'

@@ -5,7 +5,7 @@
  * last checked in, whether you are still on track, and what you can spend today without throwing
  * off your goals."* Three pieces, and exactly one thing to do.
  *
- * The cadence question this module answers, from `docs/product/07-autopilot.md`: a wealth
+ * The cadence question this module answers, from `docs/product/autopilot.md`: a wealth
  * decision is not a daily event, so the daily loop is not there to sell anything. It is there to
  * keep someone oriented, and **that is how the app earns the right to give the monthly advice.**
  */
@@ -44,7 +44,7 @@ export interface DailyPlan {
   /** One sentence on the route. Never a scold — see the note on tone below. */
   routeNote: string
   safeToSpend: SafeToSpend
-  /** Exactly one. `03-app-ux.md`'s "one action at a time" is the entire differentiation. */
+  /** Exactly one. "One action at a time" is the entire differentiation. */
   primary: Action | null
   /** Available but not pushed. The customer asked for these, we did not offer them. */
   secondary: Action[]

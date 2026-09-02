@@ -580,7 +580,7 @@ export function generateCustomerFile(
       investedAmount: invested,
       // A flat notional gain. Nothing downstream may present this as a return, and the
       // projection screen must show a band with its assumption on screen — never this number
-      // dressed up as performance. See docs/product/08-product-shelf.md.
+      // dressed up as performance. See docs/product/product-shelf.md.
       currentValue: Math.round(invested * 1.19),
       sipActive: true,
       sipAmount: sip.amount,

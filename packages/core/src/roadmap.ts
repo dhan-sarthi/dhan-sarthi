@@ -5,7 +5,7 @@
  * destination and Cleo figures out how to get you there, recalculating along the way."* What
  * makes ours a bank's version rather than a budgeting app's is that the route is not a straight
  * line to the customer's stated goal. It is the suitability ladder from
- * `docs/product/08-product-shelf.md`, with the goal at the end of it:
+ * `docs/product/product-shelf.md`, with the goal at the end of it:
  *
  *   free up money -> protection -> clear expensive debt -> emergency buffer -> the goal
  *

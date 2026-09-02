@@ -8,7 +8,7 @@
  *
  * The projection is a band, never a number, with the assumed rate on screen and changeable. That
  * is not a nicety — nobody may present a projected corpus as a fact, and a single confident
- * figure is what a risk officer marks us down for. See `docs/product/09-decisions.md` §B2.
+ * figure is what a risk officer marks us down for. See `docs/product/decisions.md` §B2.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'

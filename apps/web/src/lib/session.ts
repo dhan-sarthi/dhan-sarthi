@@ -5,9 +5,9 @@
  *
  * **No sign-in.** A judge gets ninety seconds before they close the tab, and an OTP screen spends
  * all of it. The landing screen offers three pre-loaded customers and one tap goes straight in.
- * Auth is a Phase-2 concern; see `docs/product/09-decisions.md`.
+ * Auth is a Phase-2 concern; see `docs/product/decisions.md`.
  *
- * **A simulated clock.** `04-demo-plan.md` is right that memory, proactive nudges and roadmap
+ * **A simulated clock.** Memory, proactive nudges and roadmap
  * adaptation cannot be verified in a sixty-second slot, because they need time to pass. So time
  * passing is a control the judge operates. The ledger generator produces the days forward from a
  * fixed anchor, so advancing the clock reveals the future the ledger always had rather than a

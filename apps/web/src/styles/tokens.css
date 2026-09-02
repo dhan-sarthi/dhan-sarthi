@@ -1,14 +1,14 @@
 /*
  * Design tokens.
  *
- * The structure is borrowed openly from Cleo — see ui/cleo/ — because their layout language is
+ * The structure is borrowed openly from Cleo, because their layout language is
  * the right one for this product: one enormous number per card, pill segmented controls, big
  * soft-cornered cards on a warm ground, and a five-item tab bar with the assistant in the middle.
  * What is *not* borrowed is the palette. Cleo's espresso-and-peach reads as a consumer fintech;
  * ours has to read as a bank a risk committee would sign off, so the ink is a deep forest green
  * close to IDBI's own mark, with amber for anything that needs attention.
  *
- * No web fonts. `docs/product/03-app-ux.md` makes "degrade gracefully" a guardrail, and a demo
+ * No web fonts. "Degrade gracefully" is a guardrail, and a demo
  * that must survive a hotel wifi should not block its first paint on fonts.googleapis.com. The
  * system stack is also the only reliable way to render ₹ across platforms — the default Latin
  * subsets of most webfonts do not carry U+20B9.

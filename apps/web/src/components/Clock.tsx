@@ -1,7 +1,7 @@
 /**
  * The time machine, as a visible control rather than a hidden toggle.
  *
- * `docs/product/04-demo-plan.md` identifies the problem this solves: memory, proactive nudges and
+ * The problem this solves: memory, proactive nudges and
  * roadmap adaptation are the three strongest things we built, and none of them can be verified in
  * a sixty-second slot because they need time to pass. A mocked notification just makes a judge
  * think we wrote the string.

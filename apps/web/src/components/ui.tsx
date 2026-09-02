@@ -1,7 +1,7 @@
 /**
  * The primitives. Everything on every screen is built from these.
  *
- * The visual language is taken from Cleo (`ui/cleo/`): one enormous number per card, the currency
+ * The visual language is taken from Cleo: one enormous number per card, the currency
  * symbol small and the paise raised, pill segmented controls, dotted leader rows, and big
  * soft-cornered cards on a warm ground. Styling lives in `styles/tokens.css` rather than inline,
  * so the whole system can be re-themed in one file — which matters because IDBI will have brand

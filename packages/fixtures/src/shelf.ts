@@ -1,7 +1,7 @@
 /**
  * What IDBI can actually put this customer into.
  *
- * Sourced from IDBI's own site and public filings — see `docs/product/08-product-shelf.md`
+ * Sourced from IDBI's own site and public filings — see `docs/product/product-shelf.md`
  * for the citations and for what each product is. Two facts shape this list:
  *
  * 1. **IDBI distributes funds and insurance; it does not manufacture them.** It is an

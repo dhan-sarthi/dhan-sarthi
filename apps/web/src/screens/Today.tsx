@@ -6,7 +6,7 @@
  * has to last, and a per-day figure small enough to hold in your head. Then exactly one thing to
  * do.
  *
- * "One action at a time" from `03-app-ux.md` is the entire differentiation. Every rival built a
+ * "One action at a time" is the entire differentiation. Most money apps built a
  * feature-rich dashboard. The extra actions exist, but below the fold and unemphasised — offered
  * because the customer went looking, not because we pushed them.
  */

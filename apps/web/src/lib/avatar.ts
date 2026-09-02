@@ -6,7 +6,7 @@
  * never holds a Runway key — it asks our API for a short-lived LiveKit token, which is the rule
  * from CONTRIBUTING.md that a client able to reach a provider directly is a client that can leak a key.
  *
- * The three states below are the fallback ladder from `docs/product/09-decisions.md`, and it is
+ * The three states below are the fallback ladder from `docs/product/decisions.md`, and it is
  * built in from the start rather than bolted on, because judges will use this unsupervised and
  * possibly several at once:
  *

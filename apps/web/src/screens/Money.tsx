@@ -1,7 +1,7 @@
 /**
  * Money — the 360° view. Boring on purpose.
  *
- * `03-app-ux.md` calls this the "you know everything about me" proof, and that is the whole job.
+ * The product notes call this the "you know everything about me" proof, and that is the whole job.
  * It is also where every number on Today and Plan can be traced back to, which matters when a
  * judge decides to check one.
  *

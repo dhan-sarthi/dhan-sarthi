@@ -1,0 +1,44 @@
+/*
+ * Stylesheet entry.
+ *
+ * Tailwind v4 is layered in additively: its theme and utilities load, its preflight reset does
+ * not, so every existing screen renders exactly as before until it is converted. The brand
+ * values from tokens.css are exposed to Tailwind through @theme, so `bg-ground`, `text-ink`,
+ * `text-accent` and `rounded-md` resolve to the same colours and radii the hand-written rules use.
+ * Add the preflight import once the last screen has moved to utilities.
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import './tokens.css';
+
+@theme {
+  --color-ground: var(--ground);
+  --color-ground-deep: var(--ground-deep);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-ink: var(--ink);
+  --color-ink-mid: var(--ink-mid);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-on-dark: var(--on-dark);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-good: var(--good);
+  --color-tint-sage: var(--tint-sage);
+  --color-tint-sky: var(--tint-sky);
+  --color-tint-clay: var(--tint-clay);
+  --color-tint-ink: var(--tint-ink);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-pill: var(--r-pill);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-lift: var(--shadow-lift);
+
+  --font-sans: var(--font);
+}

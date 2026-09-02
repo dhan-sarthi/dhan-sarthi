@@ -8,7 +8,7 @@
  * Notably absent: anything resembling `cover_bill`. Cleo can front a customer money before an
  * overdraft. That is lending, and we are not doing it.
  *
- * See `docs/product/09-decisions.md` §A2 for why each one is here.
+ * See `docs/product/decisions.md` §A2 for why each one is here.
  */
 export type ActionKind =
   /** IDBI's own. The zero-risk answer to idle cash — no lock-in, no risk profile, no new KYC. */
