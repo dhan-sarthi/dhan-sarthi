@@ -23,6 +23,12 @@ Reading order for someone new to the project. About thirty minutes end to end.
   invariant that matters most, conventions, and what is still to port.
 - [`engineering/runway.md`](engineering/runway.md): the avatar provider, verified behaviour,
   and the operational gotchas.
+- [`engineering/schema/`](engineering/schema/README.md): the relational schema the API is built
+  on. Four Postgres schemas, the compliance properties the database itself enforces, the field
+  mapping from IDBI's specification and the Account Aggregator schemas, and how an unknown
+  sandbox payload becomes a mapping rather than a rewrite. The DDL sits beside it.
+- [`engineering/data-calibration.md`](engineering/data-calibration.md): what a real IDBI
+  statement looks like and the public numbers the synthetic generator is calibrated against.
 
 ## IDBI integration
 
