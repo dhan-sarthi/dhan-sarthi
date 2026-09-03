@@ -157,7 +157,11 @@ export function answer(question: string, snapshot: Snapshot, file: CustomerFile)
   const first = snapshot.customer.name.split(' ')[0] ?? ''
 
   /* Safe to spend --------------------------------------------------- */
-  if (/\b(safe to spend|can i spend|how much (can|do) i have (left|to spend)|afford)\b/i.test(q)) {
+  if (
+    /\b(safe to spend|safely spend|spend safely|safe spend|can i spend|how much (can|do) i have (left|to spend)|afford)\b/i.test(
+      q,
+    )
+  ) {
     const envelope = snapshot.income.monthly - snapshot.commitments.total
     return {
       matched: true,
@@ -170,6 +174,26 @@ export function answer(question: string, snapshot: Snapshot, file: CustomerFile)
         `Commitments ${inr(snapshot.commitments.total)}/month`,
         `Next salary ${snapshot.income.nextPayDate}`,
       ],
+    }
+  }
+
+  /* Subscriptions ---------------------------------------------------- */
+  // Before the general spending handler: "what are my subscriptions costing me" contains
+  // "costing", and the specific question must win.
+  if (/\b(subscription|subscriptions|recurring|mandate|autopay|standing instruction)\b/i.test(q)) {
+    const subs = subscriptions(snapshot.commitments.series)
+    if (subs.length === 0) {
+      return { matched: true, text: 'No live subscriptions on your account.', evidence: [] }
+    }
+    const annual = subs.reduce((s, x) => s + x.annualCost, 0)
+    return {
+      matched: true,
+      text:
+        `${subs.length} live: ${subs.map((x) => `${x.merchant ?? x.key} at ${inr(x.amount)}`).join(', ')}. ` +
+        `That is ${inr(annual)} a year. I cannot tell which you still use — that part is yours.`,
+      evidence: subs.map(
+        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`,
+      ),
     }
   }
 
@@ -205,24 +229,6 @@ export function answer(question: string, snapshot: Snapshot, file: CustomerFile)
         ...top.map((t) => `${t.merchant}: ${inr(t.amount)}`),
       ],
       resolved: { from: window.from, to: window.to, ...(category ? { category } : {}) },
-    }
-  }
-
-  /* Subscriptions --------------------------------------------------- */
-  if (/\b(subscription|subscriptions|recurring|mandate|autopay|standing instruction)\b/i.test(q)) {
-    const subs = subscriptions(snapshot.commitments.series)
-    if (subs.length === 0) {
-      return { matched: true, text: 'No live subscriptions on your account.', evidence: [] }
-    }
-    const annual = subs.reduce((s, x) => s + x.annualCost, 0)
-    return {
-      matched: true,
-      text:
-        `${subs.length} live: ${subs.map((x) => `${x.merchant ?? x.key} at ${inr(x.amount)}`).join(', ')}. ` +
-        `That is ${inr(annual)} a year. I cannot tell which you still use — that part is yours.`,
-      evidence: subs.map(
-        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`,
-      ),
     }
   }
 
