@@ -10,7 +10,7 @@
 ![Runway Characters](https://img.shields.io/badge/Runway%20Characters-6f4cff?style=flat-square)
 ![LiveKit](https://img.shields.io/badge/LiveKit-6f4cff?style=flat-square)
 ![suitability rules](https://img.shields.io/badge/suitability%20rules-9-6f4cff?style=flat-square)
-![tests](https://img.shields.io/badge/tests-54%20passing-6f4cff?style=flat-square)
+![tests](https://img.shields.io/badge/tests-148%20passing-6f4cff?style=flat-square)
 ![keys in the browser](https://img.shields.io/badge/keys%20in%20the%20browser-0-6f4cff?style=flat-square)
 
 > [!TIP]
@@ -283,12 +283,12 @@ minute budget and teardown in the API. Every screen, running offline.
 shelf, built from IDBI's public pages, with rates and premiums marked `[verify]` where we could
 not confirm them. Consent and execution, which write to the record but move no money.
 
-**Known to be missing.** The `check_suitability` tool registration on the avatar path, so today the
-avatar is asked by its brief to defer to the rules rather than forced to. Persistence of the audit
-record beyond the browser session. A typed conversation for the second tier of the fallback.
-Barge-in, which Runway documents nowhere and we do not claim. Hindi, which the engine is built to
-take as a data file and the build does not yet ship. One concurrent avatar session on the current
-Runway tier.
+**Known to be missing.** A live avatar call exercised end to end through this build's gate: the
+tool is registered and the handler is proven to connect before credentials are issued, but the
+round trip on a billed call has not been recorded yet. The waitlist for the single avatar slot and
+the transcript reconciliation. The IDBI sandbox adapter, which is a seam with sample payloads
+until the bank issues access. Barge-in, which Runway documents nowhere and we do not claim.
+Hindi, which the engine is built to take as a data file and the build does not yet ship.
 
 ### Data
 
@@ -311,17 +311,19 @@ Node 22 or newer. pnpm switches to the pinned version on its own.
 
 ```bash
 pnpm install
-pnpm dev:web                              # web → http://localhost:5173 · no keys, no server
+BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev   # api → :3001 · web → :5173 · no database, no keys
 ```
 
 ```bash
-cp .env.example apps/api/.env             # RUNWAY_API_KEY and RUNWAY_CHARACTER_ID for the live call
-pnpm dev                                  # api → :3001 · web → :5173, /api proxied
+cp .env.example apps/api/.env                     # DATABASE_URL for the shared Postgres; Runway keys for the live call
+pnpm --filter @dhan/api migrate && pnpm --filter @dhan/api seed
+BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
 ```
 
 ```bash
-pnpm test                                 # builds packages, then 54 tests · rules · ledger · time machine
-pnpm --filter @dhan/fixtures summary      # the three customers' numbers, re-derived from the ledger
+pnpm test                                         # builds packages, then 148 tests · rules · ledger · contracts · api
+pnpm --filter @dhan/api seed:check                # the database still matches the generator, by hash
+curl -s localhost:3001/api/v1/openapi.json        # every route, generated from the registry
 ```
 
 ---
