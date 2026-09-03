@@ -14,14 +14,16 @@ Five layers; `pnpm test` at the root runs the first two with no database and no 
 property the README already advertises must survive. Node's built-in `node:test` throughout; no
 mocking library; the memory adapters are shipped implementations, not mocks.
 
-1. **Unit (pure, no I/O).** `packages/fixtures` keeps its 54 tests (generator 20, engine 21,
-   suitability 13; all three files live in `packages/fixtures` at adoption, and core and api have
-   none) and gains `realism.test.ts` (every narration matches a declared template; MCC on every
-   merchant debit; KSEB for Kochi and MSEDCL for Nagpur rather than the single Indore `UTILITIES`
-   list in `merchants.ts`; account IFSC `^IBKL0`; per-employer remitter IFSC replacing the
-   `IDIB000M` literal in `merchants.ts`; unique masked account numbers; UPI share and ticket bands
-   from `calibration.md`) and `seed-bundle.test.ts` (42-month row counts, balance continuity
-   across the span, forward rows dated after the anchor, generator ↔ bundle hash stable).
+1. **Unit (pure, no I/O).** `packages/fixtures` holds 114 tests: generator 20, engine 21,
+   as-of 19, suitability 13, goal 7, query 5, and **realism 29** — the last added by the
+   calibration pass of 3 September 2026 and covering exactly what was planned here (every
+   narration matches a declared template; MCC on every merchant debit and on nothing else; KSEB
+   for Kochi and MSEDCL for Nagpur; account IFSC `^IBKL0`; a per-employer remitter IFSC in place
+   of the `IDIB000M` literal; unique masked account numbers; UPI count, ticket mean and
+   sub-₹500 share inside the bands in `packages/fixtures/src/calibration.ts`), plus the bank's
+   own lines and the festival calendar. Still to add: `seed-bundle.test.ts` (42-month row
+   counts, balance continuity across the span, forward rows dated after the anchor, generator ↔
+   bundle hash stable).
    `packages/core` gains `asof.test.ts` (`accountFactsAsOf`/`liabilityAsOf`/`sipHoldingAsOf`
    reproduce `generateCustomerFile`'s figures for six dates: the property the whole seed rests
    on) and `goal.test.ts` (moved with `suggestGoal`). `apps/api` unit-tests its pure modules with

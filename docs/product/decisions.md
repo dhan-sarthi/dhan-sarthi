@@ -36,7 +36,7 @@ verdict, and an execution result.
 | `buy_term_cover` | Protection before investment |
 | `enrol_pmjjby` | ₹436/year when term cover is unaffordable. Pays the bank nothing, which is the point |
 | `buy_health_cover` | One admission undoes a decade of SIP |
-| `pay_down_card` | At 42% this outranks every product on the shelf |
+| `pay_down_card` | At 34.8% — IDBI's own finance charge — this outranks every product on the shelf |
 | `cancel_subscription` | Behavioural. Directly grows the surplus |
 | `set_category_cap` | Behavioural. The daily loop's only real lever |
 | `talk_to_rm` | The escape hatch that keeps the whole thing defensible |
@@ -291,14 +291,19 @@ inflation) for horizons over ten years. The Plan screen leads with the real figu
 nominal beside it, so it is comparable with the target.
 
 ### Debt is amortised properly
-The roadmap was promising to clear ₹5.83 lakh at 42% by paying ₹6,898 a month. The interest alone
-is ₹20,397 a month, so the balance *grows* and that payoff never arrives. Now it says so:
+The roadmap was promising to clear ₹5.83 lakh by paying ₹6,898 a month. The interest alone is
+₹16,901 a month, so the balance *grows* and that payoff never arrives. Now it says so:
 
-> *"The interest alone is ₹20,397 a month. At ₹6,898 the balance grows, so there is no date I can
+> *"The interest alone is ₹16,901 a month. At ₹6,898 the balance grows, so there is no date I can
 > give you — it is not a slow plan, it is not a plan. Clearing it inside three years needs about
-> ₹28,722 a month."*
+> ₹26,297 a month."*
 
 True, useful, and the kind of thing that would have ended a demo if anyone had checked it.
+
+The rate behind those figures is now **34.8%**, IDBI's own published finance charge of 2.90% a
+month, rather than the 42% the persona used to carry. The lower rate does not soften the
+conclusion — it is still four times anything on the shelf — and it is the difference between a
+number a banker can look up and one they cannot.
 
 ## The app
 

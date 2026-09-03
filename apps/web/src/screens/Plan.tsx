@@ -3,7 +3,7 @@
  *
  * This is what replaces the cut Future Self screen. It has to do the emotional job that an aged
  * photograph was going to do, and it does it differently: by being *specific about the order of
- * operations*. A customer who says "I want to invest" and has a card at 42% sees three stages
+ * operations*. A customer who says "I want to invest" and has a card at 34.8% sees three stages
  * before the investing one, each with the sentence explaining why it comes first.
  *
  * The projection is a band, never a number, with the assumed rate on screen and changeable. That

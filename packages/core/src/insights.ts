@@ -50,6 +50,29 @@ export interface Insight {
 const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
 const pct = (n: number): string => `${Math.round(Math.abs(n) * 100)}%`
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+/**
+ * "April 2026" reads as a month; "2026-04" reads as a database key. Headlines are the sentence
+ * the customer reads, so they take the spoken form. The exact ISO date stays in `evidence`,
+ * which is the audit trail and is meant to be precise rather than readable.
+ */
+const spokenMonth = (iso: string): string =>
+  `${MONTHS[Number(iso.slice(5, 7)) - 1] ?? iso.slice(0, 7)} ${iso.slice(0, 4)}`
+
 /**
  * Everything worth saying about this customer today, most valuable first.
  *
@@ -191,7 +214,7 @@ export function findInsights(snapshot: Snapshot): Insight[] {
         severity: 'opportunity',
         headline:
           `${series.merchant ?? series.key} went from ${inr(change.from)} to ${inr(change.to)} ` +
-          `in ${change.on.slice(0, 7)}.`,
+          `in ${spokenMonth(change.on)}.`,
         detail:
           `That is ${inr((change.to - change.from) * 12)} a year you did not agree to. Worth ` +
           `deciding again rather than by default.`,

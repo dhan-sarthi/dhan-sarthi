@@ -20,7 +20,7 @@ import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../compone
 import { Clock } from '../components/Clock.tsx'
 import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
-import { prettyMerchant } from '../lib/merchant.ts'
+import { merchantOf } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
 import type { DecisionKind } from '../lib/mutations.ts'
 
@@ -127,8 +127,10 @@ export function Today({
         <Card tint="sage">
           <h2>Safe to spend</h2>
           <p className={META}>
-            {s.daysToSalary} {s.daysToSalary === 1 ? 'day' : 'days'} until your salary on{' '}
-            {dayMonth(s.nextSalaryDate)}
+            {s.daysToSalary} {s.daysToSalary === 1 ? 'day' : 'days'}{' '}
+            {s.incomeStability === 'regular'
+              ? `until your salary on ${dayMonth(s.nextSalaryDate)}`
+              : `left in this month`}
           </p>
 
           <div className="mb-1 mt-3.5">
@@ -199,9 +201,7 @@ export function Today({
                         {t.spendCategory[0]}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <b className="block text-[15px] font-semibold text-ink">
-                          {prettyMerchant(t.narration)}
-                        </b>
+                        <b className="block text-[15px] font-semibold text-ink">{merchantOf(t)}</b>
                         <span className="text-xs text-ink-soft">
                           {dayMonth(t.txnDate)} · {t.spendCategory}
                         </span>

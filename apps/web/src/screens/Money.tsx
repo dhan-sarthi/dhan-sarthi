@@ -28,8 +28,8 @@ import {
   Segments,
   Tile,
 } from '../components/ui.tsx'
-import { dayMonth, inr } from '../lib/money.ts'
-import { prettyMerchant } from '../lib/merchant.ts'
+import { dayMonth, inr, monthYear } from '../lib/money.ts'
+import { merchantOf, prettyMerchant } from '../lib/merchant.ts'
 import { useTransactions } from '../lib/transactions.ts'
 import type { TransactionSource } from '../lib/transactions.ts'
 
@@ -321,9 +321,7 @@ function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): 
               {t.spendCategory[0]}
             </span>
             <span className="min-w-0 flex-1">
-              <b className="block text-[14.5px] font-bold text-ink">
-                {prettyMerchant(t.narration)}
-              </b>
+              <b className="block text-[14.5px] font-bold text-ink">{merchantOf(t)}</b>
               <span className="block text-xs text-ink-soft">
                 {dayMonth(t.txnDate)} · {t.spendCategory} · {t.txnMode}
               </span>
@@ -404,7 +402,7 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
           {s.priceChanges.length > 0 ? (
             <p className="m-0 mt-[11px] rounded-sm bg-accent-soft px-3 py-2.5 text-[13.5px] leading-normal text-accent-text">
               Went from {inr(s.priceChanges[0]?.from ?? 0)} to {inr(s.priceChanges[0]?.to ?? 0)} in{' '}
-              {dayMonth(s.priceChanges[0]?.on ?? '')} —{' '}
+              {monthYear(s.priceChanges[0]?.on ?? '')} —{' '}
               {inr(((s.priceChanges[0]?.to ?? 0) - (s.priceChanges[0]?.from ?? 0)) * 12)} a year you
               did not agree to.
             </p>

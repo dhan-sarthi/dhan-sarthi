@@ -41,6 +41,14 @@ export interface Transaction {
   txnId: string
   /** ISO date, YYYY-MM-DD. Bank statements have no time of day worth trusting. */
   txnDate: string
+  /**
+   * When the money counted, which is not always when the line was posted.
+   *
+   * Same-day on UPI, IMPS and RTGS; the next working day on a cheque; back-valued to the end
+   * of the period on interest and charges. Every Indian statement prints both columns, and a
+   * reconciliation that ignores the second one is wrong in exactly the cases that matter.
+   */
+  valueDate: string
   /** Always positive. Direction lives in txnType, as it does on a real statement. */
   txnAmount: number
   txnType: TxnType
@@ -56,6 +64,24 @@ export interface Transaction {
    * demonstrating a capability the real feed cannot provide.
    */
   isRecurring: boolean
+  /**
+   * ISO 18245 merchant category code, where the rail carries one.
+   *
+   * Card lines and UPI payments to merchants have it; person-to-person payments, mandates and
+   * the bank's own charges do not — which is why absent has to be a legal value everywhere
+   * rather than a default of `0000`.
+   */
+  mccCode?: string
+  /**
+   * The merchant as the *bank* named it, where it sent a name at all.
+   *
+   * A second opinion and never the answer: enrichment derives its own category and
+   * `disagreements()` reports the gap. Deliberately present on only a subset of lines, so the
+   * categoriser is exercised on bare narrations too.
+   */
+  merchantName?: string
+  /** The payee's virtual payment address on a UPI line — `swiggy.rzp@icici`. */
+  counterpartyVpa?: string
 }
 
 export type AccountType = 'Savings' | 'Current' | 'FD' | 'RD' | 'PPF' | 'NPS'
@@ -66,6 +92,13 @@ export interface Account {
   accountType: AccountType
   currentBalance: number
   accountOpeningDate: string
+  /**
+   * The home branch's IFSC, which is on the header of every statement a customer downloads.
+   *
+   * IDBI's prefix is `IBKL`. The generator used to stamp `IDIB` on the salary line, which is
+   * Indian Bank's — the kind of detail a banker spots before they read a single figure.
+   */
+  branchIfsc?: string
   avgMonthlyBalance3m?: number
   avgMonthlyBalance12m?: number
   /** The floor. Money that was never needed in twelve months is money doing nothing. */
@@ -110,7 +143,7 @@ export interface Liability {
   tenureRemainingMonths: number
   /** Days past due. Non-zero blocks every investment recommendation. */
   dpdStatus: number
-  /** Present for revolving credit. A card at 42% outranks any investment we could suggest. */
+  /** Present for revolving credit. A card at 34.8% outranks any investment we could suggest. */
   isRevolving?: boolean
 }
 

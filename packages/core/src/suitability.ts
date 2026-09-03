@@ -12,7 +12,7 @@
  * them, and so the reason recorded in the audit trail is the same sentence the customer hears.
  *
  * **Order matters.** The earliest failing rule is the one reported, so the most fundamental
- * objection wins rather than the most technical one. A customer with a card at 42% should hear
+ * objection wins rather than the most technical one. A customer with a card at 34.8% should hear
  * about the card, not about their risk profile.
  *
  * Ported from the archived prototype's suitability module, with the ladder in

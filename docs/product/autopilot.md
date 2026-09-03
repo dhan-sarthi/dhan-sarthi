@@ -155,7 +155,7 @@ A spinner is not a fallback. Tier 1 must be a designed state.
 ## Self-serve demo
 
 - **No signup, no OTP.** Landing screen offers three pre-loaded customers:
-  *"Try as Rohan — 29, Mumbai, ₹85,000 a month."* One tap, straight in.
+  *"Try as Rohan — 29, Indore, ₹85,000 a month."* One tap, straight in.
 - **A time machine.** Memory, nudges and adaptation cannot be verified in a short demo
   because they need time to pass. Fix: a visible control that advances the simulated clock.
   Day 1 → day 8 → a surprise expense → the roadmap recalculating, in twenty seconds. Honest,
@@ -168,76 +168,115 @@ A spinner is not a fallback. Tier 1 must be a designed state.
 
 ## The numbers, as the ledger actually produces them
 
-Generated 2 Sep 2026 by `packages/fixtures`, seeded and reproducible. **These supersede every
-earlier figure, including those in the deck** — the old ₹85,000 / ₹49,600 / ₹18,400 set came
-from a hand-typed fixture whose transactions summed to ₹51,630, and nobody could see it.
+Regenerated 3 September 2026 by `packages/fixtures` after the realism pass, seeded and
+reproducible. **These supersede every earlier figure, including those in the deck.** Two rounds
+of numbers have now been retired: the hand-typed fixture whose transactions summed to ₹51,630
+while the script said ₹49,600, and the pre-calibration generator, whose statements carried
+Indian Bank's IFSC prefix, Indore's electricity company on a Kochi account and no interest credit
+anywhere.
 
-Re-derive at any time with `pnpm --filter @dhan/fixtures summary`. If a number is going on a
-slide, take it from there, not from here — this table is a snapshot and the generator is the
-source of truth.
+Re-derive at any time with `pnpm --filter @dhan/fixtures figures` — it prints exactly this table
+plus the suitability verdict each persona exists to demonstrate. If a number is going on a slide,
+take it from there, not from here: this is a snapshot and the generator is the source of truth.
 
 ### Rohan Mehta — 29, Indore. The headline customer.
 
 | | |
 |---|---|
-| Salary credit | **₹85,000** a month, on the 1st |
-| Total outflow | **₹72,198** |
-| — committed | ₹50,390 rent ₹24,500 · EMI ₹8,200 · family ₹8,000 · SIP ₹5,000 · utilities |
-| — discretionary | **₹22,684** — the part that could move |
-| Monthly surplus | **₹11,481** never deployed |
-| Savings balance | **₹2,58,773** |
-| Twelve-month floor | **₹1,22,841** — never went below this, so it was never needed |
+| Salary credit | **₹85,000** a month, on the 1st, by inward NEFT from his employer's HDFC branch |
+| Committed each month | **₹51,997** — rent ₹24,500 · EMI ₹8,200 · family ₹8,000 · SIP ₹5,000 · bills |
+| Discretionary | **₹22,070** — the part that could move |
+| Monthly surplus | **₹10,933**, all of it deployable |
+| Savings balance | **₹2,82,448** |
+| Twelve-month floor | **₹1,41,663** — never went below this, so it was never needed |
+| Emergency buffer | **6.5 months**, which is why nothing is held back for irregular costs |
+| Protection gap | **₹1.02 crore** against two dependents and nothing in force |
 
-The opening line writes itself, and every figure in it is arithmetic over 1,227 transactions:
+The opening line writes itself, and every figure in it is arithmetic over 1,356 transactions:
 
-> *"₹85,000 in. ₹1,22,841 has sat in your savings account for a year without once being
-> needed — earning 2.7% while prices rose 5.5%."*
+> *"₹85,000 in. ₹1,41,663 has sat in your savings account for a year without once being
+> needed — earning 2.5% while prices rose 5.5%."*
+
+That 2.5% is now on the statement rather than in the sentence: the ledger carries a quarterly
+`SB INT CR` credit computed at IDBI's own slab rates on his daily closing balance, so a customer
+who doubts the number can add up the four credits.
 
 Four live insights the data supports without a single scripted string:
 
 1. **The education loan has five instalments left.** Advance the clock six months and the
    ₹8,200 debit genuinely stops and the liability leaves the file — so *"₹8,200 a month is
    about to free up, route it before it disappears into spending"* is computed, not written.
-2. **A forgotten gym subscription.** Sixteen identical ₹1,499 charges on the same day of the
-   month, with no gym-adjacent activity anywhere near them.
-3. **Food spend drifting up ~40%** over six months, visible against its own baseline.
-4. **No cover at all, two dependents.** The setup for the ULIP refusal.
+2. **A forgotten gym subscription.** Identical ₹1,499 charges on the same day of the month,
+   with no gym-adjacent activity anywhere near them.
+3. **Netflix went from ₹499 to ₹649** five months ago. Both are published Netflix India tiers,
+   so it is a finding he can check rather than a step between two invented numbers.
+4. **No cover at all, two dependents.** The setup for the ULIP refusal, which the gate answers
+   `BLOCKED / BUNDLED_PROTECTION` and points at term cover at **₹985 a month** — LIC's Digi
+   Term quote for a non-smoker at 29, not the ₹880 the shelf used to claim.
 
 ### Priya Nair — 34, Kochi. Earns well, cannot invest a rupee.
 
-₹1,40,000 a month, outflow ₹1,40,624, **surplus −₹779** — she spends exactly what she earns.
-A credit card at 42% and a twelve-month floor of ₹42,697. Every investment recommendation is
-blocked by `HIGH_INTEREST_DEBT`, and the right advice is the unglamorous one.
+₹1,40,000 a month, ₹76,097 committed and ₹71,507 discretionary, so a **median surplus of
+−₹7,604**: she spends more than she earns. A credit card revolving at **34.8%** — IDBI's own
+published finance charge of 2.90% a month, not the 42% the persona used to carry — on ₹5,82,776,
+a twelve-month floor of ₹55,152 and a buffer of 1.3 months. Deployable surplus is **zero**, so
+every investment is blocked by `HIGH_INTEREST_DEBT` and the right advice is the unglamorous one.
+Her card shows up as `CreditCard Payment XX 1184 Ref#…` for a different amount every month, which
+is exactly why the balance never clears.
 
 ### Sunil Kumar — 47, Nagpur. Irregular income, no buffer.
 
-₹71,979 median income arriving as four unpredictable collections a month with **no payroll
-flag to read it off** — deriving a stable income for him is real work. Outflow ₹62,301, a
-missed instalment on record, a Conservative profile, and a balance that bottoms out just above
-zero after a ₹74,000 hospital bill eleven months ago. His answers are `SSP`, the sweep-in FD
-and PMJJBY — not equity.
+**₹68,522** median income arriving as four unpredictable collections a month — a customer's UPI
+credit, a Razorpay settlement, the day's takings banked at a machine — with **no payroll flag on
+any of them**, so deriving a stable income for him is real work. ₹38,475 committed, ₹22,907
+discretionary, a surplus of ₹7,140 of which only **₹5,162 is deployable** once the provision for
+irregular months is taken out, and a buffer of 2.5 months against four dependents. A missed
+instalment is on the statement as well as on the liability: in May 2026 the NACH mandate was
+presented against an account that could not pay it, a ₹300 return charge and its GST landed, and
+the instalment was settled by hand twelve days later. His answers are `SSP`, the sweep-in FD and
+the ₹436-a-year PMJJBY he already holds — not equity.
+
+### What a banker sees before they read a single figure
+
+The realism pass changed what the statement *looks* like as much as what it says. Every line now
+matches a declared template for its rail — `UPI/DR/<RRN>/<payee>/<bank>/<vpa>/<remark>`,
+`ACH-DR-<creditor>-<UMRN>-<date>`, `BIL/BBPS/<biller>/<consumer no>/<ref>` — with reference
+numbers that decode back to their own dates. The account header carries an IDBI branch IFSC for
+the customer's own city; the salary is remitted by the employer's bank and never by IDBI. Kochi
+is billed by KSEB and Nagpur by MSEDCL. Onam moves money in Kochi and Ganesh Chaturthi in Nagpur,
+on the dates they actually fell. Interest, SMS charges and their GST are on the statement as
+separate lines, with paise, because that is where a bank puts paise.
 
 ### What the ledger is built to guarantee
 
-Twenty tests hold these, and they exist because each one is a way the demo could quietly become
-untrue:
+Forty-nine tests hold these — twenty on the generator and twenty-nine on realism — and they exist
+because each one is a way the demo could quietly become untrue:
 
 - **Determinism.** Same seed, same ledger, on any machine.
 - **The running balance is continuous**, never negative, and no purchase is ordered before the
-  salary that funded it.
+  salary that funded it. Carried in paise, because the statement now has paise on it.
 - **The time machine reveals the future the ledger always had.** Days generated live when a
   user advances the clock are identical to the days that month produces as history, and
   advancing does not rewrite what they already read. This is why each month draws from its own
-  stream keyed on a fixed anchor.
-- **Coherence, not just arithmetic.** A customer paying 42% on a card may not also be sitting
-  on months of cash. That is the kind of thing a reviewer spots in two seconds and we would
-  never catch by reading the code.
+  stream keyed on a fixed anchor — and why the bank's own lines are computed from the persona's
+  ledger start rather than from whatever window the caller asked for.
+- **Every line is a form a bank would print.** No narration matches nothing; no template goes
+  unexercised; no IDBI account carries another bank's IFSC prefix.
+- **The statistics are inside published bands.** How many UPI payments a month, how many of them
+  are under ₹500, and how the ticket sizes are shaped, each cited to NPCI or the RBI Payment
+  System Report — with the one figure that cannot be reproduced explained rather than fudged.
+- **Coherence, not just arithmetic.** A customer paying a third a year on a card may not also be
+  sitting on months of cash. That is the kind of thing a reviewer spots in two seconds and we
+  would never catch by reading the code.
 
 ### Known tuning item
 
-Priya's *closing* balance (₹1,74,265) still sits higher than her floor implies, because her
-monthly surplus is skewed — a median of −₹779 against a positive mean. Coherent enough to
-demo, worth a second pass before it goes in front of anyone.
+Priya's *closing* balance (₹1,92,143) still sits higher than her floor implies, because her
+monthly surplus is skewed: a median of −₹7,604 against twenty-four months that nonetheless end
+higher than they started. The cause is her card, which only starts revolving sixteen months
+before the anchor, so the eight months before it are genuinely comfortable. Coherent enough to
+demo — the buffer is 1.3 months and the deployable surplus is zero, which is what the advice
+turns on — and worth a second pass before it goes in front of anyone.
 
 ---
 

@@ -25,7 +25,7 @@ import type {
 } from '@dhan/core'
 import { addMonths } from './calendar.ts'
 import { generateLedger, liabilityContract, sipContract } from './generate.ts'
-import { PERSONAS } from './personas.ts'
+import { PERSONAS, branchIfscFor } from './personas.ts'
 import type { PersonaSpec } from './personas.ts'
 import { PRODUCT_SHELF } from './shelf.ts'
 
@@ -56,6 +56,8 @@ export interface SeedAccountRow {
   accountNumberMasked: string
   accountType: Account['accountType']
   accountOpeningDate: string
+  /** The IDBI branch the account is held at. `IBKL` plus the city's own branch code. */
+  branchIfsc?: string
   /** The primary savings account: every balance is arithmetic over the ledger from here. */
   openingBalance?: number
   /** A deposit carries a fixed principal; the ledger does not move it. */
@@ -148,9 +150,10 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
     },
     accounts: [
       {
-        accountNumberMasked: 'XXXXXX7412',
+        accountNumberMasked: spec.accountNumberMasked,
         accountType: 'Savings',
         accountOpeningDate: spec.customer.customerSince,
+        branchIfsc: branchIfscFor(spec),
         openingBalance: spec.openingBalance,
         isPrimary: true,
       },
@@ -158,6 +161,7 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
         accountNumberMasked: a.accountNumberMasked,
         accountType: a.accountType,
         accountOpeningDate: a.accountOpeningDate,
+        ...(a.branchIfsc === undefined ? {} : { branchIfsc: a.branchIfsc }),
         currentBalance: a.currentBalance,
         ...(a.interestRate === undefined ? {} : { interestRate: a.interestRate }),
         ...(a.maturityDate === undefined ? {} : { maturityDate: a.maturityDate }),

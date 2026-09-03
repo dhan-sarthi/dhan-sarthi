@@ -135,6 +135,8 @@ export type WireAccount = z.output<typeof AccountRowSchema>
 export const TransactionFields = z.object({
   txn_id: z.string(),
   txn_date: WireDate,
+  /** Optional: not every statement API sends it, and where it is absent it is the posting date. */
+  value_date: WireDate.optional(),
   txn_amount: WireDecimal,
   txn_type: z.string(),
   txn_mode: z.string(),

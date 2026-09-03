@@ -13,7 +13,8 @@
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
     "summary": "node --experimental-strip-types src/cli.ts",
-    "test": "node --test --experimental-strip-types src/*.test.ts"
+    "test": "node --test --experimental-strip-types src/*.test.ts",
+    "figures": "node --experimental-strip-types src/cli-figures.ts"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

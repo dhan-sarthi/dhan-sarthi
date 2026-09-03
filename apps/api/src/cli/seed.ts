@@ -331,6 +331,9 @@ async function upsertAccount(
   return rows[0]?.id as string
 }
 
+/** `bank.transactions` CHECKs that an MCC only appears on a rail that could have carried one. */
+const MCC_CHANNELS: ReadonlySet<string> = new Set(['POS', 'ECOM', 'ATM', 'UPI', 'OTHER'])
+
 const casaRef = (slug: string, a: SeedAccountRow): string =>
   `fx:${slug}:casa:${a.accountNumberMasked.slice(-4)}`
 
@@ -359,8 +362,8 @@ async function projectCasa(
     `INSERT INTO bank.account_snapshots
        (account_id, sync_run_id, source, as_of, raw_payload_id, account_type, account_type_raw, is_salary_account,
         mode_of_operation, status, opening_date, current_balance, avg_monthly_balance_3m, avg_monthly_balance_12m,
-        min_balance_12m, balance_as_of)
-     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, 'SINGLE', 'ACTIVE', $8, $9, $10, $11, $12, $3::timestamptz)
+        min_balance_12m, balance_as_of, branch_ifsc)
+     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, 'SINGLE', 'ACTIVE', $8, $9, $10, $11, $12, $3::timestamptz, $13)
      ON CONFLICT (account_id, sync_run_id) DO NOTHING`,
     [
       accountId,
@@ -375,6 +378,7 @@ async function projectCasa(
       facts.avgMonthlyBalance3m,
       facts.avgMonthlyBalance12m,
       facts.minBalance12m,
+      account.branchIfsc ?? null,
     ],
   )
   count(ctx, 'bank.account_snapshots', 1)
@@ -396,14 +400,17 @@ async function projectTransactions(
       `INSERT INTO bank.transactions
          (account_id, customer_id, source, first_seen_run_id, raw_payload_id, tran_id, dedupe_hash, seq,
           tran_date, value_date, tran_type, amount, balance_after, channel_code, channel_raw, narration,
-          spend_category_bank, is_salary_credit_bank, is_recurring_bank)
-       SELECT $1, $2, 'fixtures', $3, $4, t.tran_id, t.dedupe_hash, t.seq, t.tran_date, t.tran_date, t.tran_type,
+          spend_category_bank, is_salary_credit_bank, is_recurring_bank, mcc, counterparty_vpa,
+          merchant_name_bank)
+       SELECT $1, $2, 'fixtures', $3, $4, t.tran_id, t.dedupe_hash, t.seq, t.tran_date, t.value_date, t.tran_type,
               t.amount, t.balance_after, t.channel_code, t.channel_raw, t.narration, t.spend_category,
-              t.is_salary, t.is_recurring
+              t.is_salary, t.is_recurring, t.mcc, t.vpa, t.merchant_name
        FROM unnest($5::text[], $6::text[], $7::int[], $8::date[], $9::text[], $10::numeric[], $11::numeric[],
-                   $12::text[], $13::text[], $14::text[], $15::text[], $16::boolean[], $17::boolean[])
+                   $12::text[], $13::text[], $14::text[], $15::text[], $16::boolean[], $17::boolean[],
+                   $18::date[], $19::text[], $20::text[], $21::text[])
             AS t(tran_id, dedupe_hash, seq, tran_date, tran_type, amount, balance_after, channel_code,
-                 channel_raw, narration, spend_category, is_salary, is_recurring)
+                 channel_raw, narration, spend_category, is_salary, is_recurring, value_date, mcc, vpa,
+                 merchant_name)
        ON CONFLICT (account_id, tran_id, part_tran_srl_num) DO NOTHING`,
       [
         accountId,
@@ -435,6 +442,14 @@ async function projectTransactions(
         batch.map((t) => t.spendCategory),
         batch.map((t) => t.isSalaryCredit),
         batch.map((t) => t.isRecurring),
+        batch.map((t) => t.valueDate),
+        // The schema only allows an MCC on the rails that carry one, so a code on any other
+        // channel is dropped here rather than failing the whole batch on a CHECK.
+        batch.map((t) =>
+          MCC_CHANNELS.has(channelForMode(t.txnMode)) ? (t.mccCode ?? null) : null,
+        ),
+        batch.map((t) => t.counterpartyVpa ?? null),
+        batch.map((t) => t.merchantName ?? null),
       ],
     )
   }
@@ -468,8 +483,8 @@ async function projectDeposit(
     `INSERT INTO bank.term_deposit_snapshots
        (account_id, sync_run_id, source, as_of, raw_payload_id, deposit_type, deposit_type_raw, description,
         principal_amount, current_value, opening_date, maturity_date, interest_rate, status,
-        recurring_amount, recurring_deposit_day)
-     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'ACTIVE', $13, $14)
+        recurring_amount, recurring_deposit_day, branch_ifsc)
+     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'ACTIVE', $13, $14, $15)
      ON CONFLICT (account_id, sync_run_id) DO NOTHING`,
     [
       accountId,
@@ -486,6 +501,7 @@ async function projectDeposit(
       account.interestRate ?? holding?.interestRate ?? 0,
       type === 'RD' ? (holding?.sipAmount ?? balance) : null,
       type === 'RD' ? (holding?.sipDebitDay ?? 1) : null,
+      account.branchIfsc ?? null,
     ],
   )
   count(ctx, 'bank.term_deposit_snapshots', 1)
@@ -781,6 +797,43 @@ const TABLES = [
   'ref.products',
 ] as const
 
+const FIXTURE_CUSTOMERS = `SELECT id FROM app.customers WHERE data_source = 'fixtures'`
+const FIXTURE_ACCOUNTS = `SELECT id FROM bank.accounts WHERE customer_id IN (${FIXTURE_CUSTOMERS})`
+const FIXTURE_PAYLOADS = `SELECT id FROM staging.raw_payloads WHERE customer_id IN (${FIXTURE_CUSTOMERS})`
+
+/**
+ * The wipe, leaf first. `DELETE FROM app.customers` alone is not enough and only looked like it
+ * was: staging.sync_runs cascades straight off the customer, while a dozen bank.* mirrors point
+ * at the run with NO ACTION, so the wipe's success rests on the order Postgres happens to fire
+ * the cascades in. On this schema it fires the sync-run cascade first and the reseed dies on
+ * account_snapshots_sync_run_id_fkey. Deleting the referencing rows ourselves makes it
+ * deterministic — bank.mandates before bank.accounts (debit_account_id is NO ACTION),
+ * app.snapshots before staging.sync_runs (sync_run_id is NO ACTION).
+ *
+ * The last statement still leans on cascades, but only inside app.*: consents → consent events,
+ * subjects → sessions → idempotency keys. The append-only record has no key into any of it.
+ */
+const WIPE: readonly string[] = [
+  `DELETE FROM bank.sip_registrations WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.nominees WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.loan_schedules WHERE account_id IN (${FIXTURE_ACCOUNTS})`,
+  `DELETE FROM bank.loan_snapshots WHERE account_id IN (${FIXTURE_ACCOUNTS})`,
+  `DELETE FROM bank.term_deposit_snapshots WHERE account_id IN (${FIXTURE_ACCOUNTS})`,
+  `DELETE FROM bank.account_snapshots WHERE account_id IN (${FIXTURE_ACCOUNTS})`,
+  `DELETE FROM bank.transactions WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.mandates WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.mf_holdings WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.insurance_policies WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.customer_profiles WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.accounts WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  // Cascades to app.actions and app.roadmap_versions, which hang off the snapshot.
+  `DELETE FROM app.snapshots WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM staging.projections WHERE raw_payload_id IN (${FIXTURE_PAYLOADS})`,
+  `DELETE FROM staging.raw_payloads WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM staging.sync_runs WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM app.customers WHERE data_source = 'fixtures'`,
+]
+
 export async function liveRowCounts(db: Db): Promise<Record<string, number>> {
   const out: Record<string, number> = {}
   for (const table of TABLES) {
@@ -868,13 +921,15 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
       rowCounts: before,
       personas,
     }
+  }
 
-    // Only a seed that would change the rows can erase anyone; an identical one returned above.
-    if (seeded && sessions > 0 && !opts.force) {
-      throw new Error(
-        `${sessions} reviewer session(s) are live and reseeding would erase them; pass --force to proceed`,
-      )
-    }
+  // Only a seed that would change the rows can erase anyone; an identical one returned above.
+  // This guard used to sit after that return, so it never ran and the refusal the header
+  // promises never happened: a changed generator silently took every reviewer's session with it.
+  if (seeded && sessions > 0 && !opts.force) {
+    throw new Error(
+      `${sessions} reviewer session(s) are live and reseeding would erase them; pass --force to proceed`,
+    )
   }
 
   const { seedRunId, rowCounts } = await withTransaction(pool, async (client) => {
@@ -882,9 +937,7 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
       log(`wiping fixtures rows${sessions > 0 ? ` and ${sessions} live session(s)` : ''}`)
       await client.query(`DELETE FROM app.avatar_leases`)
       await client.query(`DELETE FROM app.avatar_waitlist`)
-      // Cascades: subjects → sessions → snapshots/roadmaps/keys; consents → sync runs → payloads;
-      // and every bank.* mirror. The append-only record has no key into any of it.
-      await client.query(`DELETE FROM app.customers WHERE data_source = 'fixtures'`)
+      for (const statement of WIPE) await client.query(statement)
     }
 
     // Reference data first: every sync run names the engine version that projected it.

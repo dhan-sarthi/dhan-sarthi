@@ -64,8 +64,9 @@ describe('the demo walk on the memory profile', () => {
     const res = await get('/api/v1/view')
     assert.equal(res.statusCode, 200)
     const view = res.json<View>()
-    assert.equal(view.snapshot.balances.idleFloor, 122_841)
-    assert.equal(view.snapshot.surplus.deployable, 12_246)
+    // Paise, because a statement with an electricity bill and a GST line on it has paise.
+    assert.equal(view.snapshot.balances.idleFloor, 141_663.35)
+    assert.equal(view.snapshot.surplus.deployable, 10_933)
     assert.equal(view.snapshot.income.monthly, 85_000)
     assert.equal(view.snapshot.debt.endingSoon?.monthsLeft, 5)
     assert.equal(view.goal.kind, 'retirement')

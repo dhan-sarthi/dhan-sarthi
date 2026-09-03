@@ -8,6 +8,7 @@
  * Nothing here is advice, and none of it belongs in `@dhan/core` — these are descriptive
  * aggregates for humans writing a demo, not the derivation the product runs on.
  */
+import { seriesKey } from '@dhan/core'
 import type { CustomerFile, SpendCategory } from '@dhan/core'
 import { addMonths, monthKey } from './calendar.ts'
 
@@ -37,6 +38,9 @@ const FIXED: ReadonlySet<SpendCategory> = new Set<SpendCategory>([
   'Insurance',
   'Education',
   'Transfers',
+  // Bank charges are not spending anybody chose. Counting them as discretionary would report
+  // a leak the customer cannot plug.
+  'Fees & charges',
 ])
 
 function median(values: number[]): number {
@@ -72,8 +76,9 @@ export function summarise(file: CustomerFile, asOf: string, months: number): Led
     if (t.txnDate >= from && t.txnType === 'DEBIT') {
       byCategory.set(t.spendCategory, (byCategory.get(t.spendCategory) ?? 0) + t.txnAmount)
       if (t.isRecurring) {
-        // Group by the merchant token in the narration, which is what enrichment recovers.
-        const token = t.narration.split('/')[1] ?? t.narration
+        // Group by the same key the engine groups by, so this CLI and the recurring detector
+        // cannot disagree about what counts as one mandate.
+        const token = seriesKey(t.narration)
         const seen = recurring.get(token) ?? { count: 0, total: 0 }
         recurring.set(token, { count: seen.count + 1, total: seen.total + t.txnAmount })
       }

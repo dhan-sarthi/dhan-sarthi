@@ -16,6 +16,7 @@
  * banker. They will know.
  */
 import type { Product } from '@dhan/core'
+import { GOVT_COVER, TERM_PREMIUM_MONTHLY_AGE_29 } from './calibration.ts'
 
 export const PRODUCT_SHELF: readonly Product[] = [
   /* IDBI's own balance-sheet products ------------------------------------ */
@@ -118,14 +119,17 @@ export const PRODUCT_SHELF: readonly Product[] = [
     name: 'LIC Term Assurance — ₹1 crore cover',
     category: 'Term Insurance',
     riskometer: 'Low',
-    minInvestment: 880,
+    minInvestment: TERM_PREMIUM_MONTHLY_AGE_29,
     lockInYears: 0,
     transactable: true,
     manufacturer: 'LIC of India',
     insuranceProduct: true,
     coverType: 'life',
     coverAmount: 10_000_000,
-    note: 'Pure cover, no maturity value. [verify premium against a real quote at age 29]',
+    // ₹11,800 a year before GST on LIC's Digi Term for a non-smoker at 29, which is ₹985 a
+    // month. The shelf used to say ₹880 — a premium nobody is quoted, and the first number a
+    // banker would have checked.
+    note: 'Pure cover, no maturity value. LIC Digi Term, non-smoker, age 29, ₹1 crore.',
   },
   {
     productId: 'NIVA_HEALTH_202',
@@ -146,29 +150,29 @@ export const PRODUCT_SHELF: readonly Product[] = [
     name: 'PMJJBY — ₹2 lakh life cover',
     category: 'Government Insurance',
     riskometer: 'Low',
-    minInvestment: 37,
+    minInvestment: Math.round(GOVT_COVER.pmjjbyAnnual / 12),
     lockInYears: 0,
     transactable: true,
     manufacturer: 'Government of India',
     insuranceProduct: true,
     coverType: 'life',
-    coverAmount: 200_000,
+    coverAmount: GOVT_COVER.coverAmount,
     // Pays the bank almost nothing, which is exactly why recommending it is unimpeachable.
-    note: '~₹436 a year. For a customer who cannot afford term cover. [verify current rate]',
+    note: '₹436 a year, auto-debited before 1 June. For a customer who cannot afford term cover.',
   },
   {
     productId: 'GOI_PMSBY_204',
     name: 'PMSBY — ₹2 lakh accident cover',
     category: 'Government Insurance',
     riskometer: 'Low',
-    minInvestment: 2,
+    minInvestment: Math.max(1, Math.round(GOVT_COVER.pmsbyAnnual / 12)),
     lockInYears: 0,
     transactable: true,
     manufacturer: 'Government of India',
     insuranceProduct: true,
     coverType: 'accident',
-    coverAmount: 200_000,
-    note: '~₹20 a year. [verify current rate]',
+    coverAmount: GOVT_COVER.coverAmount,
+    note: '₹20 a year, auto-debited before 1 June.',
   },
 
   /* Distributed — long-horizon government schemes ------------------------- */

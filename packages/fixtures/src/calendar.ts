@@ -5,6 +5,7 @@
  * trusting, and the moment a Date crosses a timezone boundary the 1st becomes the 31st and
  * the salary lands in the wrong month. Everything here is UTC and calendar-only.
  */
+import { FESTIVAL_DAYS, WEDDING_SEASON } from './calibration.ts'
 
 const MS_PER_DAY = 86_400_000
 
@@ -44,6 +45,11 @@ export function daysInMonth(year: number, month: number): number {
 /** 0 = Sunday. */
 export function dayOfWeek(iso: string): number {
   return parse(iso).getUTCDay()
+}
+
+/** 1-366. The middle three digits of every NPCI reference number are this. */
+export function dayOfYear(iso: string): number {
+  return daysBetween(fromYmd(ymd(iso).year, 1, 1), iso) + 1
 }
 
 export function isWeekend(iso: string): boolean {
@@ -91,9 +97,14 @@ export function payDay(year: number, month: number, nominalDay: number): string 
 }
 
 /**
- * Festival windows that visibly move Indian spending. Approximate dates — they follow the
- * lunar calendar and shift year to year, and for a synthetic ledger "late October" is close
- * enough. A banker recognises the *shape*: a shopping and gifting spike, then a lean month.
+ * Festival windows that visibly move Indian spending.
+ *
+ * These used to be a fixed slice of the Gregorian calendar — "18 October to 4 November is
+ * Diwali" — which is wrong every year and obviously wrong to anybody who lives here. Diwali
+ * 2025 was 20 October and Diwali 2026 is 8 November, nineteen days apart, so a fixed window
+ * puts the spike in the wrong month roughly half the time. The dates now come from
+ * `calibration.ts`, one row per festival per year, with the regional ones scoped to the city
+ * they actually move money in: Onam empties a Kochi account and does nothing in Nagpur.
  */
 export interface FestivalWindow {
   name: string
@@ -102,28 +113,49 @@ export interface FestivalWindow {
   to: string
   /** Multiplier applied to discretionary spending inside the window. */
   intensity: number
+  /** The city it moves money in, or null where it is national. */
+  city: string | null
 }
 
 export function festivalsFor(year: number): FestivalWindow[] {
-  return [
-    { name: 'Diwali', from: fromYmd(year, 10, 18), to: fromYmd(year, 11, 4), intensity: 2.4 },
-    { name: 'Holi', from: fromYmd(year, 3, 6), to: fromYmd(year, 3, 12), intensity: 1.4 },
-    {
-      name: 'Wedding season',
-      from: fromYmd(year, 11, 20),
-      to: fromYmd(year, 12, 15),
-      intensity: 1.6,
-    },
-  ]
+  const windows: FestivalWindow[] = FESTIVAL_DAYS.filter((f) => ymd(f.on).year === year).map(
+    (f) => ({
+      name: f.name,
+      from: addDays(f.on, -f.leadDays),
+      to: addDays(f.on, f.trailDays),
+      intensity: f.intensity,
+      city: f.city,
+    }),
+  )
+
+  // Wedding season is the one that is not a day: a stretch of the calendar every year, and the
+  // reason November and December carry gifting and clothes on every Indian statement.
+  windows.push({
+    name: 'Wedding season',
+    from: `${year}-${WEDDING_SEASON.fromMonthDay}`,
+    to: `${year}-${WEDDING_SEASON.toMonthDay}`,
+    intensity: WEDDING_SEASON.intensity,
+    city: null,
+  })
+
+  return windows
 }
 
-export function festivalMultiplier(iso: string): number {
+/**
+ * The multiplier in force on a date for a customer in a city.
+ *
+ * The strongest window wins rather than the first, because Diwali and wedding season overlap
+ * and the answer should be Diwali.
+ */
+export function festivalMultiplier(iso: string, city?: string): number {
   const { year } = ymd(iso)
+  let best = 1
   // A window can straddle the new year, so check the neighbouring years too.
   for (const y of [year - 1, year, year + 1]) {
     for (const w of festivalsFor(y)) {
-      if (iso >= w.from && iso <= w.to) return w.intensity
+      if (w.city !== null && w.city !== city) continue
+      if (iso >= w.from && iso <= w.to && w.intensity > best) best = w.intensity
     }
   }
-  return 1
+  return best
 }

@@ -116,6 +116,10 @@ interface TransactionRow {
   account_id: string
   tran_id: string
   tran_date: IsoDate
+  value_date: IsoDate
+  mcc: string | null
+  counterparty_vpa: string | null
+  merchant_name_bank: string | null
   amount: number
   tran_type: 'CREDIT' | 'DEBIT'
   channel_code: string
@@ -134,6 +138,7 @@ interface CasaRow {
   account_type_raw: string | null
   opening_date: IsoDate | null
   interest_rate: number | null
+  branch_ifsc: string | null
 }
 
 interface DepositRow {
@@ -145,6 +150,7 @@ interface DepositRow {
   opening_date: IsoDate
   maturity_date: IsoDate | null
   interest_rate: number
+  branch_ifsc: string | null
 }
 
 interface LoanRow {
@@ -254,9 +260,10 @@ const FILE_SQL = `
   SELECT
     (SELECT row_to_json(cust) FROM cust) AS customer,
     (SELECT coalesce(json_agg(x ORDER BY x.tran_date, x.seq, x.tran_id), '[]'::json) FROM (
-       SELECT t.account_id, t.tran_id, t.tran_date, t.seq, t.amount, t.tran_type, t.channel_code,
-              t.channel_raw, t.narration, t.spend_category_bank, t.balance_after,
-              t.is_salary_credit_bank, t.is_recurring_bank
+       SELECT t.account_id, t.tran_id, t.tran_date, t.value_date, t.seq, t.amount, t.tran_type,
+              t.channel_code, t.channel_raw, t.narration, t.spend_category_bank, t.balance_after,
+              t.is_salary_credit_bank, t.is_recurring_bank, t.mcc, t.counterparty_vpa,
+              t.merchant_name_bank
        FROM bank.transactions t, win
        WHERE t.customer_id = win.customer_id AND t.tran_date >= win.from_date AND t.tran_date <= $3
          AND t.status = 'POSTED') x) AS transactions,
@@ -267,14 +274,15 @@ const FILE_SQL = `
        ORDER BY t.account_id, t.tran_date, t.seq, t.tran_id) x) AS openings,
     (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
        SELECT a.id, a.account_number_masked, a.created_at, a.account_ref,
-              s.account_type, s.account_type_raw, s.opening_date, s.interest_rate
+              s.account_type, s.account_type_raw, s.opening_date, s.interest_rate, s.branch_ifsc
        FROM bank.accounts a
        JOIN bank.account_snapshots_current s ON s.account_id = a.id, win
        WHERE a.customer_id = win.customer_id AND a.product_kind = 'CASA' AND s.status <> 'CLOSED'
          AND (s.opening_date IS NULL OR s.opening_date <= $3)) x) AS casa,
     (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
        SELECT a.account_number_masked, a.created_at, a.account_ref, td.deposit_type, td.description,
-              td.principal_amount, td.current_value, td.opening_date, td.maturity_date, td.interest_rate
+              td.principal_amount, td.current_value, td.opening_date, td.maturity_date,
+              td.interest_rate, td.branch_ifsc
        FROM bank.accounts a
        JOIN bank.term_deposits_current td ON td.account_id = a.id, win
        WHERE a.customer_id = win.customer_id AND a.product_kind IN ('TERM_DEPOSIT', 'RECURRING_DEPOSIT')
@@ -308,8 +316,9 @@ const FILE_SQL = `
          AND (p.policy_start_date IS NULL OR p.policy_start_date <= $3)) x) AS policies`
 
 const TRANSACTIONS_SQL = `
-  SELECT t.account_id, t.tran_id, t.tran_date, t.amount, t.tran_type, t.channel_code, t.channel_raw,
-         t.narration, t.spend_category_bank, t.balance_after, t.is_salary_credit_bank, t.is_recurring_bank
+  SELECT t.account_id, t.tran_id, t.tran_date, t.value_date, t.amount, t.tran_type, t.channel_code,
+         t.channel_raw, t.narration, t.spend_category_bank, t.balance_after, t.is_salary_credit_bank,
+         t.is_recurring_bank, t.mcc, t.counterparty_vpa, t.merchant_name_bank
   FROM bank.transactions t
   WHERE t.customer_id = $1 AND t.tran_date >= $2 AND t.tran_date <= $3 AND t.status = 'POSTED'
   ORDER BY t.tran_date, t.seq, t.tran_id`
@@ -364,6 +373,7 @@ function toTransaction(row: TransactionRow): Transaction {
   return {
     txnId: row.tran_id,
     txnDate: row.tran_date,
+    valueDate: row.value_date,
     txnAmount: row.amount,
     txnType: row.tran_type,
     txnMode: modeForChannel(row.channel_code, row.channel_raw),
@@ -373,6 +383,11 @@ function toTransaction(row: TransactionRow): Transaction {
     balanceAfterTxn: row.balance_after,
     isSalaryCredit: row.is_salary_credit_bank ?? false,
     isRecurring: row.is_recurring_bank ?? false,
+    // Absent is a legal value on every one of these: a mandate has no MCC, a person-to-person
+    // payment has no VPA the bank recognises, and the merchant name arrives on a subset only.
+    ...(row.mcc === null ? {} : { mccCode: row.mcc }),
+    ...(row.merchant_name_bank === null ? {} : { merchantName: row.merchant_name_bank }),
+    ...(row.counterparty_vpa === null ? {} : { counterpartyVpa: row.counterparty_vpa }),
   }
 }
 
@@ -382,6 +397,7 @@ function depositAccount(row: DepositRow): Account {
     accountType: accountTypeForDeposit(row.deposit_type),
     currentBalance: row.current_value ?? row.principal_amount,
     accountOpeningDate: row.opening_date,
+    ...(row.branch_ifsc === null ? {} : { branchIfsc: row.branch_ifsc }),
     ...(row.maturity_date === null ? {} : { maturityDate: row.maturity_date }),
     interestRate: row.interest_rate,
   }
@@ -496,6 +512,7 @@ function accountsOf(b: Blocks, asOf: IsoDate): Account[] {
       accountNumberMasked: row.account_number_masked,
       accountType: accountTypeForCasa(row.account_type, row.account_type_raw),
       accountOpeningDate: row.opening_date ?? b.customer.customer_since ?? '',
+      ...(row.branch_ifsc === null ? {} : { branchIfsc: row.branch_ifsc }),
       ...accountFactsAsOf(own, asOf, opening === undefined ? {} : { openingBalance: opening }),
     }
   })
