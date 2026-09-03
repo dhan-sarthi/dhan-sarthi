@@ -87,7 +87,14 @@ BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
 ```
 
 `pnpm --filter @dhan/api seed:check` regenerates the ledger in memory and compares its hash with
-the one the database recorded; CI runs the same check. `pnpm --filter @dhan/api audit:verify`
+the one the database recorded; CI runs the same check. When the generator changes, the seed
+refuses to run while anyone holds a live session, because reseeding erases them:
+
+```bash
+pnpm --filter @dhan/api seed --force     # note: NOT `seed -- --force`, which pnpm passes through
+```
+
+A seed whose content already matches is a no-op and never asks. `pnpm --filter @dhan/api audit:verify`
 walks every record chain. Integration tests run when `DATABASE_URL` is set:
 `pnpm --filter @dhan/api exec node --test --experimental-strip-types 'test/integration/*.test.ts'`.
 
