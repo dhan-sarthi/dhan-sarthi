@@ -6,6 +6,11 @@
  * never holds a Runway key — it asks our API for a short-lived LiveKit token, which is the rule
  * from CONTRIBUTING.md that a client able to reach a provider directly is a client that can leak a key.
  *
+ * The request carries the bearer and an empty body. The personality brief is built on the
+ * server from the session's own view, because a brief the browser can edit is a compliance claim
+ * the browser can undo. The server also registers the suitability tool and opens the RPC gate
+ * before it hands back credentials; an ungated session is never issued.
+ *
  * The three states below are the fallback ladder from `docs/product/decisions.md`, and it is
  * built in from the start rather than bolted on, because judges will use this unsupervised and
  * possibly several at once:
@@ -15,20 +20,33 @@
  *   error     something we did not anticipate. Says so plainly and offers text
  *
  * Tier 1 is a *designed state*, not a spinner. Runway's Tier 1 allows one concurrent session, so
- * "Uday is with another customer" is a thing a real judge will genuinely see.
+ * "Uday is with another customer" is a thing a real judge will genuinely see — and when it
+ * happens the 409 carries a waitlist ticket, which this hook polls until the slot is claimable.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { api, isApiError, newIdempotencyKey } from '../api/client.ts'
 
 export type AvatarMode = 'idle' | 'connecting' | 'live' | 'text' | 'error'
 
+export interface QueuePlace {
+  ticket: string
+  position: number
+  estimatedWaitSeconds: number | null
+  /** The slot is held for us; `joinFromQueue` wins it. */
+  claimable: boolean
+}
+
 export interface AvatarSession {
   mode: AvatarMode
-  /** Why we are in text mode, in words a customer can read. */
+  /** Why we are in text mode, in the server's words. */
   reason: string | null
-  /** The element the LiveKit video track is attached to. */
+  /** Where we stand when the one slot is taken. */
+  queue: QueuePlace | null
   /** Callback ref for the <video>. A function, so the hook hands out no ref object. */
   attachVideo: (el: HTMLVideoElement | null) => void
   start: () => Promise<void>
+  joinFromQueue: () => Promise<void>
+  leaveQueue: () => void
   stop: () => void
   muted: boolean
   toggleMute: () => void
@@ -48,22 +66,12 @@ export interface AvatarSession {
   secondsLeft: number | null
 }
 
-interface SessionGrant {
-  url: string
-  token: string
-  sessionId: string
-  /**
-   * How long after connecting the worker actually starts publishing decodable frames. Measured
-   * at ~5s in the verification run, and the reason this screen needs a designed waiting state
-   * rather than an empty `<video>` — for the first few seconds there is genuinely nothing.
-   */
-  expectVideoAfterMs?: number
-  expiresInSeconds?: number
-}
+const QUEUE_POLL_MS = 3_000
 
-export function useAvatar(personality: string): AvatarSession {
+export function useAvatar(): AvatarSession {
   const [mode, setMode] = useState<AvatarMode>('idle')
   const [reason, setReason] = useState<string | null>(null)
+  const [queue, setQueue] = useState<QueuePlace | null>(null)
   const [muted, setMuted] = useState(false)
   const [videoLive, setVideoLive] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
@@ -141,9 +149,9 @@ export function useAvatar(personality: string): AvatarSession {
    * per credential — so a call the customer walked away from is both money and the next person's
    * turn. `keepalive` lets this survive the page unloading.
    */
-  const release = useCallback((sessionId: string | null) => {
-    if (!sessionId) return
-    void fetch(`/api/avatar/session/${sessionId}/end`, { method: 'POST', keepalive: true }).catch(
+  const release = useCallback((runwaySessionId: string | null) => {
+    if (!runwaySessionId) return
+    void api('endAvatarSession', { params: { runwaySessionId }, keepalive: true }).catch(
       () => undefined,
     )
   }, [])
@@ -171,106 +179,146 @@ export function useAvatar(personality: string): AvatarSession {
     }
   }, [release])
 
-  const start = useCallback(async () => {
-    setMode('connecting')
-    setReason(null)
+  const start = useCallback(
+    async (ticket?: string) => {
+      setMode('connecting')
+      setReason(null)
 
-    try {
-      const res = await fetch('/api/avatar/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personality }),
-      })
+      try {
+        const grant = await api('startAvatarSession', {
+          body: {},
+          idempotencyKey: newIdempotencyKey(),
+          ...(ticket ? { headers: { 'x-waitlist-ticket': ticket } } : {}),
+        })
+        setQueue(null)
+        sessionRef.current = grant.runwaySessionId
 
-      if (!res.ok) {
-        // Use the server's own wording. Hardcoding one message here made "our pool is full" and
-        // "Runway's account limit is full" look identical on screen, and only one of those is
-        // fixed by adding credentials.
-        const detail = (await res.json().catch(() => null)) as { error?: string } | null
-        setReason(
-          detail?.error ??
-            (res.status === 503
-              ? 'The voice service is not configured in this build.'
-              : `The voice service replied ${res.status}.`),
-        )
-        setMode('text')
-        return
-      }
+        // Imported here rather than at module scope so the LiveKit client is not in the initial
+        // bundle. Most sessions never open a call, and this screen has to paint fast.
+        const { Room, RoomEvent, Track } = await import('livekit-client')
+        const room = new Room({ adaptiveStream: true, dynacast: true })
 
-      const grant = (await res.json()) as SessionGrant
-      sessionRef.current = grant.sessionId ?? null
+        room.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === Track.Kind.Video && videoRef.current) {
+            const el = videoRef.current
+            track.attach(el)
 
-      // Imported here rather than at module scope so the LiveKit client is not in the initial
-      // bundle. Most sessions never open a call, and this screen has to paint fast.
-      const { Room, RoomEvent, Track } = await import('livekit-client')
-      const room = new Room({ adaptiveStream: true, dynacast: true })
-
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind === Track.Kind.Video && videoRef.current) {
-          const el = videoRef.current
-          track.attach(el)
-
-          // Wait for a frame to actually be *presented*, not merely for the track to arrive: a
-          // subscribed track sits black through keyframe warm-up, and revealing the video then
-          // is the difference between "connecting" and "it is broken".
-          //
-          // `requestVideoFrameCallback` fires on the first composited frame, which is both the
-          // precise signal and earlier than polling for `currentTime` — worth a second or so of
-          // the gap this is all trying to close.
-          const withFrameCallback = el as HTMLVideoElement & {
-            requestVideoFrameCallback?: (cb: () => void) => number
-          }
-
-          if (typeof withFrameCallback.requestVideoFrameCallback === 'function') {
-            withFrameCallback.requestVideoFrameCallback(() => setVideoLive(true))
-          } else {
-            const poll = (): void => {
-              if (el.videoWidth > 0 && el.currentTime > 0) setVideoLive(true)
-              else window.setTimeout(poll, 120)
+            // Wait for a frame to actually be *presented*, not merely for the track to arrive: a
+            // subscribed track sits black through keyframe warm-up, and revealing the video then
+            // is the difference between "connecting" and "it is broken".
+            //
+            // `requestVideoFrameCallback` fires on the first composited frame, which is both the
+            // precise signal and earlier than polling for `currentTime` — worth a second or so of
+            // the gap this is all trying to close.
+            const withFrameCallback = el as HTMLVideoElement & {
+              requestVideoFrameCallback?: (cb: () => void) => number
             }
-            poll()
+
+            if (typeof withFrameCallback.requestVideoFrameCallback === 'function') {
+              withFrameCallback.requestVideoFrameCallback(() => setVideoLive(true))
+            } else {
+              const poll = (): void => {
+                if (el.videoWidth > 0 && el.currentTime > 0) setVideoLive(true)
+                else window.setTimeout(poll, 120)
+              }
+              poll()
+            }
           }
+          if (track.kind === Track.Kind.Audio) {
+            const el = track.attach()
+            el.autoplay = true
+            document.body.appendChild(el)
+
+            // Meter the track itself. The element plays it; the analyser only observes.
+            const raw = track.mediaStreamTrack
+            if (raw) startMeter(new MediaStream([raw]))
+          }
+        })
+
+        room.on(RoomEvent.Disconnected, () => {
+          stopMeter()
+          setVideoLive(false)
+          setSecondsLeft(null)
+          setMode('idle')
+        })
+
+        await room.connect(grant.url, grant.token)
+        await room.localParticipant.setMicrophoneEnabled(true)
+
+        roomRef.current = room
+        setMode('live')
+
+        if (grant.expiresInSeconds > 0) {
+          setSecondsLeft(grant.expiresInSeconds)
+          const started = Date.now()
+          const tick = window.setInterval(() => {
+            const left = grant.expiresInSeconds - Math.round((Date.now() - started) / 1000)
+            setSecondsLeft(Math.max(0, left))
+            if (left <= 0) window.clearInterval(tick)
+          }, 1000)
         }
-        if (track.kind === Track.Kind.Audio) {
-          const el = track.attach()
-          el.autoplay = true
-          document.body.appendChild(el)
-
-          // Meter the track itself. The element plays it; the analyser only observes.
-          const raw = track.mediaStreamTrack
-          if (raw) startMeter(new MediaStream([raw]))
+      } catch (err) {
+        if (isApiError(err)) {
+          // The server's own wording, always. Hardcoding one message here made "our pool is
+          // full" and "Runway's account limit is full" look identical on screen, and only one of
+          // those is fixed by adding credentials.
+          setReason(err.message)
+          const body = err.body
+          if (err.status === 409 && typeof body?.['ticket'] === 'string') {
+            setQueue({
+              ticket: body['ticket'],
+              position: typeof body['position'] === 'number' ? body['position'] : 1,
+              estimatedWaitSeconds:
+                typeof body['estimatedWaitSeconds'] === 'number'
+                  ? body['estimatedWaitSeconds']
+                  : null,
+              claimable: false,
+            })
+          }
+          setMode('text')
+          return
         }
-      })
-
-      room.on(RoomEvent.Disconnected, () => {
-        stopMeter()
-        setVideoLive(false)
-        setSecondsLeft(null)
-        setMode('idle')
-      })
-
-      await room.connect(grant.url, grant.token)
-      await room.localParticipant.setMicrophoneEnabled(true)
-
-      roomRef.current = room
-      setMode('live')
-
-      if (grant.expiresInSeconds) {
-        setSecondsLeft(grant.expiresInSeconds)
-        const started = Date.now()
-        const tick = window.setInterval(() => {
-          const left = grant.expiresInSeconds! - Math.round((Date.now() - started) / 1000)
-          setSecondsLeft(Math.max(0, left))
-          if (left <= 0) window.clearInterval(tick)
-        }, 1000)
+        // Offline, blocked, or a browser without H.264 — all of which end in the same place, and
+        // the same place is a working product rather than a broken screen.
+        setReason(err instanceof Error ? err.message : 'Could not reach the voice service.')
+        setMode('text')
       }
-    } catch (err) {
-      // Offline, blocked, or a browser without H.264 — all of which end in the same place, and
-      // the same place is a working product rather than a broken screen.
-      setReason(err instanceof Error ? err.message : 'Could not reach the voice service.')
-      setMode('text')
-    }
-  }, [personality, startMeter, stopMeter])
+    },
+    [startMeter, stopMeter],
+  )
+
+  // While queued, ask every few seconds where we stand. The server holds a claimable slot for
+  // a short window, so the poll is what turns "you are next" into a call.
+  useEffect(() => {
+    if (!queue || queue.claimable || mode === 'live' || mode === 'connecting') return
+    const ticket = queue.ticket
+    const timer = window.setInterval(() => {
+      void api('getWaitlist', { params: { ticket } })
+        .then((status) => {
+          setQueue({
+            ticket,
+            position: status.position,
+            estimatedWaitSeconds: status.estimatedWaitSeconds,
+            claimable: status.claimable,
+          })
+        })
+        .catch((err: unknown) => {
+          // The ticket expired or was taken; the customer can ask again.
+          if (isApiError(err) && (err.status === 404 || err.status === 403)) setQueue(null)
+        })
+    }, QUEUE_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [queue, mode])
+
+  const joinFromQueue = useCallback(async () => {
+    if (queue?.claimable) await start(queue.ticket)
+  }, [queue, start])
+
+  const leaveQueue = useCallback(() => {
+    const ticket = queue?.ticket
+    setQueue(null)
+    if (ticket) void api('leaveWaitlist', { params: { ticket } }).catch(() => undefined)
+  }, [queue])
 
   const toggleMute = useCallback(() => {
     setMuted((m) => {
@@ -286,8 +334,11 @@ export function useAvatar(personality: string): AvatarSession {
   return {
     mode,
     reason,
+    queue,
     attachVideo,
-    start,
+    start: () => start(),
+    joinFromQueue,
+    leaveQueue,
     stop,
     muted,
     toggleMute,

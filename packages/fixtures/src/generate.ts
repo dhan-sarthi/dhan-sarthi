@@ -14,24 +14,19 @@
  * the account aggregates all fall out of the transaction list. If a number reaches a screen it
  * is arithmetic over the ledger, so a judge who adds up the statement gets our answer.
  */
+import { accountFactsAsOf, liabilityAsOf, sipHoldingAsOf } from '@dhan/core'
 import type {
   Account,
   CustomerFile,
   Holding,
   Liability,
+  LiabilityContract,
+  SipContract,
   SpendCategory,
   Transaction,
   TxnMode,
 } from '@dhan/core'
-import {
-  addMonths,
-  daysInMonth,
-  festivalMultiplier,
-  fromYmd,
-  monthKey,
-  payDay,
-  ymd,
-} from './calendar.ts'
+import { addMonths, daysInMonth, festivalMultiplier, fromYmd, payDay, ymd } from './calendar.ts'
 import {
   DISCRETIONARY,
   UTILITIES,
@@ -44,7 +39,7 @@ import {
 import type { Merchant } from './merchants.ts'
 import { rng } from './random.ts'
 import type { Rng } from './random.ts'
-import type { PersonaSpec } from './personas.ts'
+import type { EmiSpec, PersonaSpec, SipSpec } from './personas.ts'
 
 export interface GenerateOptions {
   /**
@@ -496,17 +491,28 @@ export function generateForward(
  * Derived account state
  * ------------------------------------------------------------------ */
 
-function monthEndBalances(txns: Transaction[]): Map<string, number> {
-  const out = new Map<string, number>()
-  for (const t of txns) {
-    if (t.balanceAfterTxn !== null) out.set(monthKey(t.txnDate), t.balanceAfterTxn)
+/** A persona's loan, in the anchor-relative shape core's as-of arithmetic rolls forward. */
+export function liabilityContract(emi: EmiSpec): LiabilityContract {
+  return {
+    loanType: emi.loanType,
+    emiAmount: emi.amount,
+    rate: emi.rate,
+    tenureRemainingAtAnchor: emi.remainingMonths,
+    ...(emi.dpd === undefined ? {} : { dpdStatus: emi.dpd }),
+    ...(emi.isRevolving === undefined ? {} : { isRevolving: emi.isRevolving }),
   }
-  return out
 }
 
-function mean(values: number[]): number {
-  if (values.length === 0) return 0
-  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length)
+/** A persona's SIP, in the anchor-relative shape core's as-of arithmetic rolls forward. */
+export function sipContract(sip: SipSpec): SipContract {
+  return {
+    scheme: sip.scheme,
+    amount: sip.amount,
+    day: sip.day,
+    startsMonthsBeforeAnchor: sip.startsMonthsAgo,
+    assetClass: sip.assetClass,
+    ...(sip.heldOutsideIdbi === undefined ? {} : { heldOutsideIdbi: sip.heldOutsideIdbi }),
+  }
 }
 
 /**
@@ -515,6 +521,10 @@ function mean(values: number[]): number {
  * Account aggregates are computed from the ledger rather than declared. `minBalance12m` in
  * particular is the number the whole pitch rests on: a floor the balance never went below is
  * money that was never needed, sitting in a savings account earning less than inflation.
+ *
+ * The as-of arithmetic itself lives in `@dhan/core` so that the seeded database and this
+ * generator cannot disagree: a loan shortens by the months the clock has advanced, a cleared
+ * loan leaves the file, and a SIP gains an instalment a month, from one implementation.
  */
 export function generateCustomerFile(
   spec: PersonaSpec,
@@ -523,71 +533,21 @@ export function generateCustomerFile(
   const { anchor, asOf, months } = { ...DEFAULTS, ...options }
   const transactions = generateLedger(spec, { anchor, asOf, months })
 
-  // How far the clock has been advanced past the anchor. Loans have to shorten by that much,
-  // or the file would still claim five instalments left after a judge watched four of them go.
-  const elapsed = Math.max(0, -monthsFromAnchor(anchor, asOf))
-
-  const last = transactions[transactions.length - 1]
-  const closing = last?.balanceAfterTxn ?? spec.openingBalance
-
-  const twelveMonthsAgo = addMonths(asOf, -12)
-  const balances = transactions
-    .filter((t) => t.txnDate >= twelveMonthsAgo)
-    .map((t) => t.balanceAfterTxn)
-    .filter((b): b is number => b !== null)
-
-  const monthEnds = monthEndBalances(transactions)
-  const keys = [...monthEnds.keys()].sort()
-  const tail = (n: number): number[] => keys.slice(-n).map((k) => monthEnds.get(k) ?? 0)
-
   const savings: Account = {
     accountNumberMasked: 'XXXXXX7412',
     accountType: 'Savings',
-    currentBalance: closing,
     accountOpeningDate: spec.customer.customerSince,
-    avgMonthlyBalance3m: mean(tail(3)),
-    avgMonthlyBalance12m: mean(tail(12)),
-    minBalance12m: balances.length > 0 ? Math.min(...balances) : closing,
+    ...accountFactsAsOf(transactions, asOf, { openingBalance: spec.openingBalance }),
   }
 
   const liabilities: Liability[] = spec.emis
-    .map((emi): Liability => {
-      const remaining = Math.max(0, emi.remainingMonths - elapsed)
-
-      return {
-        loanType: emi.loanType,
-        // Outstanding consistent with what is left to pay, so a judge cannot find the seam
-        // between "five months remaining" and a balance that would take five years to clear.
-        outstandingPrincipal: Math.round(emi.amount * remaining * 0.97),
-        emiAmount: emi.amount,
-        loanInterestRate: emi.rate,
-        tenureRemainingMonths: remaining,
-        dpdStatus: emi.dpd ?? 0,
-        ...(emi.isRevolving === undefined ? {} : { isRevolving: emi.isRevolving }),
-      }
-    })
+    .map((emi) => liabilityAsOf(liabilityContract(emi), anchor, asOf))
     // A cleared loan leaves the liability list, which is what frees up the EMI.
-    .filter((l) => l.tenureRemainingMonths > 0)
+    .filter((l): l is Liability => l !== null)
 
-  const sipHoldings: Holding[] = spec.sips.map((sip): Holding => {
-    const instalments = Math.min(sip.startsMonthsAgo + elapsed, months + elapsed)
-    const invested = sip.amount * instalments
-
-    return {
-      holdingType: 'MUTUAL_FUND',
-      name: sip.scheme,
-      assetClass: sip.assetClass,
-      investedAmount: invested,
-      // A flat notional gain. Nothing downstream may present this as a return, and the
-      // projection screen must show a band with its assumption on screen — never this number
-      // dressed up as performance. See docs/product/product-shelf.md.
-      currentValue: Math.round(invested * 1.19),
-      sipActive: true,
-      sipAmount: sip.amount,
-      sipDebitDay: sip.day,
-      ...(sip.heldOutsideIdbi === undefined ? {} : { heldOutsideIdbi: sip.heldOutsideIdbi }),
-    }
-  })
+  const sipHoldings: Holding[] = spec.sips.map((sip) =>
+    sipHoldingAsOf(sipContract(sip), anchor, asOf, months),
+  )
 
   return {
     customer: spec.customer,

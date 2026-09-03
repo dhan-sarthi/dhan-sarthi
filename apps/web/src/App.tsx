@@ -4,107 +4,215 @@
  * Four tabs plus the advisor, and one rule that shapes the whole file: **Ask Uday takes the
  * screen.** No tab bar, no header, no card around it. A conversation with a person does not
  * happen inside a panel, and the avatar is the strongest thing we have — so it gets the glass.
+ *
+ * Everything the tabs show comes from one `View` the API computed for this reviewer's session.
+ * The shell wires the hooks together — session, view, record, mutations, availability — and
+ * decides which tier is on screen: the live avatar, the same engine in text, or the simulation
+ * in this browser when the API is out of reach. Each tier is labelled; none of them spins.
  */
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Action } from '@dhan/core'
+import { api } from './api/client.ts'
+import { clearSession, useStoredSession } from './api/session.ts'
+import { OfflineBadge } from './components/OfflineBadge.tsx'
 import { TabBar } from './components/TabBar.tsx'
 import type { TabId } from './components/TabBar.tsx'
+import type { Tier } from './components/TierBadge.tsx'
+import { Card, Head } from './components/ui.tsx'
 import { Ask } from './screens/Ask.tsx'
 import { Money } from './screens/Money.tsx'
 import { Pick } from './screens/Pick.tsx'
 import { Plan } from './screens/Plan.tsx'
 import { Record } from './screens/Record.tsx'
-import type { AuditEntry } from './screens/Record.tsx'
 import { Today } from './screens/Today.tsx'
-import { advance, useSession } from './lib/session.ts'
-import { buildView } from './lib/view.ts'
+import { offlineAsk, serverAsk } from './lib/ask.ts'
+import { useAvailability } from './lib/availability.ts'
+import { useMutations } from './lib/mutations.ts'
+import { useRecord } from './lib/record.ts'
+import type { TransactionSource } from './lib/transactions.ts'
+import { useView } from './lib/view.ts'
 
 export function App(): ReactNode {
-  const [session, patch, reset] = useSession()
+  const stored = useStoredSession()
+  const vs = useView(stored)
+  const record = useRecord(stored, vs.tier)
+  const m = useMutations(vs, record.refresh)
+  const avail = useAvailability(vs.tier === 'server' && vs.view !== null)
   const [tab, setTab] = useState<TabId>('today')
-  const [audit, setAudit] = useState<AuditEntry[]>([])
 
-  const view = useMemo(() => buildView(session), [session])
+  const offline = vs.offline
+  const source = useMemo<TransactionSource>(
+    () =>
+      offline
+        ? (cursor, limit) =>
+            Promise.resolve(offline.mod.transactionsPage(offline.state, cursor, limit))
+        : (cursor, limit) =>
+            api('listTransactions', { query: { limit, ...(cursor ? { cursor } : {}) } }),
+    [offline],
+  )
+  const askBackend = useMemo(() => (offline ? offlineAsk(offline) : serverAsk), [offline])
+  const refreshAvailability = avail.refresh
+  const onOpenAsk = useCallback(() => void refreshAvailability(), [refreshAvailability])
 
-  if (!view) {
+  if (!stored) {
     return (
       <div className="app">
-        <Pick onPick={(slug) => patch({ slug })} />
+        <Pick />
       </div>
     )
   }
 
-  const decide = (action: Action, kind: 'did_it' | 'declined'): void => {
-    setAudit((prev) => [
-      ...prev,
-      {
-        actionId: action.id,
-        label: action.label,
-        kind,
-        at: session.asOf,
-        amount: action.amount,
-        ...(action.productName ? { productName: action.productName } : {}),
-        evidence: action.evidence,
-        // The sentence, not the product code. An audit trail recording "recommended
-        // MF_INDEX_103" cannot answer the only question a regulator asks, which is what the
-        // customer was actually told.
-        shown: action.detail,
-      },
-    ])
+  const tier: Tier =
+    vs.tier === 'offline'
+      ? 'offline'
+      : avail.availability?.enabled && avail.availability.available
+        ? 'live'
+        : 'text'
 
-    patch(
-      kind === 'did_it'
-        ? { accepted: [...session.accepted, action.id] }
-        : { declined: [...session.declined, action.id] },
+  const badge =
+    vs.tier === 'offline' ? (
+      <OfflineBadge onRetry={() => void vs.reconnect()} busy={vs.busy} />
+    ) : null
+
+  const view = vs.view
+  if (!view) {
+    return (
+      <div className="app">
+        {badge}
+        <Gate
+          loading={vs.loading}
+          message={vs.error?.message ?? null}
+          onRetry={() => void vs.refresh()}
+        />
+      </div>
     )
-
-    // Accepting a spending cap is the one action that changes the daily plan immediately, so it
-    // is recorded as a cap rather than only as a decision.
-    if (kind === 'did_it' && action.kind === 'set_category_cap') {
-      const trend = view.snapshot.discretionary.categoryTrends[0]
-      if (trend) {
-        patch({
-          accepted: [...session.accepted, action.id],
-          caps: [
-            ...session.caps.filter((c) => c.category !== trend.category),
-            { category: trend.category, monthlyLimit: trend.prior },
-          ],
-        })
-      }
-    }
   }
 
   // Full bleed. Everything else in the app is inside the shell; this is the shell.
   if (tab === 'ask') {
     return (
       <div className="app">
-        <Ask snapshot={view.snapshot} onClose={() => setTab('today')} />
+        {badge}
+        <div className="relative min-h-0 flex-1">
+          <Ask
+            backend={askBackend}
+            shelf={view.shelf}
+            monthlyAmount={view.snapshot.surplus.deployable}
+            tier={tier}
+            availability={avail.availability}
+            onOpen={onOpenAsk}
+            onClose={() => setTab('today')}
+          />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="app">
+      {badge}
       {tab === 'today' ? (
         <Today
-          snapshot={view.snapshot}
-          plan={view.plan}
-          accepted={session.accepted}
-          declined={session.declined}
-          asOf={session.asOf}
-          onAdvance={(days) => patch(advance(session, days))}
-          onReset={reset}
-          onDecide={decide}
+          view={view}
+          tier={tier}
+          clock={{
+            show: view.meta.simulatedClock,
+            notice: m.clockNotice,
+            disabled: m.busy,
+            onAdvance: (days) => void m.advanceClock(days),
+            onReset: () => void m.resetClock(),
+          }}
+          decided={m.decided}
+          decisionsEnabled={vs.tier === 'server'}
+          busy={m.busy}
+          notice={m.notice}
+          onDecide={(action, kind) => void m.decide(action, kind)}
           onAsk={() => setTab('ask')}
         />
       ) : null}
 
-      {tab === 'plan' ? <Plan snapshot={view.snapshot} roadmap={view.roadmap} /> : null}
-      {tab === 'money' ? <Money snapshot={view.snapshot} file={view.file} /> : null}
-      {tab === 'record' ? <Record view={view} audit={audit} /> : null}
+      {tab === 'plan' ? (
+        <Plan snapshot={view.snapshot} roadmap={view.roadmap} asOf={view.meta.asOf} />
+      ) : null}
+      {tab === 'money' ? (
+        <Money snapshot={view.snapshot} source={source} asOf={view.meta.asOf} />
+      ) : null}
+      {tab === 'record' ? (
+        <Record
+          view={view}
+          record={record}
+          session={vs.session}
+          tier={tier}
+          busy={m.busy}
+          notice={m.notice}
+          onConsent={(scope, granted) => void m.setConsent(scope, granted)}
+        />
+      ) : null}
 
-      <TabBar active={tab} onChange={setTab} />
+      <TabBar
+        active={tab}
+        onChange={(id) => {
+          setTab(id)
+          // A product check in Ask writes an advice record too; the tab re-reads on entry so
+          // the paper trail is never a step behind what the reviewer just did.
+          if (id === 'record') void record.refresh()
+        }}
+      />
     </div>
+  )
+}
+
+/**
+ * Between the picker and the first view: the statements are being read, or they could not be.
+ * A sentence and a button, not a spinner — "nothing may hard-fail" includes the first second.
+ */
+function Gate({
+  loading,
+  message,
+  onRetry,
+}: {
+  loading: boolean
+  message: string | null
+  onRetry: () => void
+}): ReactNode {
+  return (
+    <>
+      <Head title="Today" sub={loading ? 'Reading your statements…' : 'Not available'} />
+      <div className="scroll">
+        <div className="mt-3">
+          {loading ? (
+            <Card tint="sage">
+              <h2>One moment</h2>
+              <p className="m-0 mt-1.5 text-sm text-ink-soft" aria-live="polite">
+                Twenty-four months of statements are being turned into a plan.
+              </p>
+            </Card>
+          ) : (
+            <Card tint="clay">
+              <h2>The advisor could not be reached</h2>
+              <p role="alert" className="m-0 mt-1.5 text-sm leading-normal text-ink-mid">
+                {message ?? 'Could not reach the advisor service.'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]"
+                >
+                  Try again
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSession}
+                  className="h-10 rounded-pill border-0 bg-transparent px-2 text-[15px] font-semibold text-brand underline-offset-2 hover:underline"
+                >
+                  Pick another customer
+                </button>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+    </>
   )
 }

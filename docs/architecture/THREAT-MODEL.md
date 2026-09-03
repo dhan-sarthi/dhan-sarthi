@@ -1,0 +1,28 @@
+# Threat model
+
+This document lists the threats the design takes seriously, the STRIDE category each falls under,
+and the concrete mitigation with the file or mechanism that carries it. It is the place to look
+when the question is "what happens if someone tries to…". Rows that describe the code at adoption
+(3 September 2026) say so; everything else describes the target design in [`HLD.md`](HLD.md).
+
+Status: adopted 3 September 2026.
+
+| Threat | Category | Mitigation |
+|---|---|---|
+| Client edits the personality brief and removes the compliance instructions (at adoption: `buildBrief` in `Ask.tsx` is forwarded verbatim by `routes/avatar.ts`) | Tampering | Brief built server-side in `application/avatar/brief.builder.ts` from the session's View; `POST /avatar/session` body is `z.object({}).strict()`; the gate is a `backend_rpc` tool, not a prompt; every verdict is written by our handler before the model speaks. |
+| Model recommends a product without calling `check_suitability` | Tampering / Repudiation | Tool instruction in the brief; post-call `Reconciler` computes `gate_coverage` over the transcript and shows misses on the Record tab; the screens and text tier never involve a model; the CONTRIBUTING invariant is enforced by the tool boundary. |
+| Ungated avatar session issued because the RPC handler failed to connect | Elevation of privilege | Lifecycle state machine: `consume()` legal only from `'gated'` after `AvatarRpcHost.open` resolves; rejected open → cancel + release + 502; composition root refuses real provider + null RPC host; unit test asserts ordering with fakes. |
+| Runway key or LiveKit credentials reach the browser | Information disclosure | Keys only in `apps/api` via Secrets Manager → task env; browser receives a short-lived LiveKit token; CI greps the built web bundle for credential-shaped strings and for `@dhan/fixtures` in the bank build. |
+| Reviewer A reads or mutates reviewer B's session, clock or record | Information disclosure / Tampering | 256-bit opaque bearer, sha256 at rest; every store method keyed by `session_id`; preHandler resolves the principal; waitlist and avatar routes check ownership; `DELETE /session` erases only the caller's subject. |
+| Double-tap or retry creates duplicate audit rows or double-advances the clock | Tampering | `Idempotency-Key` with stored responses; `UNIQUE(session_id, action_id)`; optimistic `version` on sessions with 409 `STALE_CLOCK`. |
+| Audit rows edited after the fact | Repudiation | REVOKE UPDATE/DELETE from `dhan_app`; BEFORE triggers RAISE; per-session sha256 hash chain; `pnpm audit:verify` and `GET /record/verify`; migrate role never held by the runtime task. |
+| Public link runs up a Runway bill (US$0.20/min) or exhausts the single slot | Denial of service | Daily minute budget as `sum(minutes_charged)` in Postgres; per-call cap 600 s; 5 grants/hour/IP; one live call per session; reaper; sendBeacon `/end`; `AVATAR_ENABLED` kill switch; release-all behind operator key; CloudWatch alarm at 80 % and AWS Budgets at US$100. |
+| Hung provider call stalls a grant or a request thread | Denial of service | `AbortSignal` timeouts on every Runway fetch (8 s / 3 s), RPC open 8 s, Postgres `statement_timeout` 2 s, Fastify request timeout 10 s; circuit breaker opens after 3 failures and answers the text tier immediately. |
+| Unauthenticated operator routes (at adoption `/api/avatar/release-all` and `/api/avatar/status` are open) | Elevation of privilege | `/operator/*` behind `X-Operator-Key` from Secrets Manager with constant-time compare; the status route lists session ids so it is operator-only. |
+| Request flooding / abusive clients | Denial of service | `@fastify/rate-limit` keyed on forwarded client IP (120/min, 20 sessions/hour, 30 ask/min/session), 16 KB body limit, helmet, CloudFront in front; ALB 5xx alarm. |
+| PII in logs or backups (DPDP) | Information disclosure | All data synthetic; no schema column for PAN/Aadhaar/full account number; pino redact on authorization, token, key, narration; audit rows carry `subject_id` not `cif`; 14-day log retention; RDS encrypted at rest, `sslmode=require`; everything in `ap-south-1`. |
+| Consent withdrawn but advice still computed over the withdrawn block | Tampering (policy) | `consent-scope.ts` filters the CustomerFile by `consent.scopes` minus `session.scope_overrides` before `derive()`; every advice_record carries `consent_id`; the IDBI adapter reads block 08 `consent_status` and halts on EXPIRED/REVOKED with a specific message. |
+| Seed drift makes the database disagree with the generator (numbers on slides stop matching) | Tampering / Integrity | `seed_runs.content_sha256`; `pnpm seed --check` in CI; parity test at six clock positions per persona; seed refuses while sessions exist unless `--force`. |
+| Deploy or crash orphans a billed Runway session or resets the budget | Denial of service / Cost | Leases and minutes in Postgres; reaper on boot and every 2 s; SIGTERM drain cancels with `end_reason='deploy'`; ECS replaces a crashed task; operator release-all. |
+| Bank VPC blocks UDP/egress so LiveKit or Runway cannot be reached inside IDBI's account | Denial of service (environmental) | Egress ask names `api.dev.runwayml.com`, `*.livekit.cloud`, UDP 50000–60000 with TURN/TLS 443 fallback; the deployment is stood up in the team's account first; Tiers 1–2 keep the review working and `/health` says which tier is live. |
+| Supply chain: `@runwayml/avatars-node-rpc` drift or malicious update | Tampering | Exact version pinned in the lockfile; SDK confined to `adapters/runway/rpc-host.ts`; a failing spike degrades to the documented prompt-only posture rather than a crash. |

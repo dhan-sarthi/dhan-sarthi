@@ -1,0 +1,30 @@
+# Keep the build context small and keep secrets and local build output out of every image.
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+coverage
+**/coverage
+.vite
+**/.vite
+.turbo
+
+# Environment files never enter an image; runtime configuration is injected at start.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Not needed to build either image.
+docs
+infra
+apps/web/e2e
+*.md
+!apps/**/*.md
+!packages/**/*.md
+.DS_Store
+**/.DS_Store
+.idea
+.vscode
+*.log
