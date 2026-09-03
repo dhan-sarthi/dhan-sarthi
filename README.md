@@ -73,8 +73,8 @@ flowchart TB
     style CON fill:#6f4cff,color:#fff,stroke:#5a3de0
     style ROUTE fill:#6f4cff,color:#fff,stroke:#5a3de0
     style CLOCK fill:#6f4cff,color:#fff,stroke:#5a3de0
-    style RUNWAY fill:#f3f0ff,stroke:#5a3de0
-    style LK fill:#f3f0ff,stroke:#5a3de0
+    style RUNWAY fill:#f3f0ff,stroke:#5a3de0,color:#1d1d1d
+    style LK fill:#f3f0ff,stroke:#5a3de0,color:#1d1d1d
 ```
 
 ### One avatar call
@@ -100,7 +100,7 @@ sequenceDiagram
     C->>L: join room · publish microphone
     R->>L: publish Uday's voice and video
 
-    rect rgb(243, 240, 255)
+    rect rgba(111, 76, 255, 0.12)
     Note over C,K: THE GATE — designed boundary, being ported
     R->>A: tool call · check_suitability(product, amount)
     A->>K: evaluate(snapshot, product, amount)
@@ -129,6 +129,7 @@ in; the earliest failing rule is the one reported, and each rule writes both the
 customer hears and the line the record keeps.
 
 ```mermaid
+%%{init: {"flowchart": {"htmlLabels": false, "padding": 14, "nodeSpacing": 30, "rankSpacing": 36}}}%%
 flowchart TB
     subgraph S4["any rule fails"]
       direction TB
@@ -149,10 +150,10 @@ flowchart TB
 
     style OK fill:#2f6b4f,color:#fff,stroke:#1f4a36
     style B fill:#a83a2a,color:#fff,stroke:#7d2a1e
-    style S1 fill:#f3f0ff,stroke:#c9bdfc
-    style S2 fill:#f3f0ff,stroke:#c9bdfc
-    style S3 fill:#f3f0ff,stroke:#c9bdfc
-    style S4 fill:#fff5f3,stroke:#e6b8b0
+    style S1 stroke:#6f4cff,stroke-width:1.5px
+    style S2 stroke:#6f4cff,stroke-width:1.5px
+    style S3 stroke:#6f4cff,stroke-width:1.5px
+    style S4 stroke:#a83a2a,stroke-width:1.5px
 ```
 
 | # | Rule | Fires when | What the customer hears |
@@ -191,8 +192,8 @@ flowchart LR
 
     style G fill:#6f4cff,color:#fff,stroke:#5a3de0
     style A fill:#6f4cff,color:#fff,stroke:#5a3de0
-    style K fill:#f3f0ff,stroke:#5a3de0
-    style D fill:#f3f0ff,stroke:#5a3de0
+    style K fill:#f3f0ff,stroke:#5a3de0,color:#1d1d1d
+    style D fill:#f3f0ff,stroke:#5a3de0,color:#1d1d1d
 ```
 
 Deployment decisions happen only on triggers; the daily loop is awareness. Every figure on every
