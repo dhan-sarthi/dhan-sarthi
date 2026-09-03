@@ -19,10 +19,18 @@ import { NullRpcHost } from '../adapters/null/rpc-host.null.ts'
 import { RunwayAvatarProvider } from '../adapters/runway/provider.ts'
 import { RunwayRpcHost } from '../adapters/runway/rpc-host.ts'
 import { RunwayTransport } from '../adapters/runway/transport.ts'
+import { PostgresAuditStore } from '../adapters/postgres/audit-store.postgres.ts'
+import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
+import { PostgresLeaseStore } from '../adapters/postgres/lease-store.postgres.ts'
+import { PostgresProductShelf } from '../adapters/postgres/product-shelf.postgres.ts'
+import { PostgresSeedInfo } from '../adapters/postgres/seed-provenance.postgres.ts'
+import { PostgresSessionStore } from '../adapters/postgres/session-store.postgres.ts'
+import { PostgresSnapshotStore } from '../adapters/postgres/snapshot-store.postgres.ts'
 import { HISTORY_WINDOW_MONTHS } from '../application/advisory.service.ts'
 import type { SeedInfo } from '../application/seed-info.ts'
 import { avatarIsLive, runwayCredentials } from '../config.ts'
 import type { Config } from '../config.ts'
+import { createPool } from '../db/pool.ts'
 import type { Logger } from '../infra/logger.ts'
 import type {
   AuditStore,
@@ -88,7 +96,35 @@ export function bankAdapters(
         seed: bank,
       }
     }
-    case 'postgres':
+    case 'postgres': {
+      // config.ts already refuses BANK_SOURCE=postgres without DATABASE_URL; the assertion keeps
+      // the type honest rather than repeating the check.
+      if (!config.DATABASE_URL) throw new Error('DATABASE_URL is required for BANK_SOURCE=postgres')
+      const db = createPool({
+        connectionString: config.DATABASE_URL,
+        applicationName: 'dhan-api',
+        max: 5,
+        statementTimeoutMs: 15_000,
+      })
+      // The ledger was generated at the seed anchor and the mirrors carry that as their as-of;
+      // the bank adapter reports it as the data freshness date on every view.
+      const bank = new PostgresBankData(db, { dataFreshnessDate: config.SEED_ANCHOR })
+      const seed = new PostgresSeedInfo(db, {
+        anchor: config.SEED_ANCHOR,
+        historyMonths: HISTORY_WINDOW_MONTHS,
+        forwardMonths: config.SEED_FORWARD_MONTHS,
+        generatorVersion: `@dhan/fixtures@${versions.fixtures}+${config.GIT_SHA?.slice(0, 12) ?? 'dev'}`,
+      })
+      return {
+        bank,
+        shelf: new PostgresProductShelf(db),
+        sessions: new PostgresSessionStore(db, clock),
+        snapshots: new PostgresSnapshotStore(db, clock),
+        audit: new PostgresAuditStore(db, clock),
+        leases: new PostgresLeaseStore(db, clock),
+        seed,
+      }
+    }
     case 'idbi-sandbox':
       throw new Error(
         `BANK_SOURCE=${profile.bank} is not wired in this build yet. Add its adapters as a case in composition/profiles.ts; the memory profile runs with BANK_SOURCE=memory.`,

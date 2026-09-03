@@ -54,6 +54,24 @@ const config = readConfig()
 const DATABASE_URL = config?.DATABASE_URL
 
 /** A statement that must fail with one SQLSTATE, probed under a savepoint so the transaction survives. */
+async function expectPgErrorIn(
+  client: pg.PoolClient,
+  codes: readonly string[],
+  sql: string,
+  params: unknown[] = [],
+): Promise<void> {
+  await client.query('SAVEPOINT probe')
+  try {
+    await client.query(sql, params)
+    assert.fail(`expected one of SQLSTATE ${codes.join('/')} from: ${sql.trim().slice(0, 60)}`)
+  } catch (err) {
+    if (err instanceof assert.AssertionError) throw err
+    assert.ok(codes.includes(pgCode(err) ?? ''), (err as Error).message)
+  } finally {
+    await client.query('ROLLBACK TO SAVEPOINT probe')
+  }
+}
+
 async function expectPgError(
   client: pg.PoolClient,
   code: string,
@@ -488,7 +506,13 @@ describe(
           `DELETE FROM app.audit_records WHERE subject_id = $1`,
           [subjectId],
         )
-        await expectPgError(client, PG.integrityViolation, `TRUNCATE app.audit_records`)
+        // TRUNCATE is refused before the trigger can fire when a foreign key points at the table
+        // (SQLSTATE 0A000); either refusal keeps the record intact.
+        await expectPgErrorIn(
+          client,
+          [PG.integrityViolation, '0A000'],
+          `TRUNCATE app.audit_records`,
+        )
         await expectPgError(
           client,
           PG.integrityViolation,
