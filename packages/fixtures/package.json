@@ -17,8 +17,8 @@
     "figures": "node --experimental-strip-types src/cli-figures.ts"
   },
   "devDependencies": {
-    "typescript": "^5.7.2",
-    "@types/node": "^22.10.2"
+    "typescript": "^7.0.2",
+    "@types/node": "^26.4.0"
   },
   "dependencies": {
     "@dhan/core": "workspace:*"
