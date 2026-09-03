@@ -1,5 +1,8 @@
-# nginx for the compose stack only. Serves the Vite build as a single-page app and proxies
-# /api to the api service. In AWS CloudFront plays this role (cdn.tf).
+# nginx for the container image. Serves the Vite build as a single-page app and proxies /api to
+# the API, wherever it is: the compose service by default, or another host given at start.
+# The official nginx image runs envsubst over /etc/nginx/templates/*.template on boot, so
+# ${API_UPSTREAM}, ${DNS_RESOLVER} and ${RESOLVER_FLAGS} are filled from the environment.
+# In AWS CloudFront plays this role (cdn.tf).
 
 server {
     listen 80;
@@ -8,9 +11,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Compose's embedded DNS. Resolving at request time (via the variable below) means nginx
-    # starts even if the api container is still coming up, instead of failing config load.
-    resolver 127.0.0.11 valid=10s ipv6=off;
+    # Resolving at request time (via the variable below) means nginx starts even if the API is
+    # still coming up, instead of failing config load. Compose's embedded DNS is the default;
+    # Fly's private network uses [fdaa::3] and needs IPv6 left on.
+    resolver ${DNS_RESOLVER} valid=10s ${RESOLVER_FLAGS};
 
     gzip on;
     gzip_types text/plain text/css application/json application/javascript image/svg+xml;
@@ -27,7 +31,7 @@ server {
     }
 
     location /api/ {
-        set $api http://api:3001;
+        set $api ${API_UPSTREAM};
         proxy_pass $api;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
