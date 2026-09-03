@@ -114,7 +114,7 @@ describe(
         statementTimeoutMs: 120_000,
       })
       const first = await migrate(pool)
-      assert.ok(first.applied.length + first.alreadyApplied >= 7, 'seven migrations are known')
+      assert.ok(first.applied.length + first.alreadyApplied >= 8, 'eight migrations are known')
       report = await seed(pool, options)
     })
 
@@ -125,7 +125,7 @@ describe(
     it('applies migrations once: a second run applies nothing', async () => {
       const again = await migrate(pool)
       assert.equal(again.applied.length, 0)
-      assert.ok(again.alreadyApplied >= 7)
+      assert.ok(again.alreadyApplied >= 8)
     })
 
     it('seeds the three personas and reproduces the headline numbers', () => {
@@ -301,6 +301,9 @@ describe(
         const second = await snapshots.put(input)
         snapshotId = first.id
         assert.equal(second.id, first.id)
+        // One round trip either way: the first call wrote the row, the second read it back.
+        assert.equal(first.inserted, true)
+        assert.equal(second.inserted, false)
         assert.equal(first.snapshotHash, hashOf(snapshot))
         assert.equal(first.subjectId, subjectId)
         assert.equal(
@@ -339,12 +342,22 @@ describe(
           sessionId,
           version: 1,
           snapshotId: first.id,
+          snapshotHash: first.snapshotHash,
           goal,
           roadmap,
           reasonForChange: 'First plan.',
+          atSim: options.anchor,
+          scopeOverrides: ['LIABILITIES'],
         })
         assert.equal(v1.version, 1)
-        assert.equal((await snapshots.latestRoadmap(sessionId))?.id, v1.id)
+        assert.equal(v1.atSim, options.anchor)
+        assert.deepEqual(v1.scopeOverrides, ['LIABILITIES'])
+        const latest = await snapshots.latestRoadmap(sessionId)
+        assert.equal(latest?.id, v1.id)
+        // Read back through the join, so "nothing changed" can be decided by hash alone.
+        assert.equal(latest?.snapshotHash, first.snapshotHash)
+        assert.equal(latest?.atSim, options.anchor)
+        assert.deepEqual(latest?.scopeOverrides, ['LIABILITIES'])
         assert.equal((await snapshots.listRoadmaps(sessionId)).length, 1)
         // A failed statement aborts the surrounding transaction; probe it under a savepoint.
         await client.query('SAVEPOINT dup')
@@ -353,13 +366,33 @@ describe(
             sessionId,
             version: 1,
             snapshotId: first.id,
+            snapshotHash: first.snapshotHash,
             goal,
             roadmap,
             reasonForChange: 'again',
+            atSim: options.anchor,
+            scopeOverrides: [],
           }),
           /already exists/,
         )
         await client.query('ROLLBACK TO SAVEPOINT dup')
+
+        // A row cut before migration 0008 carries no at_sim; it is read as the date the engine
+        // stamped inside the roadmap, which is the same fact.
+        await client.query(
+          `INSERT INTO app.roadmap_versions (session_id, version, snapshot_id, goal, roadmap, reason_for_change)
+           VALUES ($1, 2, $2, $3, $4, 'legacy row')`,
+          [
+            sessionId,
+            first.id,
+            JSON.stringify(goal),
+            JSON.stringify({ ...roadmap, version: 2, createdAt: '2026-10-01' }),
+          ],
+        )
+        const legacy = await snapshots.latestRoadmap(sessionId)
+        assert.equal(legacy?.version, 2)
+        assert.equal(legacy?.atSim, '2026-10-01')
+        assert.deepEqual(legacy?.scopeOverrides, [])
       })
 
       it('the record: hash chain per subject, verified in code and linked by the database', async () => {

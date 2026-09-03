@@ -79,9 +79,10 @@ flowchart TB
 
 ### One avatar call
 
-The avatar phrases; it does not judge. The tool boundary below is the design the repository is
-built around: the deterministic screens already run every product action through the gate, and
-registering the same gate as a Runway tool is the next port from the archived prototype.
+The avatar phrases; it does not judge. On a live call the model called `check_suitability` for a
+product the customer raised, the rules answered in 665 ms, and the customer heard that sentence.
+The provider's own record of it is in
+[docs/engineering/avatar-live-call.md](docs/engineering/avatar-live-call.md).
 
 ```mermaid
 sequenceDiagram
@@ -101,7 +102,7 @@ sequenceDiagram
     R->>L: publish Uday's voice and video
 
     rect rgba(111, 76, 255, 0.12)
-    Note over C,K: THE GATE — designed boundary, being ported
+    Note over C,K: THE GATE — verified on a live call
     R->>A: tool call · check_suitability(product, amount)
     A->>K: evaluate(snapshot, product, amount)
     alt all nine rules pass
@@ -275,20 +276,21 @@ Held by `pnpm test` over the three generated ledgers, with no provider configure
 
 ## What is real, what is simulated, what is known to be missing
 
-**Real.** The deterministic engine and its tests. The live photorealistic avatar over WebRTC,
-verified rendering at 1088×704 and about 26 fps in a real browser. The credential pool, daily
-minute budget and teardown in the API. Every screen, running offline.
+**Real.** The deterministic engine and its tests. The suitability gate on both paths: the screens
+run every action through it, and on a live avatar call the model called the tool and spoke the
+verdict our rules wrote. The live photorealistic avatar over WebRTC. The credential pool, daily
+minute budget and teardown in the API. Every screen, served by the API from Postgres.
 
 **Simulated.** The three customers and their twenty-four months of transactions. The product
 shelf, built from IDBI's public pages, with rates and premiums marked `[verify]` where we could
 not confirm them. Consent and execution, which write to the record but move no money.
 
-**Known to be missing.** A live avatar call exercised end to end through this build's gate: the
-tool is registered and the handler is proven to connect before credentials are issued, but the
-round trip on a billed call has not been recorded yet. The waitlist for the single avatar slot and
-the transcript reconciliation. The IDBI sandbox adapter, which is a seam with sample payloads
-until the bank issues access. Barge-in, which Runway documents nowhere and we do not claim.
-Hindi, which the engine is built to take as a data file and the build does not yet ship.
+**Known to be missing.** A guarantee that the model calls the tool on *every* turn: no provider
+offers one, so we reconcile the provider's transcript against our own tool ledger after each call
+and record the coverage rather than assume it. The IDBI sandbox adapter, which is a seam with
+sample payloads until the bank issues access. Barge-in, which Runway documents nowhere and we do
+not claim. Hindi, which the engine is built to take as a data file and the build does not yet
+ship.
 
 ### Data
 

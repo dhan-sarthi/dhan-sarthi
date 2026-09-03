@@ -10,7 +10,7 @@
  * `roadmap_versions`; UNIQUE on the key) and `adapters/memory/snapshot-store.memory.ts` (an LRU).
  */
 import type { Goal, Roadmap, Snapshot } from '@dhan/core'
-import type { IsoDate, Timestamp } from '@dhan/contracts'
+import type { ConsentScope, IsoDate, Timestamp } from '@dhan/contracts'
 
 export interface StoredSnapshot {
   id: string
@@ -28,6 +28,11 @@ export interface StoredSnapshot {
   createdAt: Timestamp
 }
 
+/** What `put` answers: the row, and whether this call was the one that wrote it. */
+export interface PutSnapshotResult extends StoredSnapshot {
+  inserted: boolean
+}
+
 export interface NewSnapshot {
   cif: string
   subjectId: string
@@ -43,9 +48,15 @@ export interface RoadmapVersion {
   sessionId: string
   version: number
   snapshotId: string
+  /** The hash of the snapshot it was cut from, so "nothing changed" is a hash comparison. */
+  snapshotHash: string
   goal: Goal
   roadmap: Roadmap
   reasonForChange: string
+  /** The simulated as-of date the version was cut at. What the Record tab shows. */
+  atSim: IsoDate
+  /** Consent scopes the session had withdrawn at the time, so the next re-cut can name what changed. */
+  scopeOverrides: ConsentScope[]
   createdAt: Timestamp
 }
 
@@ -53,9 +64,12 @@ export interface NewRoadmapVersion {
   sessionId: string
   version: number
   snapshotId: string
+  snapshotHash: string
   goal: Goal
   roadmap: Roadmap
   reasonForChange: string
+  atSim: IsoDate
+  scopeOverrides: ConsentScope[]
 }
 
 export interface SnapshotStore {
@@ -66,7 +80,7 @@ export interface SnapshotStore {
     engineVersion: string,
   ): Promise<StoredSnapshot | null>
   /** Insert, or return the existing row when the key already exists. */
-  put(input: NewSnapshot): Promise<StoredSnapshot>
+  put(input: NewSnapshot): Promise<PutSnapshotResult>
   getById(id: string): Promise<StoredSnapshot | null>
   putRoadmap(input: NewRoadmapVersion): Promise<RoadmapVersion>
   latestRoadmap(sessionId: string): Promise<RoadmapVersion | null>

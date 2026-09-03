@@ -12,6 +12,7 @@ import type {
   Clock,
   NewRoadmapVersion,
   NewSnapshot,
+  PutSnapshotResult,
   RoadmapVersion,
   SnapshotStore,
   StoredSnapshot,
@@ -48,10 +49,10 @@ export class InMemorySnapshotStore implements SnapshotStore {
     return hit
   }
 
-  async put(input: NewSnapshot): Promise<StoredSnapshot> {
+  async put(input: NewSnapshot): Promise<PutSnapshotResult> {
     const key = this.key(input.cif, input.asOf, input.inputHash, input.engineVersion)
     const existing = this.byKey.get(key)
-    if (existing) return existing
+    if (existing) return { ...existing, inserted: false }
 
     const stored: StoredSnapshot = {
       id: randomUUID(),
@@ -76,7 +77,7 @@ export class InMemorySnapshotStore implements SnapshotStore {
         if (evicted) this.byId.delete(evicted.id)
       }
     }
-    return stored
+    return { ...stored, inserted: true }
   }
 
   async getById(id: string): Promise<StoredSnapshot | null> {
@@ -84,17 +85,23 @@ export class InMemorySnapshotStore implements SnapshotStore {
   }
 
   async putRoadmap(input: NewRoadmapVersion): Promise<RoadmapVersion> {
+    const list = this.roadmaps.get(input.sessionId) ?? []
+    if (list.some((v) => v.version === input.version)) {
+      throw new Error(`Roadmap version ${input.version} already exists for this session.`)
+    }
     const row: RoadmapVersion = {
       id: randomUUID(),
       sessionId: input.sessionId,
       version: input.version,
       snapshotId: input.snapshotId,
+      snapshotHash: input.snapshotHash,
       goal: input.goal,
       roadmap: input.roadmap,
       reasonForChange: input.reasonForChange,
+      atSim: input.atSim,
+      scopeOverrides: [...input.scopeOverrides],
       createdAt: this.clock.now().toISOString(),
     }
-    const list = this.roadmaps.get(input.sessionId) ?? []
     list.push(row)
     this.roadmaps.set(input.sessionId, list)
     return row

@@ -26,9 +26,17 @@ export function bankDataPortContract(
       port = await factory()
     })
 
-    it('lists every persona with the story it demonstrates', async () => {
+    it('lists every persona with the story it demonstrates, in the picker order', async () => {
       const customers = await port.listCustomers()
-      assert.deepEqual(customers.map((c) => c.slug).sort(), PERSONAS.map((p) => p.slug).sort())
+      // The order is the bundle's explicit display order, never the cif's or the name's.
+      assert.deepEqual(
+        customers.map((c) => c.slug),
+        PERSONAS.map((p) => p.slug),
+      )
+      assert.deepEqual(
+        customers.map((c) => c.name),
+        ['Rohan Mehta', 'Priya Nair', 'Sunil Kumar'],
+      )
       for (const c of customers) {
         assert.ok(c.cif.startsWith('IDBI'))
         assert.ok(c.pitch.length > 10)

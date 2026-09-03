@@ -6,9 +6,9 @@ checksum; a file that changes after it was applied fails the migrator rather tha
 silently. Add a migration, never edit one that has run.
 
 The target design is `docs/engineering/schema/` (four schemas, provenance columns, `_raw`
-siblings, `common.inr`, append-only hash-chained audit, RLS). These seven files are the
+siblings, `common.inr`, append-only hash-chained audit, RLS). The first seven files are the
 demo-critical subset of that DDL, adapted to the reviewer-session model in
-`dhan-sarthi-arch-drafts/04-data-api.md`.
+`dhan-sarthi-arch-drafts/04-data-api.md`; later files are additive.
 
 | File                        | What it holds                                                                                                                                                                                                                                   |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -19,6 +19,7 @@ demo-critical subset of that DDL, adapted to the reviewer-session model in
 | `0005_bank.sql`             | `customer_profiles`, `accounts`, `account_snapshots`, `transactions` (+ `seq`), `term_deposit_snapshots`, `loan_snapshots`, `loan_schedules`, `mandates`, `mf_holdings`, `sip_registrations` (+ `asset_class`), `insurance_policies`, `nominees` |
 | `0006_app_engine.sql`       | `snapshots`, `roadmap_versions`, `verdicts`, `actions`, `audit_records` (hash chain), `decisions`, `avatar_sessions`, `avatar_tool_calls`, `avatar_leases`, `avatar_waitlist`                                                                   |
 | `0007_views_security.sql`   | the `*_current` views, `customer_360`, `liabilities_current`, grants and REVOKEs for `dhan_app`, default privileges, RLS policies                                                                                                                |
+| `0008_roadmap_at_sim_display_order.sql` | additive: `roadmap_versions.at_sim` (the simulated date a version was cut at; older rows read `roadmap->>'createdAt'`) and `scope_overrides`; `customers.display_order` for the picker, backfilled once for rows seeded before it existed |
 
 ## Decisions worth knowing before you add a migration
 

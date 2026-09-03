@@ -147,12 +147,13 @@ async function upsertCustomer(db: Db, b: SeedBundle): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO app.customers
        (cif, cust_id, display_name, preferred_language, tax_regime, data_source, onboarding_state,
-        persona_slug, pitch, demonstrates, ledger_anchor, ledger_history_from, ledger_horizon)
-     VALUES ($1, $2, $3, $4, $5, 'fixtures', 'active', $6, $7, $8, $9, $10, $11)
+        persona_slug, pitch, demonstrates, display_order, ledger_anchor, ledger_history_from, ledger_horizon)
+     VALUES ($1, $2, $3, $4, $5, 'fixtures', 'active', $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (cust_id) DO UPDATE SET
        cif = EXCLUDED.cif, display_name = EXCLUDED.display_name, preferred_language = EXCLUDED.preferred_language,
        tax_regime = EXCLUDED.tax_regime, persona_slug = EXCLUDED.persona_slug, pitch = EXCLUDED.pitch,
-       demonstrates = EXCLUDED.demonstrates, ledger_anchor = EXCLUDED.ledger_anchor,
+       demonstrates = EXCLUDED.demonstrates, display_order = EXCLUDED.display_order,
+       ledger_anchor = EXCLUDED.ledger_anchor,
        ledger_history_from = EXCLUDED.ledger_history_from, ledger_horizon = EXCLUDED.ledger_horizon,
        erased_at = NULL
      RETURNING id`,
@@ -165,6 +166,7 @@ async function upsertCustomer(db: Db, b: SeedBundle): Promise<string> {
       b.slug,
       b.pitch,
       b.demonstrates,
+      b.displayOrder,
       b.horizon.anchor,
       b.horizon.from,
       b.horizon.to,

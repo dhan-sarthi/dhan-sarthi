@@ -74,10 +74,10 @@ no endpoint that lists live realtime sessions.
 
 | Capability | Status |
 |---|---|
-| Transcript | live over the data channel, and fetchable after the call |
+| Transcript | live over the data channel, and fetchable after the call — but only if the session ends cleanly |
 | Context injection | at session start only, via `personality` and `startScript` |
 | Mid-call context push | **does not exist**. The model pulls facts through tools |
-| Tool calling | `backend_rpc` (round trip to our process, 1–8 s timeout) and `client_event` (fire-and-forget to the UI) |
+| Tool calling | `backend_rpc` (round trip to our process, 1–8 s timeout) and `client_event` (fire-and-forget to the UI). **Verified on a live call**: the model called `check_suitability` and spoke our verdict back |
 | Barge-in | **unverified**. Runway documents it nowhere. UI copy must not claim it |
 | Languages | unverified with the cloned voice. English is the build default |
 
@@ -85,12 +85,20 @@ The `backend_rpc` handler (`@runwayml/avatars-node-rpc`) joins the LiveKit room 
 participant and holds that connection for the life of the conversation. This is why the API must
 be a persistent process rather than a function.
 
-## Still open
+## Settled: the transcript needs a clean end
 
-`GET /v1/avatar_conversations/{id}` returned zero turns immediately after a cancelled session.
-Either it populates asynchronously or it needs the session to end cleanly rather than be
-cancelled. Pin this down before the transcript is relied on as the audit trail; until then the
-API should record verdicts itself inside the tool handler.
+`GET /v1/avatar_conversations/{id}` returned zero turns after every cancelled session, which left
+open whether it populates asynchronously or needs the session to end properly. It needs the clean
+end. A session that ends returns the full transcript with `toolCalls` and `toolResults` attached
+to the assistant's turn; a session that is cancelled returns nothing, however long you wait. See
+[the live call](avatar-live-call.md) for the record of a 122-second session that ended cleanly.
+
+Teardown is therefore not only about the bill. It is what makes the audit trail retrievable, so
+the reconciler runs after the end call rather than on a timer. The API still records every verdict
+itself inside the tool handler, because our ledger must not depend on a provider endpoint.
+
+`startScript` is spoken **verbatim**: anything in it that reads as a stage direction is read aloud
+to the customer. Write the opening as the words themselves.
 
 ## Cost
 

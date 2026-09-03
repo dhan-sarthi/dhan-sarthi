@@ -805,6 +805,8 @@ export const RoadmapVersionSummarySchema = z.object({
   snapshotId: SnapshotIdSchema,
   goal: GoalSchema,
   reasonForChange: z.string(),
+  /** The simulated date the version was cut at. What a screen shows; createdAt is the wall clock. */
+  atSim: IsoDateSchema,
   createdAt: TimestampSchema,
 })
 export type RoadmapVersionSummary = z.infer<typeof RoadmapVersionSummarySchema>
@@ -951,8 +953,13 @@ export const WaitlistTicketSchema = z.object({
 })
 export type WaitlistTicket = z.infer<typeof WaitlistTicketSchema>
 
+export const WaitlistStateSchema = z.enum(['waiting', 'claimable', 'expired'])
+export type WaitlistState = z.infer<typeof WaitlistStateSchema>
+
 export const WaitlistStatusSchema = z.object({
   ticket: TicketSchema,
+  /** `expired`: the hold lapsed or the ticket was granted; position is 0 and a new join is needed. */
+  state: WaitlistStateSchema,
   position: z.number().int(),
   estimatedWaitSeconds: z.number(),
   claimable: z.boolean(),

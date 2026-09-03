@@ -18,8 +18,22 @@ const FALLBACK = {
 
 function guarded(ctx: ToolContext, name: string, handler: ToolHandler): ToolHandler {
   return async (args) => {
+    const started = ctx.clock.now().getTime()
     try {
-      return await handler(args)
+      const result = await handler(args)
+      // The one line that proves, in the API log, that the worker asked and the rules answered.
+      ctx.log.info(
+        {
+          runwaySessionId: ctx.runwaySessionId,
+          tool: name,
+          latencyMs: ctx.clock.now().getTime() - started,
+          ...(name === 'check_suitability'
+            ? { verdict: result['verdict'], ruleId: result['rule_id'], product: result['product'] }
+            : {}),
+        },
+        'tool call answered',
+      )
+      return result
     } catch (err) {
       ctx.log.error(
         { runwaySessionId: ctx.runwaySessionId, tool: name, err: (err as Error).message },

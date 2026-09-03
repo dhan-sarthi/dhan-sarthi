@@ -99,15 +99,18 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
   }
 
   async listCustomers(): Promise<CustomerSummary[]> {
-    return [...this.bundles.values()].map((b) => ({
-      cif: b.customer.cif,
-      slug: b.slug,
-      name: b.customer.custName,
-      age: ageOn(b.customer.dateOfBirth, b.horizon.anchor),
-      city: b.customer.city,
-      pitch: b.pitch,
-      demonstrates: b.demonstrates,
-    }))
+    // The bundle carries the picker's order; insertion order is a coincidence, not a contract.
+    return [...this.bundles.values()]
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((b) => ({
+        cif: b.customer.cif,
+        slug: b.slug,
+        name: b.customer.custName,
+        age: ageOn(b.customer.dateOfBirth, b.horizon.anchor),
+        city: b.customer.city,
+        pitch: b.pitch,
+        demonstrates: b.demonstrates,
+      }))
   }
 
   async getCustomer(cif: string): Promise<Customer> {

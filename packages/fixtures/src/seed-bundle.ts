@@ -95,6 +95,11 @@ export interface SeedBundle {
   /** The picker copy, so the API can list customers without importing personas. */
   pitch: string
   demonstrates: string
+  /**
+   * Position on the picker, 1-based. Explicit rather than derived from a name or a cif, because
+   * the picker tells a story in this order: the headline customer first, then the two refusals.
+   */
+  displayOrder: number
   consent: SeedConsent
   accounts: SeedAccountRow[]
   transactions: Transaction[]
@@ -132,6 +137,7 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
     customer: spec.customer,
     pitch: spec.pitch,
     demonstrates: spec.demonstrates,
+    displayOrder: index === -1 ? PERSONAS.length + 1 : index + 1,
     consent: {
       consentId: `CONS_SYN_${index === -1 ? spec.slug.toUpperCase() : index + 1}`,
       purpose: 'Wealth advisory',

@@ -53,6 +53,7 @@ import type { MinuteBudget } from './minute-budget.ts'
 import { isAvatarProviderFailure } from './provider-error.ts'
 import { reconcile } from './reconciler.ts'
 import { makeToolHandlers } from './tools/index.ts'
+import { TranscriptService } from './transcript.service.ts'
 import type { Waitlist } from './waitlist.ts'
 
 export interface AvatarServiceDeps {
@@ -83,7 +84,9 @@ const LEASE_GRACE_SECONDS = 45
 const READY_TIMEOUT_MS = 45_000
 /** The worker needs about five seconds after READY before it publishes a decodable frame. */
 const EXPECT_VIDEO_AFTER_MS = 5_000
-const TRANSCRIPT_DELAYS_MS: readonly number[] = [5_000, 15_000, 45_000, 120_000, 600_000]
+/** How often live calls are checked for a room that closed under them, and how long a handle must stay disconnected before the call is torn down. */
+const DISCONNECT_SWEEP_MS = 2_000
+const DISCONNECT_GRACE_MS = 5_000
 
 const BUSY_MESSAGE = 'Uday is with another customer right now.'
 
@@ -97,11 +100,30 @@ class GateFailure extends Error {
 
 export class AvatarSessionService {
   private readonly deps: AvatarServiceDeps
-  private readonly timers = new Set<NodeJS.Timeout>()
+  private readonly transcripts: TranscriptService
+  private readonly sweeper: NodeJS.Timeout | null
+  /** First moment each live call's handle was seen disconnected, by runway session id. */
+  private readonly disconnectedSince = new Map<string, number>()
   private draining = false
 
   constructor(deps: AvatarServiceDeps) {
     this.deps = deps
+    deps.waitlist.bindSlots(deps.pool.size)
+    this.transcripts = new TranscriptService({
+      provider: deps.provider,
+      audit: deps.audit,
+      shelf: deps.shelf,
+      log: deps.log,
+      ...(deps.transcriptDelaysMs === undefined ? {} : { delaysMs: deps.transcriptDelaysMs }),
+    })
+    this.sweeper = this.configured
+      ? setInterval(() => {
+          this.sweepDisconnected().catch((err: Error) =>
+            deps.log.error({ err: err.message }, 'disconnect sweep failed'),
+          )
+        }, DISCONNECT_SWEEP_MS)
+      : null
+    this.sweeper?.unref()
   }
 
   get configured(): boolean {
@@ -224,6 +246,7 @@ export class AvatarSessionService {
 
     const claimed = await this.acquire(session, maxSessionSeconds)
     if (!claimed) throw await this.busy(session)
+    await waitlist.granted(session.id)
     const { cred, lease } = claimed
 
     const call: LiveCall = {
@@ -472,7 +495,7 @@ export class AvatarSessionService {
     await leases.release(call.cred.label, minutes, reason)
     await audit.markAvatarEnded(call.runwaySessionId, reason, minutes, clock.now().toISOString())
     await waitlist.promote()
-    this.scheduleTranscript(call.runwaySessionId, call.cred)
+    this.transcripts.schedule(call.runwaySessionId, call.cred)
 
     log.info(
       { label: call.cred.label, runwaySessionId: call.runwaySessionId, minutes, reason },
@@ -481,43 +504,33 @@ export class AvatarSessionService {
   }
 
   /**
-   * The transcript arrives some time after the call, if at all. Fetch with backoff and record
-   * both outcomes; our own tool ledger was written synchronously and does not depend on this.
+   * A room that closed under a live call leaves our handle disconnected: the worker died,
+   * Runway ended the session because no customer joined within its ~20 s, or the customer's
+   * tab was killed and the worker gave up. The first live call through this build showed the
+   * cost of not watching for it — the browser's own request timeout abandoned a grant, Runway
+   * failed the session 18 s later, and the lease stayed held for the whole cap plus grace
+   * while the slot looked busy to everyone else. This frees it seconds after the room goes,
+   * charges the minutes actually run rather than the cap, and still fetches the transcript.
+   * A short grace period keeps a LiveKit reconnect from being mistaken for the end.
    */
-  private scheduleTranscript(runwaySessionId: string, cred: AvatarCredential, attempt = 0): void {
-    const delays = this.deps.transcriptDelaysMs ?? TRANSCRIPT_DELAYS_MS
-    const delay = delays[attempt]
-    if (delay === undefined || this.draining) {
-      void this.deps.audit.attachTranscript(runwaySessionId, null, null)
-      return
-    }
-
-    const timer = setTimeout(async () => {
-      this.timers.delete(timer)
-      try {
-        const turns = await this.deps.provider.getConversation(cred, runwaySessionId)
-        if (turns) {
-          const [calls, shelf] = await Promise.all([
-            this.deps.audit.listToolCalls(runwaySessionId),
-            this.deps.shelf.list(),
-          ])
-          await this.deps.audit.attachTranscript(
-            runwaySessionId,
-            turns,
-            reconcile(turns, calls, shelf),
-          )
-          return
-        }
-      } catch (err) {
-        this.deps.log.warn(
-          { runwaySessionId, attempt, err: (err as Error).message },
-          'transcript fetch failed',
-        )
+  async sweepDisconnected(): Promise<void> {
+    const now = this.deps.clock.now().getTime()
+    for (const call of this.deps.live.all()) {
+      const id = call.runwaySessionId
+      if (!call.handle || call.handle.connected) {
+        this.disconnectedSince.delete(id)
+        continue
       }
-      this.scheduleTranscript(runwaySessionId, cred, attempt + 1)
-    }, delay)
-    timer.unref()
-    this.timers.add(timer)
+      const since = this.disconnectedSince.get(id) ?? now
+      this.disconnectedSince.set(id, since)
+      if (now - since < DISCONNECT_GRACE_MS) continue
+      this.disconnectedSince.delete(id)
+      this.deps.log.warn(
+        { runwaySessionId: id, label: call.cred.label, state: call.lifecycle.state },
+        'avatar room closed under a live call; releasing the slot',
+      )
+      await this.teardown(call, 'reaped')
+    }
   }
 
   /* After the call ------------------------------------------------------------ */
@@ -528,35 +541,40 @@ export class AvatarSessionService {
     if (!record) throw new NotFound('No such avatar session.')
     if (record.sessionId !== session.id) throw new Forbidden()
 
-    const [toolCalls, adviceRecords, transcript] = await Promise.all([
+    const [calls, adviceRecords, transcript, shelf] = await Promise.all([
       audit.listToolCalls(runwaySessionId),
       audit.listAdviceForAvatarSession(runwaySessionId),
       audit.getTranscript(runwaySessionId),
+      this.deps.shelf.list(),
     ])
 
-    const coverage = record.gateCoverage
+    // Reconciled again on read, from the stored transcript and our ledger: `reconcile` is pure,
+    // so this is the same answer that was written with the transcript, and it does not depend
+    // on a per-row flag the append-only tool-call table cannot carry.
     const reconciliation =
-      record.transcriptStatus === 'fetched' && coverage
-        ? {
-            verified: toolCalls.filter((c) => c.verifiedInTranscript === true).map((c) => c.id),
-            unverified: toolCalls.filter((c) => c.verifiedInTranscript !== true).map((c) => c.id),
-            gateCoverage: coverage,
-          }
+      record.transcriptStatus === 'fetched' && transcript
+        ? reconcile(transcript, calls, shelf)
         : null
+    const verified = new Set(reconciliation?.verified ?? [])
+    const toolCalls = calls.map((c) => ({
+      ...c,
+      verifiedInTranscript: reconciliation ? verified.has(c.id) : c.verifiedInTranscript,
+    }))
 
+    const coverage = reconciliation?.gateCoverage ?? record.gateCoverage
     const summary =
-      record.transcriptStatus === 'fetched' && coverage
-        ? `Gate fired ${coverage.fired}/${coverage.expected} · verified against provider transcript` +
+      reconciliation && coverage
+        ? `Gate fired ${coverage.fired}/${coverage.expected} · ${reconciliation.verified.length}/${calls.length} tool calls verified against the provider transcript` +
           (coverage.misses.length > 0
             ? ` — ${coverage.misses.join(', ')} named without a check`
             : '')
         : record.transcriptStatus === 'pending'
-          ? `Transcript pending — our own tool ledger shown (${toolCalls.length} calls)`
-          : `Transcript unavailable — our own tool ledger shown (${toolCalls.length} calls)`
+          ? `Transcript pending — our own tool ledger shown (${calls.length} calls)`
+          : `Transcript unavailable — our own tool ledger shown (${calls.length} calls)`
 
     return {
       runwaySessionId,
-      session: record,
+      session: { ...record, gateCoverage: coverage },
       toolCalls,
       adviceRecords,
       transcriptStatus: record.transcriptStatus,
@@ -633,8 +651,8 @@ export class AvatarSessionService {
   /** Stop granting, end live calls, drop timers. The Fastify onClose hook and SIGTERM path. */
   async shutdown(): Promise<void> {
     this.draining = true
-    for (const timer of this.timers) clearTimeout(timer)
-    this.timers.clear()
+    if (this.sweeper) clearInterval(this.sweeper)
+    this.transcripts.shutdown()
     if (this.deps.live.size > 0 || (await this.deps.leases.listHeld()).length > 0) {
       await this.releaseAll('deploy')
     }

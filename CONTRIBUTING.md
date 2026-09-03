@@ -50,13 +50,18 @@ the gate fired.
 
 Do not add a code path where a model's output determines whether a product is suitable.
 
-Status: the deterministic path (Today, Plan, Record) runs every product action through
-`evaluate()` in `packages/core/src/suitability.ts`, and the API records every verdict. On the
-avatar path the brief is built server-side, `check_suitability` is registered as a `backend_rpc`
-tool, and the session lifecycle only hands the browser its credentials once our RPC handler is in
-the room (`apps/api/src/application/avatar/lifecycle.ts`). The handler connecting before consume
-was proven against a real session (`docs/engineering/runway-rpc-spike.md`); a full live call with
-tool round-trips through this build is the next thing to exercise.
+Status: this holds on both paths. The screens run every product action through `evaluate()` in
+`packages/core/src/suitability.ts`, and on the avatar path the brief is built server-side,
+`check_suitability` is registered as a `backend_rpc` tool, and the session lifecycle hands the
+browser its credentials only once our RPC handler is in the room
+(`apps/api/src/application/avatar/lifecycle.ts`). On a live call the model called the tool for a
+product the customer raised, our rules answered in 665 ms, and the customer heard that sentence:
+the provider's own conversation record is quoted in
+[`docs/engineering/avatar-live-call.md`](docs/engineering/avatar-live-call.md).
+
+What no provider can promise is that the model calls the tool *every* time, so the reconciler
+compares the provider's transcript against our tool ledger after each call and records the
+coverage. A call where the gate did not fire is visible, not assumed.
 
 ## Running it
 

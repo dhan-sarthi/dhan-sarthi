@@ -15,11 +15,22 @@
  * `docs/product/decisions.md`. Every figure is still real, because the engine is pure.
  */
 import { categorize } from './categorize.ts'
+import type { SafeToSpend } from './dailyplan.ts'
 import { addMonths, monthKey, ymd } from './dates.ts'
 import type { Snapshot } from './derive.ts'
 import { findInsights } from './insights.ts'
 import { subscriptions } from './recurring.ts'
 import type { CustomerFile, SpendCategory, Transaction } from './types.ts'
+
+/**
+ * What the caller already knows about today, so the answer quotes it rather than recomputing
+ * it. The one thing that matters here is the safe-to-spend pot: Today shows the envelope less
+ * the plan's commitment and what has already gone this month, and a conversation that answers
+ * the same question with a different number is a conversation nobody trusts.
+ */
+export interface AnswerContext {
+  safeToSpend?: SafeToSpend
+}
 
 export interface Answer {
   /** What to say. Complete sentences — this is read aloud as well as displayed. */
@@ -151,7 +162,12 @@ function sumIn(
  * Ordered most specific first. A question mentioning both a category and an amount is a spending
  * question, not a general one.
  */
-export function answer(question: string, snapshot: Snapshot, file: CustomerFile): Answer {
+export function answer(
+  question: string,
+  snapshot: Snapshot,
+  file: CustomerFile,
+  context: AnswerContext = {},
+): Answer {
   const q = question.trim()
   const asOf = snapshot.asOf
   const first = snapshot.customer.name.split(' ')[0] ?? ''
@@ -162,6 +178,29 @@ export function answer(question: string, snapshot: Snapshot, file: CustomerFile)
       q,
     )
   ) {
+    const s = context.safeToSpend
+    if (s) {
+      // The pot Today shows, held back item by item, so the figure and the screen agree.
+      const heldBack = s.reserved.map((r) => `${r.label.toLowerCase()} ${inr(r.amount)}`)
+      return {
+        matched: true,
+        text:
+          `${inr(s.pot)} is still yours to spend — about ${inr(s.perDay)} a day for the ` +
+          `${s.daysToSalary} ${s.daysToSalary === 1 ? 'day' : 'days'} until your salary lands on ` +
+          `${Number(s.nextSalaryDate.slice(8))} ${spokenMonth(s.nextSalaryDate)}.` +
+          (heldBack.length > 0
+            ? ` That is after ${heldBack.join(', ')} out of ${inr(snapshot.income.monthly)} coming in.`
+            : ''),
+        evidence: [
+          `Income ${inr(snapshot.income.monthly)}/month`,
+          ...s.reserved.map((r) => `${r.label} ${inr(r.amount)}`),
+          `Safe to spend ${inr(s.pot)} — ${inr(s.perDay)}/day for ${s.daysToSalary} days`,
+          `Next salary ${s.nextSalaryDate}`,
+        ],
+      }
+    }
+
+    // Without today's plan the best honest figure is the month's envelope.
     const envelope = snapshot.income.monthly - snapshot.commitments.total
     return {
       matched: true,
