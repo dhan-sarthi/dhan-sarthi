@@ -1,0 +1,131 @@
+#cloud-config
+# The hedge for a sandbox that grants only the t3.medium the request form asked for (ADR-0004).
+# Launch an Ubuntu 24.04 LTS instance in ap-south-1 with this as user data, a security group
+# allowing TCP 22 (your IP), 80 and 443 (anyone), UDP 50000-60000 outbound, and an Elastic IP.
+#
+# Before launch, replace the three placeholders below (search for REPLACE_ME). The .env written
+# here is the only copy of the Runway credentials on the box; it is mode 0600 and owned by the
+# service user. Terraform is not involved.
+#
+# After first boot (about six minutes): https://<domain-or-ip> serves the product; the API is
+# reachable only through Caddy on the same host.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - jq
+
+groups:
+  - docker
+
+users:
+  - name: dhan
+    gecos: Dhan Sarthi service user
+    groups: [docker]
+    shell: /bin/bash
+    sudo: false
+    lock_passwd: true
+
+write_files:
+  # Runtime configuration for the API container. Compose overrides DATABASE_URL and BANK_SOURCE.
+  - path: /opt/dhan-sarthi/api.env
+    owner: dhan:dhan
+    permissions: '0600'
+    content: |
+      RUNWAY_API_KEY=REPLACE_ME_RUNWAY_API_KEY
+      RUNWAY_CHARACTER_ID=REPLACE_ME_RUNWAY_CHARACTER_ID
+      RUNWAY_MAX_SESSION_SECONDS=600
+      RUNWAY_DAILY_MINUTE_BUDGET=240
+      AVATAR_PROVIDER=runway
+      AVATAR_ENABLED=true
+      OPERATOR_KEY=REPLACE_ME_OPERATOR_KEY
+      NODE_ENV=production
+
+  # Caddy terminates TLS (automatic certificate when a hostname is set; self-signed for a bare
+  # IP) and proxies to the web container, which proxies /api to the API. One origin, no CORS.
+  - path: /opt/dhan-sarthi/Caddyfile
+    owner: dhan:dhan
+    permissions: '0644'
+    content: |
+      # Replace with your hostname to get a public certificate; keep ":443" for a bare IP.
+      REPLACE_ME_HOSTNAME_OR_:443 {
+        encode gzip
+        reverse_proxy web:80
+      }
+
+  # Adds Caddy to the repository's compose file and keeps the API off the public interface.
+  - path: /opt/dhan-sarthi/compose.override.yml
+    owner: dhan:dhan
+    permissions: '0644'
+    content: |
+      services:
+        api:
+          env_file:
+            - path: /opt/dhan-sarthi/api.env
+              required: true
+          ports: !override []
+        web:
+          ports: !override []
+        caddy:
+          image: caddy:2-alpine
+          restart: unless-stopped
+          ports:
+            - "80:80"
+            - "443:443"
+            - "443:443/udp"
+          volumes:
+            - /opt/dhan-sarthi/Caddyfile:/etc/caddy/Caddyfile:ro
+            - caddy_data:/data
+            - caddy_config:/config
+          depends_on:
+            - web
+      volumes:
+        caddy_data:
+        caddy_config:
+
+  - path: /etc/systemd/system/dhan-sarthi.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Dhan Sarthi compose stack
+      Requires=docker.service
+      After=docker.service network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=true
+      User=dhan
+      WorkingDirectory=/opt/dhan-sarthi/repo
+      ExecStart=/usr/bin/docker compose -f docker-compose.yml -f /opt/dhan-sarthi/compose.override.yml up -d
+      ExecStop=/usr/bin/docker compose -f docker-compose.yml -f /opt/dhan-sarthi/compose.override.yml down
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # Docker Engine from Docker's own repository (the distro package lags on compose v2).
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >
+    sh -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable"
+    > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  # The repository. Use a deploy key or a token in the URL for a private remote.
+  - mkdir -p /opt/dhan-sarthi && chown -R dhan:dhan /opt/dhan-sarthi
+  - sudo -u dhan git clone --depth 1 REPLACE_ME_REPOSITORY_URL /opt/dhan-sarthi/repo
+  # Build both images on the box (takes a few minutes on a t3.medium), seed, then start.
+  - cd /opt/dhan-sarthi/repo && sudo -u dhan docker compose build
+  - cd /opt/dhan-sarthi/repo && sudo -u dhan docker compose up -d postgres
+  - cd /opt/dhan-sarthi/repo && sudo -u dhan docker compose --profile seed run --rm seed
+  - systemctl daemon-reload
+  - systemctl enable --now dhan-sarthi.service
+
+final_message: 'Dhan Sarthi is up after $UPTIME seconds. Check: docker compose -f /opt/dhan-sarthi/repo/docker-compose.yml ps'

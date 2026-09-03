@@ -9,14 +9,20 @@
  * "One action at a time" is the entire differentiation. Most money apps built a
  * feature-rich dashboard. The extra actions exist, but below the fold and unemphasised — offered
  * because the customer went looking, not because we pushed them.
+ *
+ * Everything here is read from the View the API returned. A decision goes back to the API with
+ * an idempotency key and the screen re-reads; nothing is computed in the browser.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Action, DailyPlan, Insight, Snapshot } from '@dhan/core'
+import type { Action, Insight, View } from '@dhan/contracts'
 import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
+import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
+import type { Tier } from '../components/TierBadge.tsx'
 import { prettyMerchant } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
+import type { DecisionKind } from '../lib/mutations.ts'
 
 /* Header chips: white pills with a mint hairline. The count badge is a small orange disc. */
 const CHIP =
@@ -30,40 +36,54 @@ const NOTE = 'text-xs leading-relaxed text-ink-soft'
 
 /* Buttons on the brand-green hero card: primary stays orange, secondary becomes a white outline. */
 const BTN_ON_INK_PRIMARY =
-  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985]'
+  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985] disabled:opacity-55'
 const BTN_ON_INK_SECONDARY =
-  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[15px] font-semibold text-on-dark transition-transform duration-100 active:scale-[0.985]'
+  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[15px] font-semibold text-on-dark transition-transform duration-100 active:scale-[0.985] disabled:opacity-55'
+
+export interface ClockControls {
+  /** False under a real bank feed, where today is today. */
+  show: boolean
+  notice: string | null
+  disabled: boolean
+  onAdvance: (days: 1 | 7 | 30) => void
+  onReset: () => void
+}
 
 export function Today({
-  snapshot,
-  plan,
-  accepted,
-  declined,
-  asOf,
-  onAdvance,
-  onReset,
+  view,
+  tier,
+  clock,
+  decided,
+  decisionsEnabled,
+  busy,
+  notice,
   onDecide,
   onAsk,
 }: {
-  snapshot: Snapshot
-  plan: DailyPlan
-  accepted: string[]
-  declined: string[]
-  asOf: string
-  onAdvance: (days: number) => void
-  onReset: () => void
-  onDecide: (action: Action, kind: 'did_it' | 'declined') => void
+  view: View
+  tier: Tier
+  clock: ClockControls
+  /** Action ids decided since the page loaded, so the card moves on before the server re-cuts. */
+  decided: ReadonlySet<string>
+  /** False offline: nothing is recorded, so nothing can be decided. */
+  decisionsEnabled: boolean
+  busy: boolean
+  /** The last decision failed; the server's sentence. */
+  notice: string | null
+  onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
 }): ReactNode {
+  const { snapshot, plan } = view
+  const asOf = view.meta.asOf
   const s = plan.safeToSpend
   const envelope = s.pot + (s.reserved.find((r) => r.label.startsWith('Already'))?.amount ?? 0)
   const spent = envelope - s.pot
   const usedPct = envelope > 0 ? (spent / envelope) * 100 : 100
 
   const primary =
-    plan.primary && !accepted.includes(plan.primary.id) && !declined.includes(plan.primary.id)
+    plan.primary && !decided.has(plan.primary.id)
       ? plan.primary
-      : (plan.secondary.find((a) => !accepted.includes(a.id) && !declined.includes(a.id)) ?? null)
+      : (plan.secondary.find((a) => !decided.has(a.id)) ?? null)
 
   return (
     <>
@@ -86,9 +106,22 @@ export function Today({
           </div>
         }
       />
+      <DataSourceRibbon meta={view.meta} tier={tier} />
 
       <div className="scroll">
-        <Clock asOf={asOf} onAdvance={onAdvance} onReset={onReset} />
+        {clock.show ? (
+          <div className="mt-3">
+            <Clock
+              asOf={asOf}
+              notice={clock.notice}
+              disabled={clock.disabled}
+              onAdvance={clock.onAdvance}
+              onReset={clock.onReset}
+            />
+          </div>
+        ) : (
+          <div className="mt-3" />
+        )}
 
         {/* ------------------------------------------------ Safe to spend */}
         <Card tint="sage">
@@ -129,7 +162,14 @@ export function Today({
 
         {/* ------------------------------------------------ The one action */}
         {primary ? (
-          <ActionCard action={primary} onDecide={onDecide} onWhy={onAsk} />
+          <ActionCard
+            action={primary}
+            enabled={decisionsEnabled}
+            busy={busy}
+            notice={notice}
+            onDecide={onDecide}
+            onWhy={onAsk}
+          />
         ) : (
           <Card tint="sky">
             <h2>Nothing needs you today</h2>
@@ -197,14 +237,21 @@ export function Today({
 
 function ActionCard({
   action,
+  enabled,
+  busy,
+  notice,
   onDecide,
   onWhy,
 }: {
   action: Action
-  onDecide: (a: Action, kind: 'did_it' | 'declined') => void
+  enabled: boolean
+  busy: boolean
+  notice: string | null
+  onDecide: (a: Action, kind: DecisionKind) => void
   onWhy: () => void
 }): ReactNode {
   const [showWhy, setShowWhy] = useState(false)
+  const locked = !enabled || busy
 
   return (
     <Card tint="ink">
@@ -238,13 +285,15 @@ function ActionCard({
         <button
           type="button"
           className={BTN_ON_INK_PRIMARY}
+          disabled={locked}
           onClick={() => onDecide(action, 'did_it')}
         >
-          Do it
+          {busy ? 'Recording…' : 'Do it'}
         </button>
         <button
           type="button"
           className={BTN_ON_INK_SECONDARY}
+          disabled={locked}
           onClick={() => onDecide(action, 'declined')}
         >
           Not now
@@ -257,6 +306,17 @@ function ActionCard({
           Why?
         </button>
       </div>
+
+      {!enabled ? (
+        <p className="mb-0 mt-3 text-[13px] leading-normal opacity-70">
+          Decisions are written to the record on the advisor service. Reconnect to act on this.
+        </p>
+      ) : null}
+      {notice ? (
+        <p role="alert" className="mb-0 mt-3 text-[13px] leading-normal text-white">
+          {notice}
+        </p>
+      ) : null}
 
       <button
         type="button"

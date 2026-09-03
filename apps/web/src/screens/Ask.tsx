@@ -1,31 +1,70 @@
 /**
- * Ask Uday — a video call, and nothing else.
+ * Ask Uday — a call when the line is free, and the same advisor in text when it is not.
  *
- * An earlier version of this screen had a text input, tappable suggested questions and a
- * transcript. All of it is gone. Talking to your banker is a call: you see him, you press one
- * button, you talk. Every extra control was a reason to read the screen instead of using it.
+ * Talking to your banker is a call: you see him, you press one button, you talk. But Runway's
+ * Tier 1 allows one live session, so a second reviewer will genuinely find him busy — and the
+ * fallback ladder says that reviewer still gets the diagnosis and, above all, the refusal. So the
+ * screen has two faces. On a call it is the portrait tile and two controls. Off a call it is a
+ * short conversation over `/ask` (the deterministic engine, no model) with a "Check a product"
+ * affordance that runs the same suitability gate the avatar's tool calls, writing the same
+ * advice record.
+ *
+ * `/avatar/availability` is read before the Call button is drawn. A button that leads to a busy
+ * signal misleads; a sentence saying he is with another customer does not.
  *
  * **Why the video sits in a tile rather than filling the screen.** Runway publishes a landscape
  * track — 1088×704, about 1.55:1 — and a phone is 390×844, about 0.46:1. Filling that with
  * `object-fit: cover` keeps **30% of the source width**, which is why he arrived cropped to the
  * bridge of his nose. A 4:5 tile keeps a little over half the width, which is close to the
  * head-and-shoulders framing the source was composed for.
- *
- * The deterministic question-answering engine in `@dhan/core` is untouched and still tested; it
- * simply is not what this screen is for. It backs "Why this?" on Today, and it remains the
- * fallback for a text surface if we ever want one.
  */
-import type { ReactNode } from 'react'
-import type { Snapshot } from '@dhan/core'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
+import type { AvatarAvailability, ShelfProduct, Verdict } from '@dhan/contracts'
+import { isApiError } from '../api/client.ts'
+import type { AskBackend } from '../lib/ask.ts'
 import { useAvatar } from '../lib/avatar.ts'
+import { inr } from '../lib/money.ts'
+import type { Tier } from '../components/TierBadge.tsx'
 
-export function Ask({ snapshot, onClose }: { snapshot: Snapshot; onClose: () => void }): ReactNode {
+interface Turn {
+  id: number
+  who: 'uday' | 'you'
+  text: string
+  evidence?: string[]
+  verdict?: Verdict
+}
+
+export function Ask({
+  backend,
+  shelf,
+  monthlyAmount,
+  tier,
+  availability,
+  onOpen,
+  onClose,
+}: {
+  backend: AskBackend
+  shelf: ShelfProduct[]
+  /** What a product check proposes per month: the deployable surplus, so the verdict is real. */
+  monthlyAmount: number
+  tier: Tier
+  availability: AvatarAvailability | null
+  /** Re-read availability; called once when the screen opens. */
+  onOpen: () => void
+  onClose: () => void
+}): ReactNode {
   // The callback ref is taken out here on purpose: once a property of `avatar` is passed to a
   // `ref` prop, the React Compiler lint treats every later read of `avatar` as a ref read.
-  const { attachVideo, ...avatar } = useAvatar(buildBrief(snapshot))
+  const { attachVideo, ...avatar } = useAvatar()
+
+  useEffect(() => {
+    onOpen()
+  }, [onOpen])
 
   const connecting = avatar.mode === 'connecting'
   const connected = avatar.mode === 'live'
+  const onCall = connecting || connected
   // Two different things. The room connects in about a second; the worker publishes nothing for
   // roughly five more. Swapping the poster for the video on connection alone makes a working
   // call look broken, so this waits for frames to actually decode.
@@ -38,12 +77,12 @@ export function Ask({ snapshot, onClose }: { snapshot: Snapshot; onClose: () => 
   const speaking = connected && !avatar.videoLive && avatar.audioLevel > 0.06
   const glow = Math.min(1, avatar.audioLevel * 1.7)
 
-  // Only shown when something is actually happening. Idle needs no badge.
   // The countdown only appears when it is nearly up. A visible timer for the whole call makes a
   // conversation feel metered, and the only thing it needs to do is stop somebody being cut off
   // mid-sentence without warning.
   const runningOut = avatar.secondsLeft !== null && avatar.secondsLeft <= 120
 
+  const canCall = tier === 'live' && availability?.available === true && !avatar.queue
   const status = connected
     ? avatar.videoLive
       ? runningOut
@@ -54,9 +93,13 @@ export function Ask({ snapshot, onClose }: { snapshot: Snapshot; onClose: () => 
         : 'Joining…'
     : connecting
       ? 'Calling…'
-      : avatar.reason
-        ? 'Unavailable'
-        : null
+      : avatar.queue
+        ? avatar.queue.claimable
+          ? 'Your turn'
+          : `In line · ${avatar.queue.position}`
+        : canCall
+          ? null
+          : 'Text'
 
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-b from-brand to-brand-deep text-white">
@@ -86,107 +129,459 @@ export function Ask({ snapshot, onClose }: { snapshot: Snapshot; onClose: () => 
         ) : null}
       </div>
 
-      {/* --------------------------------------------------- The tile */}
-      <div className="flex min-h-0 flex-1 flex-col justify-center px-4">
-        <div
-          className="relative aspect-[4/5] max-h-full w-full overflow-hidden rounded-lg bg-brand-deep shadow-lift transition-[box-shadow,transform] duration-100 ease-out"
-          style={{
-            // Two shadows: the settled one, and a mint ring that swells with his voice.
-            boxShadow: `var(--shadow-lift), 0 0 0 ${(2 + glow * 5).toFixed(1)}px rgb(224 241 235 / ${(glow * 0.5).toFixed(2)})`,
-            transform: `scale(${(1 + glow * 0.008).toFixed(4)})`,
-          }}
-        >
-          {/* His actual reference portrait, pulled from the Character and served locally —
-              Runway's own image URL carries an expiring token, so the browser cannot hold it. */}
-          <img
-            src="/uday.jpg"
-            alt="Uday, your IDBI advisor"
-            // Longer than feels necessary, on purpose: the poster and the first video frame
-            // are the same man in the same chair, so a slow dissolve reads as him settling
-            // into focus. A quick swap reads as a glitch.
-            className={`absolute inset-0 size-full object-cover object-[center_28%] transition-[opacity,filter] duration-[900ms] ease-in-out ${
-              showVideo ? 'opacity-0' : 'opacity-100'
-            } ${connecting ? 'brightness-[0.7] saturate-[0.85]' : ''}`}
-          />
+      {onCall ? (
+        <>
+          {/* --------------------------------------------------- The tile */}
+          <div className="flex min-h-0 flex-1 flex-col justify-center px-4">
+            <div
+              className="relative aspect-[4/5] max-h-full w-full overflow-hidden rounded-lg bg-brand-deep shadow-lift transition-[box-shadow,transform] duration-100 ease-out"
+              style={{
+                // Two shadows: the settled one, and a mint ring that swells with his voice.
+                boxShadow: `var(--shadow-lift), 0 0 0 ${(2 + glow * 5).toFixed(1)}px rgb(224 241 235 / ${(glow * 0.5).toFixed(2)})`,
+                transform: `scale(${(1 + glow * 0.008).toFixed(4)})`,
+              }}
+            >
+              {/* His actual reference portrait, pulled from the Character and served locally —
+                  Runway's own image URL carries an expiring token, so the browser cannot hold it. */}
+              <img
+                src="/uday.jpg"
+                alt="Uday, your IDBI advisor"
+                // Longer than feels necessary, on purpose: the poster and the first video frame
+                // are the same man in the same chair, so a slow dissolve reads as him settling
+                // into focus. A quick swap reads as a glitch.
+                className={`absolute inset-0 size-full object-cover object-[center_28%] transition-[opacity,filter] duration-[900ms] ease-in-out ${
+                  showVideo ? 'opacity-0' : 'opacity-100'
+                } ${connecting ? 'brightness-[0.7] saturate-[0.85]' : ''}`}
+              />
 
-          <video
-            ref={attachVideo}
-            autoPlay
-            playsInline
-            className={`absolute inset-0 size-full object-cover object-[center_28%] transition-opacity duration-[900ms] ease-in-out ${
-              showVideo ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
+              <video
+                ref={attachVideo}
+                autoPlay
+                playsInline
+                className={`absolute inset-0 size-full object-cover object-[center_28%] transition-opacity duration-[900ms] ease-in-out ${
+                  showVideo ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
 
-          {/* Only ever one line, and only while something is happening. */}
-          {connecting || (connected && !avatar.videoLive) ? (
-            <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-[9px] bg-gradient-to-t from-brand-deep/90 to-transparent px-4 pb-4 pt-11 text-center text-[13.5px] text-white">
-              {speaking ? <Waveform level={avatar.audioLevel} /> : null}
-              {connecting
-                ? 'Connecting to Uday…'
-                : speaking
-                  ? 'He is already talking — one moment'
-                  : 'Uday is joining…'}
+              {/* Only ever one line, and only while something is happening. */}
+              {connecting || (connected && !avatar.videoLive) ? (
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-[9px] bg-gradient-to-t from-brand-deep/90 to-transparent px-4 pb-4 pt-11 text-center text-[13.5px] text-white">
+                  {speaking ? <Waveform level={avatar.audioLevel} /> : null}
+                  {connecting
+                    ? 'Connecting to Uday…'
+                    : speaking
+                      ? 'He is already talking — one moment'
+                      : 'Uday is joining…'}
+                </div>
+              ) : null}
+
+              {avatar.muted && connected ? (
+                <span className="absolute left-3.5 top-3.5 rounded-pill bg-danger px-[11px] py-[5px] text-[11.5px] font-bold text-white">
+                  Muted
+                </span>
+              ) : null}
             </div>
-          ) : null}
 
-          {avatar.muted && connected ? (
-            <span className="absolute left-3.5 top-3.5 rounded-pill bg-danger px-[11px] py-[5px] text-[11.5px] font-bold text-white">
-              Muted
-            </span>
-          ) : null}
-        </div>
-
-        <div className="px-1 pt-5 text-center">
-          <div className="text-[22px] font-bold leading-tight text-white">Uday</div>
-          <div className="mt-1 text-sm text-white/70">
-            {connected
-              ? avatar.videoLive
-                ? 'Interrupt him whenever you like'
-                : 'Listen — he is introducing himself'
-              : 'IDBI Bank'}
+            <div className="px-1 pt-5 text-center">
+              <div className="text-[22px] font-bold leading-tight text-white">Uday</div>
+              <div className="mt-1 text-sm text-white/70">
+                {connected
+                  ? avatar.videoLive
+                    ? 'He can hear you'
+                    : 'Listen — he is introducing himself'
+                  : 'IDBI Bank'}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* --------------------------------------------------- Controls */}
-      <div className="flex-none px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-2.5">
-        {avatar.reason && !connected ? (
-          <p className="m-0 mb-3 text-center text-[13px] leading-normal text-white/70">
-            {avatar.reason}
-          </p>
-        ) : null}
-
-        {connected ? (
-          <div className="flex justify-center gap-3">
-            <button
-              type="button"
-              onClick={avatar.toggleMute}
-              aria-label={avatar.muted ? 'Unmute' : 'Mute'}
-              className={`${ROUND} ${avatar.muted ? 'bg-white text-brand-deep' : 'bg-white/20 text-white'}`}
-            >
-              <MicIcon />
-            </button>
-            <button
-              type="button"
-              onClick={avatar.stop}
-              aria-label="End call"
-              className={`${ROUND} bg-danger text-white`}
-            >
-              <EndIcon />
-            </button>
+          {/* --------------------------------------------------- Controls */}
+          <div className="flex-none px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-2.5">
+            {connected ? (
+              <div className="flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={avatar.toggleMute}
+                  aria-label={avatar.muted ? 'Unmute' : 'Mute'}
+                  className={`${ROUND} ${avatar.muted ? 'bg-white text-brand-deep' : 'bg-white/20 text-white'}`}
+                >
+                  <MicIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={avatar.stop}
+                  aria-label="End call"
+                  className={`${ROUND} bg-danger text-white`}
+                >
+                  <EndIcon />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="flex h-12 w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white disabled:bg-accent/55"
+              >
+                <MicIcon />
+                Connecting…
+              </button>
+            )}
           </div>
-        ) : (
+        </>
+      ) : (
+        <TextTier
+          backend={backend}
+          shelf={shelf}
+          monthlyAmount={monthlyAmount}
+          tier={tier}
+          availability={availability}
+          canCall={canCall}
+          reason={avatar.reason}
+          queue={avatar.queue}
+          onCall={() => void avatar.start()}
+          onJoin={() => void avatar.joinFromQueue()}
+          onLeaveQueue={avatar.leaveQueue}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------- Text tier */
+
+/** Why there is no Call button, in one sentence. The server's own words win when it spoke. */
+function unavailableLine(
+  tier: Tier,
+  availability: AvatarAvailability | null,
+  reason: string | null,
+): string | null {
+  if (reason) return reason
+  if (tier === 'offline') return 'A call needs the advisor service. Text works offline.'
+  if (!availability) return 'The voice service could not be reached. Text still works.'
+  if (!availability.enabled) return 'Voice calls are switched off in this build.'
+  if (availability.minutesLeftToday < 2) return 'Today’s call time is used up.'
+  if (!availability.available) {
+    const wait = availability.estimatedWaitSeconds
+    return wait
+      ? `Uday is with another customer — about ${Math.max(1, Math.round(wait / 60))} min.`
+      : 'Uday is with another customer right now.'
+  }
+  return null
+}
+
+function TextTier({
+  backend,
+  shelf,
+  monthlyAmount,
+  tier,
+  availability,
+  canCall,
+  reason,
+  queue,
+  onCall,
+  onJoin,
+  onLeaveQueue,
+}: {
+  backend: AskBackend
+  shelf: ShelfProduct[]
+  monthlyAmount: number
+  tier: Tier
+  availability: AvatarAvailability | null
+  canCall: boolean
+  reason: string | null
+  queue: { position: number; estimatedWaitSeconds: number | null; claimable: boolean } | null
+  onCall: () => void
+  onJoin: () => void
+  onLeaveQueue: () => void
+}): ReactNode {
+  const [turns, setTurns] = useState<Turn[]>([])
+  const [questions, setQuestions] = useState<string[]>([])
+  const [draft, setDraft] = useState('')
+  const [product, setProduct] = useState(shelf[0]?.productId ?? '')
+  const [thinking, setThinking] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  // Turn ids, so React keys survive a bubble being appended while an answer is in flight.
+  const idRef = useRef(0)
+  const nextId = (): number => {
+    idRef.current += 1
+    return idRef.current
+  }
+
+  const push = (turn: Omit<Turn, 'id'>): void => {
+    const id = nextId()
+    setTurns((prev) => [...prev, { ...turn, id }])
+  }
+
+  // The opening line is the diagnosis: what the statements already say. It replaces "what are
+  // your goals?", which a customer who has never had advice cannot answer.
+  useEffect(() => {
+    let cancelled = false
+    backend
+      .suggestions()
+      .then((s) => {
+        if (cancelled) return
+        setTurns([
+          { id: nextId(), who: 'uday', text: s.opening.text, evidence: s.opening.evidence },
+        ])
+        setQuestions(s.questions)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setTurns([
+          {
+            id: nextId(),
+            who: 'uday',
+            text: isApiError(err) ? err.message : 'I could not read your statements just now.',
+          },
+        ])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [backend])
+
+  useEffect(() => {
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [turns])
+
+  const ask = async (question: string): Promise<void> => {
+    const q = question.trim()
+    if (!q || thinking) return
+    setDraft('')
+    push({ who: 'you', text: q })
+    setThinking(true)
+    try {
+      const a = await backend.ask(q)
+      push({ who: 'uday', text: a.text, evidence: a.evidence })
+    } catch (err) {
+      push({
+        who: 'uday',
+        text: isApiError(err) ? err.message : 'I could not answer that just now.',
+      })
+    } finally {
+      setThinking(false)
+    }
+  }
+
+  const check = async (): Promise<void> => {
+    const p = shelf.find((s) => s.productId === product)
+    if (!p || checking) return
+    const amount = Math.max(0, Math.round(monthlyAmount))
+    push({
+      who: 'you',
+      text:
+        amount > 0
+          ? `Should I put ${inr(amount)} a month into ${p.name}?`
+          : `Is ${p.name} right for me?`,
+    })
+    setChecking(true)
+    try {
+      const v = await backend.evaluate(p.productId, amount)
+      push({ who: 'uday', text: v.spoken ?? v.recorded, verdict: v })
+    } catch (err) {
+      push({
+        who: 'uday',
+        text: isApiError(err) ? err.message : 'I could not check that just now.',
+      })
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const submit = (e: FormEvent): void => {
+    e.preventDefault()
+    void ask(draft)
+  }
+
+  const line = canCall ? null : unavailableLine(tier, availability, reason)
+
+  return (
+    <>
+      {/* --------------------------------------------------- Who you are talking to */}
+      <div className="flex flex-none items-center gap-3 px-4 pb-3 pt-1">
+        <img
+          src="/uday.jpg"
+          alt="Uday, your IDBI advisor"
+          className="size-14 flex-none rounded-pill object-cover object-[center_28%] shadow-lift"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-[20px] font-bold leading-tight text-white">Uday</div>
+          <div className="mt-0.5 text-[13px] text-white/70">IDBI Bank</div>
+        </div>
+        {canCall ? (
           <button
             type="button"
-            onClick={avatar.start}
-            disabled={connecting}
-            className="flex h-12 w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985] disabled:bg-accent/55"
+            onClick={onCall}
+            className="flex h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985]"
           >
             <MicIcon />
-            {connecting ? 'Connecting…' : 'Talk to Uday'}
+            Call
           </button>
-        )}
+        ) : null}
+      </div>
+
+      {line ? (
+        <p className="m-0 flex-none px-4 pb-3 text-[13px] leading-normal text-white/75">{line}</p>
+      ) : null}
+
+      {queue ? (
+        <div className="mx-4 mb-3 flex flex-none items-center gap-3 rounded-md bg-white/15 p-3 text-[13px] leading-snug text-white">
+          <span className="min-w-0 flex-1">
+            {queue.claimable
+              ? 'Uday is free — the line is held for you for a moment.'
+              : `You are ${queue.position === 1 ? 'next' : `number ${queue.position}`} in line${
+                  queue.estimatedWaitSeconds
+                    ? `, about ${Math.max(1, Math.round(queue.estimatedWaitSeconds / 60))} min`
+                    : ''
+                }. Carry on in text meanwhile.`}
+          </span>
+          {queue.claimable ? (
+            <button
+              type="button"
+              onClick={onJoin}
+              className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-white"
+            >
+              Join now
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onLeaveQueue}
+              className="h-10 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[14px] font-semibold text-white"
+            >
+              Leave line
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------- The conversation */}
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4" aria-live="polite">
+        {turns.map((t) => (
+          <Bubble key={t.id} turn={t} />
+        ))}
+        {thinking || checking ? (
+          <div className="mb-2.5 max-w-[85%] rounded-lg rounded-bl-sm bg-white/15 px-3.5 py-2.5 text-[14.5px] text-white/70">
+            {checking ? 'Checking the rules…' : 'Reading your statements…'}
+          </div>
+        ) : null}
+      </div>
+
+      {/* --------------------------------------------------- Ways to ask */}
+      <div className="flex-none px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-2">
+        {questions.length > 0 ? (
+          <div className="mb-2.5 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+            {questions.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => void ask(q)}
+                disabled={thinking}
+                className="h-9 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3.5 text-[13px] font-semibold text-white disabled:opacity-60"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <form onSubmit={submit} className="flex gap-2">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ask about your money"
+            aria-label="Your question"
+            maxLength={500}
+            className="h-11 min-w-0 flex-1 rounded-pill border-0 bg-white/15 px-4 text-[15px] text-white placeholder:text-white/55 focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+          <button
+            type="submit"
+            disabled={thinking || draft.trim() === ''}
+            className="h-11 flex-none rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985] disabled:opacity-55"
+          >
+            Ask
+          </button>
+        </form>
+
+        {shelf.length > 0 ? (
+          <div className="mt-2.5 flex gap-2">
+            <select
+              value={product}
+              onChange={(e) => setProduct(e.target.value)}
+              aria-label="Product to check"
+              className="h-11 min-w-0 flex-1 rounded-pill border-0 bg-white/15 px-4 text-[14px] text-white focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              {shelf.map((p) => (
+                <option key={p.productId} value={p.productId} className="text-ink">
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void check()}
+              disabled={checking}
+              className="h-11 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-4 text-[14px] font-semibold text-white disabled:opacity-60"
+            >
+              Check a product
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </>
+  )
+}
+
+function Bubble({ turn }: { turn: Turn }): ReactNode {
+  const [open, setOpen] = useState(false)
+  const you = turn.who === 'you'
+  const v = turn.verdict
+
+  return (
+    <div className={`mb-2.5 flex ${you ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-[14.5px] leading-normal ${
+          you ? 'rounded-br-sm bg-accent text-white' : 'rounded-bl-sm bg-white/15 text-white'
+        }`}
+      >
+        {v ? (
+          <span
+            className={`mb-1.5 inline-flex rounded-pill px-2.5 py-1 text-[11px] font-bold ${
+              v.verdict === 'PASS' ? 'bg-tint-sage text-brand-deep' : 'bg-danger text-white'
+            }`}
+          >
+            {v.verdict === 'PASS' ? 'Suitable' : `Refused · ${v.ruleId ?? 'rule'}`}
+          </span>
+        ) : null}
+        <div>{turn.text}</div>
+        {v?.alternative ? (
+          <div className="mt-1.5 text-[13px] text-white/80">
+            Instead: {v.alternative.name}
+            {v.alternative.monthly > 0 ? ` at ${inr(v.alternative.monthly)} a month` : ''}.
+          </div>
+        ) : null}
+        {turn.evidence && turn.evidence.length > 0 ? (
+          <>
+            {open ? (
+              <div className="mt-2 border-t border-solid border-white/20 pt-2">
+                {turn.evidence.map((e) => (
+                  <div key={e} className="py-[2px] text-[12.5px] text-white/80">
+                    · {e}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="mt-1.5 border-0 bg-transparent p-0 text-[12.5px] font-semibold text-white/80 underline underline-offset-2"
+            >
+              {open ? 'Hide the numbers' : 'Show me the numbers'}
+            </button>
+          </>
+        ) : null}
       </div>
     </div>
   )
@@ -262,50 +657,4 @@ function CloseIcon(): ReactNode {
       />
     </svg>
   )
-}
-
-/* ---------------------------------------------------------------- Brief */
-
-/**
- * The personality brief sent to Runway at session start.
- *
- * Runway has **no mid-call context push** — verified in the prototype — so everything the
- * Character needs either goes in here (10,000 chars) or is pulled by a tool during the call. The
- * figures are included because they are what makes the conversation specific; the instruction not
- * to invent any is included because it is the only guard on the way out.
- */
-function buildBrief(s: Snapshot): string {
-  const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
-  return [
-    'You are Uday, a relationship manager at IDBI Bank. Warm, direct, never salesy.',
-    'You are the RM this customer was never profitable enough to be given. Act like it.',
-    'Keep answers short — this is a phone call, not a letter.',
-    '',
-    `Customer: ${s.customer.name}, ${s.customer.age}, ${s.customer.city}. ` +
-      `${s.customer.dependents} dependents. Risk profile ${s.customer.riskProfile}.`,
-    `Income ${inr(s.income.monthly)}/month, ${s.income.stability}.`,
-    `Committed ${inr(s.commitments.total)}/month. Discretionary ${inr(s.discretionary.monthly)}.`,
-    `Deployable surplus ${inr(s.surplus.deployable)}/month.`,
-    `Savings ${inr(s.balances.savings)}; ${inr(s.balances.idleFloor)} untouched for ${s.balances.idleMonths} months.`,
-    `Buffer covers ${s.buffer.monthsCovered} months. Debt ${inr(s.debt.total)} at up to ${s.debt.highestRate}%.`,
-    ...(s.debt.endingSoon
-      ? [
-          `${s.debt.endingSoon.loanType} ends in ${s.debt.endingSoon.monthsLeft} months, freeing ${inr(s.debt.endingSoon.emiAmount)}/month.`,
-        ]
-      : []),
-    `Life cover in force ${inr(s.protection.lifeCoverInForce)}; indicative need ${inr(s.protection.lifeCoverNeeded)}.`,
-    '',
-    'Open by telling him what you already know from his statements. Do not ask what his goals',
-    'are — he has never had advice and cannot answer that. Propose, and let him push back.',
-    '',
-    'Rules you must follow:',
-    '- Never state a figure that is not in this brief. If you do not have it, say so.',
-    '- You do not decide whether a product suits him. Read back the verdict the rules give you,',
-    '  including when they refuse.',
-    '- Never promise a return. Say "assumed" and name the rate.',
-    '- Only raise a gap he can act on within the next month. Money already spent cannot be',
-    '  unspent, so do not bring it up.',
-    '- Protection before investment. Debt above 24% before either.',
-    '- Never mock him. You are not a friend being funny; you are his banker.',
-  ].join('\n')
 }

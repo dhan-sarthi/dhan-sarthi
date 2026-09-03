@@ -12,28 +12,48 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { project } from '@dhan/core'
-import type { Roadmap, Snapshot, Stage } from '@dhan/core'
+import type { Roadmap, Snapshot, Stage } from '@dhan/contracts'
 import { Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
+import { band } from '../lib/projection.ts'
 
 /* Card meta line (the old `.card .meta`) and the small grey note (the old `.note`). */
 const META = 'm-0 text-[13px] text-ink-soft'
 const NOTE = 'text-xs leading-relaxed text-ink-soft'
 
-export function Plan({ snapshot, roadmap }: { snapshot: Snapshot; roadmap: Roadmap }): ReactNode {
-  const [rate, setRate] = useState(10)
+const DEFAULT_RATE = 10
+/** The engine's assumption when the roadmap carries no projection of its own. */
+const DEFAULT_INFLATION_PCT = 5.5
+
+export function Plan({
+  snapshot,
+  roadmap,
+  asOf,
+}: {
+  snapshot: Snapshot
+  roadmap: Roadmap
+  asOf: string
+}): ReactNode {
+  const [rate, setRate] = useState(DEFAULT_RATE)
   const growth = roadmap.stages.find((s) => s.kind === 'grow')
-  const contribution = growth?.monthly ?? snapshot.surplus.deployable
-  const years = Math.max(1, Math.round((growth?.monthsToComplete ?? 360) / 12))
-  const band = project(contribution, years, snapshot.holdings.equity, {
-    rates: [
+  const contribution = roadmap.projection?.monthlyContribution ?? growth?.monthly ?? 0
+  const years =
+    roadmap.projection?.years ?? Math.max(1, Math.round((growth?.monthsToComplete ?? 360) / 12))
+  const existing = roadmap.projection?.existingCorpus ?? snapshot.holdings.equity
+  const inflationPct = roadmap.projection?.inflationPct ?? DEFAULT_INFLATION_PCT
+  const scenarios = band(
+    contribution,
+    years,
+    existing,
+    [
       { label: 'Cautious', ratePct: Math.max(2, rate - 4) },
       { label: 'Assumed', ratePct: rate },
       { label: 'Optimistic', ratePct: rate + 2 },
     ],
-  })
-  const mid = band.scenarios[1]
+    inflationPct,
+    roadmap.disclaimer,
+  ).scenarios
+  const mid = scenarios[1]
 
   return (
     <>
@@ -44,31 +64,33 @@ export function Plan({ snapshot, roadmap }: { snapshot: Snapshot; roadmap: Roadm
 
       <div className="scroll">
         {/* ------------------------------------------------ Destination */}
-        <Card tint="sky">
-          <h2>Where you are going</h2>
-          <p className={META}>
-            {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)}
-          </p>
-          {/* "₹2.18 crore" is a number somebody can hold in their head; ₹2,18,00,000 is a
-              number they have to count the digits of — and at eleven digits it ran off the card. */}
-          <div className="mb-1 mt-3.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink">
-            {approx(roadmap.goal.targetAmount)}
-          </div>
-          <p className={`${META} mb-1.5`}>in today&rsquo;s money</p>
-          <p className={META}>
-            {roadmap.feasible
-              ? `${inr(roadmap.monthlyCommitment)} a month, starting now.`
-              : `${inr(roadmap.shortfallMonthly)} a month short at your present pace.`}
-          </p>
-
-          {!roadmap.feasible ? (
-            <p className="mb-0 mt-3 text-[13.5px] leading-normal text-ink-mid">
-              I would rather show you that than move the number until it fits. We can push the date,
-              lower the target, or find the difference in your spending — and the last one is
-              usually the least painful.
+        <div className="mt-3">
+          <Card tint="sky">
+            <h2>Where you are going</h2>
+            <p className={META}>
+              {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)}
             </p>
-          ) : null}
-        </Card>
+            {/* "₹2.18 crore" is a number somebody can hold in their head; ₹2,18,00,000 is a
+              number they have to count the digits of — and at eleven digits it ran off the card. */}
+            <div className="mb-1 mt-3.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink">
+              {approx(roadmap.goal.targetAmount)}
+            </div>
+            <p className={`${META} mb-1.5`}>in today&rsquo;s money</p>
+            <p className={META}>
+              {roadmap.feasible
+                ? `${inr(roadmap.monthlyCommitment)} a month, starting now.`
+                : `${inr(roadmap.shortfallMonthly)} a month short at your present pace.`}
+            </p>
+
+            {!roadmap.feasible ? (
+              <p className="mb-0 mt-3 text-[13.5px] leading-normal text-ink-mid">
+                I would rather show you that than move the number until it fits. We can push the
+                date, lower the target, or find the difference in your spending — and the last one
+                is usually the least painful.
+              </p>
+            ) : null}
+          </Card>
+        </div>
 
         {/* ------------------------------------------------ The route */}
         <Eyebrow>The route · {roadmap.stages.length} stages</Eyebrow>
@@ -87,11 +109,11 @@ export function Plan({ snapshot, roadmap }: { snapshot: Snapshot; roadmap: Roadm
               <h2>{approx(mid?.realCorpus ?? 0)}</h2>
               <p className={META}>
                 in today&rsquo;s money, after {years} years at an assumed {rate}% — which is{' '}
-                {approx(mid?.corpus ?? 0)} in {Number(new Date().getFullYear()) + years} rupees
+                {approx(mid?.corpus ?? 0)} in {Number(asOf.slice(0, 4)) + years} rupees
               </p>
 
               <div className="mb-1.5 mt-[18px]">
-                {band.scenarios.map((sc) => (
+                {scenarios.map((sc) => (
                   <Leader
                     key={sc.label}
                     label={`${sc.label} · ${sc.ratePct}%`}
@@ -116,7 +138,7 @@ export function Plan({ snapshot, roadmap }: { snapshot: Snapshot; roadmap: Roadm
                 />
               </label>
 
-              <p className={`${NOTE} mb-0 mt-1.5`}>{band.disclaimer}</p>
+              <p className={`${NOTE} mb-0 mt-1.5`}>{roadmap.disclaimer}</p>
             </Card>
           </>
         ) : null}

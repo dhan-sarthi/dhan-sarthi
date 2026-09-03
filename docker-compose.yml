@@ -1,0 +1,86 @@
+# The full stack on one machine: Postgres with pgvector, the API in postgres mode, and the web
+# build behind nginx. Three commands:
+#
+#   docker compose up -d postgres                 # database only; pnpm dev against :5433
+#   docker compose --profile seed run --rm seed   # migrate + seed + verify, exits 0
+#   docker compose up                             # api on :3001, web on :8080
+#
+# Runway credentials, if any, come from apps/api/.env (never committed). Without them the API
+# runs with the avatar disabled and the text tier answers instead.
+
+name: dhan-sarthi
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: dhan
+      POSTGRES_PASSWORD: dhan
+      POSTGRES_DB: dhan
+    # 5433 on the host so a local Postgres on 5432 is not in the way (matches .env.example).
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dhan -d dhan"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-off. Runs the seed CLI from the API image against the compose database: migrate,
+  # write 42 months per persona, record the seed hash, verify. Refuses while sessions exist
+  # unless --force (ADR-0012).
+  seed:
+    profiles: ["seed"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: dhan-sarthi/api
+    env_file:
+      - path: apps/api/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      BANK_SOURCE: postgres
+      DATABASE_URL: postgres://dhan:dhan@postgres:5432/dhan
+    command: ["node", "dist/cli/seed.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: dhan-sarthi/api
+    env_file:
+      - path: apps/api/.env
+        required: false
+    # Explicit values win over .env so the container always talks to the compose database.
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: 0.0.0.0
+      BANK_SOURCE: postgres
+      DATABASE_URL: postgres://dhan:dhan@postgres:5432/dhan
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: dhan-sarthi/web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
