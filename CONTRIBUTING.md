@@ -50,35 +50,48 @@ the gate fired.
 
 Do not add a code path where a model's output determines whether a product is suitable.
 
-Status, so nobody is misled: the deterministic path (Today, Plan, Record) runs every product
-action through `evaluate()` in `packages/core/src/suitability.ts` today. The avatar path in this
-repository does not yet register the `check_suitability` tool with Runway; the archived prototype
-did, and porting it is the top item on the roadmap. Until it lands, the personality brief tells
-Uday to defer to the rules but nothing forces it.
+Status: the deterministic path (Today, Plan, Record) runs every product action through
+`evaluate()` in `packages/core/src/suitability.ts`, and the API records every verdict. On the
+avatar path the brief is built server-side, `check_suitability` is registered as a `backend_rpc`
+tool, and the session lifecycle only hands the browser its credentials once our RPC handler is in
+the room (`apps/api/src/application/avatar/lifecycle.ts`). The handler connecting before consume
+was proven against a real session (`docs/engineering/runway-rpc-spike.md`); a full live call with
+tool round-trips through this build is the next thing to exercise.
 
 ## Running it
 
 ```bash
 pnpm install
-pnpm build              # builds packages first, then apps
-pnpm test               # builds packages/*, then runs every test
-pnpm dev:web            # web on :5173 — runs fully offline, no keys needed
+pnpm build              # packages first, then apps
+pnpm test               # builds packages/*, then every unit and contract test
 ```
 
-The avatar call needs the API and Runway credentials:
+Three ways to run the app, by what you have:
 
 ```bash
-cp .env.example apps/api/.env    # fill RUNWAY_API_KEY and RUNWAY_CHARACTER_ID
-pnpm dev                          # api on :3001, web on :5173 (proxies /api)
+# 1. No database, no keys. The API serves the three customers from memory.
+BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev          # api :3001 · web :5173 (proxies /api)
+
+# 2. The shared Postgres. Ask a teammate for DATABASE_URL and put it in apps/api/.env.
+pnpm --filter @dhan/api migrate                            # applies apps/api/migrations once
+pnpm --filter @dhan/api seed                               # 42 months for three customers, hash recorded
+BANK_SOURCE=postgres AVATAR_PROVIDER=none pnpm dev
+
+# 3. The live avatar as well: add RUNWAY_API_KEY and RUNWAY_CHARACTER_ID to apps/api/.env.
+BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
 ```
 
-`pnpm test` on a fresh clone requires the packages to be built first because
-`@dhan/fixtures` imports `@dhan/core` through its `dist/` export. The root `test` script does this
-for you; if you run a single package's tests, build first.
+`pnpm --filter @dhan/api seed:check` regenerates the ledger in memory and compares its hash with
+the one the database recorded; CI runs the same check. `pnpm --filter @dhan/api audit:verify`
+walks every record chain. Integration tests run when `DATABASE_URL` is set:
+`pnpm --filter @dhan/api exec node --test --experimental-strip-types 'test/integration/*.test.ts'`.
 
-The team shares one Postgres database (Supabase, `pgvector` enabled). Ask a teammate for the
-connection string and put it in `apps/api/.env` as `DATABASE_URL`; `.env.example` shows the shape.
-Only the API ever connects to it. Browsers talk to the API and nothing else.
+`pnpm test` on a fresh clone requires the packages to be built first because `@dhan/fixtures`
+imports `@dhan/core` through its `dist/` export. The root scripts do this for you.
+
+The team shares one Postgres database (Supabase, `pgvector` enabled). Only the API ever connects
+to it. Browsers talk to the API and nothing else; the token in `localStorage` is the only thing
+they keep.
 
 ## Conventions
 
@@ -163,18 +176,15 @@ These are settled. Rationale and reversal costs are in
 ## What is still to port from the archived prototype
 
 The earlier prototype (React + a single Fastify/Postgres server) is archived in a private
-repository. Its engine and Runway transport have been re-implemented here in TypeScript; the
-pieces below have not, in rough dependency order.
+repository. Its engine, Runway transport, suitability tool, server-side brief and advice record
+have been re-implemented here; the pieces below have not, in rough dependency order.
 
 | Piece | Where it goes | Notes |
 |---|---|---|
-| `check_suitability` tool + `backend_rpc` handler | `apps/api/src/avatar-brief.ts`, `providers/runway.ts` | Open the RPC handler **before** handing the browser its LiveKit credentials; an ungated session must never be issued. Needs `@runwayml/avatars-node-rpc`. |
-| Server-side personality brief | `apps/api` | The brief sits behind a compliance claim and must not be client-editable. The client should send a customer id, not prose. |
-| Advice record writer + route | `apps/api`, `packages/contracts` | One row per proposal: snapshot hash, rule, verdict, the exact sentence shown, decision, timestamp. |
 | `show_artifact` client event + canvas | `apps/web` | The rule ladder and the ULIP-vs-term comparison the customer sees while Uday speaks. |
 | Semantic memory + safeguard | `apps/api/src/memory.ts` | **Port the safeguard test with it.** It pins a real leak: exact-string topic matching let a medical conversation through. Matching must stay bidirectional-substring plus a summary keyword scan. |
 | Tone registers | `packages/core` | Six registers: candid, encouraging, firm, pleased, steady, careful. Chosen deterministically from the snapshot before any model call. |
-| Portrait proxy | `apps/api/src/routes/avatar.ts` | Runway's image URL carries an expiring token; the browser cannot hold it. Today a static portrait is served instead. |
+| Portrait proxy | `apps/api/src/http/routes/avatar.ts` | Runway's image URL carries an expiring token; the browser cannot hold it. Today a static portrait is served instead. |
 | Per-IP session limit | `apps/api` | The daily minute budget exists; the per-IP limiter does not. |
 
 ## Where the docs live
