@@ -1,7 +1,7 @@
 /**
  * The ledger generator: behaviour in, transactions out.
  *
- * Two design choices carry the weight here.
+ * Three design choices carry the weight here.
  *
  * **One RNG stream per month, keyed on a fixed anchor.** Every month forks its own generator
  * from a label (`rohan:2026-08`), and every window in a `PersonaSpec` is measured back from an
@@ -13,6 +13,12 @@
  * **Nothing is asserted, everything is derived.** Balances, monthly outflow, the surplus and
  * the account aggregates all fall out of the transaction list. If a number reaches a screen it
  * is arithmetic over the ledger, so a judge who adds up the statement gets our answer.
+ *
+ * **The lines the bank writes are a second pass.** Interest is the daily product of the closing
+ * balance and a minimum-balance charge is a monthly average, so neither exists until the
+ * behavioural ledger does. The behavioural drafts are sealed once from the persona's own ledger
+ * start, the bank's lines are computed from those balances, and the two are sealed together.
+ * The bank does exactly this, one quarter in arrears.
  */
 import { accountFactsAsOf, liabilityAsOf, sipHoldingAsOf } from '@dhan/core'
 import type {
@@ -26,17 +32,38 @@ import type {
   Transaction,
   TxnMode,
 } from '@dhan/core'
-import { addMonths, daysInMonth, festivalMultiplier, fromYmd, payDay, ymd } from './calendar.ts'
+import { bankGeneratedLines } from './bank-lines.ts'
+import type { LedgerRow } from './bank-lines.ts'
 import {
-  DISCRETIONARY,
-  UTILITIES,
-  atmNarration,
-  emiNarration,
-  narrate,
-  rentNarration,
-  salaryNarration,
-} from './merchants.ts'
+  addDays,
+  addMonths,
+  daysInMonth,
+  festivalMultiplier,
+  fromYmd,
+  payDay,
+  ymd,
+} from './calendar.ts'
+import { cityProfile } from './calibration.ts'
+import { billersFor, merchantsFor } from './merchants.ts'
 import type { Merchant } from './merchants.ts'
+import {
+  achLoan,
+  achSip,
+  bbps,
+  cashDeposit,
+  creditCardPayment,
+  ecom,
+  idbiCashWithdrawal,
+  impsDebit,
+  neftSalary,
+  neftSettlement,
+  nfsCashWithdrawal,
+  pos,
+  siAutopay,
+  umrn,
+  upiCredit,
+  upiDebit,
+} from './narration.ts'
 import { rng } from './random.ts'
 import type { Rng } from './random.ts'
 import type { EmiSpec, PersonaSpec, SipSpec } from './personas.ts'
@@ -54,16 +81,33 @@ export interface GenerateOptions {
   months: number
 }
 
-const DEFAULTS: GenerateOptions = { anchor: '2026-09-01', asOf: '2026-09-01', months: 24 }
+/**
+ * How far back a persona's account history goes, as a fact about the persona rather than a
+ * question the caller asks.
+ *
+ * The bank's own lines are computed from balances, and balances depend on where the ledger
+ * starts. Pin that to the persona and the interest credited in March is the same number
+ * whatever window was requested; let a caller's `months` decide it and asking for two extra
+ * months of history silently rewrites the interest inside months somebody already read.
+ */
+export const LEDGER_MONTHS = 24
+
+const DEFAULTS: GenerateOptions = {
+  anchor: '2026-09-01',
+  asOf: '2026-09-01',
+  months: LEDGER_MONTHS,
+}
 
 /**
  * Intra-day ordering. Statements are day-granular, so a running balance needs a tiebreak or it
  * renders in an order no bank would produce — a card swipe before the salary that funded it.
  */
-const RANK = { credit: 0, mandate: 1, bill: 2, spend: 3 } as const
+const RANK = { credit: 0, mandate: 1, bill: 2, spend: 3, charge: 4 } as const
 
 interface Draft {
   date: string
+  /** When the money counted, which on a card line is the day before it posted. */
+  valueDate: string
   amount: number
   type: Transaction['txnType']
   mode: TxnMode
@@ -72,14 +116,35 @@ interface Draft {
   isSalaryCredit: boolean
   isRecurring: boolean
   rank: number
+  mcc?: string
+  merchantName?: string
+  vpa?: string
 }
+
+const round2 = (n: number): number => Math.round(n * 100) / 100
+
+/** A few paise on a bill, because a real electricity bill is never a round number. */
+const withPaise = (r: Rng, rupees: number): number => round2(rupees + r.int(0, 99) / 100)
+
+/**
+ * A stable reference for one mandate, drawn outside the month's stream.
+ *
+ * A UMRN identifies the *mandate*, not the debit, so it has to be the same string every month
+ * or the twelve instalments of one loan look like twelve different loans.
+ */
+const mandateRef = (spec: PersonaSpec, label: string, bank4: string): string =>
+  umrn(rng(spec.seed).fork(`mandate:${label}`), bank4)
+
+/** A consumer number with a biller. Fixed for the life of the connection, like the real one. */
+const consumerNumber = (spec: PersonaSpec, biller: string): string =>
+  String(rng(spec.seed).fork(`biller:${spec.slug}:${biller}`).int(100_000_000, 999_999_999))
 
 /* ------------------------------------------------------------------ *
  * One month
  * ------------------------------------------------------------------ */
 
 /**
- * Every transaction for one calendar month.
+ * Every transaction for one calendar month, excluding the lines the bank writes itself.
  *
  * Pure in `(spec, year, month, monthsAgo)`: same inputs, same output, regardless of what else
  * has been generated. `monthsAgo` is the distance back from the anchor — positive is history,
@@ -94,30 +159,55 @@ export function monthTransactions(
   const r = rng(spec.seed).fork(`${spec.slug}:${year}-${String(month).padStart(2, '0')}`)
   const out: Draft[] = []
   const dim = daysInMonth(year, month)
+  const city = spec.customer.city
   const day = (d: number): string => fromYmd(year, month, Math.min(Math.max(d, 1), dim))
+
+  /** A line whose value date is its posting date, which is every rail but the card. */
+  const line = (
+    on: string,
+    over: Partial<Draft> & Pick<Draft, 'amount' | 'narration' | 'category'>,
+  ): Draft => ({
+    date: on,
+    valueDate: on,
+    type: 'DEBIT',
+    mode: 'UPI',
+    isSalaryCredit: false,
+    isRecurring: false,
+    rank: RANK.spend,
+    ...over,
+  })
 
   /* Income ------------------------------------------------------------- */
 
   const { amount, day: incomeDay, variancePct, splits } = spec.income
 
   if (splits <= 1) {
-    // Salaried: one credit, on the last working day at or before the nominal day.
-    out.push({
-      date: payDay(year, month, incomeDay),
-      amount: variancePct > 0 ? r.jitter(amount, variancePct) : amount,
-      type: 'CREDIT',
-      mode: 'NEFT',
-      narration: salaryNarration(r, spec.employer),
-      category: 'Income',
-      isSalaryCredit: true,
-      isRecurring: true,
-      rank: RANK.credit,
-    })
+    // Salaried: one inward NEFT, on the last working day at or before the nominal day. The
+    // remitter is the employer's own bank, so the IFSC on this line is never IDBI's.
+    const on = payDay(year, month, incomeDay)
+    out.push(
+      line(on, {
+        amount: variancePct > 0 ? r.jitter(amount, variancePct) : amount,
+        type: 'CREDIT',
+        mode: 'NEFT',
+        narration: neftSalary(r, {
+          date: on,
+          employer: spec.employer.name,
+          ifsc: spec.employer.ifsc,
+        }),
+        category: 'Income',
+        isSalaryCredit: true,
+        isRecurring: true,
+        rank: RANK.credit,
+      }),
+    )
   } else {
-    // A trader collects several times a month, in amounts nobody can predict. Note that
-    // isSalaryCredit stays false throughout: there is no payroll flag to lean on, which is
-    // what makes deriving a stable income for this customer real work rather than a field read.
+    // A trader collects several times a month, in amounts nobody can predict, across three
+    // different rails. Note that isSalaryCredit stays false throughout: there is no payroll
+    // flag to lean on, which is what makes deriving a stable income for this customer real
+    // work rather than a field read.
     const monthTotal = r.jitter(amount, variancePct)
+    const payers = spec.income.payers ?? []
     let allocated = 0
 
     for (let i = 0; i < splits; i += 1) {
@@ -128,50 +218,99 @@ export function monthTransactions(
       const value = Math.max(2_000, share)
       allocated += value
 
-      out.push({
-        date: day(Math.round(((i + 0.5) * dim) / splits) + r.int(-3, 3)),
-        amount: value,
-        type: 'CREDIT',
-        mode: r.chance(0.6) ? 'UPI' : 'NEFT',
-        narration: r.chance(0.5)
-          ? `UPI/COLLECTION/${String(r.int(100_000_000_000, 999_999_999_999))}`
-          : salaryNarration(r, spec.employer),
-        category: 'Income',
-        isSalaryCredit: false,
-        isRecurring: false,
-        rank: RANK.credit,
-      })
+      const on = day(Math.round(((i + 0.5) * dim) / splits) + r.int(-3, 3))
+      const rail = r.weighted([
+        ['upi', 5],
+        ['settlement', 3],
+        ['cash', 2],
+      ] as const)
+      const agent = spec.income.settlementAgent
+
+      if (rail === 'settlement' && agent?.ifsc) {
+        out.push(
+          line(on, {
+            amount: value,
+            type: 'CREDIT',
+            mode: 'NEFT',
+            narration: neftSettlement(r, { date: on, remitter: agent.name, ifsc: agent.ifsc }),
+            category: 'Income',
+            rank: RANK.credit,
+          }),
+        )
+      } else if (rail === 'cash') {
+        // The day's takings, banked at a deposit machine. The part of a shop's income that
+        // leaves no trace anywhere until it arrives.
+        out.push(
+          line(on, {
+            amount: value,
+            type: 'CREDIT',
+            mode: 'CASH',
+            narration: cashDeposit(r, r.pick(cityProfile(city).localities)),
+            category: 'Income',
+            rank: RANK.credit,
+          }),
+        )
+      } else {
+        const payer = payers.length > 0 ? r.pick(payers) : { name: 'Customer', remark: 'SHOP SALE' }
+        const first = payer.name.split(' ')[0]?.toLowerCase() ?? 'customer'
+        out.push(
+          line(on, {
+            amount: value,
+            type: 'CREDIT',
+            mode: 'UPI',
+            narration: upiCredit(r, {
+              date: on,
+              payee: payer.name,
+              bank4: (payer.ifsc ?? 'SBIN0011045').slice(0, 4),
+              vpa: `${first}@okaxis`,
+              remark: payer.remark ?? 'SHOP SALE',
+            }),
+            category: 'Income',
+            rank: RANK.credit,
+          }),
+        )
+      }
     }
   }
 
   /* Fixed commitments -------------------------------------------------- */
 
   if (spec.rent) {
-    out.push({
-      date: day(spec.rent.day),
-      amount: spec.rent.amount,
-      type: 'DEBIT',
-      mode: 'IMPS',
-      narration: rentNarration(r),
-      category: 'Rent & bills',
-      isSalaryCredit: false,
-      isRecurring: true,
-      rank: RANK.mandate,
-    })
+    const on = day(spec.rent.day)
+    out.push(
+      line(on, {
+        amount: spec.rent.amount,
+        mode: 'IMPS',
+        narration: impsDebit(r, {
+          date: on,
+          beneficiary: spec.rent.payee.name,
+          ifsc: spec.rent.payee.ifsc ?? 'SBIN0000001',
+          remark: spec.rent.payee.remark ?? 'RENT',
+        }),
+        category: 'Rent & bills',
+        isRecurring: true,
+        rank: RANK.mandate,
+      }),
+    )
   }
 
   for (const o of spec.obligations) {
-    out.push({
-      date: day(o.day),
-      amount: o.amount,
-      type: 'DEBIT',
-      mode: 'IMPS',
-      narration: o.narration,
-      category: o.category,
-      isSalaryCredit: false,
-      isRecurring: true,
-      rank: RANK.mandate,
-    })
+    const on = day(o.day)
+    out.push(
+      line(on, {
+        amount: o.amount,
+        mode: 'IMPS',
+        narration: impsDebit(r, {
+          date: on,
+          beneficiary: o.payee.name,
+          ifsc: o.payee.ifsc ?? 'SBIN0000001',
+          remark: o.payee.remark ?? 'TRANSFER',
+        }),
+        category: o.category,
+        isRecurring: true,
+        rank: RANK.mandate,
+      }),
+    )
   }
 
   for (const emi of spec.emis) {
@@ -181,33 +320,80 @@ export function monthTransactions(
     if (monthsAgo >= emi.elapsedMonths) continue
     if (monthsAgo <= -emi.remainingMonths) continue
 
-    out.push({
-      date: day(emi.day),
-      amount: emi.isRevolving ? r.jitter(emi.amount, 0.18) : emi.amount,
-      type: 'DEBIT',
-      mode: 'ACH-D',
-      narration: emiNarration(r, emi.lender),
-      category: 'Loan EMI',
-      isSalaryCredit: false,
-      isRecurring: true,
-      rank: RANK.mandate,
-    })
+    if (emi.isRevolving) {
+      // A card bill, not an instalment. The customer picks an amount somewhere between the
+      // minimum due and the balance, and that choice is exactly why the balance never clears.
+      const on = day(emi.day)
+      out.push(
+        line(on, {
+          amount: r.jitter(emi.amount, 0.3),
+          mode: 'SI',
+          narration: creditCardPayment(r, emi.cardLast4 ?? spec.cardLast4),
+          category: 'Loan EMI',
+          isRecurring: true,
+          rank: RANK.mandate,
+        }),
+      )
+      continue
+    }
+
+    if (emi.returnedMonthsAgo === monthsAgo) {
+      // The mandate was presented against an account that could not pay it. The instalment is
+      // settled by hand twelve days later, which is what a DPD of 12 looks like on a statement
+      // rather than only on a liability record. The return charge itself is a bank line.
+      const late = day(emi.day + 12)
+      out.push(
+        line(late, {
+          amount: emi.amount,
+          mode: 'IMPS',
+          narration: impsDebit(r, {
+            date: late,
+            beneficiary: emi.creditor,
+            ifsc: cityProfile(city).branchIfsc,
+            remark: 'LATE EMI',
+          }),
+          category: 'Loan EMI',
+          rank: RANK.mandate,
+        }),
+      )
+      continue
+    }
+
+    const on = day(emi.day)
+    out.push(
+      line(on, {
+        amount: emi.amount,
+        mode: 'ACH-D',
+        narration: achLoan({
+          lender: emi.creditor,
+          mandateRef: mandateRef(spec, `${spec.slug}:${emi.creditor}`, emi.mandateBank4),
+          date: on,
+        }),
+        category: 'Loan EMI',
+        isRecurring: true,
+        rank: RANK.mandate,
+      }),
+    )
   }
 
   for (const sip of spec.sips) {
     if (monthsAgo >= sip.startsMonthsAgo) continue
+    const on = day(sip.day)
 
-    out.push({
-      date: day(sip.day),
-      amount: sip.amount,
-      type: 'DEBIT',
-      mode: 'ACH-D',
-      narration: narrate.ach(r, sip.scheme),
-      category: 'Investment',
-      isSalaryCredit: false,
-      isRecurring: true,
-      rank: RANK.mandate,
-    })
+    out.push(
+      line(on, {
+        amount: sip.amount,
+        mode: 'ACH-D',
+        narration: achSip({
+          clearer: sip.clearer,
+          mandateRef: mandateRef(spec, `${spec.slug}:${sip.scheme}`, 'IBKL'),
+          date: on,
+        }),
+        category: 'Investment',
+        isRecurring: true,
+        rank: RANK.mandate,
+      }),
+    )
   }
 
   for (const sub of spec.subscriptions) {
@@ -221,36 +407,45 @@ export function monthTransactions(
       if (monthsAgo <= step.fromMonthsAgo) price = step.amount
     }
 
-    out.push({
-      date: day(sub.day),
-      amount: price,
-      type: 'DEBIT',
-      mode: 'SI',
-      narration: narrate.si(r, sub.merchant),
-      category: sub.category,
-      isSalaryCredit: false,
-      isRecurring: true,
-      rank: RANK.mandate,
-    })
+    out.push(
+      line(day(sub.day), {
+        amount: price,
+        mode: 'SI',
+        narration: siAutopay(sub.merchant),
+        category: sub.category,
+        isRecurring: true,
+        rank: RANK.mandate,
+      }),
+    )
   }
 
   if (spec.utilities) {
-    UTILITIES.forEach((u, i) => {
-      const [lo, hi] = u.amount
-      out.push({
-        date: day(14 + i * 4 + r.int(-1, 1)),
-        amount: lo === hi ? lo : r.int(lo, hi),
-        type: 'DEBIT',
-        mode: 'UPI',
-        narration: u.narration(r, u.name),
-        category: 'Rent & bills',
-        isSalaryCredit: false,
-        // Recurring but variable. That difference is what separates a bill from a
-        // subscription, and telling them apart is the whole job of recurring analysis.
-        isRecurring: true,
-        rank: RANK.bill,
-      })
-    })
+    for (const bill of billersFor(city)) {
+      // A cylinder is not a monthly bill. Keyed on the absolute month so the every-other-month
+      // pattern does not slide when the year turns.
+      if (bill.everyMonths > 1 && (year * 12 + month) % bill.everyMonths !== 0) continue
+
+      const [lo, hi] = bill.amount
+      const on = day(bill.day + r.int(-1, 1))
+      out.push(
+        line(on, {
+          // A metered bill carries paise; a prepaid pack does not. Both are true, and the
+          // difference is visible on any statement.
+          amount: lo === hi ? lo : withPaise(r, r.int(lo, hi)),
+          mode: 'UPI',
+          narration: bbps(r, {
+            biller: bill.biller,
+            consumerNo: consumerNumber(spec, bill.biller),
+          }),
+          category: bill.category,
+          // Recurring but variable. That difference is what separates a bill from a
+          // subscription, and telling them apart is the whole job of recurring analysis.
+          isRecurring: true,
+          rank: RANK.bill,
+          mcc: bill.mcc,
+        }),
+      )
+    }
   }
 
   /* Lump sums ---------------------------------------------------------- */
@@ -258,17 +453,36 @@ export function monthTransactions(
   for (const lump of spec.lumps) {
     if (lump.monthsAgo !== monthsAgo) continue
 
-    out.push({
-      date: day(lump.day),
-      amount: lump.amount,
-      type: 'DEBIT',
-      mode: 'CARD',
-      narration: lump.narration,
-      category: lump.category,
-      isSalaryCredit: false,
-      isRecurring: false,
-      rank: RANK.spend,
-    })
+    const on = day(lump.day)
+    const isCard = lump.rail === 'pos' || lump.rail === 'ecom'
+    const narration =
+      lump.rail === 'pos'
+        ? pos({ cardLast4: spec.cardLast4, merchant: lump.payee.name, city })
+        : lump.rail === 'ecom'
+          ? ecom({ cardLast4: spec.cardLast4, merchant: lump.payee.name })
+          : lump.rail === 'neft'
+            ? `NEFT/DR/${lump.payee.name.toUpperCase()}/${lump.payee.ifsc ?? 'SBIN0000001'}/${(lump.payee.remark ?? 'PAYMENT').toUpperCase()}`
+            : impsDebit(r, {
+                date: on,
+                beneficiary: lump.payee.name,
+                ifsc: lump.payee.ifsc ?? 'SBIN0000001',
+                remark: lump.payee.remark ?? 'PAYMENT',
+              })
+
+    out.push(
+      line(on, {
+        // A card line posts the day after the purchase and is value-dated back to it. That is
+        // the ordinary case of the two-date column an auditor reads, and it costs nothing.
+        valueDate: isCard ? addDays(on, -1) : on,
+        amount: lump.amount,
+        mode: isCard ? 'CARD' : lump.rail === 'neft' ? 'NEFT' : 'IMPS',
+        narration,
+        category: lump.category,
+        rank: RANK.spend,
+        ...(lump.mcc === undefined ? {} : { mcc: lump.mcc }),
+        ...(isCard ? { merchantName: lump.payee.name } : {}),
+      }),
+    )
   }
 
   /* Discretionary ------------------------------------------------------ */
@@ -278,17 +492,24 @@ export function monthTransactions(
   // A little cash, because an Indian statement has ATM withdrawals on it, and money that
   // leaves as cash is money no categoriser can ever explain. Worth being honest about.
   if (r.chance(0.55)) {
-    out.push({
-      date: day(r.int(2, 26)),
-      amount: r.pick([500, 1_000, 2_000, 2_000, 3_000, 5_000]),
-      type: 'DEBIT',
-      mode: 'CASH',
-      narration: atmNarration(r, spec.customer.city),
-      category: 'Cash',
-      isSalaryCredit: false,
-      isRecurring: false,
-      rank: RANK.spend,
-    })
+    const on = day(r.int(2, 26))
+    const locality = r.pick(cityProfile(city).localities)
+    const atOwnBank = r.chance(0.4)
+    out.push(
+      line(on, {
+        amount: r.pick([500, 1_000, 2_000, 2_000, 3_000, 5_000]),
+        mode: 'CASH',
+        narration: atOwnBank
+          ? idbiCashWithdrawal(r, locality)
+          : nfsCashWithdrawal(r, {
+              date: on,
+              acquirerBank4: r.pick(['HDFC', 'SBIN', 'ICIC']),
+              locality,
+            }),
+        category: 'Cash',
+        rank: RANK.spend,
+      }),
+    )
   }
 
   return out
@@ -297,9 +518,10 @@ export function monthTransactions(
 /**
  * Discretionary spending for the month.
  *
- * Three effects, all of which a banker recognises and none of which a flat random walk
- * produces: spending clusters after payday, one category drifts upward over recent months, and
- * festivals move real money.
+ * Four effects, none of which a flat random walk produces: spending clusters after payday, one
+ * category drifts upward over recent months, festivals move real money on the dates they
+ * actually fall on in that year and that city, and the split between card and UPI is a
+ * property of the person rather than of the merchant.
  */
 function discretionary(
   spec: PersonaSpec,
@@ -310,6 +532,7 @@ function discretionary(
 ): Draft[] {
   const dim = daysInMonth(year, month)
   const pay = ymd(payDay(year, month, spec.income.day)).day
+  const city = spec.customer.city
 
   // Day weights. The half-life shortens as payday bias rises: at 0.8 the month is effectively
   // over by the 12th, which is Cleo's finding about the second half of the paycheck.
@@ -320,12 +543,12 @@ function discretionary(
   for (let d = 1; d <= dim; d += 1) {
     const since = (d - pay + dim) % dim
     const decay = Math.pow(0.5, since / halfLife)
-    dayWeight.push([d, (0.15 + 0.85 * decay) * festivalMultiplier(fromYmd(year, month, d))])
+    dayWeight.push([d, (0.15 + 0.85 * decay) * festivalMultiplier(fromYmd(year, month, d), city)])
   }
 
   // The month's envelope, lifted by any festival falling inside it.
   const festivalLift =
-    dayWeight.reduce((sum, [d]) => sum + festivalMultiplier(fromYmd(year, month, d)), 0) / dim
+    dayWeight.reduce((sum, [d]) => sum + festivalMultiplier(fromYmd(year, month, d), city), 0) / dim
   const budget = r.jitter(spec.discretionary.monthlyBudget, 0.12) * (1 + (festivalLift - 1) * 0.7)
 
   // Category shares, with the drift applied to whichever category is quietly climbing.
@@ -355,43 +578,103 @@ function discretionary(
   const out: Draft[] = []
 
   for (const [category, weight] of shares) {
-    const pool = DISCRETIONARY[category]
-    if (!pool || pool.length === 0 || totalWeight === 0) continue
+    const pool = merchantsFor(category, city)
+    if (pool.length === 0 || totalWeight === 0) continue
 
-    let allocation = (budget * weight) / totalWeight
+    const allocation = (budget * weight) / totalWeight
+    const byCard = pool.filter((x) => x.mode === 'CARD')
+    const byUpi = pool.filter((x) => x.mode === 'UPI')
 
-    // Draw until the allocation is used up. Two details keep this honest.
-    //
-    // Only merchants whose *cheapest* ticket still fits are eligible, and the draw is capped
-    // at what is left — so a ₹6,500 electronics ticket cannot overshoot a ₹900 remainder, and
-    // the loop cannot stall by repeatedly rolling something unaffordable. Earlier versions
-    // skipped or broke out instead, which left a random slice of every category's envelope
-    // unspent; the leftover varied month to month and put a ±₹150,000 swing into a balance
-    // that should drift smoothly. A budget knob has to mean what it says, or every persona
-    // needs hand-tuning and none of them stays coherent after an edit.
-    while (allocation > 0) {
-      const affordable = pool.filter((m) => m.amount[0] <= allocation)
-      if (affordable.length === 0) break
-
-      const merchant = r.weighted(affordable.map((m): [Merchant, number] => [m, m.weight]))
-      const [lo, hi] = merchant.amount
-      const cap = Math.min(hi, Math.max(lo, allocation))
-      const amount = Math.max(lo, Math.round(lo + (cap - lo) * r.normalish()))
-
-      allocation -= amount
-
-      out.push({
-        date: fromYmd(year, month, r.weighted(dayWeight)),
-        amount,
-        type: 'DEBIT',
-        mode: merchant.mode,
-        narration: merchant.narration(r, merchant.name),
-        category: merchant.category,
-        isSalaryCredit: false,
-        isRecurring: false,
-        rank: RANK.spend,
-      })
+    // The card share is a property of the person, not of the category — but a category with
+    // nothing to swipe at spends its whole allocation on UPI rather than losing it.
+    let cardBudget = byCard.length === 0 ? 0 : allocation * spec.discretionary.cardShare
+    let upiBudget = allocation - cardBudget
+    if (byUpi.length === 0) {
+      cardBudget = allocation
+      upiBudget = 0
     }
+
+    out.push(...fill(spec, r, byCard, cardBudget, dayWeight, year, month))
+    out.push(...fill(spec, r, byUpi, upiBudget, dayWeight, year, month))
+  }
+
+  return out
+}
+
+/**
+ * Spend an envelope down, one ticket at a time.
+ *
+ * The ticket is a Gamma draw around the merchant's own mean, clamped into its band. That is
+ * what produces a mean of about ₹600 and 85% of payments under ₹500 at the same time — a
+ * uniform draw makes those two facts contradictory, and they are both published.
+ *
+ * Two details keep the loop honest. Only merchants whose *cheapest* ticket still fits are
+ * eligible, and the draw is capped at what is left — so a ₹6,500 electronics ticket cannot
+ * overshoot a ₹900 remainder, and the loop cannot stall by repeatedly rolling something
+ * unaffordable. Earlier versions skipped or broke out instead, which left a random slice of
+ * every category's envelope unspent; the leftover varied month to month and put a ±₹150,000
+ * swing into a balance that should drift smoothly.
+ */
+function fill(
+  spec: PersonaSpec,
+  r: Rng,
+  pool: readonly Merchant[],
+  envelope: number,
+  dayWeight: readonly [number, number][],
+  year: number,
+  month: number,
+): Draft[] {
+  const out: Draft[] = []
+  const city = spec.customer.city
+  let allocation = envelope
+
+  while (allocation > 0) {
+    const affordable = pool.filter((x) => x.amount[0] <= allocation)
+    if (affordable.length === 0) break
+
+    const merchant = r.weighted(affordable.map((x): [Merchant, number] => [x, x.weight]))
+    const [lo, hi] = merchant.amount
+    const drawn = r.gamma(merchant.shape, merchant.ticketMean / merchant.shape)
+    // Rounded, because the cap is whatever is left of a fractional envelope and a UPI payment
+    // of ₹203.34 is not a thing anybody has ever seen on a statement.
+    const cap = Math.round(Math.min(hi, Math.max(lo, allocation)))
+    const amount = Math.max(lo, Math.min(cap, Math.round(drawn)))
+
+    allocation -= amount
+
+    const on = fromYmd(year, month, r.weighted(dayWeight))
+    const isCard = merchant.mode === 'CARD'
+    const named = isCard || r.chance(0.4)
+
+    out.push({
+      date: on,
+      // Card lines post the day after the purchase, value-dated back to it.
+      valueDate: isCard ? addDays(on, -1) : on,
+      amount,
+      type: 'DEBIT',
+      mode: merchant.mode,
+      narration: isCard
+        ? merchant.cardPresent
+          ? pos({ cardLast4: spec.cardLast4, merchant: merchant.name, city })
+          : ecom({ cardLast4: spec.cardLast4, merchant: merchant.name })
+        : upiDebit(r, {
+            date: on,
+            payee: merchant.name,
+            bank4: merchant.bank4 ?? 'ICIC',
+            vpa: merchant.vpa ?? `${merchant.name.toLowerCase().replace(/\s+/g, '')}@ybl`,
+            remark: merchant.remark ?? 'PAYMENT',
+          }),
+      category: merchant.category,
+      isSalaryCredit: false,
+      isRecurring: false,
+      rank: RANK.spend,
+      mcc: merchant.mcc,
+      // The acquirer always sends a merchant name on a card line. On UPI the bank sends one
+      // only sometimes, which is why enrichment has to work without it — and why this is a
+      // coin flip rather than a constant.
+      ...(named ? { merchantName: merchant.name } : {}),
+      ...(isCard || merchant.vpa === undefined ? {} : { vpa: merchant.vpa }),
+    })
   }
 
   return out
@@ -401,26 +684,59 @@ function discretionary(
  * The ledger
  * ------------------------------------------------------------------ */
 
-function seal(drafts: Draft[], openingBalance: number, slug: string): Transaction[] {
+/**
+ * The bank's own reference for a line.
+ *
+ * Where the rail carries a number, the statement quotes it — the RRN on a UPI or IMPS line, the
+ * UTR on a NEFT — and that is the string a customer reads out to the call centre. Everything
+ * else gets Finacle's own sequential id.
+ */
+function railReference(narration: string): string | null {
+  return (
+    /^UPI\/(?:DR|CR)\/(\d{12})\//.exec(narration)?.[1] ??
+    /^IMPS\/P2A\/(\d{12})\//.exec(narration)?.[1] ??
+    /^NEFT\/([A-Z0-9]{16})\//.exec(narration)?.[1] ??
+    /^NFS\/CASH WDL\/(\d{12})\//.exec(narration)?.[1] ??
+    null
+  )
+}
+
+function seal(drafts: Draft[], openingBalance: number): Transaction[] {
   const sorted = [...drafts].sort((a, b) =>
     a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank,
   )
-  let balance = openingBalance
+  // Balances are carried in paise. Utilities, charges and GST land on real statements with
+  // paise on them, and a running balance accumulated as floating-point rupees drifts over two
+  // thousand rows — enough for "the balance is the previous one plus the movement" to stop
+  // being exactly true, which is the one property the whole ledger rests on.
+  let paise = Math.round(openingBalance * 100)
+  const used = new Set<string>()
 
   return sorted.map((d, i) => {
-    balance += d.type === 'CREDIT' ? d.amount : -d.amount
+    paise += (d.type === 'CREDIT' ? 1 : -1) * Math.round(d.amount * 100)
+
+    const finacle = `S${String(i + 1).padStart(8, '0')}`
+    const rail = railReference(d.narration)
+    // Two switch traces can collide across a long ledger. Deterministic either way, but a
+    // statement cannot carry the same reference twice.
+    const txnId = rail !== null && !used.has(rail) ? rail : finacle
+    used.add(txnId)
 
     return {
-      txnId: `TXN${slug.toUpperCase()}${d.date.replace(/-/g, '')}${String(i).padStart(4, '0')}`,
+      txnId,
       txnDate: d.date,
+      valueDate: d.valueDate,
       txnAmount: d.amount,
       txnType: d.type,
       txnMode: d.mode,
       narration: d.narration,
       spendCategory: d.category,
-      balanceAfterTxn: Math.round(balance),
+      balanceAfterTxn: paise / 100,
       isSalaryCredit: d.isSalaryCredit,
       isRecurring: d.isRecurring,
+      ...(d.mcc === undefined ? {} : { mccCode: d.mcc }),
+      ...(d.merchantName === undefined ? {} : { merchantName: d.merchantName }),
+      ...(d.vpa === undefined ? {} : { counterpartyVpa: d.vpa }),
     }
   })
 }
@@ -435,7 +751,9 @@ function monthsFromAnchor(anchor: string, date: string): number {
 /** Drafts for every month the window touches. Anchor-relative, so independent of `asOf`. */
 function draftWindow(spec: PersonaSpec, anchor: string, from: string, to: string): Draft[] {
   const drafts: Draft[] = []
-  let cursor = fromYmd(ymd(from).year, ymd(from).month, 1)
+  // One month of lead-in, because a card purchase on the 31st posts on the 1st and would
+  // otherwise be produced only by a month that no longer starts the window.
+  let cursor = addMonths(fromYmd(ymd(from).year, ymd(from).month, 1), -1)
   const end = fromYmd(ymd(to).year, ymd(to).month, 1)
 
   while (cursor <= end) {
@@ -445,6 +763,47 @@ function draftWindow(spec: PersonaSpec, anchor: string, from: string, to: string
   }
 
   return drafts
+}
+
+/**
+ * The bank's own lines for a persona, computed once per `(anchor, to)` and cached.
+ *
+ * Cached because it costs a full behavioural pass over the persona's history and the port
+ * contract suite alone asks for eighteen ledgers. Caching is safe precisely because the answer
+ * is a pure function of the persona and the two dates: the balances it reads always begin at
+ * the persona's own ledger start, never at the caller's window.
+ */
+const bankLineCache = new Map<string, Draft[]>()
+
+function bankDrafts(spec: PersonaSpec, anchor: string, to: string): Draft[] {
+  const key = `${spec.slug}|${anchor}|${to}`
+  const hit = bankLineCache.get(key)
+  if (hit) return hit
+
+  const from = addMonths(anchor, -(LEDGER_MONTHS - 1))
+  const rows: LedgerRow[] = draftWindow(spec, anchor, from, to)
+    .filter((d) => d.date >= from && d.date <= to)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank))
+    .map((d) => ({ date: d.date, amount: d.amount, type: d.type }))
+
+  const returned = spec.emis.find((e) => e.returnedMonthsAgo !== undefined)
+  let returnedOn: string | null = null
+  if (returned?.returnedMonthsAgo !== undefined) {
+    const { year, month } = ymd(addMonths(anchor, -returned.returnedMonthsAgo))
+    returnedOn = fromYmd(year, month, Math.min(returned.day, daysInMonth(year, month)))
+  }
+
+  const lines: Draft[] = bankGeneratedLines(rows, {
+    from,
+    to,
+    openingBalance: spec.openingBalance,
+    govtCover: spec.govtCover,
+    coverReference: spec.coverReference,
+    nachReturnOn: returnedOn,
+  })
+
+  bankLineCache.set(key, lines)
+  return lines
 }
 
 /** Every transaction in the window, oldest first, with a running balance. */
@@ -457,10 +816,11 @@ export function generateLedger(
 
   // The ledger ends at asOf. Anything a month would have produced later than that has not
   // happened yet — it is what the time machine reveals.
+  const drafts = [...draftWindow(spec, anchor, start, asOf), ...bankDrafts(spec, anchor, asOf)]
+
   return seal(
-    draftWindow(spec, anchor, start, asOf).filter((d) => d.date <= asOf),
+    drafts.filter((d) => d.date >= start && d.date <= asOf),
     spec.openingBalance,
-    spec.slug,
   )
 }
 
@@ -479,11 +839,11 @@ export function generateForward(
   options?: Partial<GenerateOptions>,
 ): Transaction[] {
   const { anchor } = { ...DEFAULTS, ...options }
+  const drafts = [...draftWindow(spec, anchor, from, to), ...bankDrafts(spec, anchor, to)]
 
   return seal(
-    draftWindow(spec, anchor, from, to).filter((d) => d.date > from && d.date <= to),
+    drafts.filter((d) => d.date > from && d.date <= to),
     openingBalance,
-    spec.slug,
   )
 }
 
@@ -534,9 +894,10 @@ export function generateCustomerFile(
   const transactions = generateLedger(spec, { anchor, asOf, months })
 
   const savings: Account = {
-    accountNumberMasked: 'XXXXXX7412',
+    accountNumberMasked: spec.accountNumberMasked,
     accountType: 'Savings',
     accountOpeningDate: spec.customer.customerSince,
+    branchIfsc: cityProfile(spec.customer.city).branchIfsc,
     ...accountFactsAsOf(transactions, asOf, { openingBalance: spec.openingBalance }),
   }
 

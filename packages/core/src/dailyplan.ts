@@ -26,6 +26,12 @@ export interface SafeToSpend {
   perDay: number
   daysToSalary: number
   nextSalaryDate: string
+  /**
+   * Whether the date above is a salary landing or just the turn of the month. A shop owner has
+   * no pay day, and telling him his salary arrives on the 1st is the kind of line that loses a
+   * banker's trust in one glance.
+   */
+  incomeStability: 'regular' | 'variable'
   /** Held back deliberately. Shown so the number is never a black box. */
   reserved: { label: string; amount: number }[]
 }
@@ -148,6 +154,7 @@ export function buildDailyPlan(
     perDay: Math.round(pot / daysToSalary),
     daysToSalary,
     nextSalaryDate: snapshot.income.nextPayDate,
+    incomeStability: snapshot.income.stability,
     reserved,
   }
 

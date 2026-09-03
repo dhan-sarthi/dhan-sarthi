@@ -458,9 +458,12 @@ Adapter: `NotImplementedHostIdentity` returns null and logs; documented in
   runbook (rehearsed on Day 8); `/api/v1/health` answers db, bank source, seed hash, engine
   version, avatar provider, breaker and RPC count in one call; every log line carries a request
   id.
-- **Data realism.** 100 % of narrations match a declared IDBI-format template; 100 % of merchant
-  debits carry an MCC; utilities, transit and local merchants are city-correct for Indore, Kochi
-  and Nagpur; the customer's IFSC matches `^IBKL0[A-Z0-9]{6}$`; salary remitter IFSC is per
-  employer, never the shared `IDIB000M` prefix; masked account numbers are unique per persona; UPI
-  share by count within 70–90 % and median UPI ticket within ₹200–₹2,000; every distribution
-  parameter is cited or marked `[verify]` in `docs/data/calibration.md`.
+- **Data realism.** *Met as of 3 September 2026, and held by `packages/fixtures/src/realism.test.ts`.*
+  100 % of narrations match a declared IDBI-format template; 100 % of merchant debits carry an
+  MCC and nothing else does; utilities, transit and local merchants are city-correct for Indore,
+  Kochi and Nagpur; the customer's IFSC matches `^IBKL0[A-Z0-9]{6}$`; the salary remitter's IFSC
+  is per employer, never the shared `IDIB000M` prefix; masked account numbers are unique per
+  persona; UPI debits per month, the mean P2M ticket and the share under ₹500 stay inside bands
+  cited to NPCI and the RBI Payment System Report; every distribution parameter is cited or
+  marked `[verify]` in `docs/engineering/data-calibration.md`, including the one published figure
+  that is arithmetically unreachable at these envelopes and the reason why.

@@ -9,7 +9,7 @@
  *
  *   free up money -> protection -> clear expensive debt -> emergency buffer -> the goal
  *
- * So a customer who says "I want to invest" and has a card at 42% gets a route whose first three
+ * So a customer who says "I want to invest" and has a card at 34.8% gets a route whose first three
  * stages are not investing. That is the diagnose-before-prescribe principle expressed as data
  * rather than as a slogan, and every stage carries the sentence explaining why it comes first.
  *
@@ -102,6 +102,28 @@ export interface Roadmap {
 }
 
 const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+/**
+ * "September 2057" reads as a date; "2057-09" reads as a database key. This is the stage title
+ * the customer reads on Plan, beside a header that already spells the month out.
+ */
+const spokenMonth = (iso: string): string =>
+  `${MONTHS[Number(iso.slice(5, 7)) - 1] ?? iso.slice(0, 7)} ${iso.slice(0, 4)}`
 
 function pick(shelf: readonly Product[], id: string): Product | undefined {
   return shelf.find((p) => p.productId === id)
@@ -418,7 +440,7 @@ export function buildRoadmap(
       kind: 'grow',
       label:
         `${goal.purpose ?? 'Your goal'}: ${inr(goal.targetAmount)} by ` +
-        `${goal.targetDate.slice(0, 7)}`,
+        `${spokenMonth(goal.targetDate)}`,
       why: feasible
         ? `${inr(needed)} a month at an assumed ${rate}% gets you there. ${DISCLAIMER}`
         : `${inr(needed)} a month would be needed and there is ${inr(available)} spare. ` +

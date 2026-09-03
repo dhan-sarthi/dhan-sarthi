@@ -57,7 +57,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
-    files: ['packages/fixtures/src/cli.ts', '**/*.test.ts'],
+    files: ['packages/fixtures/src/cli.ts', 'packages/fixtures/src/cli-figures.ts', '**/*.test.ts'],
     rules: { 'no-console': 'off' },
   },
 

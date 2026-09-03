@@ -164,9 +164,9 @@ export function compoundedOneOff(amount: number, years: number, annualRatePct = 
  * How many months a debt takes to clear at a given monthly payment.
  *
  * Returns null where it never clears — which is not an edge case on an Indian credit card. At
- * 42% a year, ₹5.83 lakh accrues about ₹20,400 a month in interest alone, so a ₹6,898 payment
- * leaves the balance *growing*. Dividing the balance by the payment, as a naive plan does, would
- * have promised a payoff in 85 months that will never arrive.
+ * IDBI's own 34.8% a year, ₹5.83 lakh accrues about ₹16,900 a month in interest alone, so a
+ * ₹6,898 payment leaves the balance *growing*. Dividing the balance by the payment, as a naive
+ * plan does, would have promised a payoff in 85 months that will never arrive.
  *
  * Getting this wrong is not a rounding error. It is a plan that cannot happen, presented to
  * someone who is trusting us, and it is the single easiest way to lose a room of bankers.

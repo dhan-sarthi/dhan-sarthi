@@ -42,20 +42,20 @@ VALUES ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-3333333
   '1997-03-14', 'Male', 'Married', 2, 'Salaried', 1020000.00, 'VERIFIED', 'Balanced', 'Moderate', '2016-11-08', 'Indore', '23', 'en-IN');
 
 INSERT INTO bank.accounts (id, customer_id, account_ref, account_number_masked, product_kind, scheme_type, scheme_code, source, first_seen_run_id, last_seen_run_id)
-VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fx:rohan:sb', 'XXXXXX7412', 'CASA', 'SBA', 'SBSAL', 'fixtures',
+VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fx:rohan:sb', 'XXXXXXXXXXXX7412', 'CASA', 'SBA', 'SBSAL', 'fixtures',
         '33333333-3333-3333-3333-333333333333', '33333333-3333-3333-3333-333333333333');
 
 INSERT INTO bank.account_snapshots (account_id, sync_run_id, source, as_of, account_type, is_salary_account, mode_of_operation, status,
   branch_ifsc, opening_date, current_balance, lien_amount, avg_monthly_balance_3m, avg_monthly_balance_12m, min_balance_12m)
 VALUES ('44444444-4444-4444-4444-444444444444', '33333333-3333-3333-3333-333333333333', 'fixtures', '2026-08-20 18:30+05:30', 'SALARY', true, 'SINGLE', 'ACTIVE',
-  'IBKL0000001', '2016-11-08', 258773.00, 0, 156200.00, 142800.00, 122841.00);
+  'IBKL0000155', '2016-11-08', 282448.00, 0, 156200.00, 142800.00, 141663.35);
 
 -- two statement lines, then the same salary line again => upsert, still two rows
 INSERT INTO bank.transactions (account_id, customer_id, source, first_seen_run_id, tran_id, dedupe_hash, tran_date, value_date, tran_type, amount,
   balance_after, channel_code, narration, utr, is_salary_credit_bank)
 VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fixtures', '33333333-3333-3333-3333-333333333333',
-  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 258773.00, 'NEFT',
-  'NEFT-CR-HDFC0000123-ACME TECHNOLOGIES PVT LTD-SALARY', 'HDFCN52130000123', true)
+  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 282448.00, 'NEFT',
+  'NEFT/HDFCN262130004411/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY AUG 2026', 'HDFCN52130000123', true)
 ON CONFLICT (account_id, tran_id, part_tran_srl_num) DO UPDATE SET balance_after = EXCLUDED.balance_after;
 INSERT INTO bank.transactions (account_id, customer_id, source, first_seen_run_id, tran_id, dedupe_hash, tran_date, value_date, tran_type, amount,
   balance_after, channel_code, narration, rrn, counterparty_vpa)
@@ -65,8 +65,8 @@ VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-1111111
 INSERT INTO bank.transactions (account_id, customer_id, source, first_seen_run_id, tran_id, dedupe_hash, tran_date, value_date, tran_type, amount,
   balance_after, channel_code, narration, utr, is_salary_credit_bank)
 VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fixtures', '33333333-3333-3333-3333-333333333333',
-  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 258773.00, 'NEFT',
-  'NEFT-CR-HDFC0000123-ACME TECHNOLOGIES PVT LTD-SALARY', 'HDFCN52130000123', true)
+  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 282448.00, 'NEFT',
+  'NEFT/HDFCN262130004411/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY AUG 2026', 'HDFCN52130000123', true)
 ON CONFLICT (account_id, tran_id, part_tran_srl_num) DO UPDATE SET balance_after = EXCLUDED.balance_after;
 SELECT count(*) AS txn_rows_expect_2 FROM bank.transactions;
 
@@ -87,7 +87,7 @@ VALUES ('55555555-5555-5555-5555-555555555555', 'LIC_ULIP_401', 'LIC Market Plus
 INSERT INTO app.snapshots (id, customer_id, sync_run_id, consent_id, as_of, engine_version, snapshot, surplus_deployable, income_monthly, idle_floor)
 VALUES ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
   '22222222-2222-2222-2222-222222222222', '2026-09-01', '2026.09.03-schema-v1',
-  '{"asOf":"2026-09-01","income":{"monthly":85000},"surplus":{"deployable":11481}}', 11481, 85000, 122841);
+  '{"asOf":"2026-09-01","income":{"monthly":85000},"surplus":{"deployable":10933}}', 10933, 85000, 141663.35);
 SELECT snapshot_hash = common.sha256_hex(snapshot) AS snapshot_hash_filled_expect_t FROM app.snapshots;
 
 INSERT INTO app.verdicts (id, customer_id, snapshot_id, product_id, product_code, amount_monthly, verdict, rules_version, rule_id, spoken, recorded, passed, requested_by)
@@ -105,7 +105,7 @@ EXCEPTION WHEN check_violation THEN RAISE NOTICE 'ok: PASS-with-rule rejected'; 
 
 INSERT INTO app.actions (id, customer_id, snapshot_id, kind, label, detail, amount, product_id, product_code, verdict_id, status)
 VALUES ('88888888-8888-8888-8888-888888888888', '11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-666666666666', 'buy_term_cover',
-  'Get ₹1 crore term cover for ₹880 a month', 'LIC term assurance, pure cover, no maturity value', 880, '55555555-5555-5555-5555-555555555555', 'LIC_TERM_201',
+  'Get ₹1 crore term cover for ₹985 a month', 'LIC Digi Term, pure cover, no maturity value', 985, '55555555-5555-5555-5555-555555555555', 'LIC_TERM_201',
   '77777777-7777-7777-7777-777777777777', 'shown');
 
 -- a product action without a verdict must fail
@@ -127,7 +127,7 @@ SELECT '11111111-1111-1111-1111-111111111111', 'VERDICT', s.id, s.snapshot_hash,
 FROM app.snapshots s;
 INSERT INTO app.audit_records (customer_id, event_type, action_id, action_kind, decision_kind, sentence_shown, consent_reference, actor, channel)
 VALUES ('11111111-1111-1111-1111-111111111111', 'DECISION', '88888888-8888-8888-8888-888888888888', 'buy_term_cover', 'pushed_back',
-  'Get ₹1 crore term cover for ₹880 a month', 'CONS_SYN_982731', 'customer', 'avatar');
+  'Get ₹1 crore term cover for ₹985 a month', 'CONS_SYN_982731', 'customer', 'avatar');
 
 SELECT seq, event_type, left(prev_hash, 8) AS prev8, left(record_hash, 8) AS hash8, retain_until::date FROM app.audit_records ORDER BY seq;
 SELECT app.audit_chain_verify('11111111-1111-1111-1111-111111111111') AS chain_break_expect_null;

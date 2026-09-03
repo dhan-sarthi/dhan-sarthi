@@ -71,6 +71,8 @@ export type SpendCategory = z.infer<typeof SpendCategorySchema>
 export const TransactionSchema = z.object({
   txnId: z.string(),
   txnDate: IsoDateSchema,
+  /** Same-day on UPI and IMPS; the day before on a card line, which posts after the purchase. */
+  valueDate: IsoDateSchema,
   txnAmount: MoneySchema,
   txnType: TxnTypeSchema,
   txnMode: TxnModeSchema,
@@ -79,6 +81,11 @@ export const TransactionSchema = z.object({
   balanceAfterTxn: MoneySchema.nullable(),
   isSalaryCredit: z.boolean(),
   isRecurring: z.boolean(),
+  /** ISO 18245, on the rails that carry one. Person-to-person payments never do. */
+  mccCode: z.string().optional(),
+  /** The bank's own guess at the merchant, present on a subset of lines only. */
+  merchantName: z.string().optional(),
+  counterpartyVpa: z.string().optional(),
 })
 export type Transaction = z.infer<typeof TransactionSchema>
 
@@ -89,6 +96,8 @@ export const AccountSchema = z.object({
   accountType: AccountTypeSchema,
   currentBalance: MoneySchema,
   accountOpeningDate: IsoDateSchema,
+  /** The home branch's IFSC, on the header of every statement. IDBI's prefix is `IBKL`. */
+  branchIfsc: z.string().optional(),
   avgMonthlyBalance3m: MoneySchema.optional(),
   avgMonthlyBalance12m: MoneySchema.optional(),
   minBalance12m: MoneySchema.optional(),
@@ -557,6 +566,7 @@ export const SafeToSpendSchema = z.object({
   perDay: MoneySchema,
   daysToSalary: z.number(),
   nextSalaryDate: IsoDateSchema,
+  incomeStability: z.enum(['regular', 'variable']),
   reserved: z.array(z.object({ label: z.string(), amount: MoneySchema })),
 })
 export type SafeToSpend = z.infer<typeof SafeToSpendSchema>

@@ -114,7 +114,7 @@ These pay the bank almost nothing, which is exactly why recommending them is uni
 
 | Scheme | Cost / return | Suits |
 |---|---|---|
-| **PMJJBY** | ~₹436/year for ₹2 lakh life cover **[verify current rate]** | A customer who cannot afford term cover. An app that recommends a ₹436-a-year government scheme over a ₹2,500-a-month ULIP has made its entire argument in one screen |
+| **PMJJBY** | ₹436/year for ₹2 lakh life cover, auto-debited before 1 June | A customer who cannot afford term cover. An app that recommends a ₹436-a-year government scheme over a ₹2,500-a-month ULIP has made its entire argument in one screen |
 | **PMSBY** | ~₹20/year for ₹2 lakh accident cover **[verify]** | Everyone. Costs nothing |
 | **APY** (Atal Pension Yojana) | Guaranteed pension, small contributions | Informal / low-income |
 | **NPS** | Very low cost, locked till 60, extra ₹50k deduction under 80CCD(1B) | **Retirement specifically.** Fits our thirty-year horizon perfectly and IDBI is a Point of Presence |
@@ -134,7 +134,7 @@ This is the order the gate should enforce, and it is close to what `suitability.
 does. Protection and solvency before growth — always.
 
 ```
-0. High-interest debt          credit card at 36-42% beats every investment. Pay it first.
+0. High-interest debt          IDBI's card at 34.8% beats every investment. Pay it first.
 1. Missed repayments           fix the record before adding a commitment.
 2. Emergency buffer            1 month, then 3, then 6. Sweep-in FD or liquid fund.
                                Nothing with a lock-in until 3 months exists.

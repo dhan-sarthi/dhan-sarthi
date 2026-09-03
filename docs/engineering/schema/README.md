@@ -737,7 +737,7 @@ CREATE TABLE bank.accounts (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id           uuid NOT NULL REFERENCES app.customers(id) ON DELETE CASCADE,
   account_ref           text NOT NULL,                         -- stable external ref: sha256(foracid) from IDBI, AA linkedAccRef, or fixture id. Never the clear number.
-  account_number_masked common.masked_acct NOT NULL,           -- 'XXXXXX7412'
+  account_number_masked common.masked_acct NOT NULL,           -- 'XXXXXXXXXXXX7412'
   product_kind          text NOT NULL CHECK (product_kind IN ('CASA','TERM_DEPOSIT','RECURRING_DEPOSIT','LOAN','CREDIT_CARD','OVERDRAFT','PPF','NPS','OTHER')),
   scheme_type           text CHECK (scheme_type IN ('SBA','CAA','TDA','ODA','CCA','LAA','OTHER')), -- Finacle scheme types
   scheme_type_raw       text,
@@ -2159,20 +2159,20 @@ VALUES ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-3333333
   '1997-03-14', 'Male', 'Married', 2, 'Salaried', 1020000.00, 'VERIFIED', 'Balanced', 'Moderate', '2016-11-08', 'Indore', '23', 'en-IN');
 
 INSERT INTO bank.accounts (id, customer_id, account_ref, account_number_masked, product_kind, scheme_type, scheme_code, source, first_seen_run_id, last_seen_run_id)
-VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fx:rohan:sb', 'XXXXXX7412', 'CASA', 'SBA', 'SBSAL', 'fixtures',
+VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fx:rohan:sb', 'XXXXXXXXXXXX7412', 'CASA', 'SBA', 'SBSAL', 'fixtures',
         '33333333-3333-3333-3333-333333333333', '33333333-3333-3333-3333-333333333333');
 
 INSERT INTO bank.account_snapshots (account_id, sync_run_id, source, as_of, account_type, is_salary_account, mode_of_operation, status,
   branch_ifsc, opening_date, current_balance, lien_amount, avg_monthly_balance_3m, avg_monthly_balance_12m, min_balance_12m)
 VALUES ('44444444-4444-4444-4444-444444444444', '33333333-3333-3333-3333-333333333333', 'fixtures', '2026-08-20 18:30+05:30', 'SALARY', true, 'SINGLE', 'ACTIVE',
-  'IBKL0000001', '2016-11-08', 258773.00, 0, 156200.00, 142800.00, 122841.00);
+  'IBKL0000155', '2016-11-08', 282448.00, 0, 156200.00, 142800.00, 141663.35);
 
 -- two statement lines, then the same salary line again => upsert, still two rows
 INSERT INTO bank.transactions (account_id, customer_id, source, first_seen_run_id, tran_id, dedupe_hash, tran_date, value_date, tran_type, amount,
   balance_after, channel_code, narration, utr, is_salary_credit_bank)
 VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fixtures', '33333333-3333-3333-3333-333333333333',
-  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 258773.00, 'NEFT',
-  'NEFT-CR-HDFC0000123-ACME TECHNOLOGIES PVT LTD-SALARY', 'HDFCN52130000123', true)
+  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 282448.00, 'NEFT',
+  'NEFT/HDFCN262130004411/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY AUG 2026', 'HDFCN52130000123', true)
 ON CONFLICT (account_id, tran_id, part_tran_srl_num) DO UPDATE SET balance_after = EXCLUDED.balance_after;
 INSERT INTO bank.transactions (account_id, customer_id, source, first_seen_run_id, tran_id, dedupe_hash, tran_date, value_date, tran_type, amount,
   balance_after, channel_code, narration, rrn, counterparty_vpa)
@@ -2182,8 +2182,8 @@ VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-1111111
 INSERT INTO bank.transactions (account_id, customer_id, source, first_seen_run_id, tran_id, dedupe_hash, tran_date, value_date, tran_type, amount,
   balance_after, channel_code, narration, utr, is_salary_credit_bank)
 VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'fixtures', '33333333-3333-3333-3333-333333333333',
-  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 258773.00, 'NEFT',
-  'NEFT-CR-HDFC0000123-ACME TECHNOLOGIES PVT LTD-SALARY', 'HDFCN52130000123', true)
+  'S82918001', common.sha256_hex('{"k":"sal-2026-08-01"}'::jsonb), '2026-08-01', '2026-08-01', 'CREDIT', 85000.00, 282448.00, 'NEFT',
+  'NEFT/HDFCN262130004411/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY AUG 2026', 'HDFCN52130000123', true)
 ON CONFLICT (account_id, tran_id, part_tran_srl_num) DO UPDATE SET balance_after = EXCLUDED.balance_after;
 SELECT count(*) AS txn_rows_expect_2 FROM bank.transactions;
 
@@ -2204,7 +2204,7 @@ VALUES ('55555555-5555-5555-5555-555555555555', 'LIC_ULIP_401', 'LIC Market Plus
 INSERT INTO app.snapshots (id, customer_id, sync_run_id, consent_id, as_of, engine_version, snapshot, surplus_deployable, income_monthly, idle_floor)
 VALUES ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
   '22222222-2222-2222-2222-222222222222', '2026-09-01', '2026.09.03-schema-v1',
-  '{"asOf":"2026-09-01","income":{"monthly":85000},"surplus":{"deployable":11481}}', 11481, 85000, 122841);
+  '{"asOf":"2026-09-01","income":{"monthly":85000},"surplus":{"deployable":10933}}', 10933, 85000, 141663.35);
 SELECT snapshot_hash = common.sha256_hex(snapshot) AS snapshot_hash_filled_expect_t FROM app.snapshots;
 
 INSERT INTO app.verdicts (id, customer_id, snapshot_id, product_id, product_code, amount_monthly, verdict, rules_version, rule_id, spoken, recorded, passed, requested_by)
@@ -2222,7 +2222,7 @@ EXCEPTION WHEN check_violation THEN RAISE NOTICE 'ok: PASS-with-rule rejected'; 
 
 INSERT INTO app.actions (id, customer_id, snapshot_id, kind, label, detail, amount, product_id, product_code, verdict_id, status)
 VALUES ('88888888-8888-8888-8888-888888888888', '11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-666666666666', 'buy_term_cover',
-  'Get ₹1 crore term cover for ₹880 a month', 'LIC term assurance, pure cover, no maturity value', 880, '55555555-5555-5555-5555-555555555555', 'LIC_TERM_201',
+  'Get ₹1 crore term cover for ₹985 a month', 'LIC Digi Term, pure cover, no maturity value', 985, '55555555-5555-5555-5555-555555555555', 'LIC_TERM_201',
   '77777777-7777-7777-7777-777777777777', 'shown');
 
 -- a product action without a verdict must fail
@@ -2244,7 +2244,7 @@ SELECT '11111111-1111-1111-1111-111111111111', 'VERDICT', s.id, s.snapshot_hash,
 FROM app.snapshots s;
 INSERT INTO app.audit_records (customer_id, event_type, action_id, action_kind, decision_kind, sentence_shown, consent_reference, actor, channel)
 VALUES ('11111111-1111-1111-1111-111111111111', 'DECISION', '88888888-8888-8888-8888-888888888888', 'buy_term_cover', 'pushed_back',
-  'Get ₹1 crore term cover for ₹880 a month', 'CONS_SYN_982731', 'customer', 'avatar');
+  'Get ₹1 crore term cover for ₹985 a month', 'CONS_SYN_982731', 'customer', 'avatar');
 
 SELECT seq, event_type, left(prev_hash, 8) AS prev8, left(record_hash, 8) AS hash8, retain_until::date FROM app.audit_records ORDER BY seq;
 SELECT app.audit_chain_verify('11111111-1111-1111-1111-111111111111') AS chain_break_expect_null;
@@ -2885,6 +2885,10 @@ The fixtures generator is not a bypass: `@dhan/fixtures` emits a `CustomerFile` 
 
 The generator (`packages/fixtures/src/generate.ts`, `merchants.ts`) already gets the hard things right: behaviour-first personas, one RNG stream per month keyed on a fixed anchor, a continuous running balance, real merchant names, festival multipliers. What follows is what a banker would notice next, each tied to the columns it should populate and the source that fixes the rule. Items 1–6 change what a reviewer sees on the Money tab; 7–12 are what makes the ingestion path honest.
 
+> **Status, 3 September 2026.** Items **2, 3, 5, 6, 7, 14 and 15 are done**, and item **1** is done for the card-settlement and back-valued-charge cases (cheque clearing, the working-day roll and `ref.bank_holidays` are not — no persona writes a cheque). Items **4, 8, 9, 10, 11, 12 and 13** are not started: they are ingestion-path realism rather than statement realism, and none of them changes what a reviewer sees on a screen. What was implemented, what it turned into, and what each remaining item is waiting on is recorded in [`docs/engineering/data-calibration.md`](../data-calibration.md); the constants live in `packages/fixtures/src/calibration.ts` and the assertions in `packages/fixtures/src/realism.test.ts`.
+>
+> Two things the pass found that this table did not predict. Emitting the real NACH form silently broke recurring detection — `seriesKey` split `-07-09-2026` on the hyphen and kept `07` and `09`, so every EMI produced a different key each month and formed no series at all. And the two published UPI figures, a ₹606 mean and 36–44 payments a month, cannot both hold on a household with a ₹14,000 monthly merchant envelope, because their product is the envelope; the calibration document explains which one gives and why.
+
 | # | Upgrade | Populates | Rule and source |
 |---|---|---|---|
 | 1 | **Value date distinct from posting date.** Cheques clear on the next working day; NEFT credits carry the batch's day; interest and charges are back-valued to the period end; UPI/IMPS/RTGS are same-day. Add `ref.bank_holidays` (national + MP/Kerala/Maharashtra for the three personas) and roll to the next working day. Occasionally emit `value_date < tran_date` (back-valued posting) because auditors see it. | `bank.transactions.tran_date`, `value_date`; `ref.bank_holidays` | Value vs transaction date explained with an RTGS-at-2:45pm example at [CAclubindia](https://www.caclubindia.com/forum/value-date-in-bank-reconciliation-statement-209128.asp); NEFT runs in 48 half-hourly batches ([Wikipedia NEFT](https://en.wikipedia.org/wiki/National_Electronic_Funds_Transfer)); RTGS 24x7 and no future-dated value ([RBI RTGS FAQ](https://www.rbi.org.in/Scripts/FAQView.aspx?Id=65)); cheque divergence noted by [invoicedataextraction](https://invoicedataextraction.com/blog/convert-indian-bank-statements-to-excel). Working-day roll is **[inference]**. |
@@ -2904,6 +2908,8 @@ The generator (`packages/fixtures/src/generate.ts`, `merchants.ts`) already gets
 | 15 | **Small behavioural textures.** Salary landing on the last working day when the 1st is a holiday; a month-end ATM withdrawal; a BBPS electricity bill with the biller's consumer number in the narration; a CDM cash deposit for Sunil's shop takings; Diwali and school-fee seasonality already exist. | `bank.transactions` | Holiday roll and month-end cash are **[inference]**; BBPS biller fields (consumer number, billing unit, auto-pay) from the [GO Mobile+ manual](https://www.idbi.bank.in/pdf/Mobile-banking-manual.pdf). |
 
 Two tests to add alongside: (a) every generated line passes the `bank.transactions` CHECKs when loaded through the staging path (the RRN/UTR/IFSC regexes will catch the current formats immediately); (b) the running balance after interest and charges still never goes negative and still reproduces the persona summary numbers in `docs/product/autopilot.md` within rounding — interest credits will move Rohan's closing balance by a few thousand rupees, and the doc's figures should be regenerated, not defended.
+
+Both happened. The balance is now carried in paise and is still continuous and never negative (`generate.test.ts`), and the figures were regenerated rather than defended: Rohan's twelve-month floor moved from ₹1,22,841 to ₹1,41,663 and his deployable surplus from ₹12,246 to ₹10,933. `pnpm --filter @dhan/fixtures figures` prints the whole set, and it is where the README and `autopilot.md` now get their numbers. Test (a) is still to write: it needs the staging path, and today the seed writes straight into `bank.*`.
 
 ---
 

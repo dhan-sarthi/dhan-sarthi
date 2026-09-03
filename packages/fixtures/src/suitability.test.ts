@@ -86,7 +86,7 @@ describe('order of objections', () => {
     // The earliest failing rule wins, so the most fundamental objection is the one reported.
     const v = check(snap(PRIYA), 'MF_INDEX_103', 5_000, { kind: 'wealth_target', horizonYears: 10 })
     assert.equal(v.ruleId, 'HIGH_INTEREST_DEBT')
-    assert.match(v.spoken ?? '', /42%/)
+    assert.match(v.spoken ?? '', /34\.8%/)
     assert.deepEqual(v.passed, [])
   })
 
@@ -106,9 +106,9 @@ describe('protection is not an investment', () => {
     assert.equal(s.debt.missedRepayment, true)
     assert.equal(s.customer.dependents, 4)
 
-    assert.equal(check(s, 'LIC_TERM_201', 880).verdict, 'PASS')
+    assert.equal(check(s, 'LIC_TERM_201', 985).verdict, 'PASS')
     assert.equal(check(s, 'NIVA_HEALTH_202', 1_450).verdict, 'PASS')
-    assert.equal(check(s, 'GOI_PMJJBY_203', 37).verdict, 'PASS')
+    assert.equal(check(s, 'GOI_PMJJBY_203', 36).verdict, 'PASS')
 
     // But every investment is still blocked.
     assert.equal(check(s, 'MF_INDEX_103', 3_000).ruleId, 'MISSED_REPAYMENT')
@@ -121,7 +121,7 @@ describe('protection is not an investment', () => {
     const s = snap(PRIYA)
     assert.equal(s.surplus.deployable, 0)
 
-    const term = check(s, 'LIC_TERM_201', 880)
+    const term = check(s, 'LIC_TERM_201', 985)
     assert.equal(term.ruleId, 'AFFORDABILITY')
     assert.equal(term.alternative?.productId, 'GOI_PMJJBY_203')
 
@@ -134,7 +134,7 @@ describe('protection is not an investment', () => {
 
   it('never refuses a premium too small to matter', () => {
     const s = snap(PRIYA)
-    assert.equal(check(s, 'GOI_PMJJBY_203', 37).verdict, 'PASS')
+    assert.equal(check(s, 'GOI_PMJJBY_203', 36).verdict, 'PASS')
     assert.equal(check(s, 'GOI_PMSBY_204', 2).verdict, 'PASS')
   })
 })
@@ -173,7 +173,7 @@ describe('matching the product to the goal', () => {
       check(s, 'IDBI_SSP_002', 5_000, { kind: 'emergency_fund', horizonYears: 1 }).verdict,
       'PASS',
     )
-    assert.equal(check(s, 'LIC_TERM_201', 880).verdict, 'PASS')
+    assert.equal(check(s, 'LIC_TERM_201', 985).verdict, 'PASS')
   })
 })
 

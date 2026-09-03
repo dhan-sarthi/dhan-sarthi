@@ -82,6 +82,12 @@ export const ConfigSchema = z
     FAULT_INJECT: list.default([]),
 
     /** The persona anchor every fixture window is measured from. It never moves. */
+    // The IDBI sandbox. Unset, BANK_SOURCE=idbi-sandbox serves the recorded sample payloads
+    // through an in-process fake, so the adapter runs with no network and no credential.
+    IDBI_API_BASE: z.string().url().optional(),
+    IDBI_API_KEY: z.string().optional(),
+    IDBI_CONSENT_ID: z.string().optional(),
+
     SEED_ANCHOR: isoDate.default('2026-09-01'),
     /** Months of ledger seeded past the anchor: the clock's headroom. */
     SEED_FORWARD_MONTHS: z.coerce.number().int().min(0).max(120).default(18),

@@ -40,7 +40,9 @@ export const MERCHANTS: readonly MerchantRule[] = [
     category: 'Groceries',
   },
   {
-    match: ['MORE RETAIL', 'SPENCER', 'STAR BAZAAR'],
+    // Lulu is the weekly shop in Kochi the way DMart is in Indore. Listed before the mall rule
+    // below, because "Lulu Mall" is an afternoon out and "Lulu Hypermarket" is the groceries.
+    match: ['LULU HYPERMARKET', 'MORE RETAIL', 'SPENCER', 'STAR BAZAAR', 'NILGIRIS'],
     merchant: 'Supermarket',
     category: 'Groceries',
   },
@@ -72,6 +74,7 @@ export const MERCHANTS: readonly MerchantRule[] = [
       'CCD',
       'CHAAYOS',
       'CHAI POINT',
+      'INDIAN COFFEE HOUSE',
     ],
     merchant: 'Coffee shop',
     category: 'Food & dining',
@@ -89,7 +92,16 @@ export const MERCHANTS: readonly MerchantRule[] = [
   { match: ['OLA', 'ANI TECHNOLOGIES'], merchant: 'Ola', category: 'Transport' },
   { match: ['NAMMA YATRI'], merchant: 'Namma Yatri', category: 'Transport' },
   {
-    match: ['INDIAN OIL', 'IOCL', 'HPCL', 'BHARAT PETRO', 'BPCL', 'SHELL', 'NAYARA'],
+    match: [
+      'INDIAN OIL',
+      'IOCL',
+      'HPCL',
+      'BHARAT PETRO',
+      'BHARAT PETROLEUM',
+      'BPCL',
+      'SHELL',
+      'NAYARA',
+    ],
     merchant: 'Fuel',
     category: 'Transport',
   },
@@ -132,8 +144,13 @@ export const MERCHANTS: readonly MerchantRule[] = [
     category: 'Shopping',
   },
   {
-    match: ['MALL', 'TREASURE ISLAND', 'PHOENIX'],
+    match: ['MALL', 'TREASURE ISLAND', 'PHOENIX', 'EMPRESS CITY'],
     merchant: 'Shopping mall',
+    category: 'Shopping',
+  },
+  {
+    match: ['ADOBE', 'MICROSOFT 365', 'GOOGLE ONE', 'CANVA', 'FIGMA'],
+    merchant: 'Software',
     category: 'Shopping',
   },
   {
@@ -200,7 +217,7 @@ export const MERCHANTS: readonly MerchantRule[] = [
     category: 'Rent & bills',
   },
   {
-    match: ['ACT FIBERNET', 'HATHWAY', 'EXCITEL', 'BROADBAND'],
+    match: ['ACT FIBERNET', 'HATHWAY', 'EXCITEL', 'ASIANET', 'BROADBAND', 'FIBER'],
     merchant: 'Broadband',
     category: 'Rent & bills',
   },
@@ -208,6 +225,8 @@ export const MERCHANTS: readonly MerchantRule[] = [
     match: [
       'MPPKVVCL',
       'MSEDCL',
+      'KSEB',
+      'KERALA STATE ELECTRICITY',
       'BESCOM',
       'TATA POWER',
       'ADANI ELECTRICITY',
@@ -218,7 +237,11 @@ export const MERCHANTS: readonly MerchantRule[] = [
     merchant: 'Electricity',
     category: 'Rent & bills',
   },
-  { match: ['GAS', 'INDANE', 'HP GAS', 'MAHANAGAR'], merchant: 'Gas', category: 'Rent & bills' },
+  {
+    match: ['GAS', 'INDANE', 'HP GAS', 'MAHANAGAR', 'IOAGPL', 'AVANTIKA GAS', 'GAIL GAS'],
+    merchant: 'Gas',
+    category: 'Rent & bills',
+  },
   { match: ['MUNICIPAL', 'WATER', 'PROPERTY TAX'], merchant: 'Civic', category: 'Rent & bills' },
 
   // Education.
@@ -237,6 +260,37 @@ export const MERCHANTS: readonly MerchantRule[] = [
     ],
     merchant: 'Education',
     category: 'Education',
+  },
+
+  // Lenders, as a NACH mandate names them.
+  //
+  // A real `ACH-DR-` line identifies the creditor and nothing else — no "EMI", no loan account,
+  // no purpose. So recognising a loan instalment means recognising the lender, which is the
+  // actual job an enrichment dictionary does in production and the reason these are rows here
+  // rather than a keyword. Ahead of the investment mandates because a finance company's name
+  // and an AMC's are the same kind of string.
+  {
+    match: [
+      'IDBI BANK RETAIL ASSETS',
+      'BAJAJ FINANCE',
+      'BAJAJ FINSERV',
+      'HDB FINANCIAL',
+      'TATA CAPITAL',
+      'CHOLAMANDALAM',
+      'MUTHOOT FINANCE',
+      'CAPITAL TRUST',
+    ],
+    merchant: 'Lender',
+    category: 'Loan EMI',
+  },
+
+  // The clearing corporations that actually collect a mutual-fund SIP. The scheme name appears
+  // nowhere on the line: the mandate is held by the exchange, not by the AMC, which is why a
+  // dictionary that only knows fund houses finds no SIPs at all.
+  {
+    match: ['INDIAN CLEARING CORP', 'NSECLEARINGLIMITED', 'NSE CLEARING', 'ICCL', 'BSE STAR MF'],
+    merchant: 'Mutual fund',
+    category: 'Investment',
   },
 
   // Investment and insurance mandates.
@@ -285,12 +339,33 @@ export const MERCHANTS: readonly MerchantRule[] = [
  */
 export const KEYWORDS: readonly { match: readonly string[]; category: SpendCategory }[] = [
   { match: ['SALARY', 'SAL CR', 'PAYROLL', 'WAGES'], category: 'Income' },
+  // The bank's own credit. Every statement carries four of these a year and none of them has a
+  // merchant, so without this rule the most predictable line in the ledger is unexplained.
+  {
+    match: ['SB INT CR', 'CREDIT INTEREST', 'INT PD', 'SAVINGS INTEREST', 'INT CREDIT'],
+    category: 'Income',
+  },
   { match: ['EMI', 'LOAN REPAY', 'INSTALLMENT', 'INSTALMENT'], category: 'Loan EMI' },
-  { match: ['CREDIT CARD', 'CC PAYMENT', 'CARD PAYMENT'], category: 'Loan EMI' },
+  // `CreditCard Payment XX 1184 Ref#…` is one word in the bank's own spelling, which is why the
+  // spaced forms below do not catch it and why both spellings have to be listed.
+  {
+    match: ['CREDIT CARD', 'CREDITCARD', 'CC PAYMENT', 'CARD PAYMENT'],
+    category: 'Loan EMI',
+  },
   { match: ['RENT'], category: 'Rent & bills' },
   { match: ['SIP', 'SYSTEMATIC'], category: 'Investment' },
   { match: ['ATW', 'ATM', 'CASH WDL', 'NWD'], category: 'Cash' },
-  { match: ['CHARGES', 'FEE', 'GST', 'PENAL', 'BOUNCE'], category: 'Fees & charges' },
+  // `CHGS` is the abbreviation a Finacle bank actually prints; `CHARGES` almost never appears.
+  {
+    match: ['CHARGES', 'CHGS', 'FEE', 'GST', 'PENAL', 'BOUNCE', 'MIN BAL'],
+    category: 'Fees & charges',
+  },
   { match: ['P2A', 'P2P', 'TRANSFER', 'NEFT-DR', 'IMPS-DR'], category: 'Transfers' },
-  { match: ['COLLECTION', 'RECEIPT'], category: 'Income' },
+  // Money arriving at a business account: a QR-aggregator settlement, a customer's UPI credit,
+  // the day's takings banked at a machine. No payroll flag exists on any of them, which is
+  // exactly what makes deriving a stable income for a shop owner real work.
+  {
+    match: ['COLLECTION', 'RECEIPT', 'SETTLEMENT', 'SHOP SALE', 'CASH DEP'],
+    category: 'Income',
+  },
 ]

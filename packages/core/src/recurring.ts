@@ -101,27 +101,50 @@ export interface Habit {
   txnIds: string[]
 }
 
+const MONTH_NAMES = 'JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC'
+
+/**
+ * The parts of a narration that change every time the same thing happens.
+ *
+ * These are stripped **before** the narration is split, and that ordering is the whole point.
+ * A NACH mandate line ends `-07-09-2026`, and splitting on the hyphen first turns the date into
+ * three parts of which `07` and `09` survive every length filter — so the same EMI produces a
+ * different key every month and the single most regular debit in the ledger forms no series at
+ * all. The failure is silent: nothing errors, the customer simply has no commitments.
+ */
+const VARIABLE: readonly RegExp[] = [
+  // Dates the rails print into the line: `07-09-2026` on a mandate, `05-04-26` on an NFS
+  // withdrawal, `2026-09-07` wherever a system writes ISO.
+  /\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/g,
+  /\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b/g,
+  // The pay period on a salary credit and the billing month on a charge: `SALARY AUG 2026`.
+  new RegExp(String.raw`\b(?:${MONTH_NAMES})[A-Z]*[ -]\d{2,4}\b`, 'g'),
+  // A card system's own reference: `Ref#O2S96OJ4SZUMI8`.
+  /\bREF#?[A-Z0-9]{6,}\b/g,
+  // Bank, branch and terminal codes, masked PANs, UTRs: anything long that mixes letters and
+  // digits. Applied on word boundaries rather than on split parts, because `POS
+  // 4XXXXXXXXXXX7412 DMART INDORE` carries no delimiter at all.
+  /\b(?=[A-Z0-9]*\d)[A-Z0-9]{6,}\b/g,
+  // Reference numbers standing on their own.
+  /\b\d{3,}\b/g,
+]
+
 /**
  * Strip the variable part of a narration so repeats collapse onto one key.
  *
- * `UPI/SWIGGY/412683940281` and `UPI/SWIGGY/998112340021` are the same merchant; the twelve-digit
- * UPI reference is what stops a naive group-by from ever finding a series at all.
+ * `UPI/DR/800412179072/SWIGGY/ICIC/swiggy.rzp@icici/ORDER` and the same line next Tuesday are
+ * the same merchant; the retrieval reference is what stops a naive group-by from finding a
+ * series at all.
  */
 export function seriesKey(narration: string): string {
-  return (
-    narration
-      .toUpperCase()
-      .split(/[/-]/)
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0)
-      // Drop the variable parts. Pure digits are UPI references and card last-fours; mixed
-      // alphanumerics of any length are bank and branch codes, which change per transaction —
-      // leaving them in gave every salary credit a unique key, so the single most regular event
-      // in the entire ledger was the one thing that never formed a series.
-      .filter((part) => !/^\d{3,}$/.test(part))
-      .filter((part) => !(part.length >= 6 && /\d/.test(part) && /^[A-Z0-9]+$/.test(part)))
-      .join('/')
-  )
+  let text = narration.toUpperCase()
+  for (const pattern of VARIABLE) text = text.replace(pattern, ' ')
+
+  return text
+    .split(/[/-]/)
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter((part) => part.length > 0)
+    .join('/')
 }
 
 function median(values: number[]): number {
@@ -195,8 +218,16 @@ function classify(
 ): SeriesKind {
   const k = ` ${key} `
   if (isCredit) return 'income'
-  if (/\bEMI\b|LOAN|CREDIT CARD/.test(k)) return 'emi'
-  if (/\bSIP\b|MUTUAL FUND|SYSTEMATIC/.test(k)) return 'sip'
+  // `CreditCard Payment XX 1184` is the bank's own spelling, one word. A card bill classified
+  // as a subscription would show up on the Money tab beside Netflix, which is both wrong and
+  // the kind of wrong a customer notices immediately.
+  if (/\bEMI\b|LOAN|CREDIT ?CARD/.test(k)) return 'emi'
+  if (/\bSIP\b|MUTUAL FUND|SYSTEMATIC|CLEARING/.test(k)) return 'sip'
+  // A NACH line names the creditor and nothing else — no "EMI", no "SIP", no scheme. So once
+  // the key has been checked, the only thing left to key on is what enrichment already decided
+  // this was. Without these two, every mandate in the ledger is filed as a subscription.
+  if (category === 'Investment') return 'sip'
+  if (category === 'Loan EMI') return 'emi'
   if (/\bRENT\b/.test(k)) return 'rent'
   if (category === 'Insurance' || /PREMIUM/.test(k)) return 'insurance'
   if (category === 'Rent & bills') return 'bill'
@@ -268,6 +299,11 @@ function commitmentReason(stats: GroupStats, isCredit: boolean): Series['reason'
 
   if (isCredit) return 'income'
 
+  // A charge the bank levies is not a commitment the customer entered into. The quarterly SMS
+  // alert fee and its GST repeat as regularly as any mandate and would otherwise be reported
+  // beside Netflix as something to cancel — which is both wrong and impossible.
+  if (categorize(last).category === 'Fees & charges') return null
+
   // A standing instruction is definitionally a commitment — somebody signed a mandate.
   if (last.txnMode === 'ACH-D' || last.txnMode === 'SI') return 'mandate'
 
@@ -323,10 +359,11 @@ function buildSeries(
     // Allow one missed cycle before calling a mandate dead: a charge can land late, and
     // declaring a live subscription cancelled is a worse error than the reverse.
     active: last.txnDate >= addDays(asOf, -Math.round(intervalDays * 2 + 5)),
-    priceChanges:
-      fixed || amountVariation < 0.1
-        ? detectPriceChanges(sorted.map((t) => ({ date: t.txnDate, amount: t.txnAmount })))
-        : [],
+    // Looked for on every series rather than only on the near-fixed ones. `detectPriceChanges`
+    // already demands two charges at one amount, two at another and a move above 5%, which a
+    // metered bill never produces — and the variation gate used to be tuned so finely that a
+    // Netflix step from ₹499 to ₹649 fell the wrong side of it and went undetected.
+    priceChanges: detectPriceChanges(sorted.map((t) => ({ date: t.txnDate, amount: t.txnAmount }))),
     reason,
     txnIds: sorted.map((t) => t.txnId),
   }

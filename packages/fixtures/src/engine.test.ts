@@ -32,6 +32,7 @@ const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
 const txn = (narration: string, over: Partial<Transaction> = {}): Transaction => ({
   txnId: 'T1',
   txnDate: '2026-08-15',
+  valueDate: '2026-08-15',
   txnAmount: 1_000,
   txnType: 'DEBIT',
   txnMode: 'UPI',
@@ -58,7 +59,7 @@ describe('categorisation', () => {
   })
 
   it('recognises income from the narration, not only the bank’s flag', () => {
-    const t = txn('NEFT-CR-IDIB000M123-ACME TECHNOLOGIES-SALARY', {
+    const t = txn('NEFT/HDFCN262440001234/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY AUG 2026', {
       txnType: 'CREDIT',
       isSalaryCredit: false,
     })
@@ -89,13 +90,31 @@ describe('categorisation', () => {
 
 describe('recurring detection', () => {
   it('collapses reference numbers so repeats form one series', () => {
-    assert.equal(seriesKey('UPI/SWIGGY/412683940281'), 'UPI/SWIGGY')
-    assert.equal(seriesKey('UPI/SWIGGY/998112340021'), 'UPI/SWIGGY')
-    // The bank/branch code is per-transaction. Leaving it in meant the single most regular
-    // event in the ledger — the salary — was the one thing that never formed a series.
     assert.equal(
-      seriesKey('NEFT-CR-IDIB000M123-ACME TECHNOLOGIES-SALARY'),
-      seriesKey('NEFT-CR-IDIB000M881-ACME TECHNOLOGIES-SALARY'),
+      seriesKey('UPI/DR/800412179072/SWIGGY/ICIC/swiggy.rzp@icici/ORDER'),
+      'UPI/DR/SWIGGY/ICIC/SWIGGY.RZP@ICICI/ORDER',
+    )
+    assert.equal(
+      seriesKey('UPI/DR/998112340021/SWIGGY/ICIC/swiggy.rzp@icici/ORDER'),
+      seriesKey('UPI/DR/800412179072/SWIGGY/ICIC/swiggy.rzp@icici/ORDER'),
+    )
+    // The UTR is per-transaction and so is the pay period. Leaving either in meant the single
+    // most regular event in the ledger — the salary — was the one thing that never formed a
+    // series, in September and again in October.
+    assert.equal(
+      seriesKey('NEFT/HDFCN262440001234/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY AUG 2026'),
+      seriesKey('NEFT/HDFCN262740009911/ACME TECHNOLOGIES PVT LTD/HDFC0000523/SALARY SEP 2026'),
+    )
+    // A NACH mandate prints its presentation date, which changes every month. Splitting on the
+    // hyphen before stripping it left `07` and `09` in the key and hid every EMI.
+    assert.equal(
+      seriesKey('ACH-DR-IDBI BANK RETAIL ASSETS-IBKLBI653Z5UWN4H60G5-07-09-2026'),
+      seriesKey('ACH-DR-IDBI BANK RETAIL ASSETS-IBKLBI653Z5UWN4H60G5-07-10-2026'),
+    )
+    // And a card bill carries a fresh reference every time it is paid.
+    assert.equal(
+      seriesKey('CreditCard Payment XX 1184 Ref#O2S96OJ4SZUMI8'),
+      seriesKey('CreditCard Payment XX 1184 Ref#K71QW2MZ8BVLT4'),
     )
   })
 
@@ -125,12 +144,15 @@ describe('recurring detection', () => {
     const series = detectRecurring(txns, ASOF)
     const keys = series.map((s) => s.key)
 
-    for (const shop of ['POS/AMAZON', 'POS/MYNTRA', 'UPI/SWIGGY', 'UPI/ZOMATO']) {
+    for (const shop of ['ECOM AMAZON', 'ECOM MYNTRA', 'POS INDIAN OIL KOCHI']) {
       assert.ok(!keys.includes(shop), `${shop} was classified as a recurring commitment`)
     }
 
-    const habits = detectHabits(txns, ASOF).map((h) => h.key)
-    assert.ok(habits.includes('UPI/SWIGGY'), 'and it should still show up as a habit')
+    const habits = detectHabits(txns, ASOF)
+    assert.ok(
+      habits.some((h) => h.merchant === 'Amazon'),
+      'and it should still show up as a habit',
+    )
   })
 
   it('records why each series counts as a commitment', () => {
@@ -138,10 +160,14 @@ describe('recurring detection', () => {
     const byKey = new Map(series.map((s) => [s.key, s]))
 
     assert.equal(byKey.get('SI/NETFLIX/AUTOPAY')?.reason, 'mandate')
-    assert.equal(byKey.get('IMPS/P2A/RENT')?.reason, 'fixed-monthly')
+    assert.equal(byKey.get('IMPS/P2A/SUDHIR PATEL/RENT')?.reason, 'fixed-monthly')
+    // A NACH mandate names the creditor and nothing else — no "EMI", no loan account. It is
+    // still an instalment, and the ladder has to say so or it is filed beside Netflix.
+    assert.equal(byKey.get('ACH/DR/IDBI BANK RETAIL ASSETS')?.kind, 'emi')
+    assert.equal(byKey.get('ACH/DR/INDIAN CLEARING CORP')?.kind, 'sip')
     // An electricity bill varies in amount but not in timing. That is exactly what separates it
     // from shopping, which varies in both.
-    assert.equal(byKey.get('UPI/MPPKVVCL ELECTRICITY')?.reason, 'utility')
+    assert.equal(byKey.get('BIL/BBPS/MPPKVVCL')?.reason, 'utility')
   })
 
   it('finds a price rise nobody was told about', () => {
@@ -151,8 +177,10 @@ describe('recurring detection', () => {
     const netflix = series.find((s) => s.key.includes('NETFLIX'))
     assert.ok(netflix)
     assert.equal(netflix.priceChanges.length, 1)
-    assert.equal(netflix.priceChanges[0]?.from, 649)
-    assert.equal(netflix.priceChanges[0]?.to, 799)
+    // Both ends are published Netflix India tiers — Standard to Premium — so the finding is one
+    // the customer can check rather than a step between two invented numbers.
+    assert.equal(netflix.priceChanges[0]?.from, 499)
+    assert.equal(netflix.priceChanges[0]?.to, 649)
   })
 
   it('reports the annual cost, because nobody cancels a monthly one', () => {
@@ -183,17 +211,21 @@ describe('the snapshot', () => {
         (t) => t.txnType === 'DEBIT' && t.txnDate >= '2025-09-01' && t.txnDate <= ASOF,
       )
 
+      // Summed in paise. Utilities and charges land with paise on them, and three separate
+      // floating-point sums of the same rows do not agree to the last digit — which would make
+      // this invariant fail for a reason that has nothing to do with the invariant.
       let total = 0
       let committed = 0
       let discretionary = 0
       let neither = 0
 
       for (const t of debits) {
-        total += t.txnAmount
+        const paise = Math.round(t.txnAmount * 100)
+        total += paise
         const category = categorize(t).category
-        if (committedIds.has(t.txnId)) committed += t.txnAmount
-        else if (NEVER.includes(category)) neither += t.txnAmount
-        else discretionary += t.txnAmount
+        if (committedIds.has(t.txnId)) committed += paise
+        else if (NEVER.includes(category)) neither += paise
+        else discretionary += paise
       }
 
       assert.equal(
@@ -308,7 +340,9 @@ describe('the snapshot', () => {
   it('flags high-interest debt and a missed repayment', () => {
     const priya = derive(generateCustomerFile(PRIYA, OPTS), ASOF)
     assert.equal(priya.debt.hasHighInterest, true)
-    assert.equal(priya.debt.highestRate, 42)
+    // IDBI's own published finance charge: 2.90% a month. The persona used to carry 42%, which
+    // is not IDBI's number and not one a banker can look up.
+    assert.equal(priya.debt.highestRate, 34.8)
 
     const sunil = derive(generateCustomerFile(SUNIL, OPTS), ASOF)
     assert.equal(sunil.debt.missedRepayment, true)

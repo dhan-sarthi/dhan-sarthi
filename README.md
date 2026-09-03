@@ -159,7 +159,7 @@ flowchart TB
 
 | # | Rule | Fires when | What the customer hears |
 |---|---|---|---|
-| 1 | `HIGH_INTEREST_DEBT` | any loan at 24% or more is outstanding | Not yet. You are paying 42% on the card; nothing on this shelf beats clearing that. |
+| 1 | `HIGH_INTEREST_DEBT` | any loan at 24% or more is outstanding | Not yet. You are paying 34.8% on the card; nothing on this shelf beats clearing that. |
 | 2 | `MISSED_REPAYMENT` | a repayment is overdue | Let's not start anything this month. Bring the loan current first. |
 | 3 | `EMERGENCY_BUFFER` | under three months of outflow in reach, and the product has a lock-in | Something with no lock-in first: a sweep-in deposit or a liquid fund. |
 | 4 | `RISK_CEILING` | the product's riskometer band exceeds the recorded risk profile | That sits above the risk level on your profile. |
@@ -212,8 +212,8 @@ Three customers, each chosen so a different rule fires:
 
 | Customer | Who | What Sarthi finds |
 |---|---|---|
-| **Rohan Mehta** | 29, Indore. ₹85,000 a month, two dependents, no life cover | ₹1,22,841 has sat idle for eleven months; the education loan ends in five; a forgotten gym membership; and when his cousin's LIC ULIP comes up, **rule 9 refuses it** and offers term cover at ₹880 instead |
-| **Priya Nair** | 34, Kochi. ₹1.4 lakh a month, a credit card revolving at 42% | Every investment is blocked by **rule 1** until the card is cleared; protection at ₹37 a month still passes |
+| **Rohan Mehta** | 29, Indore. ₹85,000 a month, two dependents, no life cover | ₹1,41,663 has sat idle for a year; the education loan ends in five months; a forgotten gym membership; and when his cousin's LIC ULIP comes up, **rule 9 refuses it** and offers term cover at ₹985 instead |
+| **Priya Nair** | 34, Kochi. ₹1.4 lakh a month, a credit card revolving at 34.8% | Every investment is blocked by **rule 1** until the card is cleared; protection at ₹36 a month still passes |
 | **Sunil Kumar** | 47, Nagpur. Shop owner, income different every month, four dependents | A missed instalment blocks every investment by **rule 2**; cover passes; the buffer, not equity, is the first job |
 
 Advance the simulated clock and the ledger produces the days it always had: the loan actually
@@ -270,7 +270,9 @@ Held by `pnpm test` over the three generated ledgers, with no provider configure
 | Honest surplus | predicted surplus within 0.5×–1.8× of what the balance actually did |
 | The refusal | the ULIP is `BLOCKED` by `BUNDLED_PROTECTION` and term cover is named as the alternative |
 | Recognition | categorisation coverage above 98% with zero disagreements against the bank's own labels |
-| Tests | **54 passing** · generator 20 · engine 21 · suitability 13 |
+| Statement realism | every narration matches a declared rail template; the account's IFSC is IDBI's and the salary remitter's is the employer's; utilities, transit and local merchants are correct for Indore, Kochi and Nagpur; MCC on every merchant line and on nothing else |
+| Calibration | UPI debits per month, ticket distribution and the share of payments under ₹500 stay inside bands cited to NPCI and the RBI Payment System Report |
+| Tests | **197 passing** · generator 20 · engine 21 · realism 29 · as-of 19 · suitability 13 · goal 7 · query 5 · contracts 12 · api 71 |
 
 ---
 
@@ -281,9 +283,13 @@ run every action through it, and on a live avatar call the model called the tool
 verdict our rules wrote. The live photorealistic avatar over WebRTC. The credential pool, daily
 minute budget and teardown in the API. Every screen, served by the API from Postgres.
 
-**Simulated.** The three customers and their twenty-four months of transactions. The product
-shelf, built from IDBI's public pages, with rates and premiums marked `[verify]` where we could
-not confirm them. Consent and execution, which write to the record but move no money.
+**Simulated.** The three customers and their twenty-four months of transactions — generated
+against NPCI narration grammar, IDBI's own IFSC prefix, rate card and schedule of fees, and the
+published UPI ticket distribution, with every constant cited in
+[`docs/engineering/data-calibration.md`](docs/engineering/data-calibration.md) and the one figure
+we cannot reproduce explained there rather than fudged. The product shelf, built from IDBI's
+public pages, with rates and premiums marked `[verify]` where we could not confirm them. Consent
+and execution, which write to the record but move no money.
 
 **Known to be missing.** A guarantee that the model calls the tool on *every* turn: no provider
 offers one, so we reconcile the provider's transcript against our own tool ledger after each call

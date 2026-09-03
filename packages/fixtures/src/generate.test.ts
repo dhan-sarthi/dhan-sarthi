@@ -26,13 +26,17 @@ describe('the running balance', () => {
   it('is continuous — every balance is the previous one plus the movement', () => {
     for (const spec of PERSONAS) {
       const txns = generateLedger(spec, OPTS)
-      let running = spec.openingBalance
+
+      // Carried in paise, because utilities, charges and GST arrive with paise on them and a
+      // running balance accumulated in floating-point rupees stops being exactly equal to the
+      // previous one plus the movement somewhere around the thousandth row.
+      let paise = Math.round(spec.openingBalance * 100)
 
       for (const t of txns) {
-        running += t.txnType === 'CREDIT' ? t.txnAmount : -t.txnAmount
+        paise += (t.txnType === 'CREDIT' ? 1 : -1) * Math.round(t.txnAmount * 100)
         assert.equal(
           t.balanceAfterTxn,
-          Math.round(running),
+          paise / 100,
           `${spec.slug}: balance broke at ${t.txnId} (${t.narration})`,
         )
       }
@@ -266,7 +270,7 @@ describe('the headline numbers', () => {
     assert.equal(s.monthlyIncome, 140_000)
     assert.ok(s.discretionary > s.fixedCommitments * 0.5, 'her problem has to be the spending')
 
-    // Coherence, not arithmetic. Nobody sits on months of cash while paying 42% on a card,
+    // Coherence, not arithmetic. Nobody sits on months of cash while paying a third a year on a card,
     // and a judge who notices that stops believing the rest of the ledger too.
     assert.ok(
       s.idleFloor < s.monthlyOutflow * 0.5,

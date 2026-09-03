@@ -135,8 +135,8 @@ describe(
       )
       const rohan = report.personas.find((p) => p.slug === 'rohan')
       assert.ok(rohan)
-      assert.equal(rohan.idleFloor, 122_841)
-      assert.equal(rohan.deployable, 12_246)
+      assert.equal(rohan.idleFloor, 141_663.35)
+      assert.equal(rohan.deployable, 10_933)
       assert.match(report.contentSha256, /^[0-9a-f]{64}$/)
     })
 
@@ -170,12 +170,12 @@ describe(
       assert.equal(d.dataFreshnessDate, (await bank.ledgerHorizon(ROHAN_CIF)).to)
     })
 
-    it('derives Rohan at the anchor to an idle floor of ₹1,22,841 and ₹12,246 deployable', async () => {
+    it('derives Rohan at the anchor to an idle floor of ₹1,41,663 and ₹10,933 deployable', async () => {
       const bank = await PostgresBankData.connect(pool)
       const { file } = await bank.loadCustomerFile(ROHAN_CIF, options.anchor, HISTORY_WINDOW_MONTHS)
       const snapshot = derive(file, options.anchor)
-      assert.equal(snapshot.balances.idleFloor, 122_841)
-      assert.equal(snapshot.surplus.deployable, 12_246)
+      assert.equal(snapshot.balances.idleFloor, 141_663.35)
+      assert.equal(snapshot.surplus.deployable, 10_933)
 
       const spec = PERSONAS.find((p) => p.slug === 'rohan')
       assert.ok(spec)
@@ -314,7 +314,7 @@ describe(
           await snapshots.find(ROHAN_CIF, '1999-01-01', inputHash, 'integration-test'),
           null,
         )
-        assert.equal((await snapshots.getById(first.id))?.snapshot.balances.idleFloor, 122_841)
+        assert.equal((await snapshots.getById(first.id))?.snapshot.balances.idleFloor, 141_663.35)
 
         const goal = {
           id: 'goal-retire',

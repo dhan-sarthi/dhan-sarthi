@@ -23,6 +23,19 @@ export interface Rng {
   jitter(base: number, pct: number): number
   /** Roughly normal via the mean of three uniforms. Keeps spending off a flat distribution. */
   normalish(): number
+  /** Standard normal, Box-Muller. The building block the Gamma sampler needs. */
+  normal(): number
+  /**
+   * A Gamma draw with mean `shape * scale`.
+   *
+   * This is the distribution ticket sizes actually follow, and it is worth the twenty lines
+   * because spending is not symmetric around a typical amount. Most payments are a chai, an
+   * auto fare and a kirana bill; a few are a month's groceries; one is a phone. A uniform draw
+   * inside a band puts the median and the mean on the same number, which is the one thing no
+   * statement anywhere looks like — and it is what made "86% of payments are under ₹500"
+   * impossible to reproduce.
+   */
+  gamma(shape: number, scale: number): number
   /** A distinct stream derived from this one, so adding a caller cannot shift another's draws. */
   fork(label: string): Rng
 }
@@ -68,8 +81,47 @@ export function rng(seed: number): Rng {
     },
     jitter: (base, pct) => Math.round(base * (1 + (next() * 2 - 1) * pct)),
     normalish: () => (next() + next() + next()) / 3,
+    normal,
+    gamma,
     fork: (label) => rng(hash(label, state)),
   }
 
   return self
+
+  function normal(): number {
+    // Box-Muller. `next()` can return exactly 0 and log(0) is -Infinity, so the first uniform
+    // is nudged off the boundary rather than resampled — resampling would consume a variable
+    // number of draws and make the stream depend on its own output.
+    const u = Math.max(next(), Number.EPSILON)
+    const v = next()
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
+  }
+
+  /**
+   * Marsaglia and Tsang's method, with the standard boost for shapes below one.
+   *
+   * The rejection loop is bounded rather than unbounded: the acceptance rate is above 95% for
+   * every shape, so sixteen attempts failing is not randomness, it is a bug, and returning the
+   * mean is a far better failure than hanging the generator.
+   */
+  function gamma(shape: number, scale: number): number {
+    if (shape <= 0 || scale <= 0) return 0
+    if (shape < 1)
+      return gamma(shape + 1, scale) * Math.pow(Math.max(next(), Number.EPSILON), 1 / shape)
+
+    const d = shape - 1 / 3
+    const c = 1 / Math.sqrt(9 * d)
+
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const x = normal()
+      const t = 1 + c * x
+      if (t <= 0) continue
+      const v = t * t * t
+      const u = next()
+      if (u < 1 - 0.0331 * x * x * x * x) return d * v * scale
+      if (Math.log(Math.max(u, Number.EPSILON)) < 0.5 * x * x + d * (1 - v + Math.log(v)))
+        return d * v * scale
+    }
+    return shape * scale
+  }
 }

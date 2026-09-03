@@ -186,8 +186,10 @@ export function answer(
         matched: true,
         text:
           `${inr(s.pot)} is still yours to spend — about ${inr(s.perDay)} a day for the ` +
-          `${s.daysToSalary} ${s.daysToSalary === 1 ? 'day' : 'days'} until your salary lands on ` +
-          `${Number(s.nextSalaryDate.slice(8))} ${spokenMonth(s.nextSalaryDate)}.` +
+          `${s.daysToSalary} ${s.daysToSalary === 1 ? 'day' : 'days'} ` +
+          (s.incomeStability === 'regular'
+            ? `until your salary lands on ${Number(s.nextSalaryDate.slice(8))} ${spokenMonth(s.nextSalaryDate)}.`
+            : `left in this month.`) +
           (heldBack.length > 0
             ? ` That is after ${heldBack.join(', ')} out of ${inr(snapshot.income.monthly)} coming in.`
             : ''),

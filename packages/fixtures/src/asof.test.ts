@@ -18,6 +18,7 @@ const ANCHOR = '2026-09-01'
 const txn = (txnDate: string, balanceAfterTxn: number | null, i: number): Transaction => ({
   txnId: `T${i}`,
   txnDate,
+  valueDate: txnDate,
   txnAmount: 100,
   txnType: 'DEBIT',
   txnMode: 'UPI',

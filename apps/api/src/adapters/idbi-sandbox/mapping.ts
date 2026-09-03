@@ -731,6 +731,12 @@ export function mapTransaction(row: WireTransaction, ctx: MapContext): Transacti
   return {
     txnId: row.txn_id,
     txnDate: date(row.txn_date, 'txn_date'),
+    // Where the sandbox sends no value date, the posting date is the honest default rather
+    // than a guess at a settlement lag we have not been told about.
+    valueDate:
+      row.value_date === undefined
+        ? date(row.txn_date, 'txn_date')
+        : date(row.value_date, 'value_date'),
     txnAmount: Math.abs(money(row.txn_amount, unit)),
     txnType: code(ctx, 'TXN', 'txn_type', TXN_TYPE, row.txn_type, key),
     txnMode: code(ctx, 'TXN', 'txn_mode', TXN_MODE, row.txn_mode, key),
@@ -740,6 +746,11 @@ export function mapTransaction(row: WireTransaction, ctx: MapContext): Transacti
       row.balance_after_txn === undefined ? null : money(row.balance_after_txn, unit),
     isSalaryCredit: row.is_salary_credit ?? false,
     isRecurring: row.is_recurring ?? false,
+    // The three enrichment fields the catalogue already offers. Absent is legal on all of
+    // them: a mandate has no MCC and a person-to-person payment has no VPA.
+    ...(row.mcc_code === undefined ? {} : { mccCode: row.mcc_code }),
+    ...(row.merchant_name === undefined ? {} : { merchantName: row.merchant_name }),
+    ...(row.counterparty_vpa === undefined ? {} : { counterpartyVpa: row.counterparty_vpa }),
   }
 }
 

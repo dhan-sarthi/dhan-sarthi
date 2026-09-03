@@ -219,6 +219,7 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
         accountNumberMasked: row.accountNumberMasked,
         accountType: row.accountType,
         accountOpeningDate: row.accountOpeningDate,
+        ...(row.branchIfsc === undefined ? {} : { branchIfsc: row.branchIfsc }),
         ...(row.interestRate === undefined ? {} : { interestRate: row.interestRate }),
         ...(row.maturityDate === undefined ? {} : { maturityDate: row.maturityDate }),
       }

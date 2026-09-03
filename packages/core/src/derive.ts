@@ -232,7 +232,7 @@ export interface DeriveOptions {
   window: number
   /** Buffer target. Three months is the floor the suitability gate enforces; six is the goal. */
   bufferTargetMonths: number
-  /** Above this, debt outranks every investment. Indian cards run 36-42%. */
+  /** Above this, debt outranks every investment. Indian cards run 30-42%; IDBI's is 34.8%. */
   highInterestThreshold: number
   /** A loan inside this many months of ending is a raise about to happen. */
   emiEndingWithinMonths: number
