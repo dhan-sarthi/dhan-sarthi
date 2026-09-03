@@ -66,7 +66,10 @@ jobs:
           set -e
           if git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -v '\.example$'; then
             echo "an environment file is tracked"; exit 1; fi
-          if git grep -nE 'key_[0-9a-f]{40,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|postgres(ql)?://[^:/]+:[^@/]+@' -- . ':!.github/workflows/ci.yml' ':!.env.example'; then
+          # Placeholders are allowed: the throwaway dhan:dhan of the local compose stack, and
+          # Terraform interpolations, which are references to generated secrets, not secrets.
+          if git grep -nE 'key_[0-9a-f]{40,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|postgres(ql)?://[^:/]+:[^@/]+@' -- . ':!.github/workflows/ci.yml' ':!.env.example' \
+             | grep -vE 'dhan:dhan@|\$\{[a-z_]+\.' ; then
             echo "a credential-shaped string is tracked"; exit 1; fi
 
       - name: Audit production dependencies
