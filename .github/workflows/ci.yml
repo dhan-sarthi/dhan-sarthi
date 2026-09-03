@@ -75,3 +75,62 @@ jobs:
       - name: Audit production dependencies
         # High and critical advisories fail the build; lower ones are reported in the log.
         run: pnpm audit --prod --audit-level=high
+
+  # The Postgres track against a real database: migrate, seed, check the seed, then the
+  # integration suite (parity, append-only, the chain, every session route as dhan_app). Its
+  # own job so lint and typecheck above stay fast and a slow database never blocks them.
+  integration:
+    name: postgres · migrate · seed · integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: dhan
+          POSTGRES_PASSWORD: dhan
+          POSTGRES_DB: dhan
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dhan -d dhan"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      BANK_SOURCE: postgres
+      # The throwaway compose credentials; the service above is the only thing listening.
+      DATABASE_URL: postgres://dhan:dhan@localhost:5432/dhan
+      DB_ROLE: dhan_app
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Build the packages the API imports through dist
+        run: pnpm -r --filter './packages/*' build
+        working-directory: .
+
+      - name: Migrate
+        run: node --experimental-strip-types src/db/migrate.ts
+
+      - name: Seed the three personas
+        run: node --experimental-strip-types src/cli/seed.ts
+
+      - name: Check the seed reproduces
+        run: node --experimental-strip-types src/cli/seed.ts --check
+
+      - name: Integration suite
+        run: node --test --experimental-strip-types 'test/integration/*.test.ts'

@@ -24,8 +24,13 @@ import type { AvatarAvailability, ShelfProduct, Verdict } from '@dhan/contracts'
 import { isApiError } from '../api/client.ts'
 import type { AskBackend } from '../lib/ask.ts'
 import { useAvatar } from '../lib/avatar.ts'
+import type { QueuePlace } from '../lib/avatar.ts'
 import { inr } from '../lib/money.ts'
+import { QueueCard } from '../components/QueueCard.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
+
+/** While in line, availability is re-read this often so the queue length and minutes stay honest. */
+const WAITING_POLL_MS = 5_000
 
 interface Turn {
   id: number
@@ -62,6 +67,13 @@ export function Ask({
     onOpen()
   }, [onOpen])
 
+  const waiting = avatar.queue?.state === 'waiting'
+  useEffect(() => {
+    if (!waiting) return
+    const timer = window.setInterval(onOpen, WAITING_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [waiting, onOpen])
+
   const connecting = avatar.mode === 'connecting'
   const connected = avatar.mode === 'live'
   const onCall = connecting || connected
@@ -82,7 +94,8 @@ export function Ask({
   // mid-sentence without warning.
   const runningOut = avatar.secondsLeft !== null && avatar.secondsLeft <= 120
 
-  const canCall = tier === 'live' && availability?.available === true && !avatar.queue
+  const inLine = avatar.queue !== null && avatar.queue.state !== 'expired'
+  const canCall = tier === 'live' && availability?.available === true && !inLine
   const status = connected
     ? avatar.videoLive
       ? runningOut
@@ -93,8 +106,8 @@ export function Ask({
         : 'Joining…'
     : connecting
       ? 'Calling…'
-      : avatar.queue
-        ? avatar.queue.claimable
+      : inLine && avatar.queue
+        ? avatar.queue.state === 'claimable'
           ? 'Your turn'
           : `In line · ${avatar.queue.position}`
         : canCall
@@ -288,7 +301,7 @@ function TextTier({
   availability: AvatarAvailability | null
   canCall: boolean
   reason: string | null
-  queue: { position: number; estimatedWaitSeconds: number | null; claimable: boolean } | null
+  queue: QueuePlace | null
   onCall: () => void
   onJoin: () => void
   onLeaveQueue: () => void
@@ -394,7 +407,9 @@ function TextTier({
     void ask(draft)
   }
 
-  const line = canCall ? null : unavailableLine(tier, availability, reason)
+  // A failed attempt explains itself even when the line is free again: the server's sentence
+  // (or the client's — "Uday did not pick up in time") stays up beside a working Call button.
+  const line = reason ?? (canCall ? null : unavailableLine(tier, availability, null))
 
   return (
     <>
@@ -426,34 +441,7 @@ function TextTier({
       ) : null}
 
       {queue ? (
-        <div className="mx-4 mb-3 flex flex-none items-center gap-3 rounded-md bg-white/15 p-3 text-[13px] leading-snug text-white">
-          <span className="min-w-0 flex-1">
-            {queue.claimable
-              ? 'Uday is free — the line is held for you for a moment.'
-              : `You are ${queue.position === 1 ? 'next' : `number ${queue.position}`} in line${
-                  queue.estimatedWaitSeconds
-                    ? `, about ${Math.max(1, Math.round(queue.estimatedWaitSeconds / 60))} min`
-                    : ''
-                }. Carry on in text meanwhile.`}
-          </span>
-          {queue.claimable ? (
-            <button
-              type="button"
-              onClick={onJoin}
-              className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-white"
-            >
-              Join now
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onLeaveQueue}
-              className="h-10 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[14px] font-semibold text-white"
-            >
-              Leave line
-            </button>
-          )}
-        </div>
+        <QueueCard place={queue} onJoin={onJoin} onLeave={onLeaveQueue} onCallAgain={onCall} />
       ) : null}
 
       {/* --------------------------------------------------- The conversation */}

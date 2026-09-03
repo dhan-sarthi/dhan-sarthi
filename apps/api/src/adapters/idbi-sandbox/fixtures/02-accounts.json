@@ -1,0 +1,34 @@
+{
+  "customer_id": "IDBI0009182731",
+  "data_block": "ACCOUNTS",
+  "data": [
+    {
+      "account_number_masked": "XXXXXX7412",
+      "account_type": "Savings",
+      "current_balance": "258023.00",
+      "avg_monthly_balance_3m": "196813.00",
+      "avg_monthly_balance_12m": "157944.00",
+      "min_balance_12m": "122841.00",
+      "account_opening_date": "08-11-16"
+    },
+    {
+      "account_number_masked": "XXXXXX9930",
+      "account_type": "FD",
+      "current_balance": "200000.00",
+      "avg_monthly_balance_3m": "200000.00",
+      "account_opening_date": "11-09-24",
+      "maturity_date": "11-09-26",
+      "interest_rate": "7.10"
+    }
+  ],
+  "meta": {
+    "consent_reference": "CONS_SYN_1",
+    "consent_purpose": "Wealth advisory",
+    "consent_valid_to": "01-03-29",
+    "consent_status": "ACTIVE",
+    "data_period_from": "01-10-24",
+    "data_period_to": "01-09-26",
+    "data_freshness_date": "01-09-26",
+    "response_status": "SUCCESS"
+  }
+}

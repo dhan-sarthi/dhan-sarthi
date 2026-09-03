@@ -47,6 +47,15 @@ export const ConfigSchema = z
     BANK_SOURCE: z.enum(['memory', 'postgres', 'idbi-sandbox']).default('memory'),
     /** Required by `postgres`. The API is the only process that ever connects. */
     DATABASE_URL: z.string().url().optional(),
+    /**
+     * The role the API assumes on every connection (`SET ROLE`), so the REVOKEs in migration
+     * 0007 bind the server without a second login. Unset connects as the login itself; the
+     * migrator and the seed never set one, because they own the objects.
+     */
+    DB_ROLE: z
+      .string()
+      .regex(/^[a-z_][a-z0-9_]*$/, 'a plain SQL identifier')
+      .optional(),
 
     /** Which AvatarProvider adapter. `runway` needs a key and a character id. */
     AVATAR_PROVIDER: z.enum(['runway', 'none']).default('none'),
@@ -171,6 +180,7 @@ export function describeConfig(config: Config): Record<string, unknown> {
     nodeEnv: config.NODE_ENV,
     bankSource: config.BANK_SOURCE,
     database: config.DATABASE_URL ? 'set' : 'unset',
+    dbRole: config.DB_ROLE ?? 'login',
     avatarProvider: config.AVATAR_PROVIDER,
     avatarEnabled: config.AVATAR_ENABLED,
     runwayCredentials: runwayCredentials(config).length,

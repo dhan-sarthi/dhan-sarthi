@@ -1,0 +1,147 @@
+{
+  "customer_id": "IDBI0009182731",
+  "data_block": "SHELF",
+  "data": [
+    {
+      "product_id": "IDBI_SWEEP_001",
+      "product_name": "IDBI Sweep-in Fixed Deposit",
+      "product_category": "Sweep-in FD",
+      "riskometer": "Low",
+      "min_investment": "10000.00",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "IDBI_SSP_002",
+      "product_name": "IDBI Systematic Savings Plan (SSP)",
+      "product_category": "Recurring Deposit",
+      "riskometer": "Low",
+      "min_investment": "500.00",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "IDBI_SUVIDHA_003",
+      "product_name": "IDBI Suvidha Fixed Deposit",
+      "product_category": "Fixed Deposit",
+      "riskometer": "Low",
+      "min_investment": "10000.00",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "MF_LIQUID_101",
+      "product_name": "LIC MF Liquid Fund",
+      "product_category": "Liquid",
+      "riskometer": "Low to Moderate",
+      "min_investment": "500.00",
+      "expense_ratio": "0.16",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "MF_DEBT_102",
+      "product_name": "LIC MF Short Duration Fund",
+      "product_category": "Debt",
+      "riskometer": "Moderate",
+      "min_investment": "1000.00",
+      "expense_ratio": "0.38",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "MF_INDEX_103",
+      "product_name": "UTI Nifty 50 Index Fund",
+      "product_category": "Index Fund",
+      "riskometer": "Very High",
+      "min_investment": "500.00",
+      "expense_ratio": "0.20",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "MF_ELSS_104",
+      "product_name": "LIC MF ELSS Tax Saver",
+      "product_category": "ELSS",
+      "riskometer": "Very High",
+      "min_investment": "500.00",
+      "expense_ratio": "0.87",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "LIC_TERM_201",
+      "product_name": "LIC Term Assurance — ₹1 crore cover",
+      "product_category": "Term Insurance",
+      "riskometer": "Low",
+      "min_investment": "880.00",
+      "insurance_product_flag": true,
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "NIVA_HEALTH_202",
+      "product_name": "Niva Bupa ReAssure — ₹10 lakh family floater",
+      "product_category": "Health Insurance",
+      "riskometer": "Low",
+      "min_investment": "1450.00",
+      "insurance_product_flag": true,
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "GOI_PMJJBY_203",
+      "product_name": "PMJJBY — ₹2 lakh life cover",
+      "product_category": "Government Insurance",
+      "riskometer": "Low",
+      "min_investment": "37.00",
+      "insurance_product_flag": true,
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "GOI_PMSBY_204",
+      "product_name": "PMSBY — ₹2 lakh accident cover",
+      "product_category": "Government Insurance",
+      "riskometer": "Low",
+      "min_investment": "2.00",
+      "insurance_product_flag": true,
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "PFRDA_NPS_301",
+      "product_name": "National Pension System — Tier I",
+      "product_category": "NPS",
+      "riskometer": "Moderately High",
+      "min_investment": "500.00",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "GOI_PPF_302",
+      "product_name": "Public Provident Fund",
+      "product_category": "PPF",
+      "riskometer": "Low",
+      "min_investment": "500.00",
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "LIC_ULIP_401",
+      "product_name": "LIC Market Plus ULIP",
+      "product_category": "ULIP",
+      "riskometer": "High",
+      "min_investment": "2500.00",
+      "expense_ratio": "2.25",
+      "insurance_product_flag": true,
+      "is_transactable_sandbox": true
+    },
+    {
+      "product_id": "LIC_ENDOW_402",
+      "product_name": "LIC Jeevan Anand Endowment",
+      "product_category": "Endowment",
+      "riskometer": "Low",
+      "min_investment": "4200.00",
+      "insurance_product_flag": true,
+      "is_transactable_sandbox": true
+    }
+  ],
+  "meta": {
+    "consent_reference": "CONS_SYN_1",
+    "consent_purpose": "Wealth advisory",
+    "consent_valid_to": "01-03-29",
+    "consent_status": "ACTIVE",
+    "data_period_from": "01-10-24",
+    "data_period_to": "01-09-26",
+    "data_freshness_date": "01-09-26",
+    "response_status": "SUCCESS"
+  }
+}

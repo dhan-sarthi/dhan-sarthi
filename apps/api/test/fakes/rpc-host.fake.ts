@@ -14,6 +14,8 @@ export class FakeRpcHost implements AvatarRpcHost {
   readonly events: string[]
   readonly opened = new Map<string, ToolHandlers>()
   readonly closed: string[] = []
+  /** Handles whose room has closed under them; `connected` reads false for these. */
+  private readonly dropped = new Set<string>()
   rejectOpen = false
 
   constructor(events: string[] = []) {
@@ -28,7 +30,19 @@ export class FakeRpcHost implements AvatarRpcHost {
     this.events.push('open')
     if (this.rejectOpen) throw new Error('join refused')
     this.opened.set(runwaySessionId, handlers)
-    return { runwaySessionId, openedAt: new Date(), connected: true }
+    const dropped = this.dropped
+    return {
+      runwaySessionId,
+      openedAt: new Date(),
+      get connected() {
+        return !dropped.has(runwaySessionId)
+      },
+    }
+  }
+
+  /** Simulate the room closing under a live call: the worker died or Runway ended the session. */
+  disconnect(runwaySessionId: string): void {
+    this.dropped.add(runwaySessionId)
   }
 
   async close(handle: RpcHandle): Promise<void> {

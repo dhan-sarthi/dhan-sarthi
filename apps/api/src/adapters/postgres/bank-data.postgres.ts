@@ -10,16 +10,15 @@
  * Bank rows are read through the `*_current` views (latest sync run per entity). Contracts (a
  * loan's remaining tenure, a SIP's start) are taken as measured at the run's `as_of`, which the
  * seed sets to the persona anchor.
+ *
+ * The whole file is one round trip: one statement returns every block as a JSON array over the
+ * customer row it finds. The database is a continent away, and a dozen sequential reads of a
+ * few rows each cost far more in latency than the rows cost in bytes — the first view of a
+ * customer took five seconds that way. The blocks are then held in process for a minute per
+ * (customer, as-of, window): the ledger is seeded and immutable until the next seed, and every
+ * view asks for the same rows.
  */
-import {
-  accountFactsAsOf,
-  addMonths,
-  elapsedMonths,
-  fromYmd,
-  liabilityAsOf,
-  sipHoldingAsOf,
-  ymd,
-} from '@dhan/core'
+import { accountFactsAsOf, elapsedMonths, liabilityAsOf, sipHoldingAsOf, ymd } from '@dhan/core'
 import type {
   Account,
   Customer,
@@ -41,7 +40,6 @@ import type {
   ProvenanceMap,
 } from '@dhan/contracts'
 import { NotFound } from '../../application/errors.ts'
-import { parallel } from '../../db/pool.ts'
 import type { Db } from '../../db/pool.ts'
 import type { BankDataDescription, BankDataPort, LoadedCustomerFile } from '../../ports/index.ts'
 import {
@@ -71,6 +69,11 @@ const SCOPES: ReadonlySet<string> = new Set<ConsentScope>([
   'HOLDINGS',
 ])
 
+/** How long a customer's rows are trusted in process. Long enough to serve a demo, short enough to notice a reseed. */
+const DEFAULT_CACHE_TTL_MS = 60_000
+/** Three personas at a handful of clock positions each; the ledger is ~300 KB a file. */
+const BLOCKS_CACHE_SIZE = 32
+
 /* ------------------------------------------------------------------ *
  * Rows
  * ------------------------------------------------------------------ */
@@ -82,6 +85,7 @@ interface CustomerRow {
   display_name: string
   preferred_language: string
   tax_regime: 'old' | 'new' | null
+  display_order: number | null
   persona_slug: string | null
   pitch: string | null
   demonstrates: string | null
@@ -195,24 +199,113 @@ interface ConsentRow {
   purpose_text: string
   scopes: string[]
   status: string
-  valid_from: Date
-  valid_to: Date
+  valid_from: IsoDate
+  valid_to: IsoDate
 }
+
+/** One statement's worth of a customer: every block the engine reads, bounded by as-of. */
+interface FileRow {
+  customer: CustomerRow | null
+  transactions: TransactionRow[]
+  openings: OpeningRow[]
+  casa: CasaRow[]
+  deposits: DepositRow[]
+  loans: LoanRow[]
+  sips: SipRow[]
+  funds: MfRow[]
+  policies: PolicyRow[]
+}
+
+type Blocks = FileRow & { customer: CustomerRow }
 
 /* ------------------------------------------------------------------ *
  * SQL
  * ------------------------------------------------------------------ */
 
+const CUSTOMER_COLUMNS = `
+  c.id, c.cif, c.cust_id, c.display_name, c.preferred_language, c.tax_regime, c.display_order,
+  c.persona_slug, c.pitch, c.demonstrates, c.ledger_anchor, c.ledger_history_from, c.ledger_horizon,
+  p.cust_name, p.date_of_birth, p.age, p.gender, p.gender_raw, p.marital_status, p.marital_status_raw,
+  p.dependents_count, p.employment_type, p.employment_type_raw, p.declared_annual_income,
+  p.city, p.state_code, p.preferred_language AS profile_language, p.risk_profile,
+  p.kyc_status, p.kyc_status_raw, p.customer_since`
+
 const CUSTOMER_SQL = `
-  SELECT c.id, c.cif, c.cust_id, c.display_name, c.preferred_language, c.tax_regime,
-         c.persona_slug, c.pitch, c.demonstrates, c.ledger_anchor, c.ledger_history_from, c.ledger_horizon,
-         p.cust_name, p.date_of_birth, p.age, p.gender, p.gender_raw, p.marital_status, p.marital_status_raw,
-         p.dependents_count, p.employment_type, p.employment_type_raw, p.declared_annual_income,
-         p.city, p.state_code, p.preferred_language AS profile_language, p.risk_profile,
-         p.kyc_status, p.kyc_status_raw, p.customer_since
+  SELECT ${CUSTOMER_COLUMNS}
   FROM app.customers c
   LEFT JOIN bank.customer_profiles_current p ON p.customer_id = c.id
   WHERE c.erased_at IS NULL AND c.cif IS NOT NULL`
+
+/**
+ * The whole file, one round trip. `$1` cif, `$2` months of history, `$3` as-of. The window
+ * starts on the first day of the month `$2 - 1` months before the ledger anchor, exactly as
+ * the generator measures it, so the file at any clock position is a prefix of one ledger.
+ * Dates inside the JSON arrive as 'YYYY-MM-DD' and numerics as numbers, the same shapes the
+ * pool's type parsers give a plain row, so the mapping below does not know which path it took.
+ */
+const FILE_SQL = `
+  WITH cust AS (${CUSTOMER_SQL} AND c.cif = $1),
+  win AS (
+    SELECT cust.id AS customer_id,
+           date_trunc('month', coalesce(cust.ledger_anchor, cust.ledger_horizon, DATE '1970-01-01')
+                               - make_interval(months => greatest(1, $2::int) - 1))::date AS from_date
+    FROM cust
+  )
+  SELECT
+    (SELECT row_to_json(cust) FROM cust) AS customer,
+    (SELECT coalesce(json_agg(x ORDER BY x.tran_date, x.seq, x.tran_id), '[]'::json) FROM (
+       SELECT t.account_id, t.tran_id, t.tran_date, t.seq, t.amount, t.tran_type, t.channel_code,
+              t.channel_raw, t.narration, t.spend_category_bank, t.balance_after,
+              t.is_salary_credit_bank, t.is_recurring_bank
+       FROM bank.transactions t, win
+       WHERE t.customer_id = win.customer_id AND t.tran_date >= win.from_date AND t.tran_date <= $3
+         AND t.status = 'POSTED') x) AS transactions,
+    (SELECT coalesce(json_agg(x), '[]'::json) FROM (
+       SELECT DISTINCT ON (t.account_id) t.account_id, t.tran_type, t.amount, t.balance_after
+       FROM bank.transactions t, win
+       WHERE t.customer_id = win.customer_id AND t.status = 'POSTED'
+       ORDER BY t.account_id, t.tran_date, t.seq, t.tran_id) x) AS openings,
+    (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
+       SELECT a.id, a.account_number_masked, a.created_at, a.account_ref,
+              s.account_type, s.account_type_raw, s.opening_date, s.interest_rate
+       FROM bank.accounts a
+       JOIN bank.account_snapshots_current s ON s.account_id = a.id, win
+       WHERE a.customer_id = win.customer_id AND a.product_kind = 'CASA' AND s.status <> 'CLOSED'
+         AND (s.opening_date IS NULL OR s.opening_date <= $3)) x) AS casa,
+    (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
+       SELECT a.account_number_masked, a.created_at, a.account_ref, td.deposit_type, td.description,
+              td.principal_amount, td.current_value, td.opening_date, td.maturity_date, td.interest_rate
+       FROM bank.accounts a
+       JOIN bank.term_deposits_current td ON td.account_id = a.id, win
+       WHERE a.customer_id = win.customer_id AND a.product_kind IN ('TERM_DEPOSIT', 'RECURRING_DEPOSIT')
+         AND td.status IN ('ACTIVE', 'MATURED', 'RENEWED') AND td.opening_date <= $3) x) AS deposits,
+    (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
+       SELECT a.created_at, a.account_ref, ln.lender, ln.loan_type, ln.loan_type_raw, ln.emi_amount,
+              ln.interest_rate, ln.tenure_remaining_months, ln.dpd, ln.is_revolving,
+              (ln.as_of AT TIME ZONE 'UTC')::date AS as_of_date
+       FROM bank.accounts a
+       JOIN bank.loans_current ln ON ln.account_id = a.id, win
+       WHERE a.customer_id = win.customer_id AND ln.status = 'ACTIVE') x) AS loans,
+    (SELECT coalesce(json_agg(x ORDER BY x.registration_ref), '[]'::json) FROM (
+       SELECT s.registration_ref, s.scheme_name, s.asset_class, s.amount, s.instalment_day, s.start_date,
+              s.held_via, (s.as_of AT TIME ZONE 'UTC')::date AS as_of_date
+       FROM bank.sip_registrations_current s, win
+       WHERE s.customer_id = win.customer_id AND s.status = 'ACTIVE'
+         AND (s.start_date IS NULL OR s.start_date <= $3)) x) AS sips,
+    (SELECT coalesce(json_agg(x ORDER BY x.folio_no, x.scheme_name), '[]'::json) FROM (
+       SELECT m.folio_no, m.scheme_name, m.asset_class, m.cost_value, m.current_value, m.held_via
+       FROM bank.mf_holdings_current m, win
+       WHERE m.customer_id = win.customer_id
+         AND NOT EXISTS (SELECT 1 FROM bank.sip_registrations_current s
+                         WHERE s.customer_id = m.customer_id AND s.status = 'ACTIVE'
+                           AND (s.start_date IS NULL OR s.start_date <= $3)
+                           AND s.scheme_name = m.scheme_name)) x) AS funds,
+    (SELECT coalesce(json_agg(x ORDER BY x.insurer, x.policy_number), '[]'::json) FROM (
+       SELECT p.insurer, p.policy_number, p.plan_name, p.sum_assured, p.cover_amount, p.premium_amount,
+              p.premium_frequency, p.fund_value, p.maturity_date
+       FROM bank.insurance_policies_current p, win
+       WHERE p.customer_id = win.customer_id AND p.status = 'IN_FORCE'
+         AND (p.policy_start_date IS NULL OR p.policy_start_date <= $3)) x) AS policies`
 
 const TRANSACTIONS_SQL = `
   SELECT t.account_id, t.tran_id, t.tran_date, t.amount, t.tran_type, t.channel_code, t.channel_raw,
@@ -221,61 +314,14 @@ const TRANSACTIONS_SQL = `
   WHERE t.customer_id = $1 AND t.tran_date >= $2 AND t.tran_date <= $3 AND t.status = 'POSTED'
   ORDER BY t.tran_date, t.seq, t.tran_id`
 
-const OPENING_SQL = `
-  SELECT DISTINCT ON (t.account_id) t.account_id, t.tran_type, t.amount, t.balance_after
-  FROM bank.transactions t
-  WHERE t.customer_id = $1 AND t.status = 'POSTED'
-  ORDER BY t.account_id, t.tran_date, t.seq, t.tran_id`
-
-const CASA_SQL = `
-  SELECT a.id, a.account_number_masked, s.account_type, s.account_type_raw, s.opening_date, s.interest_rate
-  FROM bank.accounts a
-  JOIN bank.account_snapshots_current s ON s.account_id = a.id
-  WHERE a.customer_id = $1 AND a.product_kind = 'CASA' AND s.status <> 'CLOSED'
-    AND (s.opening_date IS NULL OR s.opening_date <= $2)
-  ORDER BY a.created_at, a.account_ref`
-
-const DEPOSITS_SQL = `
-  SELECT a.account_number_masked, td.deposit_type, td.description, td.principal_amount, td.current_value,
-         td.opening_date, td.maturity_date, td.interest_rate
-  FROM bank.accounts a
-  JOIN bank.term_deposits_current td ON td.account_id = a.id
-  WHERE a.customer_id = $1 AND a.product_kind IN ('TERM_DEPOSIT', 'RECURRING_DEPOSIT')
-    AND td.status IN ('ACTIVE', 'MATURED', 'RENEWED') AND td.opening_date <= $2
-  ORDER BY a.created_at, a.account_ref`
-
-const LOANS_SQL = `
-  SELECT ln.lender, ln.loan_type, ln.loan_type_raw, ln.emi_amount, ln.interest_rate,
-         ln.tenure_remaining_months, ln.dpd, ln.is_revolving, (ln.as_of AT TIME ZONE 'UTC')::date AS as_of_date
-  FROM bank.accounts a
-  JOIN bank.loans_current ln ON ln.account_id = a.id
-  WHERE a.customer_id = $1 AND ln.status = 'ACTIVE'
-  ORDER BY a.created_at, a.account_ref`
-
-const SIPS_SQL = `
-  SELECT scheme_name, asset_class, amount, instalment_day, start_date, held_via,
-         (as_of AT TIME ZONE 'UTC')::date AS as_of_date
-  FROM bank.sip_registrations_current
-  WHERE customer_id = $1 AND status = 'ACTIVE' AND (start_date IS NULL OR start_date <= $2)
-  ORDER BY registration_ref`
-
-const MF_SQL = `
-  SELECT scheme_name, asset_class, cost_value, current_value, held_via
-  FROM bank.mf_holdings_current
-  WHERE customer_id = $1 AND NOT (scheme_name = ANY($2::text[]))
-  ORDER BY folio_no, scheme_name`
-
-const POLICIES_SQL = `
-  SELECT plan_name, sum_assured, cover_amount, premium_amount, premium_frequency, fund_value, maturity_date
-  FROM bank.insurance_policies_current
-  WHERE customer_id = $1 AND status = 'IN_FORCE' AND (policy_start_date IS NULL OR policy_start_date <= $2)
-  ORDER BY insurer, policy_number`
-
 const CONSENT_SQL = `
-  SELECT consent_reference, purpose_text, scopes, status, valid_from, valid_to
-  FROM app.consents
-  WHERE customer_id = $1
-  ORDER BY (status = 'ACTIVE') DESC, valid_to DESC
+  SELECT k.consent_reference, k.purpose_text, k.scopes, k.status,
+         (k.valid_from AT TIME ZONE 'UTC')::date AS valid_from,
+         (k.valid_to AT TIME ZONE 'UTC')::date AS valid_to
+  FROM app.consents k
+  JOIN app.customers c ON c.id = k.customer_id
+  WHERE c.cif = $1 AND c.erased_at IS NULL
+  ORDER BY (k.status = 'ACTIVE') DESC, k.valid_to DESC
   LIMIT 1`
 
 /* ------------------------------------------------------------------ *
@@ -414,8 +460,8 @@ function toConsent(row: ConsentRow): Consent {
     purpose: row.purpose_text,
     scopes: row.scopes.filter((s): s is ConsentScope => SCOPES.has(s)),
     status,
-    validFrom: row.valid_from.toISOString().slice(0, 10),
-    validTo: row.valid_to.toISOString().slice(0, 10),
+    validFrom: row.valid_from,
+    validTo: row.valid_to,
   }
 }
 
@@ -427,35 +473,151 @@ function ageOn(dob: IsoDate, asOf: IsoDate): number {
   return age
 }
 
-/** The first day of the month `months - 1` months before the anchor: where the seeded ledger begins. */
-function windowStart(anchor: IsoDate, months: number): IsoDate {
-  const start = ymd(addMonths(anchor, -(Math.max(1, months) - 1)))
-  return fromYmd(start.year, start.month, 1)
+/* ------------------------------------------------------------------ *
+ * Shaping the blocks to a date, pure
+ * ------------------------------------------------------------------ */
+
+function accountsOf(b: Blocks, asOf: IsoDate): Account[] {
+  // What the balance was before the first seeded line, so an account with no history in the
+  // window reports its opening balance rather than zero.
+  const openingBalance = new Map<string, number>()
+  for (const o of b.openings) {
+    if (o.balance_after === null) continue
+    openingBalance.set(
+      o.account_id,
+      o.balance_after - (o.tran_type === 'CREDIT' ? o.amount : -o.amount),
+    )
+  }
+
+  const out: Account[] = b.casa.map((row) => {
+    const own = b.transactions.filter((t) => t.account_id === row.id).map(toTransaction)
+    const opening = openingBalance.get(row.id)
+    return {
+      accountNumberMasked: row.account_number_masked,
+      accountType: accountTypeForCasa(row.account_type, row.account_type_raw),
+      accountOpeningDate: row.opening_date ?? b.customer.customer_since ?? '',
+      ...accountFactsAsOf(own, asOf, opening === undefined ? {} : { openingBalance: opening }),
+    }
+  })
+  for (const row of b.deposits) out.push(depositAccount(row))
+  return out
+}
+
+function liabilitiesOf(b: Blocks, asOf: IsoDate): Liability[] {
+  return (
+    b.loans
+      .map((row) => liabilityAsOf(loanContract(row), row.as_of_date, asOf))
+      // A cleared loan leaves the list, which is what frees up the EMI.
+      .filter((l): l is Liability => l !== null)
+  )
+}
+
+function holdingsOf(
+  b: Blocks,
+  asOf: IsoDate,
+  historyMonths: number,
+): { holdings: Holding[]; policies: Holding[] } {
+  return {
+    holdings: [
+      ...b.sips.map((row) => sipHoldingAsOf(sipContract(row), row.as_of_date, asOf, historyMonths)),
+      ...b.funds.map(mfHolding),
+      ...b.deposits.map(depositHolding),
+    ],
+    policies: b.policies.map(policyHolding),
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * A small TTL cache
+ * ------------------------------------------------------------------ */
+
+class Memo<V> {
+  private readonly entries = new Map<string, { at: number; value: V }>()
+  private readonly ttlMs: number
+  private readonly max: number
+
+  constructor(ttlMs: number, max: number) {
+    this.ttlMs = ttlMs
+    this.max = max
+  }
+
+  get(key: string, now: number): V | undefined {
+    const hit = this.entries.get(key)
+    if (!hit) return undefined
+    if (now - hit.at >= this.ttlMs) {
+      this.entries.delete(key)
+      return undefined
+    }
+    return hit.value
+  }
+
+  set(key: string, value: V, now: number): void {
+    if (this.ttlMs <= 0) return
+    this.entries.delete(key)
+    this.entries.set(key, { at: now, value })
+    while (this.entries.size > this.max) {
+      const oldest = this.entries.keys().next().value
+      if (oldest === undefined) break
+      this.entries.delete(oldest)
+    }
+  }
+
+  clear(): void {
+    this.entries.clear()
+  }
 }
 
 /* ------------------------------------------------------------------ *
  * The adapter
  * ------------------------------------------------------------------ */
 
+export interface PostgresBankDataOptions {
+  dataFreshnessDate: IsoDate
+  /** How long a customer's rows are held in process. 0 reads the database every time. */
+  cacheTtlMs?: number
+  /** Wall clock for the cache. Never domain time. */
+  now?: () => number
+}
+
 export class PostgresBankData implements BankDataPort {
   private readonly db: Db
   private dataFreshnessDate: IsoDate
+  private readonly now: () => number
+  private readonly blocks: Memo<Blocks>
+  private readonly customers: Memo<CustomerRow>
+  private readonly consents: Memo<Consent>
 
-  constructor(db: Db, opts: { dataFreshnessDate: IsoDate }) {
+  constructor(db: Db, opts: PostgresBankDataOptions) {
     this.db = db
     this.dataFreshnessDate = opts.dataFreshnessDate
+    this.now = opts.now ?? Date.now
+    const ttl = opts.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
+    this.blocks = new Memo(ttl, BLOCKS_CACHE_SIZE)
+    this.customers = new Memo(ttl, BLOCKS_CACHE_SIZE)
+    this.consents = new Memo(ttl, BLOCKS_CACHE_SIZE)
   }
 
   /** Reads the seeded horizon once so `describe()` can answer synchronously. */
-  static async connect(db: Db): Promise<PostgresBankData> {
-    const adapter = new PostgresBankData(db, { dataFreshnessDate: '1970-01-01' })
+  static async connect(
+    db: Db,
+    opts: Omit<PostgresBankDataOptions, 'dataFreshnessDate'> = {},
+  ): Promise<PostgresBankData> {
+    const adapter = new PostgresBankData(db, { ...opts, dataFreshnessDate: '1970-01-01' })
     await adapter.refreshFreshness()
     return adapter
   }
 
+  /** Drop everything held in process; the next read goes to the database. */
+  forget(): void {
+    this.blocks.clear()
+    this.customers.clear()
+    this.consents.clear()
+  }
+
   async listCustomers(): Promise<CustomerSummary[]> {
+    // The picker's order is a column, so it never depends on what a cif or a name sorts to.
     const { rows } = await this.db.query<CustomerRow>(
-      `${CUSTOMER_SQL} ORDER BY c.created_at, c.cif`,
+      `${CUSTOMER_SQL} ORDER BY c.display_order NULLS LAST, c.created_at, c.cif`,
     )
     return rows.map((r) => {
       const anchor = r.ledger_anchor ?? this.dataFreshnessDate
@@ -477,9 +639,7 @@ export class PostgresBankData implements BankDataPort {
 
   async getAccounts(cif: string, asOf: IsoDate): Promise<Account[]> {
     const c = await this.customerRow(cif)
-    const months = historyMonths(c)
-    const txns = await this.transactionRows(c.id, windowStart(anchorOf(c), months), asOf)
-    return this.accounts(c, asOf, txns)
+    return accountsOf(await this.loadBlocks(cif, asOf, historyMonths(c)), asOf)
   }
 
   async getTransactions(
@@ -487,11 +647,17 @@ export class PostgresBankData implements BankDataPort {
     range: { from: IsoDate; to: IsoDate },
   ): Promise<Transaction[]> {
     const c = await this.customerRow(cif)
-    return (await this.transactionRows(c.id, range.from, range.to)).map(toTransaction)
+    const { rows } = await this.db.query<TransactionRow>(TRANSACTIONS_SQL, [
+      c.id,
+      range.from,
+      range.to,
+    ])
+    return rows.map(toTransaction)
   }
 
   async getLiabilities(cif: string, asOf: IsoDate): Promise<Liability[]> {
-    return this.liabilities((await this.customerRow(cif)).id, asOf)
+    const c = await this.customerRow(cif)
+    return liabilitiesOf(await this.loadBlocks(cif, asOf, historyMonths(c)), asOf)
   }
 
   async getHoldings(
@@ -499,15 +665,20 @@ export class PostgresBankData implements BankDataPort {
     asOf: IsoDate,
   ): Promise<{ holdings: Holding[]; policies: Holding[] }> {
     const c = await this.customerRow(cif)
-    return this.holdings(c.id, asOf, historyMonths(c))
+    const months = historyMonths(c)
+    return holdingsOf(await this.loadBlocks(cif, asOf, months), asOf, months)
   }
 
   async getConsent(cif: string): Promise<Consent> {
-    const c = await this.customerRow(cif)
-    const { rows } = await this.db.query<ConsentRow>(CONSENT_SQL, [c.id])
+    const now = this.now()
+    const hit = this.consents.get(cif, now)
+    if (hit) return hit
+    const { rows } = await this.db.query<ConsentRow>(CONSENT_SQL, [cif])
     const row = rows[0]
     if (!row) throw new NotFound(`No consent artefact is on record for ${cif}.`)
-    return toConsent(row)
+    const consent = toConsent(row)
+    this.consents.set(cif, consent, now)
+    return consent
   }
 
   async loadCustomerFile(
@@ -515,18 +686,13 @@ export class PostgresBankData implements BankDataPort {
     asOf: IsoDate,
     windowMonths: number,
   ): Promise<LoadedCustomerFile> {
-    const c = await this.customerRow(cif)
-    const txns = await this.transactionRows(c.id, windowStart(anchorOf(c), windowMonths), asOf)
-    const [accounts, liabilities, held] = await parallel(this.db, [
-      () => this.accounts(c, asOf, txns),
-      () => this.liabilities(c.id, asOf),
-      () => this.holdings(c.id, asOf, windowMonths),
-    ])
+    const b = await this.loadBlocks(cif, asOf, windowMonths)
+    const held = holdingsOf(b, asOf, windowMonths)
     const file: CustomerFile = {
-      customer: toCustomer(c),
-      accounts,
-      transactions: txns.map(toTransaction),
-      liabilities,
+      customer: toCustomer(b.customer),
+      accounts: accountsOf(b, asOf),
+      transactions: b.transactions.map(toTransaction),
+      liabilities: liabilitiesOf(b, asOf),
       holdings: held.holdings,
       policies: held.policies,
     }
@@ -573,94 +739,31 @@ export class PostgresBankData implements BankDataPort {
   }
 
   private async customerRow(cif: string): Promise<CustomerRow> {
+    const now = this.now()
+    const hit = this.customers.get(cif, now)
+    if (hit) return hit
     const { rows } = await this.db.query<CustomerRow>(`${CUSTOMER_SQL} AND c.cif = $1`, [cif])
     const row = rows[0]
     if (!row) throw new NotFound(`No customer with cif ${cif}.`)
+    this.customers.set(cif, row, now)
     return row
   }
 
-  private async transactionRows(
-    customerId: string,
-    from: IsoDate,
-    to: IsoDate,
-  ): Promise<TransactionRow[]> {
-    const { rows } = await this.db.query<TransactionRow>(TRANSACTIONS_SQL, [customerId, from, to])
-    return rows
+  /** Every block for one customer at one date, from the cache or in one round trip. */
+  private async loadBlocks(cif: string, asOf: IsoDate, windowMonths: number): Promise<Blocks> {
+    const key = `${cif}|${asOf}|${windowMonths}`
+    const now = this.now()
+    const hit = this.blocks.get(key, now)
+    if (hit) return hit
+
+    const { rows } = await this.db.query<FileRow>(FILE_SQL, [cif, windowMonths, asOf])
+    const row = rows[0]
+    if (!row?.customer) throw new NotFound(`No customer with cif ${cif}.`)
+    const blocks: Blocks = { ...row, customer: row.customer }
+    this.blocks.set(key, blocks, now)
+    this.customers.set(cif, row.customer, now)
+    return blocks
   }
-
-  private async accounts(
-    c: CustomerRow,
-    asOf: IsoDate,
-    txns: TransactionRow[],
-  ): Promise<Account[]> {
-    const [casa, deposits, openings] = await parallel(this.db, [
-      () => this.db.query<CasaRow>(CASA_SQL, [c.id, asOf]),
-      () => this.db.query<DepositRow>(DEPOSITS_SQL, [c.id, asOf]),
-      () => this.db.query<OpeningRow>(OPENING_SQL, [c.id]),
-    ])
-
-    // What the balance was before the first seeded line, so an account with no history in
-    // the window reports its opening balance rather than zero.
-    const openingBalance = new Map<string, number>()
-    for (const o of openings.rows) {
-      if (o.balance_after === null) continue
-      openingBalance.set(
-        o.account_id,
-        o.balance_after - (o.tran_type === 'CREDIT' ? o.amount : -o.amount),
-      )
-    }
-
-    const out: Account[] = casa.rows.map((row) => {
-      const own = txns.filter((t) => t.account_id === row.id).map(toTransaction)
-      const opening = openingBalance.get(row.id)
-      return {
-        accountNumberMasked: row.account_number_masked,
-        accountType: accountTypeForCasa(row.account_type, row.account_type_raw),
-        accountOpeningDate: row.opening_date ?? c.customer_since ?? '',
-        ...accountFactsAsOf(own, asOf, opening === undefined ? {} : { openingBalance: opening }),
-      }
-    })
-    for (const row of deposits.rows) out.push(depositAccount(row))
-    return out
-  }
-
-  private async liabilities(customerId: string, asOf: IsoDate): Promise<Liability[]> {
-    const { rows } = await this.db.query<LoanRow>(LOANS_SQL, [customerId])
-    return (
-      rows
-        .map((row) => liabilityAsOf(loanContract(row), row.as_of_date, asOf))
-        // A cleared loan leaves the list, which is what frees up the EMI.
-        .filter((l): l is Liability => l !== null)
-    )
-  }
-
-  private async holdings(
-    customerId: string,
-    asOf: IsoDate,
-    historyMonths: number,
-  ): Promise<{ holdings: Holding[]; policies: Holding[] }> {
-    const sips = await this.db.query<SipRow>(SIPS_SQL, [customerId, asOf])
-    const sipNames = sips.rows.map((s) => s.scheme_name)
-    const [deposits, funds, policies] = await parallel(this.db, [
-      () => this.db.query<DepositRow>(DEPOSITS_SQL, [customerId, asOf]),
-      () => this.db.query<MfRow>(MF_SQL, [customerId, sipNames]),
-      () => this.db.query<PolicyRow>(POLICIES_SQL, [customerId, asOf]),
-    ])
-    return {
-      holdings: [
-        ...sips.rows.map((row) =>
-          sipHoldingAsOf(sipContract(row), row.as_of_date, asOf, historyMonths),
-        ),
-        ...funds.rows.map(mfHolding),
-        ...deposits.rows.map(depositHolding),
-      ],
-      policies: policies.rows.map(policyHolding),
-    }
-  }
-}
-
-function anchorOf(c: CustomerRow): IsoDate {
-  return c.ledger_anchor ?? c.ledger_horizon ?? '1970-01-01'
 }
 
 /** The seeded history length in months, which is also the generator's `months` argument. */

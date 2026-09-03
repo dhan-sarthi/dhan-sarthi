@@ -1,0 +1,7 @@
+{
+  "customer_id": "IDBI0009182731",
+  "consent_id": "CONS_SYN_1",
+  "data_period_from": "01-10-24",
+  "data_period_to": "01-09-26",
+  "data_blocks": "PROFILE,ACCOUNTS,TXN,HOLDINGS,LIABILITIES,SHELF,SIGNALS"
+}

@@ -23,6 +23,11 @@ import type { BankDataPort, Clock, Session, SessionStore } from '../ports/index.
 /** Six days before the anchor, so "since you were away" has a week to talk about. */
 const LAST_SEEN_OFFSET_DAYS = -6
 const SESSION_TTL_DAYS = 30
+/**
+ * The sliding expiry is thirty days; refreshing it on every call spent a database round trip
+ * per request to move it by seconds. Once a minute is indistinguishable to the customer.
+ */
+const TOUCH_INTERVAL_MS = 60_000
 
 export interface SessionServiceDeps {
   sessions: SessionStore
@@ -67,6 +72,9 @@ export class SessionService {
 
     const now = this.deps.clock.now()
     if (new Date(session.expiresAt).getTime() <= now.getTime()) return null
+    if (now.getTime() - new Date(session.lastActiveAt).getTime() < TOUCH_INTERVAL_MS) {
+      return session
+    }
 
     const touched = { lastActiveAt: now.toISOString(), expiresAt: this.expiry() }
     await this.deps.sessions.touch(session.id, touched)

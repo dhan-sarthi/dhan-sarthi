@@ -1,0 +1,32 @@
+{
+  "customer_id": "IDBI0009182731",
+  "data_block": "SIGNALS",
+  "data": {
+    "avg_monthly_inflow_3m": "85000.00",
+    "avg_monthly_outflow_3m": "79694.33",
+    "avg_monthly_surplus_3m": "5305.67",
+    "emi_to_income_ratio_pct": "9.65",
+    "savings_rate_pct": "5.88",
+    "emergency_fund_months": "3.24",
+    "salary_credit_amount": "85000.00",
+    "salary_credit_day": 1,
+    "surplus_volatility_pct": "583.80",
+    "discretionary_spend_pct": "36.56",
+    "inflow_stability_score": "1.00",
+    "spend_by_category_12m": "{\"Food and Dining\":78722,\"Shopping\":92574,\"Health\":58022,\"Rent and Bills\":350038,\"Transport\":31494,\"Groceries\":58257,\"Investment\":60000,\"Entertainment\":26589,\"Loan EMI\":98400,\"Transfers\":117000,\"Cash\":15500}",
+    "recurring_debit_total": "52488.00",
+    "balance_trend_6m_pct": "15.83",
+    "investment_to_networth_pct": "41.50",
+    "first_investment_date": "05-01-25"
+  },
+  "meta": {
+    "consent_reference": "CONS_SYN_1",
+    "consent_purpose": "Wealth advisory",
+    "consent_valid_to": "01-03-29",
+    "consent_status": "ACTIVE",
+    "data_period_from": "01-10-24",
+    "data_period_to": "01-09-26",
+    "data_freshness_date": "01-09-26",
+    "response_status": "SUCCESS"
+  }
+}

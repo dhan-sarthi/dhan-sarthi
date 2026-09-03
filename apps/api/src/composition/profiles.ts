@@ -100,11 +100,14 @@ export function bankAdapters(
       // config.ts already refuses BANK_SOURCE=postgres without DATABASE_URL; the assertion keeps
       // the type honest rather than repeating the check.
       if (!config.DATABASE_URL) throw new Error('DATABASE_URL is required for BANK_SOURCE=postgres')
+      // DB_ROLE is what makes the record append-only for this process and not only for a
+      // stranger: the connection takes the role before it serves a request.
       const db = createPool({
         connectionString: config.DATABASE_URL,
         applicationName: 'dhan-api',
         max: 5,
         statementTimeoutMs: 15_000,
+        ...(config.DB_ROLE === undefined ? {} : { role: config.DB_ROLE }),
       })
       // The ledger was generated at the seed anchor and the mirrors carry that as their as-of;
       // the bank adapter reports it as the data freshness date on every view.

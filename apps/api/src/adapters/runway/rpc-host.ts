@@ -47,6 +47,7 @@ export class RunwayRpcHost implements AvatarRpcHost {
     handlers: ToolHandlers,
   ): Promise<RpcHandle> {
     let connected = false
+    const startedAt = Date.now()
     // Loaded on first use: importing the SDK loads LiveKit's native binding, which a process
     // running the memory profile with no avatar has no reason to carry.
     const { createRpcHandler } = await this.sdk()
@@ -57,6 +58,10 @@ export class RunwayRpcHost implements AvatarRpcHost {
       tools: handlers,
       onConnected: () => {
         connected = true
+        this.log.info(
+          { runwaySessionId, joinMs: Date.now() - startedAt, tools: Object.keys(handlers) },
+          'rpc handler connected',
+        )
       },
       onDisconnected: () => {
         connected = false

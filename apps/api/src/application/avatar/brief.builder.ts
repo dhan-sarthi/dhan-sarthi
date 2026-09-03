@@ -101,12 +101,17 @@ export function buildBrief(
     ...shelfLines,
   ].join('\n')
 
-  const opening = openingLine(s).text
+  // Runway speaks `startScript` verbatim — the first live call's transcript carried the old
+  // instruction text ("Greet Rohan by name, briefly. Then say, in your own words…") as the
+  // avatar's first turn, word for word. So this is the opening itself, not a direction for it.
+  // It names no product on purpose: a product Uday proposes has to go through
+  // check_suitability first, and a scripted line would bypass the gate the transcript is
+  // reconciled against.
   const startScript = [
-    `Greet ${first} by name, briefly. Then say, in your own words but keeping every figure:`,
-    `"${opening}"`,
-    "Then propose today's one action and stop talking so he can respond.",
-  ].join('\n')
+    `Hello ${first}. I have been through your statements, so let me start with what I can see.`,
+    openingLine(s).text,
+    'I have one suggestion for today. Shall I take you through it, or is there something on your mind first?',
+  ].join(' ')
 
   return {
     personality: clamp(personality, PERSONALITY_MAX),

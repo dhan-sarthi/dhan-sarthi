@@ -31,7 +31,9 @@ export class ConversationService {
 
   async ask(session: Session, question: string): Promise<Answer> {
     const view = await this.deps.advisory.view(session)
-    return answer(question, view.snapshot, view.file)
+    // The plan Today rendered goes in with the question, so "what can I spend" quotes the pot on
+    // the screen and not a second arithmetic of its own.
+    return answer(question, view.snapshot, view.file, { safeToSpend: view.plan.safeToSpend })
   }
 
   async suggestions(session: Session): Promise<AskSuggestions> {

@@ -24,16 +24,23 @@
  * happens the 409 carries a waitlist ticket, which this hook polls until the slot is claimable.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, isApiError, newIdempotencyKey } from '../api/client.ts'
+import type { Room } from 'livekit-client'
+import type { AvatarGrant } from '@dhan/contracts'
+import { ApiError, api, isApiError, newIdempotencyKey } from '../api/client.ts'
+import { getToken } from '../api/session.ts'
 
 export type AvatarMode = 'idle' | 'connecting' | 'live' | 'text' | 'error'
 
 export interface QueuePlace {
   ticket: string
+  /** waiting: in line · claimable: the slot is held for us and `joinFromQueue` wins it · expired: the hold lapsed. */
+  state: 'waiting' | 'claimable' | 'expired'
   position: number
   estimatedWaitSeconds: number | null
-  /** The slot is held for us; `joinFromQueue` wins it. */
-  claimable: boolean
+  /** When the hold lapses, while claimable. The card counts down to it. */
+  holdUntil: string | null
+  /** The hold window as first seen, so the countdown has a full bar to drain. */
+  holdSeconds: number
 }
 
 export interface AvatarSession {
@@ -68,6 +75,69 @@ export interface AvatarSession {
 
 const QUEUE_POLL_MS = 3_000
 
+/**
+ * The grant is the one request in the app that legitimately takes longer than the client's
+ * six-second ceiling: Runway's create call alone is about four seconds, then the worker has to
+ * reach READY, our RPC handler has to join the room, and only then is the session consumed —
+ * twelve seconds on the first live call through this build. The client's timeout abandoned
+ * that grant at six seconds, the server finished it anyway, and Runway ended the session
+ * eighteen seconds later for want of a participant. So this call gets its own deadline.
+ */
+const GRANT_TIMEOUT_MS = 45_000
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+
+const GRANT_TIMED_OUT = 'Uday did not pick up in time. Let us continue in text.'
+const GRANT_UNREACHABLE = 'Could not reach the voice service. Let us continue in text.'
+const CALL_FAILED = 'The call could not be connected. Let us continue in text.'
+const CALL_ENDED = 'The call ended. Carry on here, or call again.'
+
+async function requestGrant(ticket: string | undefined): Promise<AvatarGrant> {
+  const token = getToken()
+  if (!token) throw new ApiError(401, 'UNAUTHORIZED', 'Your session has ended.')
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), GRANT_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/avatar/session`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+        'idempotency-key': newIdempotencyKey(),
+        ...(ticket ? { 'x-waitlist-ticket': ticket } : {}),
+      },
+      body: '{}',
+      signal: controller.signal,
+    })
+    const text = await res.text()
+    let json: unknown = null
+    try {
+      json = text ? JSON.parse(text) : null
+    } catch {
+      json = null
+    }
+    if (res.ok) return json as AvatarGrant
+
+    const body =
+      typeof json === 'object' && json !== null && 'code' in json && 'message' in json
+        ? (json as ApiError['body'])
+        : null
+    throw new ApiError(
+      res.status,
+      body?.code ?? (res.status >= 500 ? 'INTERNAL' : 'VALIDATION'),
+      body?.message ?? `The advisor service replied ${res.status}.`,
+      body,
+    )
+  } catch (err) {
+    if (isApiError(err)) throw err
+    if (controller.signal.aborted) throw new ApiError(0, 'TIMEOUT', GRANT_TIMED_OUT)
+    throw new ApiError(0, 'NETWORK', GRANT_UNREACHABLE)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function useAvatar(): AvatarSession {
   const [mode, setMode] = useState<AvatarMode>('idle')
   const [reason, setReason] = useState<string | null>(null)
@@ -77,9 +147,14 @@ export function useAvatar(): AvatarSession {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
   const [audioLevel, setAudioLevel] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const roomRef = useRef<{ disconnect: () => void } | null>(null)
+  const roomRef = useRef<Room | null>(null)
   const sessionRef = useRef<string | null>(null)
   const meterRef = useRef<{ ctx: AudioContext; raf: number } | null>(null)
+  const countdownRef = useRef<number | null>(null)
+  const audioElsRef = useRef<HTMLMediaElement[]>([])
+  const mutedRef = useRef(false)
+  /** Set while we are the ones hanging up, so the room's Disconnected event is not read as a drop. */
+  const hangingUpRef = useRef(false)
 
   const attachVideo = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el
@@ -142,6 +217,18 @@ export function useAvatar(): AvatarSession {
     setAudioLevel(0)
   }, [])
 
+  const stopCountdown = useCallback(() => {
+    if (countdownRef.current !== null) window.clearInterval(countdownRef.current)
+    countdownRef.current = null
+    setSecondsLeft(null)
+  }, [])
+
+  /** The audio elements LiveKit attached to the page. Left behind, a second call plays two voices. */
+  const dropAudioElements = useCallback(() => {
+    for (const el of audioElsRef.current) el.remove()
+    audioElsRef.current = []
+  }, [])
+
   /**
    * Hand the credential back.
    *
@@ -156,16 +243,29 @@ export function useAvatar(): AvatarSession {
     )
   }, [])
 
-  const stop = useCallback(() => {
+  /** Everything a call holds in the page, whichever way it ended. */
+  const teardown = useCallback(() => {
     stopMeter()
-    roomRef.current?.disconnect()
+    stopCountdown()
+    dropAudioElements()
     roomRef.current = null
     release(sessionRef.current)
     sessionRef.current = null
+    mutedRef.current = false
+    setMuted(false)
     setVideoLive(false)
-    setSecondsLeft(null)
+  }, [dropAudioElements, release, stopCountdown, stopMeter])
+
+  const stop = useCallback(() => {
+    hangingUpRef.current = true
+    const room = roomRef.current
+    teardown()
+    void room?.disconnect().finally(() => {
+      hangingUpRef.current = false
+    })
+    setReason(null)
     setMode('idle')
-  }, [release, stopMeter])
+  }, [teardown])
 
   // A closed tab is the common case, not the exception.
   useEffect(() => {
@@ -185,17 +285,17 @@ export function useAvatar(): AvatarSession {
       setReason(null)
 
       try {
-        const grant = await api('startAvatarSession', {
-          body: {},
-          idempotencyKey: newIdempotencyKey(),
-          ...(ticket ? { headers: { 'x-waitlist-ticket': ticket } } : {}),
-        })
+        // The LiveKit client is imported here rather than at module scope so it is not in the
+        // initial bundle — most sessions never open a call. It loads while the grant is in
+        // flight, because the browser has roughly twenty seconds after the grant to join the
+        // room before Runway gives up on the session, and a slow download must not eat them.
+        const [grant, { Room, RoomEvent, Track }] = await Promise.all([
+          requestGrant(ticket),
+          import('livekit-client'),
+        ])
         setQueue(null)
         sessionRef.current = grant.runwaySessionId
 
-        // Imported here rather than at module scope so the LiveKit client is not in the initial
-        // bundle. Most sessions never open a call, and this screen has to paint fast.
-        const { Room, RoomEvent, Track } = await import('livekit-client')
         const room = new Room({ adaptiveStream: true, dynacast: true })
 
         room.on(RoomEvent.TrackSubscribed, (track) => {
@@ -228,6 +328,7 @@ export function useAvatar(): AvatarSession {
             const el = track.attach()
             el.autoplay = true
             document.body.appendChild(el)
+            audioElsRef.current.push(el)
 
             // Meter the track itself. The element plays it; the analyser only observes.
             const raw = track.mediaStreamTrack
@@ -235,29 +336,50 @@ export function useAvatar(): AvatarSession {
           }
         })
 
+        // The room going away under us — the cap reached, the worker gone, the network dropped —
+        // is not the same as the customer hanging up. The credential is handed back either
+        // way, and the screen says what happened rather than silently showing the text tier.
         room.on(RoomEvent.Disconnected, () => {
-          stopMeter()
-          setVideoLive(false)
-          setSecondsLeft(null)
-          setMode('idle')
+          if (hangingUpRef.current) return
+          teardown()
+          setReason(CALL_ENDED)
+          setMode('text')
         })
 
         await room.connect(grant.url, grant.token)
-        await room.localParticipant.setMicrophoneEnabled(true)
-
         roomRef.current = room
+        // The tile goes up the moment the room is joined, not once the microphone is published:
+        // opening the device took five seconds on the first live call, and the worker's greeting
+        // was already playing behind a screen that still said "Calling…".
         setMode('live')
+
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true)
+        } catch {
+          // A call he cannot hear is not a call. Hand the slot back and say why.
+          hangingUpRef.current = true
+          teardown()
+          void room.disconnect().finally(() => {
+            hangingUpRef.current = false
+          })
+          setReason('The microphone could not be opened, so the call was ended. Text still works.')
+          setMode('text')
+          return
+        }
 
         if (grant.expiresInSeconds > 0) {
           setSecondsLeft(grant.expiresInSeconds)
           const started = Date.now()
-          const tick = window.setInterval(() => {
+          countdownRef.current = window.setInterval(() => {
             const left = grant.expiresInSeconds - Math.round((Date.now() - started) / 1000)
             setSecondsLeft(Math.max(0, left))
-            if (left <= 0) window.clearInterval(tick)
+            if (left <= 0) stopCountdown()
           }, 1000)
         }
       } catch (err) {
+        // A grant that was issued but never joined is still billing and still holds the slot.
+        if (sessionRef.current) teardown()
+
         if (isApiError(err)) {
           // The server's own wording, always. Hardcoding one message here made "our pool is
           // full" and "Runway's account limit is full" look identical on screen, and only one of
@@ -267,12 +389,14 @@ export function useAvatar(): AvatarSession {
           if (err.status === 409 && typeof body?.['ticket'] === 'string') {
             setQueue({
               ticket: body['ticket'],
+              state: 'waiting',
               position: typeof body['position'] === 'number' ? body['position'] : 1,
               estimatedWaitSeconds:
                 typeof body['estimatedWaitSeconds'] === 'number'
                   ? body['estimatedWaitSeconds']
                   : null,
-              claimable: false,
+              holdUntil: null,
+              holdSeconds: 0,
             })
           }
           setMode('text')
@@ -280,55 +404,81 @@ export function useAvatar(): AvatarSession {
         }
         // Offline, blocked, or a browser without H.264 — all of which end in the same place, and
         // the same place is a working product rather than a broken screen.
-        setReason(err instanceof Error ? err.message : 'Could not reach the voice service.')
+        setReason(err instanceof Error && err.message ? err.message : CALL_FAILED)
         setMode('text')
       }
     },
-    [startMeter, stopMeter],
+    [startMeter, stopCountdown, teardown],
   )
 
-  // While queued, ask every few seconds where we stand. The server holds a claimable slot for
+  // While in line, ask every few seconds where we stand. The server holds a claimable slot for
   // a short window, so the poll is what turns "you are next" into a call.
   useEffect(() => {
-    if (!queue || queue.claimable || mode === 'live' || mode === 'connecting') return
+    if (queue?.state !== 'waiting' || mode === 'live' || mode === 'connecting') return
     const ticket = queue.ticket
     const timer = window.setInterval(() => {
       void api('getWaitlist', { params: { ticket } })
         .then((status) => {
-          setQueue({
-            ticket,
-            position: status.position,
-            estimatedWaitSeconds: status.estimatedWaitSeconds,
-            claimable: status.claimable,
+          setQueue((prev) => {
+            if (prev?.ticket !== ticket) return prev
+            const holdSeconds =
+              status.state === 'claimable' && status.holdUntil
+                ? Math.max(
+                    1,
+                    Math.round((new Date(status.holdUntil).getTime() - Date.now()) / 1000),
+                  )
+                : 0
+            return {
+              ticket,
+              state: status.state,
+              position: status.position,
+              estimatedWaitSeconds: status.estimatedWaitSeconds,
+              holdUntil: status.holdUntil,
+              holdSeconds,
+            }
           })
         })
         .catch((err: unknown) => {
-          // The ticket expired or was taken; the customer can ask again.
-          if (isApiError(err) && (err.status === 404 || err.status === 403)) setQueue(null)
+          // The ticket is gone — expired server-side, or a session that is no longer ours.
+          if (isApiError(err) && (err.status === 404 || err.status === 403)) {
+            setQueue((prev) => (prev?.ticket === ticket ? { ...prev, state: 'expired' } : prev))
+          }
         })
     }, QUEUE_POLL_MS)
     return () => window.clearInterval(timer)
   }, [queue, mode])
 
+  // A claimable ticket is held for a short window. Once it lapses the server has moved on to
+  // the next in line, so the card must stop promising a call the ticket can no longer win.
+  useEffect(() => {
+    if (queue?.state !== 'claimable' || !queue.holdUntil) return
+    const ticket = queue.ticket
+    const remaining = new Date(queue.holdUntil).getTime() - Date.now()
+    const timer = window.setTimeout(
+      () => setQueue((prev) => (prev?.ticket === ticket ? { ...prev, state: 'expired' } : prev)),
+      Math.max(0, remaining),
+    )
+    return () => window.clearTimeout(timer)
+  }, [queue])
+
   const joinFromQueue = useCallback(async () => {
-    if (queue?.claimable) await start(queue.ticket)
+    if (queue?.state === 'claimable') await start(queue.ticket)
   }, [queue, start])
 
   const leaveQueue = useCallback(() => {
     const ticket = queue?.ticket
+    const wasQueued = queue?.state !== 'expired'
     setQueue(null)
-    if (ticket) void api('leaveWaitlist', { params: { ticket } }).catch(() => undefined)
+    setReason(null)
+    if (ticket && wasQueued)
+      void api('leaveWaitlist', { params: { ticket } }).catch(() => undefined)
   }, [queue])
 
   const toggleMute = useCallback(() => {
-    setMuted((m) => {
-      const next = !m
-      const room = roomRef.current as {
-        localParticipant?: { setMicrophoneEnabled: (v: boolean) => void }
-      } | null
-      room?.localParticipant?.setMicrophoneEnabled(!next)
-      return next
-    })
+    const next = !mutedRef.current
+    mutedRef.current = next
+    setMuted(next)
+    void roomRef.current?.localParticipant.setMicrophoneEnabled(!next).catch(() => undefined)
   }, [])
 
   return {

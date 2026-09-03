@@ -299,7 +299,11 @@ function Decisions({
               <Card key={v.version}>
                 <div className="mb-2 flex flex-wrap gap-2">
                   <Pill>Version {v.version}</Pill>
-                  <Pill>{dayMonth(v.createdAt.slice(0, 10))}</Pill>
+                  {/* The simulated date the plan was cut on, which is the date the reviewer
+                      was looking at. The wall clock the row was written at means nothing here. */}
+                  <Pill>
+                    {dayMonth(v.atSim)} {v.atSim.slice(0, 4)}
+                  </Pill>
                 </div>
                 <p className="m-0 text-[14.5px] leading-normal text-ink">{v.reasonForChange}</p>
                 <p className={`${NOTE} m-0 mt-2`}>

@@ -38,6 +38,7 @@ export class RecordService {
         snapshotId: v.snapshotId,
         goal: v.goal,
         reasonForChange: v.reasonForChange,
+        atSim: v.atSim,
         createdAt: v.createdAt,
       })),
       consent,
