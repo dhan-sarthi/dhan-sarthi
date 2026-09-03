@@ -851,11 +851,6 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
   ])
   const seeded = (before['app.customers'] ?? 0) > 0
 
-  if (seeded && sessions > 0 && !opts.force) {
-    throw new Error(
-      `${sessions} reviewer session(s) are live and reseeding would erase them; pass --force to proceed`,
-    )
-  }
   if (
     seeded &&
     !opts.force &&
@@ -870,6 +865,13 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
       contentSha256: plan.contentSha256,
       rowCounts: before,
       personas,
+    }
+
+    // Only a seed that would change the rows can erase anyone; an identical one returned above.
+    if (seeded && sessions > 0 && !opts.force) {
+      throw new Error(
+        `${sessions} reviewer session(s) are live and reseeding would erase them; pass --force to proceed`,
+      )
     }
   }
 
