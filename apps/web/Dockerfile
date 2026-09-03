@@ -4,8 +4,9 @@
 #
 #   docker build -f apps/web/Dockerfile -t dhan-sarthi/web .
 #
-# Under compose nginx proxies /api to the api service (nginx.conf). In AWS the same dist/ goes
-# to S3 behind CloudFront and this image is not used (TESTING-AND-DEPLOYMENT.md).
+# nginx proxies /api to the API named by API_UPSTREAM (nginx.conf.template; the compose service
+# by default). In AWS the same dist/ goes to S3 behind CloudFront and this image is not used
+# (TESTING-AND-DEPLOYMENT.md).
 
 ARG NODE_IMAGE=node:22-bookworm-slim
 
@@ -37,7 +38,11 @@ COPY apps/web ./apps/web
 RUN pnpm -r --filter './packages/*' build && pnpm --filter @dhan/web build
 
 FROM nginx:alpine AS runtime
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# Defaults are the compose stack; a deployment overrides them with plain environment variables.
+ENV API_UPSTREAM=http://api:3001
+ENV DNS_RESOLVER=127.0.0.11
+ENV RESOLVER_FLAGS=ipv6=off
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

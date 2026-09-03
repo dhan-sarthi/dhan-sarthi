@@ -76,6 +76,10 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     image: dhan-sarthi/web
+    environment:
+      API_UPSTREAM: http://api:3001
+      DNS_RESOLVER: 127.0.0.11
+      RESOLVER_FLAGS: ipv6=off
     ports:
       - "8080:80"
     depends_on:

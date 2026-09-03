@@ -1,0 +1,50 @@
+# The API on Fly.io, Mumbai. Deploy from the repository root:
+#
+#   fly deploy -c fly.api.toml
+#
+# One machine, never stopped: the Runway RPC host holds a LiveKit connection for the life of
+# every avatar call, so the process must be persistent (ADR-0004). Secrets are set once with
+# `fly secrets set` (see infra/fly/README.md) and arrive as environment; nothing is baked in.
+
+app = "dhan-sarthi-api"
+primary_region = "bom"
+
+[build]
+  dockerfile = "apps/api/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  HOST = "0.0.0.0"
+  PORT = "3001"
+  BANK_SOURCE = "postgres"
+  AVATAR_PROVIDER = "runway"
+  AVATAR_ENABLED = "true"
+  RUNWAY_MAX_SESSION_SECONDS = "600"
+  RUNWAY_DAILY_MINUTE_BUDGET = "240"
+  SEED_ANCHOR = "2026-09-01"
+  SEED_FORWARD_MONTHS = "18"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 400
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/v1/health"
+    timeout = "5s"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -41,6 +41,8 @@ Reading order for someone new to the project. About thirty minutes end to end.
   ten-step apply, the operator actions, and the egress the bank's network team must allow.
 - [`engineering/runway.md`](engineering/runway.md): the avatar provider, verified behaviour,
   and the operational gotchas.
+- [`../infra/fly/README.md`](../infra/fly/README.md): the public review link on Fly.io in
+  Mumbai, two apps built from the repository's own Dockerfiles, one login and two commands.
 - [`engineering/schema/`](engineering/schema/README.md): the relational schema the API is built
   on. Four Postgres schemas, the compliance properties the database itself enforces, the field
   mapping from IDBI's specification and the Account Aggregator schemas, and how an unknown
