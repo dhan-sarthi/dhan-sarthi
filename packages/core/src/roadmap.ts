@@ -103,6 +103,24 @@ export interface Roadmap {
 
 const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
 
+/**
+ * A large round sum the way it is actually said: "₹1 crore", not "₹1,00,00,000".
+ *
+ * Only for a notional target — a cover amount, a goal, a shortfall against one — never for money
+ * that moves. A premium, a balance or an instalment is always shown to the rupee; rounding those
+ * to "about ₹1 lakh" is how a statement stops reconciling.
+ *
+ * Deliberately the same thresholds and decimal places as `approx` in the web app, because the
+ * goal stage's label sits directly under a panel that renders the same figure with that
+ * function: one target written two ways on one screen reads as a defect.
+ */
+const spokenAmount = (n: number): string => {
+  const abs = Math.abs(n)
+  if (abs >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(abs >= 10_00_00_000 ? 0 : 2)} crore`
+  if (abs >= 1_00_000) return `₹${(n / 1_00_000).toFixed(abs >= 10_00_000 ? 1 : 2)} lakh`
+  return inr(n)
+}
+
 const MONTHS = [
   'January',
   'February',
@@ -279,14 +297,21 @@ export function buildRoadmap(
       const closesGap = (term.coverAmount ?? 0) >= snapshot.protection.gap
       push({
         kind: 'get_cover',
-        label: `${term.name} — ${inr(term.minInvestment)} a month`,
+        /* The label says what happens, never which product, what it covers or what it costs:
+           `productName` is its own row, `targetAmount` the cover and `monthly` its own column.
+           Naming them here printed the policy twice and the price twice in one card, and any
+           amount written here also had to agree with how the same figure is rendered two lines
+           below — two ways to get one row wrong. Every other stage label is an outcome, and
+           this one now matches. */
+        label: 'Put life cover in force',
         why:
           `${snapshot.customer.dependents} ${snapshot.customer.dependents === 1 ? 'person' : 'people'} ` +
           `depend on your income and there is nothing in force. This is the cheapest thing on ` +
           `this list and the only one that cannot be caught up on later.` +
           (closesGap
             ? ''
-            : ` It does not close the whole gap — ${inr(snapshot.protection.gap)} would — but it ` +
+            : ` It does not close the whole gap — ${spokenAmount(snapshot.protection.gap)} would — ` +
+              `but it ` +
               `is what is affordable today, and something in force beats the right amount later.`),
         productId: term.productId,
         productName: term.name,
@@ -439,7 +464,7 @@ export function buildRoadmap(
     push({
       kind: 'grow',
       label:
-        `${goal.purpose ?? 'Your goal'}: ${inr(goal.targetAmount)} by ` +
+        `${goal.purpose ?? 'Your goal'}: ${spokenAmount(goal.targetAmount)} by ` +
         `${spokenMonth(goal.targetDate)}`,
       why: feasible
         ? `${inr(needed)} a month at an assumed ${rate}% gets you there. ${DISCLAIMER}`

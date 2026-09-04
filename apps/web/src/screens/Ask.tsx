@@ -17,6 +17,14 @@
  * `object-fit: cover` keeps **30% of the source width**, which is why he arrived cropped to the
  * bridge of his nose. A 4:5 tile keeps a little over half the width, which is close to the
  * head-and-shoulders framing the source was composed for.
+ *
+ * **The surfaces.** This screen is the hero — full-bleed brand green carrying the bank's wave —
+ * so it never puts a hero panel on top of one. The other two roles are translated onto the green
+ * rather than dropped: the *card* is white with ink on it and is spent on one thing only, Uday's
+ * turns, because his answers are the part that has to be read carefully; everything else is a
+ * *bare row* — the customer's own question, the unavailable sentence, the suggestions — white type
+ * straight onto the green with no container at all. Two speakers rendered as two blocks of the
+ * same shape is what made a transcript read as wallpaper.
  */
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
@@ -26,11 +34,23 @@ import type { AskBackend } from '../lib/ask.ts'
 import { useAvatar } from '../lib/avatar.ts'
 import type { QueuePlace } from '../lib/avatar.ts'
 import { inr } from '../lib/money.ts'
+import { riseDelay } from '../lib/motion.ts'
 import { QueueCard } from '../components/QueueCard.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
+import { Wave } from '../components/Wave.tsx'
 
 /** While in line, availability is re-read this often so the queue length and minutes stay honest. */
 const WAITING_POLL_MS = 5_000
+
+/**
+ * The demo's climax, spotted in the suggestions core hands us.
+ *
+ * `suggestedQuestions()` offers the cousin's LIC savings plan fourth of six, which on a 390px
+ * screen puts it past the right edge of a scrolling strip of identical pills — the one tap the
+ * whole product is built around, hidden behind a swipe. It is matched here, promoted to the front
+ * and given the only filled chip on the screen. The wording is core's, untouched.
+ */
+const CLIMAX = /\bLIC\b|ULIP|endowment|savings plan/i
 
 interface Turn {
   id: number
@@ -115,7 +135,17 @@ export function Ask({
           : 'Text'
 
   return (
-    <div className="absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-b from-brand to-brand-deep text-white">
+    <div className="absolute inset-0 isolate flex flex-col overflow-hidden bg-gradient-to-b from-brand to-brand-deep text-white">
+      {/* IDBI's wave, on the deep end of the gradient where the account cards in GO Mobile+ carry
+          it. The band is kept to a third of the screen so the curves stay the bank's proportion
+          rather than stretching into a single sweep across 844px. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[38%]"
+      >
+        <Wave tone="dark" />
+      </div>
+
       {/* --------------------------------------------------- Top bar */}
       <div className="flex flex-none items-center gap-2.5 px-4 pb-1.5 pt-[max(16px,env(safe-area-inset-top))]">
         <button
@@ -149,8 +179,10 @@ export function Ask({
             <div
               className="relative aspect-[4/5] max-h-full w-full overflow-hidden rounded-lg bg-brand-deep shadow-lift transition-[box-shadow,transform] duration-100 ease-out"
               style={{
-                // Two shadows: the settled one, and a mint ring that swells with his voice.
-                boxShadow: `var(--shadow-lift), 0 0 0 ${(2 + glow * 5).toFixed(1)}px rgb(224 241 235 / ${(glow * 0.5).toFixed(2)})`,
+                // Three: a hairline inside the edge so the tile reads as a window cut into the
+                // green rather than a photograph pasted onto it, the settled lift, and a mint
+                // ring that swells with his voice.
+                boxShadow: `inset 0 0 0 1px rgb(255 255 255 / 0.18), var(--shadow-lift), 0 0 0 ${(2 + glow * 5).toFixed(1)}px rgb(224 241 235 / ${(glow * 0.5).toFixed(2)})`,
                 transform: `scale(${(1 + glow * 0.008).toFixed(4)})`,
               }}
             >
@@ -176,6 +208,14 @@ export function Ask({
                 }`}
               />
 
+              {/* A permanent, very soft scrim on the lower third. It settles him into the green
+                  instead of leaving a hard-edged rectangle floating on it, and it is what the
+                  name underneath reads up into. */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-brand-deep/45 to-transparent"
+              />
+
               {/* Only ever one line, and only while something is happening. */}
               {connecting || (connected && !avatar.videoLive) ? (
                 <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-[9px] bg-gradient-to-t from-brand-deep/90 to-transparent px-4 pb-4 pt-11 text-center text-[13.5px] text-white">
@@ -195,8 +235,8 @@ export function Ask({
               ) : null}
             </div>
 
-            <div className="px-1 pt-5 text-center">
-              <div className="text-[22px] font-bold leading-tight text-white">Uday</div>
+            <div className="px-1 pt-4 text-center">
+              <div className="text-[23px] font-bold leading-tight text-white">Uday</div>
               <div className="mt-1 text-sm text-white/70">
                 {connected
                   ? avatar.videoLive
@@ -411,24 +451,42 @@ function TextTier({
   // (or the client's — "Uday did not pick up in time") stays up beside a working Call button.
   const line = reason ?? (canCall ? null : unavailableLine(tier, availability, null))
 
+  // Presentation order only: the same six strings core sent, with the one the demo turns on
+  // pulled to the front so it is not sitting off the right edge of the strip.
+  const lead = questions.find((q) => CLIMAX.test(q)) ?? null
+  const rest = lead === null ? questions : questions.filter((q) => q !== lead)
+
   return (
     <>
-      {/* --------------------------------------------------- Who you are talking to */}
-      <div className="flex flex-none items-center gap-3 px-4 pb-3 pt-1">
-        <img
-          src="/uday.jpg"
-          alt="Uday, your IDBI advisor"
-          className="size-14 flex-none rounded-pill object-cover object-[center_28%] shadow-lift"
-        />
+      {/* --------------------------------------------------- Who you are talking to
+          The one thing on this screen: his face and one button. A larger portrait with a soft
+          ring and a presence dot reads as a person sitting there waiting to be called; a 56px
+          thumbnail in a flat row read as an avatar in a contacts list. */}
+      <div className="rise flex flex-none items-center gap-3.5 px-4 pb-3.5 pt-1">
+        <span className="relative flex-none">
+          <img
+            src="/uday.jpg"
+            alt="Uday, your IDBI advisor"
+            className="size-[68px] rounded-pill object-cover object-[center_28%] shadow-lift ring-[3px] ring-white/25"
+          />
+          {/* Mint when the line is his to take, dim when it is not — the same two colours the
+              status pill at the top of the screen already uses. */}
+          <span
+            aria-hidden="true"
+            className={`absolute bottom-0.5 right-0.5 size-3.5 rounded-pill border-[2.5px] border-solid border-brand ${
+              canCall ? 'bg-tint-sage' : 'bg-white/45'
+            }`}
+          />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[20px] font-bold leading-tight text-white">Uday</div>
+          <div className="text-[21px] font-bold leading-tight text-white">Uday</div>
           <div className="mt-0.5 text-[13px] text-white/70">IDBI Bank</div>
         </div>
         {canCall ? (
           <button
             type="button"
             onClick={onCall}
-            className="flex h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985]"
+            className="flex h-12 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white shadow-lift transition-transform duration-100 active:scale-[0.985]"
           >
             <MicIcon />
             Call
@@ -436,8 +494,14 @@ function TextTier({
         ) : null}
       </div>
 
+      {/* Why there is no Call button hangs off a rule as an aside, not as a floating sentence. */}
       {line ? (
-        <p className="m-0 flex-none px-4 pb-3 text-[13px] leading-normal text-white/75">{line}</p>
+        <p
+          className="rise m-0 mx-4 mb-3 flex-none border-0 border-l-2 border-solid border-white/35 pl-2.5 text-[13px] leading-normal text-white/80"
+          style={riseDelay(1)}
+        >
+          {line}
+        </p>
       ) : null}
 
       {queue ? (
@@ -445,28 +509,50 @@ function TextTier({
       ) : null}
 
       {/* --------------------------------------------------- The conversation */}
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4" aria-live="polite">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-1" aria-live="polite">
         {turns.map((t) => (
           <Bubble key={t.id} turn={t} />
         ))}
+        {/* Waiting is a line, not a third block: giving the pause the same white card as an
+            answer promises something has arrived when nothing has. */}
         {thinking || checking ? (
-          <div className="mb-2.5 max-w-[85%] rounded-lg rounded-bl-sm bg-white/15 px-3.5 py-2.5 text-[14.5px] text-white/70">
+          <div className="mb-3 flex items-center gap-2 text-[13.5px] leading-snug text-white/75">
+            <span
+              aria-hidden="true"
+              className="size-[7px] flex-none animate-pulse rounded-pill bg-tint-sage"
+            />
             {checking ? 'Checking the rules…' : 'Reading your statements…'}
           </div>
         ) : null}
       </div>
 
-      {/* --------------------------------------------------- Ways to ask */}
+      {/* --------------------------------------------------- Ways to ask
+          Not six pills of equal weight in a strip nobody scrolls. The cousin's savings plan sits
+          on its own line as the one filled thing here — orange is the action colour, and this tap
+          is the action the product exists to answer. The rest stay a quiet, smaller row. */}
       <div className="flex-none px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-2">
-        {questions.length > 0 ? (
+        {lead ? (
+          <button
+            type="button"
+            onClick={() => void ask(lead)}
+            disabled={thinking}
+            className="rise mb-2 flex w-full items-center gap-2.5 rounded-pill border-0 bg-accent px-4 py-2.5 text-left text-[13.5px] font-semibold leading-snug text-white transition-transform duration-100 active:scale-[0.985] disabled:opacity-55"
+          >
+            <span className="min-w-0 flex-1">{lead}</span>
+            <ArrowIcon />
+          </button>
+        ) : null}
+
+        {rest.length > 0 ? (
           <div className="mb-2.5 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-            {questions.map((q) => (
+            {rest.map((q, i) => (
               <button
                 key={q}
                 type="button"
                 onClick={() => void ask(q)}
                 disabled={thinking}
-                className="h-9 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3.5 text-[13px] font-semibold text-white disabled:opacity-60"
+                style={riseDelay(i + 1)}
+                className="rise h-8 flex-none whitespace-nowrap rounded-pill border border-solid border-white/35 bg-transparent px-3 text-[12.5px] font-semibold text-white/85 transition-transform duration-100 active:scale-[0.985] disabled:opacity-55"
               >
                 {q}
               </button>
@@ -493,25 +579,32 @@ function TextTier({
           </button>
         </form>
 
+        {/* One instrument, not a raw select next to a button of the same size. The chooser sits
+            in a sunk trough with the platform's arrow suppressed and ours drawn instead, and the
+            action is a solid white pill inset into it — the same white-on-green weight the mute
+            control uses, so the screen's one orange stays with Call and Ask. */}
         {shelf.length > 0 ? (
-          <div className="mt-2.5 flex gap-2">
-            <select
-              value={product}
-              onChange={(e) => setProduct(e.target.value)}
-              aria-label="Product to check"
-              className="h-11 min-w-0 flex-1 rounded-pill border-0 bg-white/15 px-4 text-[14px] text-white focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              {shelf.map((p) => (
-                <option key={p.productId} value={p.productId} className="text-ink">
-                  {p.name}
-                </option>
-              ))}
-            </select>
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-pill bg-white/12 p-1">
+            <span className="relative min-w-0 flex-1">
+              <select
+                value={product}
+                onChange={(e) => setProduct(e.target.value)}
+                aria-label="Product to check"
+                className="h-10 w-full min-w-0 appearance-none truncate rounded-pill border-0 bg-transparent pl-3.5 pr-8 text-[13.5px] font-semibold text-white focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {shelf.map((p) => (
+                  <option key={p.productId} value={p.productId} className="text-ink">
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronIcon />
+            </span>
             <button
               type="button"
               onClick={() => void check()}
               disabled={checking}
-              className="h-11 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-4 text-[14px] font-semibold text-white disabled:opacity-60"
+              className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-white px-3.5 text-[13.5px] font-bold text-brand-deep transition-transform duration-100 active:scale-[0.985] disabled:opacity-55"
             >
               Check a product
             </button>
@@ -522,56 +615,69 @@ function TextTier({
   )
 }
 
+/**
+ * One turn, in one of two shapes that are not the same shape.
+ *
+ * The customer's question is a bare line hung off an orange edge — no container, because it is
+ * a prompt and it is already in their head. Uday's turn is the screen's one card: white with ink
+ * on it, so a refusal and its evidence are read at full contrast rather than at whatever
+ * white-on-green survives a phone in daylight.
+ */
 function Bubble({ turn }: { turn: Turn }): ReactNode {
   const [open, setOpen] = useState(false)
-  const you = turn.who === 'you'
   const v = turn.verdict
 
-  return (
-    <div className={`mb-2.5 flex ${you ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-[14.5px] leading-normal ${
-          you ? 'rounded-br-sm bg-accent text-white' : 'rounded-bl-sm bg-white/15 text-white'
-        }`}
-      >
-        {v ? (
-          <span
-            className={`mb-1.5 inline-flex rounded-pill px-2.5 py-1 text-[11px] font-bold ${
-              v.verdict === 'PASS' ? 'bg-tint-sage text-brand-deep' : 'bg-danger text-white'
-            }`}
-          >
-            {v.verdict === 'PASS' ? 'Suitable' : `Refused · ${v.ruleId ?? 'rule'}`}
-          </span>
-        ) : null}
-        <div>{turn.text}</div>
-        {v?.alternative ? (
-          <div className="mt-1.5 text-[13px] text-white/80">
-            Instead: {v.alternative.name}
-            {v.alternative.monthly > 0 ? ` at ${inr(v.alternative.monthly)} a month` : ''}.
-          </div>
-        ) : null}
-        {turn.evidence && turn.evidence.length > 0 ? (
-          <>
-            {open ? (
-              <div className="mt-2 border-t border-solid border-white/20 pt-2">
-                {turn.evidence.map((e) => (
-                  <div key={e} className="py-[2px] text-[12.5px] text-white/80">
-                    · {e}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setOpen((o) => !o)}
-              className="mt-1.5 border-0 bg-transparent p-0 text-[12.5px] font-semibold text-white/80 underline underline-offset-2"
-            >
-              {open ? 'Hide the numbers' : 'Show me the numbers'}
-            </button>
-          </>
-        ) : null}
+  if (turn.who === 'you') {
+    return (
+      <div className="rise mb-3 flex justify-end">
+        <p className="m-0 max-w-[86%] border-0 border-r-[2.5px] border-solid border-accent pr-3 text-right text-[14.5px] leading-snug text-white">
+          {turn.text}
+        </p>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <section className="rise mb-3 max-w-[93%] rounded-md rounded-bl-sm bg-surface px-3.5 py-3 text-ink">
+      {v ? (
+        <span
+          className={`mb-2 inline-flex rounded-pill px-2.5 py-1 text-[11px] font-bold ${
+            v.verdict === 'PASS' ? 'bg-tint-sage text-brand-deep' : 'bg-danger text-white'
+          }`}
+        >
+          {v.verdict === 'PASS' ? 'Suitable' : `Refused · ${v.ruleId ?? 'rule'}`}
+        </span>
+      ) : null}
+      <p className="m-0 text-[14.5px] leading-normal text-ink">{turn.text}</p>
+      {v?.alternative ? (
+        <p className="mb-0 mt-1.5 text-[13px] leading-normal text-ink-mid">
+          Instead: <b className="font-semibold text-ink">{v.alternative.name}</b>
+          {v.alternative.monthly > 0 ? ` at ${inr(v.alternative.monthly)} a month` : ''}.
+        </p>
+      ) : null}
+      {turn.evidence && turn.evidence.length > 0 ? (
+        <>
+          {/* The evidence is an annotation on the answer, so it hangs off a vertical rule rather
+              than sitting under a horizontal one that would read as a second section. */}
+          {open ? (
+            <div className="mt-2.5 border-0 border-l-[1.5px] border-solid border-hairline-mint pl-3">
+              {turn.evidence.map((e) => (
+                <div key={e} className="py-[3px] text-[12.5px] leading-normal text-ink-mid">
+                  · {e}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="mt-2 border-0 bg-transparent p-0 text-[13px] font-medium text-brand underline underline-offset-2"
+          >
+            {open ? 'Hide the numbers' : 'Show me the numbers'}
+          </button>
+        </>
+      ) : null}
+    </section>
   )
 }
 
@@ -629,6 +735,52 @@ function EndIcon(): ReactNode {
         stroke="currentColor"
         strokeWidth="2.4"
         strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+/* The lead suggestion is a sentence, not a label, so it gets a direction rather than sitting
+   there looking like a title. */
+function ArrowIcon(): ReactNode {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className="flex-none"
+    >
+      <path
+        d="M5 12h13M13 6.5 18.5 12 13 17.5"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/* The platform's own select arrow is a different grey on every OS and sits in a different place;
+   this one is ours, and the native one is suppressed with `appearance-none`. */
+function ChevronIcon(): ReactNode {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/70"
+    >
+      <path
+        d="M6 9.5 12 15.5 18 9.5"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )

@@ -21,7 +21,7 @@ export function OfflineBadge({ onRetry, busy }: { onRetry: () => void; busy: boo
         type="button"
         onClick={onRetry}
         disabled={busy}
-        className="h-9 shrink-0 whitespace-nowrap rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[13px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985] disabled:opacity-60"
+        className="h-9 shrink-0 whitespace-nowrap rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[13px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985] disabled:opacity-55"
       >
         {busy ? 'Trying…' : 'Try again'}
       </button>

@@ -460,7 +460,66 @@ export function detectHabits(
   }
 
   void asOf
-  return out.sort((a, b) => b.monthlyAverage - a.monthlyAverage)
+  return mergeByMerchant(out).sort((a, b) => b.monthlyAverage - a.monthlyAverage)
+}
+
+/**
+ * One merchant, one habit.
+ *
+ * Detection groups by narration, which is right: whether a series looks like a commitment can
+ * only be judged over transactions that actually arrive the same way. But a customer pays the
+ * same merchant through more than one rail — `UPI-SWIGGY-...` and a card authorisation resolve
+ * to two narration keys and one company — and the screen then listed Swiggy twice, at two
+ * partial amounts, while claiming to name "the largest single thing you could change". Both
+ * halves of that were wrong: the duplicate looked like a bug, and splitting the total pushed a
+ * real habit down the ranking or out of it.
+ *
+ * Merging happens after detection rather than before it so every exclusion above still sees the
+ * narration-level series it was written for. Monthly average, annual total, occurrences and
+ * frequency are all additive across rails; the typical ticket is recovered from the merged
+ * monthly figure over the merged frequency, so the arithmetic on the row stays self-consistent.
+ * Habits with no resolved merchant keep their own key and never merge.
+ */
+function mergeByMerchant(habits: readonly Habit[]): Habit[] {
+  const byMerchant = new Map<string, Habit[]>()
+  for (const h of habits) {
+    const id = h.merchant ?? `key:${h.key}`
+    const bucket = byMerchant.get(id)
+    if (bucket) bucket.push(h)
+    else byMerchant.set(id, [h])
+  }
+
+  const out: Habit[] = []
+  for (const group of byMerchant.values()) {
+    const first = group[0]
+    if (!first) continue
+    if (group.length === 1) {
+      out.push(first)
+      continue
+    }
+
+    // The largest rail names the row and supplies the category.
+    const lead = group.reduce((a, b) => (b.monthlyAverage > a.monthlyAverage ? b : a), first)
+    const sum = (pick: (h: Habit) => number): number => group.reduce((t, h) => t + pick(h), 0)
+    const monthlyAverage = sum((h) => h.monthlyAverage)
+    const timesPerMonth = Number(sum((h) => h.timesPerMonth).toFixed(1))
+
+    out.push({
+      key: lead.key,
+      merchant: lead.merchant,
+      category: lead.category,
+      occurrences: sum((h) => h.occurrences),
+      firstSeen: group.reduce((a, h) => (h.firstSeen < a ? h.firstSeen : a), first.firstSeen),
+      lastSeen: group.reduce((a, h) => (h.lastSeen > a ? h.lastSeen : a), first.lastSeen),
+      typicalAmount:
+        timesPerMonth > 0 ? Math.round(monthlyAverage / timesPerMonth) : lead.typicalAmount,
+      monthlyAverage,
+      annualTotal: sum((h) => h.annualTotal),
+      timesPerMonth,
+      txnIds: group.flatMap((h) => h.txnIds),
+    })
+  }
+  return out
 }
 
 /**

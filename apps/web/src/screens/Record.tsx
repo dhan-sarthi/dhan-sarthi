@@ -13,6 +13,13 @@
  * The record is the server's, read from `/record` and checked by `/record/verify`: every advice
  * record carries the snapshot it was judged against and a hash chained to the one before it.
  * Nothing on this screen is remembered by the browser.
+ *
+ * Three surfaces, three roles, and never one inside another. The chain check is the single claim
+ * this screen exists to make, so it gets the green panel and nothing else on the screen does.
+ * Decisions are a timeline on a spine and the rule book is a numbered ladder on the same spine —
+ * both are ordered sequences, and the layout should say so rather than leave it to the copy.
+ * Everything else is a bare row on a hairline. Giving each of those a card of its own is what
+ * made every block on the page weigh exactly the same.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -25,8 +32,9 @@ import type {
   SessionState,
   View,
 } from '@dhan/contracts'
-import { Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
+import { Card, Eyebrow, Head, HeroPanel, Pill, Segments } from '../components/ui.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
+import { riseDelay, useCountUp } from '../lib/motion.ts'
 import { dayMonth, inr } from '../lib/money.ts'
 import type { RecordState } from '../lib/record.ts'
 
@@ -36,6 +44,22 @@ type Tab = 'decisions' | 'rules' | 'consent'
 const BODY = 'm-0 mt-[9px] text-[14.5px] leading-[1.55] text-ink'
 const META = 'm-0 text-[13px] text-ink-soft'
 const NOTE = 'text-xs leading-relaxed text-ink-soft'
+
+/* A statement that opens a segment. It leads on type size alone: putting it in a card would make
+   it weigh the same as the record it is introducing. */
+const STATEMENT = 'm-0 text-[20px] font-semibold leading-tight text-ink'
+
+/* An in-row label, quieter than an Eyebrow because a timeline repeats it once per entry. */
+const MICRO = 'text-[11px] font-semibold uppercase tracking-wide text-ink-soft'
+
+/* Ids and hashes. The one place a second family earns its keep: a snapshot id and a record hash
+   are meant to be compared character by character, which a proportional font makes harder. */
+const MONO = 'm-0 font-mono text-[11.5px] leading-relaxed text-ink-soft'
+
+/* The ledger idiom, shared by the three reference lists below the timeline: hairline above, a
+   hairline between rows, nothing around them. */
+const LEDGER =
+  'mb-3 min-w-0 px-1 divide-y divide-solid divide-hairline-mint border-0 border-t border-solid border-hairline-mint'
 
 export function Record({
   view,
@@ -115,75 +139,117 @@ function Decisions({
   tier: Tier
 }): ReactNode {
   const plan = view.plan
+  const chain = record.chain
+  // The chain length is the figure the screen is about, so it resolves in front of you the way
+  // the day's figure does on Today. Before the check comes back, the rows we hold stand in for it.
+  const chainLength = chain?.length ?? record.record?.adviceRecords.length ?? 0
+  const counted = useCountUp(chainLength)
+  const brokenAt = chain && !chain.ok ? `at ${chain.brokenAt ?? 'an unknown record'}` : null
 
   if (tier === 'offline') {
     return (
-      <Card>
-        <h2>Nothing is recorded offline</h2>
-        <p className={`${META} mt-[7px]`}>
-          The record is written by the advisor service, one row per recommendation, with the figures
-          it was based on and the exact words you were shown. This browser is simulating without it,
-          so nothing you do here is kept.
-        </p>
-      </Card>
+      <div className="mt-3">
+        <Card tint="white">
+          <h2>Nothing is recorded offline</h2>
+          <p className={`${META} mt-[7px]`}>
+            The record is written by the advisor service, one row per recommendation, with the
+            figures it was based on and the exact words you were shown. This browser is simulating
+            without it, so nothing you do here is kept.
+          </p>
+        </Card>
+      </div>
     )
   }
 
   if (record.error) {
     return (
-      <Card>
-        <h2>The record could not be read</h2>
-        <p role="alert" className={`${META} mt-[7px]`}>
-          {record.error.message}
-        </p>
-        <button
-          type="button"
-          onClick={() => void record.refresh()}
-          className="mt-3 h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]"
-        >
-          Try again
-        </button>
-      </Card>
+      <div className="mt-3">
+        <Card tint="white">
+          <h2>The record could not be read</h2>
+          <p role="alert" className={`${META} mt-[7px]`}>
+            {record.error.message}
+          </p>
+          <button
+            type="button"
+            onClick={() => void record.refresh()}
+            className="mt-3 h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]"
+          >
+            Try again
+          </button>
+        </Card>
+      </div>
     )
   }
 
   const rec = record.record
   if (!rec) {
     return (
-      <Card>
-        <p className={META} aria-live="polite">
-          Reading the record…
-        </p>
-      </Card>
+      <div className="mt-3">
+        <Card tint="white">
+          <p className={META} aria-live="polite">
+            Reading the record…
+          </p>
+        </Card>
+      </div>
     )
   }
 
   const adviceById = new Map(rec.adviceRecords.map((a) => [a.id, a]))
   const decidedAdvice = new Set(rec.decisions.map((d) => d.adviceRecordId))
   const checks = rec.adviceRecords.filter((a) => !decidedAdvice.has(a.id))
+  const decisions = rec.decisions.slice().reverse()
   const productName = (id: string | null): string | null =>
     id ? (view.shelf.find((p) => p.productId === id)?.name ?? id) : null
 
   return (
     <>
-      <div className="mb-3 mt-3 flex flex-wrap gap-2">
-        {record.chain ? (
-          record.chain.ok ? (
-            <Pill tone="ok">
-              Chain verified · {record.chain.length}{' '}
-              {record.chain.length === 1 ? 'record' : 'records'}
-            </Pill>
-          ) : (
-            <Pill tone="bad">Chain broken at {record.chain.brokenAt ?? 'an unknown record'}</Pill>
-          )
-        ) : (
-          <Pill tone="warn">Chain not checked</Pill>
-        )}
-        {rec.provenance ? <Pill>Seed {rec.provenance.seedRunId.slice(0, 8)}</Pill> : null}
+      {/* ------------------------------------------------ The chain
+          Tamper-evidence is the whole reason this screen exists, so it takes the one surface
+          nothing else here has: the bank's green, its wave, and the count of chained records. */}
+      <div className="mt-3">
+        <HeroPanel
+          /* An empty chain passes verification trivially, so saying "chain verified" over a
+             count of zero is a claim with nothing behind it — precisely the sentence a reviewer
+             is right to distrust. Until there is a record to chain, the panel says so. */
+          label={
+            chain
+              ? chain.ok
+                ? chainLength === 0
+                  ? 'Nothing chained yet'
+                  : 'Chain verified'
+                : 'Chain broken'
+              : 'Chain not checked'
+          }
+          {...(brokenAt
+            ? { meta: brokenAt }
+            : chain?.ok === true && chainLength === 0
+              ? { meta: 'The first decision you take starts the chain.' }
+              : {})}
+          settled={`${chain ? (chain.ok ? 'ok' : 'broken') : 'unchecked'}-${chainLength}`}
+          footer={
+            rec.provenance ? (
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[11px] uppercase tracking-wide text-on-dark/60">Seed</span>
+                <span className="font-mono text-[13px] text-on-dark/90">
+                  {rec.provenance.seedRunId.slice(0, 8)}
+                </span>
+              </div>
+            ) : null
+          }
+        >
+          <div className="flex items-baseline gap-2">
+            <span className="text-[34px] font-bold leading-none tracking-tight tabular-nums">
+              {counted}
+            </span>
+            <span className="text-[15px] font-semibold text-on-dark/75">
+              {chainLength === 1 ? 'record' : 'records'}
+            </span>
+          </div>
+        </HeroPanel>
       </div>
 
       {rec.decisions.length === 0 ? (
-        <Card>
+        <Card tint="white">
           <h2>Nothing yet</h2>
           <p className={`${META} mt-[7px]`}>
             Every recommendation you accept or decline is recorded here with the figures it was
@@ -197,145 +263,193 @@ function Decisions({
         </Card>
       ) : null}
 
-      {rec.decisions
-        .slice()
-        .reverse()
-        .map((d) => {
-          const advice = d.adviceRecordId ? adviceById.get(d.adviceRecordId) : undefined
-          return (
-            <Card key={d.id}>
-              <div className="mb-[9px] flex flex-wrap gap-2">
-                <Pill tone={d.kind === 'did_it' ? 'ok' : 'plain'}>{DECISION_LABEL[d.kind]}</Pill>
-                <Pill>{dayMonth(d.atSim)}</Pill>
-                {d.amount > 0 ? <Pill>{inr(d.amount)}</Pill> : null}
-                {advice?.verdict === 'BLOCKED' ? <Pill tone="bad">Refused</Pill> : null}
-              </div>
-
-              <div className="text-[16px] font-bold leading-snug tracking-tight text-ink">
-                {d.shown}
-              </div>
-              {productName(d.productId) ? (
-                <p className={`${META} mt-1`}>{productName(d.productId)}</p>
-              ) : null}
-
-              {advice ? (
-                <div className="mt-3 border-t border-solid border-hairline-mint pt-[11px]">
-                  <div className={`${NOTE} mb-[5px] font-bold`}>What you were shown</div>
-                  <p className="m-0 text-[13.5px] leading-normal text-ink-mid">
-                    “{advice.spoken ?? advice.recorded}”
-                  </p>
-                  <p className={`${NOTE} m-0 mt-2`}>
-                    {advice.verdict === 'PASS'
-                      ? `Passed ${advice.rulesPassed.length} rules`
-                      : `Rule ${advice.ruleId ?? '?'}`}{' '}
-                    · snapshot {advice.snapshotId.slice(0, 8)} · record{' '}
-                    {advice.recordHash.slice(0, 12)}…
-                  </p>
+      {/* ------------------------------------------------ The timeline
+          One node per record on a single rule, newest first. Six decisions were six identical
+          cards, which read as six equally important things; on a spine they read as a sequence,
+          which is what a paper trail is. */}
+      {decisions.length > 0 ? (
+        <ol className="m-0 mt-1 list-none p-0">
+          {decisions.map((d, i) => {
+            const advice = d.adviceRecordId ? adviceById.get(d.adviceRecordId) : undefined
+            const name = productName(d.productId)
+            return (
+              <li key={d.id} className="rise flex gap-3" style={riseDelay(i)}>
+                <div className="flex flex-none flex-col items-center pt-1.5">
+                  {/* Solid for a decision acted on, a ring for one deferred or declined — the
+                      same distinction the Leader rows draw between committed and flexible. */}
+                  <span
+                    className={`size-3 shrink-0 rounded-pill ${
+                      d.kind === 'did_it'
+                        ? 'bg-brand'
+                        : 'border-[1.5px] border-solid border-brand bg-surface'
+                    }`}
+                  />
+                  {i < decisions.length - 1 ? (
+                    <span className="mt-1.5 w-px flex-1 bg-hairline-mint" />
+                  ) : null}
                 </div>
-              ) : null}
 
-              {d.evidence.length > 0 ? (
-                <div className="mt-3">
-                  <div className={`${NOTE} mb-[5px] font-bold`}>The figures behind it</div>
-                  {d.evidence.map((e) => (
-                    <div key={e} className={`${NOTE} py-0.5`}>
-                      · {e}
-                    </div>
-                  ))}
+                <div className="min-w-0 flex-1 pb-5">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <Pill tone={d.kind === 'did_it' ? 'ok' : 'plain'}>
+                      {DECISION_LABEL[d.kind]}
+                    </Pill>
+                    {advice?.verdict === 'BLOCKED' ? <Pill tone="bad">Refused</Pill> : null}
+                    <span className="text-[13px] tabular-nums text-ink-soft">
+                      {dayMonth(d.atSim)}
+                      {d.amount > 0 ? ` · ${inr(d.amount)}` : ''}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-[15.5px] font-semibold leading-snug text-ink">
+                    {d.shown}
+                  </div>
+                  {name ? <p className={`${META} mt-1`}>{name}</p> : null}
+
+                  {advice ? (
+                    <>
+                      <div className={`${MICRO} mt-3`}>What you were shown</div>
+                      <p className="m-0 mt-1 text-[14px] leading-normal text-ink-mid">
+                        “{advice.spoken ?? advice.recorded}”
+                      </p>
+                      <p className={`${MONO} mt-1.5`}>
+                        {advice.verdict === 'PASS'
+                          ? `Passed ${advice.rulesPassed.length} rules`
+                          : `Rule ${advice.ruleId ?? '?'}`}{' '}
+                        · snapshot {advice.snapshotId.slice(0, 8)} · record{' '}
+                        {advice.recordHash.slice(0, 12)}…
+                      </p>
+                    </>
+                  ) : null}
+
+                  {d.evidence.length > 0 ? (
+                    <>
+                      <div className={`${MICRO} mt-3`}>The figures behind it</div>
+                      {d.evidence.map((e) => (
+                        <div key={e} className="py-[3px] text-[13px] text-ink-mid">
+                          · {e}
+                        </div>
+                      ))}
+                    </>
+                  ) : null}
+                  {d.note ? <p className={`${NOTE} m-0 mt-2`}>Your note: “{d.note}”</p> : null}
                 </div>
-              ) : null}
-              {d.note ? <p className={`${NOTE} m-0 mt-2`}>Your note: “{d.note}”</p> : null}
-            </Card>
-          )
-        })}
+              </li>
+            )
+          })}
+        </ol>
+      ) : null}
 
+      {/* ------------------------------------------------ Everything else is reference
+          Checks nobody decided on, plan versions and calls are evidence a reviewer scans rather
+          than reads, so they are ledgers: hairline rules, no containers, smaller type. */}
       {checks.length > 0 ? (
         <>
           <Eyebrow>Also checked · {checks.length}</Eyebrow>
-          {checks
-            .slice()
-            .reverse()
-            .map((a) => (
-              <Card key={a.id}>
-                <div className="mb-[9px] flex flex-wrap gap-2">
-                  <Pill
-                    tone={a.verdict === 'PASS' ? 'ok' : a.verdict === 'BLOCKED' ? 'bad' : 'warn'}
-                  >
-                    {a.verdict === 'PASS'
-                      ? 'Suitable'
-                      : a.verdict === 'BLOCKED'
-                        ? 'Refused'
-                        : 'Not on the shelf'}
-                  </Pill>
-                  <Pill>{dayMonth(a.atSim)}</Pill>
-                  <Pill>{SOURCE_LABEL[a.source]}</Pill>
-                </div>
-                {productName(a.productId) ? (
-                  <div className="text-[15.5px] font-bold leading-snug text-ink">
-                    {productName(a.productId)}
-                    {a.amount ? ` · ${inr(a.amount)} a month` : ''}
+          <div className={LEDGER}>
+            {checks
+              .slice()
+              .reverse()
+              .map((a, i) => (
+                <div key={a.id} className="rise py-3.5" style={riseDelay(i)}>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <Pill
+                      tone={a.verdict === 'PASS' ? 'ok' : a.verdict === 'BLOCKED' ? 'bad' : 'warn'}
+                    >
+                      {a.verdict === 'PASS'
+                        ? 'Suitable'
+                        : a.verdict === 'BLOCKED'
+                          ? 'Refused'
+                          : 'Not on the shelf'}
+                    </Pill>
+                    <span className="text-[13px] text-ink-soft">
+                      {dayMonth(a.atSim)} · {SOURCE_LABEL[a.source]}
+                    </span>
                   </div>
-                ) : null}
-                <p className="m-0 mt-2 text-[13.5px] leading-normal text-ink-mid">
-                  “{a.spoken ?? a.recorded}”
-                </p>
-                <p className={`${NOTE} m-0 mt-2`}>
-                  {a.ruleId ? `Rule ${a.ruleId} · ` : ''}snapshot {a.snapshotId.slice(0, 8)} ·
-                  record {a.recordHash.slice(0, 12)}…
-                  {a.verifiedInTranscript === true ? ' · verified in the transcript' : ''}
-                </p>
-              </Card>
-            ))}
+                  {productName(a.productId) ? (
+                    <div className="mt-2 text-[14.5px] font-semibold leading-snug text-ink">
+                      {productName(a.productId)}
+                      {a.amount ? ` · ${inr(a.amount)} a month` : ''}
+                    </div>
+                  ) : null}
+                  <p className="m-0 mt-1 text-[13.5px] leading-normal text-ink-mid">
+                    “{a.spoken ?? a.recorded}”
+                  </p>
+                  <p className={`${MONO} mt-1.5`}>
+                    {a.ruleId ? `Rule ${a.ruleId} · ` : ''}snapshot {a.snapshotId.slice(0, 8)} ·
+                    record {a.recordHash.slice(0, 12)}…
+                    {a.verifiedInTranscript === true ? ' · verified in the transcript' : ''}
+                  </p>
+                </div>
+              ))}
+          </div>
         </>
       ) : null}
 
       {rec.roadmapVersions.length > 0 ? (
         <>
           <Eyebrow>Plan versions · {rec.roadmapVersions.length}</Eyebrow>
-          {rec.roadmapVersions
-            .slice()
-            .reverse()
-            .map((v) => (
-              <Card key={v.version}>
-                <div className="mb-2 flex flex-wrap gap-2">
-                  <Pill>Version {v.version}</Pill>
-                  {/* The simulated date the plan was cut on, which is the date the reviewer
-                      was looking at. The wall clock the row was written at means nothing here. */}
-                  <Pill>
-                    {dayMonth(v.atSim)} {v.atSim.slice(0, 4)}
-                  </Pill>
+          <div className={LEDGER}>
+            {rec.roadmapVersions
+              .slice()
+              .reverse()
+              .map((v) => (
+                <div key={v.version} className="py-3.5">
+                  {/* Version left, the date it was cut on right, a dotted rule between them —
+                      the ledger line the rest of the app uses for a figure. The simulated date
+                      is the one that means anything; the wall clock the row was written at
+                      means nothing here. */}
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[14.5px] font-semibold text-ink">
+                      Version {v.version}
+                    </span>
+                    <span className="flex-1 -translate-y-1 border-b-[1.5px] border-dotted border-hairline-mint" />
+                    <span className="text-[13px] tabular-nums text-ink-soft">
+                      {dayMonth(v.atSim)} {v.atSim.slice(0, 4)}
+                    </span>
+                  </div>
+                  <p className="m-0 mt-1.5 text-[14px] leading-normal text-ink-mid">
+                    {v.reasonForChange}
+                  </p>
+                  <p className={`${MONO} mt-1.5`}>
+                    {v.goal.purpose ?? v.goal.kind} · {inr(v.goal.targetAmount)} by{' '}
+                    {dayMonth(v.goal.targetDate)} {v.goal.targetDate.slice(0, 4)} · snapshot{' '}
+                    {v.snapshotId.slice(0, 8)}
+                  </p>
                 </div>
-                <p className="m-0 text-[14.5px] leading-normal text-ink">{v.reasonForChange}</p>
-                <p className={`${NOTE} m-0 mt-2`}>
-                  {v.goal.purpose ?? v.goal.kind} · {inr(v.goal.targetAmount)} by{' '}
-                  {dayMonth(v.goal.targetDate)} {v.goal.targetDate.slice(0, 4)} · snapshot{' '}
-                  {v.snapshotId.slice(0, 8)}
-                </p>
-              </Card>
-            ))}
+              ))}
+          </div>
         </>
       ) : null}
 
       {rec.avatarSessions.length > 0 ? (
         <>
           <Eyebrow>Calls with Uday · {rec.avatarSessions.length}</Eyebrow>
-          {rec.avatarSessions.map((s) => (
-            <Card key={s.runwaySessionId}>
-              <div className="mb-2 flex flex-wrap gap-2">
-                <Pill>{dayMonth(s.openedAt.slice(0, 10))}</Pill>
-                {s.minutesCharged !== null ? <Pill>{s.minutesCharged.toFixed(1)} min</Pill> : null}
-                {s.gateCoverage ? (
-                  <Pill tone={s.gateCoverage.misses.length === 0 ? 'ok' : 'bad'}>
-                    Gate fired {s.gateCoverage.fired}/{s.gateCoverage.expected}
-                  </Pill>
-                ) : null}
+          <div className={LEDGER}>
+            {rec.avatarSessions.map((s) => (
+              <div key={s.runwaySessionId} className="py-3.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <span className="text-[14.5px] font-semibold text-ink">
+                    {dayMonth(s.openedAt.slice(0, 10))}
+                  </span>
+                  {s.minutesCharged !== null ? (
+                    <span className="text-[13px] tabular-nums text-ink-soft">
+                      {s.minutesCharged.toFixed(1)} min
+                    </span>
+                  ) : null}
+                  {s.gateCoverage ? (
+                    <Pill tone={s.gateCoverage.misses.length === 0 ? 'ok' : 'bad'}>
+                      Gate fired {s.gateCoverage.fired}/{s.gateCoverage.expected}
+                    </Pill>
+                  ) : null}
+                </div>
+                <p className={`${NOTE} m-0 mt-1.5`}>
+                  Transcript {s.transcriptStatus}
+                  {s.endReason ? ` · ended by ${s.endReason.replace(/_/g, ' ')}` : ' · in progress'}
+                </p>
               </div>
-              <p className={`${NOTE} m-0`}>
-                Transcript {s.transcriptStatus}
-                {s.endReason ? ` · ended by ${s.endReason.replace(/_/g, ' ')}` : ' · in progress'}
-              </p>
-            </Card>
-          ))}
+            ))}
+          </div>
         </>
       ) : null}
     </>
@@ -347,55 +461,64 @@ function Decisions({
 function Rules({ view }: { view: View }): ReactNode {
   return (
     <>
+      {/* No card. The claim is the loudest thing in this segment and type size says so. */}
       <div className="mt-3">
-        <Card tint="sage">
-          <h2>The model does not decide</h2>
-          <p className={BODY}>
-            Whether a product suits you is decided by the rules below, in this order, before
-            anything reaches you. Uday reads back the verdict — he cannot overrule it, and he cannot
-            reach a recommendation by any other path. That is enforced in the code, not asked for in
-            a prompt.
-          </p>
-        </Card>
+        <h2 className={STATEMENT}>The model does not decide</h2>
+        <p className={BODY}>
+          Whether a product suits you is decided by the rules below, in this order, before anything
+          reaches you. Uday reads back the verdict — he cannot overrule it, and he cannot reach a
+          recommendation by any other path. That is enforced in the code, not asked for in a prompt.
+        </p>
       </div>
 
+      {/* ------------------------------------------------ The ladder
+          Nine identical cards said the rules were nine independent things. They are a sequence
+          evaluated top to bottom where the first failure wins, so they hang off one spine and
+          carry their position in it. */}
       <Eyebrow>{view.rules.length} rules · earliest failure wins</Eyebrow>
-      {view.rules.map((r, i) => (
-        <Card key={r.id}>
-          <div className="flex gap-2.5">
-            <span className="grid size-[26px] flex-none place-items-center rounded-pill bg-legend-chip text-xs font-bold text-brand">
-              {i + 1}
-            </span>
-            <div className="flex-1">
-              <div className="text-xs font-bold text-ink-soft">{r.id}</div>
-              <p className="m-0 mt-1 text-[14.5px] leading-normal text-ink">{r.description}</p>
-            </div>
-          </div>
-        </Card>
-      ))}
-
-      <Eyebrow>What is on the shelf</Eyebrow>
-      <Card>
-        <p className={`${NOTE} m-0 mb-3`}>
-          Including the ones we will refuse. A product list containing only suitable products cannot
-          demonstrate suitability.
-        </p>
-        <div className="divide-y divide-solid divide-hairline-mint">
-          {view.shelf.map((p) => (
-            <div className="flex items-center gap-3 py-[11px]" key={p.productId}>
-              <span className="min-w-0 flex-1">
-                <b className="block text-[14.5px] font-bold text-ink">{p.name}</b>
-                <span className="text-xs text-ink-soft">
-                  {p.manufacturer} · {p.riskometer}
-                  {p.lockInYears > 0 ? ` · ${p.lockInYears}y lock-in` : ' · no lock-in'}
-                  {p.verified ? '' : ' · rate unverified'}
-                </span>
+      <ol className="m-0 mb-3 list-none p-0">
+        {view.rules.map((r, i) => (
+          <li key={r.id} className="rise flex gap-3" style={riseDelay(i)}>
+            <div className="flex flex-none flex-col items-center">
+              <span className="grid size-[26px] shrink-0 place-items-center rounded-pill bg-legend-chip text-xs font-bold tabular-nums text-brand">
+                {i + 1}
               </span>
-              {p.bundlesProtectionAndInvestment ? <Pill tone="bad">Refused</Pill> : null}
+              {i < view.rules.length - 1 ? (
+                <span className="mt-1 w-px flex-1 bg-hairline-mint" />
+              ) : null}
             </div>
-          ))}
-        </div>
-      </Card>
+            <div className="min-w-0 flex-1 pb-4">
+              <div className="font-mono text-[11.5px] font-semibold leading-[26px] text-ink-soft">
+                {r.id}
+              </div>
+              <p className="m-0 mt-0.5 text-[14.5px] leading-normal text-ink">{r.description}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {/* The shelf is a list of objects rather than a sequence, so it gets the one container in
+          this segment: a hairline card with rules between the rows, not a card per product. */}
+      <Eyebrow>What is on the shelf</Eyebrow>
+      <p className={`${NOTE} m-0 mb-2.5`}>
+        Including the ones we will refuse. A product list containing only suitable products cannot
+        demonstrate suitability.
+      </p>
+      <div className="mb-3 min-w-0 divide-y divide-solid divide-hairline-mint rounded-md border border-solid border-hairline-mint bg-surface px-3.5">
+        {view.shelf.map((p) => (
+          <div className="flex items-center gap-3 py-[11px]" key={p.productId}>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[14.5px] font-semibold leading-snug text-ink">{p.name}</b>
+              <span className="mt-0.5 block text-xs text-ink-soft">
+                {p.manufacturer} · {p.riskometer}
+                {p.lockInYears > 0 ? ` · ${p.lockInYears}y lock-in` : ' · no lock-in'}
+                {p.verified ? '' : ' · rate unverified'}
+              </span>
+            </span>
+            {p.bundlesProtectionAndInvestment ? <Pill tone="bad">Refused</Pill> : null}
+          </div>
+        ))}
+      </div>
     </>
   )
 }
@@ -470,35 +593,40 @@ function Consent({
   return (
     <>
       <div className="mt-3">
-        <Card tint="sky">
-          <h2>What we read, and why</h2>
-          <p className={BODY}>
-            Five things, each with a reason. You can withdraw any of them and the advice recomputes
-            in front of you — including getting worse, which is the honest consequence.
+        <h2 className={STATEMENT}>What we read, and why</h2>
+        <p className={BODY}>
+          Five things, each with a reason. You can withdraw any of them and the advice recomputes in
+          front of you — including getting worse, which is the honest consequence.
+        </p>
+        {consent ? (
+          <p className={`${NOTE} m-0 mt-2.5`}>
+            Consent <span className="font-mono">{consent.consentId}</span> ·{' '}
+            {consent.status.toLowerCase()} · {consent.purpose} · valid to{' '}
+            {dayMonth(consent.validTo)} {consent.validTo.slice(0, 4)}
           </p>
-          {consent ? (
-            <p className={`${NOTE} m-0 mt-3`}>
-              Consent {consent.consentId} · {consent.status.toLowerCase()} · {consent.purpose} ·
-              valid to {dayMonth(consent.validTo)} {consent.validTo.slice(0, 4)}
-            </p>
-          ) : null}
-        </Card>
+        ) : null}
       </div>
 
       {notice ? (
-        <p role="alert" className="m-0 mb-3 text-[13px] leading-normal text-danger">
+        <p role="alert" className="m-0 mb-3 mt-3 text-[13px] leading-normal text-danger">
           {notice}
         </p>
       ) : null}
 
-      {items.map((i) => {
-        const on = granted(i.scope)
-        return (
-          <Card key={i.scope}>
-            <div className="flex justify-between gap-2.5">
+      {/* Five switches are a settings list, and a settings list is rows on hairlines. In cards
+          each scope read as a proposition to weigh; as rows they read as one control panel. */}
+      <div className={`${LEDGER} mt-4`}>
+        {items.map((i, n) => {
+          const on = granted(i.scope)
+          return (
+            <div
+              key={i.scope}
+              className="rise flex items-start justify-between gap-3 py-4"
+              style={riseDelay(n)}
+            >
               <div className="min-w-0 flex-1">
-                <div className="text-[15.5px] font-bold text-ink">{i.what}</div>
-                <p className="m-0 mt-[5px] text-[13.5px] leading-normal text-ink-mid">{i.why}</p>
+                <div className="text-[15.5px] font-semibold leading-snug text-ink">{i.what}</div>
+                <p className="m-0 mt-1 text-[13.5px] leading-normal text-ink-mid">{i.why}</p>
                 <p className={`${NOTE} m-0 mt-[7px]`}>
                   {i.detail} {PROVENANCE_LABEL[view.meta.provenance[i.scope]]}.
                 </p>
@@ -511,7 +639,7 @@ function Consent({
                   aria-label={`${i.what}: ${on ? 'shared' : 'withdrawn'}`}
                   disabled={!editable || busy}
                   onClick={() => onConsent(i.scope, !on)}
-                  className={`inline-flex h-9 items-center rounded-pill border-0 px-[13px] text-xs font-semibold transition-transform duration-100 active:scale-[0.985] disabled:opacity-60 ${
+                  className={`inline-flex h-9 items-center rounded-pill border-0 px-[13px] text-xs font-semibold transition-transform duration-100 active:scale-[0.985] disabled:opacity-55 ${
                     on ? 'bg-brand text-on-dark' : 'bg-accent-soft text-accent-text'
                   }`}
                 >
@@ -519,9 +647,9 @@ function Consent({
                 </button>
               </div>
             </div>
-          </Card>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {!editable ? (
         <p className={`${NOTE} m-0 mb-3`}>
@@ -531,9 +659,13 @@ function Consent({
         </p>
       ) : null}
 
-      <Card>
-        <h2>Never stored</h2>
-        <p className="m-0 mt-2 text-[13.5px] leading-[1.55] text-ink-mid">
+      {/* The one card in this segment, and the legend chip on its edge is the bank's own way of
+          titling a block. What is never stored is a boundary, so it gets an edge to sit on. */}
+      <section className="relative mb-3 min-w-0 rounded-md border border-solid border-hairline bg-surface p-4 pt-5">
+        <span className="absolute -top-2 left-3.5 rounded-pill bg-legend-chip px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-brand">
+          Never stored
+        </span>
+        <p className="m-0 text-[13.5px] leading-[1.55] text-ink-mid">
           Health and medical details, caste, religion, politics, sexuality, legal matters, and
           anyone else&rsquo;s finances. Card numbers, PAN and Aadhaar are stripped before anything
           is written down.
@@ -543,7 +675,7 @@ function Consent({
           history is not reassuring, it is uncanny — and the moment this feels like surveillance it
           is finished.
         </p>
-      </Card>
+      </section>
     </>
   )
 }
