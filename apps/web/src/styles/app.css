@@ -54,3 +54,51 @@
 
   --font-sans: var(--font);
 }
+
+/*
+ * Motion. The entire budget: things arrive, and the day's figure resolves.
+ *
+ * Entry is longer than exit and nothing bounces — a bank does not bounce. Every rule here is
+ * switched off wholesale under prefers-reduced-motion, including the count-up, which stops in
+ * lib/motion.ts rather than animating invisibly.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility rise {
+  animation: rise 320ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+
+/* Cross-fade for a panel whose numbers were just recomputed: it should read as re-derived
+   rather than swapped, so the shape holds still and only the content settles. */
+@keyframes settle {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@utility settle {
+  animation: settle 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

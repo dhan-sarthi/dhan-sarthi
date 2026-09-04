@@ -13,6 +13,7 @@
  */
 import type { ReactNode } from 'react'
 import { parts } from '../lib/money.ts'
+import { Wave } from './Wave.tsx'
 
 /* ---------------------------------------------------------------- Amount */
 
@@ -152,11 +153,23 @@ export function Leader({
 
 /* ---------------------------------------------------------------- Bar */
 
-export function Bar({ used, pending = 0 }: { used: number; pending?: number }): ReactNode {
+export function Bar({
+  used,
+  pending = 0,
+  onDark = false,
+}: {
+  used: number
+  pending?: number
+  /** On the green hero panel the idle track has to be white-on-green, not the grey. */
+  onDark?: boolean
+}): ReactNode {
   const u = Math.max(0, Math.min(100, used))
   const p = Math.max(0, Math.min(100 - u, pending))
   return (
-    <div className="flex h-2 overflow-hidden rounded-pill bg-chart-idle" role="presentation">
+    <div
+      className={`flex h-2 overflow-hidden rounded-pill ${onDark ? 'bg-white/20' : 'bg-chart-idle'}`}
+      role="presentation"
+    >
       <span className="h-full bg-accent" style={{ width: `${u}%` }} />
       <span className="h-full bg-accent-soft" style={{ width: `${p}%` }} />
     </div>
@@ -205,13 +218,55 @@ export function Head({
   right?: ReactNode
 }): ReactNode {
   return (
-    <header className="flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint p-4 shadow-card">
+    <header className="relative isolate flex flex-none items-start justify-between gap-3 overflow-hidden rounded-b-lg bg-gradient-to-b from-white to-header-mint p-4 shadow-card">
+      <Wave tone="light" className="-z-10" />
       <div className="min-w-0">
         <h1 className="m-0 text-[26px] font-semibold leading-tight text-ink">{title}</h1>
         {sub ? <p className="mb-0 mt-1 text-sm text-ink-soft">{sub}</p> : null}
       </div>
       {right}
     </header>
+  )
+}
+
+/* ---------------------------------------------------------------- HeroPanel */
+
+/*
+ * The one thing on the screen, and the only surface shaped like this.
+ *
+ * Deep green with the bank's wave and white type, borrowed from the account cards in GO Mobile+.
+ * It exists to break the stack: when every block is a tinted card of the same radius and padding,
+ * nothing leads, and a page of identical cards is the shape machine-written UI takes. Use it once
+ * per screen — a second one on the same page would undo the point of the first.
+ */
+export function HeroPanel({
+  label,
+  meta,
+  children,
+  footer,
+  settled,
+}: {
+  label: string
+  meta?: string
+  children: ReactNode
+  footer?: ReactNode
+  /** Re-render after a recompute: cross-fade so it reads as re-derived, not swapped. */
+  settled?: string | number
+}): ReactNode {
+  return (
+    <section className="relative isolate mb-3 overflow-hidden rounded-lg bg-gradient-to-br from-brand to-brand-deep p-4 text-on-dark shadow-lift">
+      <Wave tone="dark" className="-z-10" />
+      <h2 className="m-0 text-[13px] font-semibold uppercase tracking-wide text-on-dark/70">
+        {label}
+      </h2>
+      {meta ? <p className="mb-0 mt-1 text-sm text-on-dark/75">{meta}</p> : null}
+      <div key={settled} className="settle mt-3">
+        {children}
+      </div>
+      {footer ? (
+        <div className="mt-4 border-0 border-t border-solid border-white/15 pt-3">{footer}</div>
+      ) : null}
+    </section>
   )
 }
 
