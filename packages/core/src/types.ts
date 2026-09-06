@@ -1,12 +1,6 @@
 /**
- * Domain types, written in the shape IDBI's APIs return rather than the shape our UI wants.
- *
- * That direction matters. If these mirrored the screens, every field IDBI names differently
- * would become a translation layer we discover we need in week two of the sandbox. Mirroring
- * the bank instead means `BANK_SOURCE=idbi` is a new adapter and nothing above it moves.
- *
- * Field names follow the API catalogue: 393 statement, 394 accounts, 402 loan overdues,
- * 456 customer master.
+ * Normalized advisory facts. The bank boundary maps provider fields into these types;
+ * they are not the bank's wire contract. Amounts are INR rupees and dates are ISO dates.
  */
 
 export type TxnType = 'CREDIT' | 'DEBIT'
@@ -36,7 +30,7 @@ export type SpendCategory =
   | 'Transfers'
   | 'Fees & charges'
 
-/** One line on a bank statement. API 393. */
+/** A normalized statement line; bank observations and optional enrichment stay distinct. */
 export interface Transaction {
   txnId: string
   /** ISO date, YYYY-MM-DD. Bank statements have no time of day worth trusting. */
@@ -86,11 +80,22 @@ export interface Transaction {
 
 export type AccountType = 'Savings' | 'Current' | 'FD' | 'RD' | 'PPF' | 'NPS'
 
-/** API 394. */
+/** A same-date observation. Null means unknown, never a zero balance or a cleared lien. */
+export interface AccountLiquidity {
+  observedOn: string
+  availableBalance: number | null
+  lienAmount: number | null
+  floatingBalance: number | null
+  fFDBalance: number | null
+  userDefinedBalance: number | null
+}
+
+/** Account identity plus ledger ownership; reachable funds are carried separately. */
 export interface Account {
   accountNumberMasked: string
   accountType: AccountType
   currentBalance: number
+  liquidity?: AccountLiquidity
   accountOpeningDate: string
   /**
    * The home branch's IFSC, which is on the header of every statement a customer downloads.
@@ -109,7 +114,7 @@ export interface Account {
 
 export type RiskProfile = 'Conservative' | 'Balanced' | 'Growth'
 
-/** API 456. */
+/** Advisory profile, including declarations not supplied by the current bank catalogue. */
 export interface Customer {
   cif: string
   custId: string
@@ -134,8 +139,9 @@ export interface Customer {
   taxRegime: 'old' | 'new'
 }
 
-/** API 402 / 442. */
+/** Normalized debt facts; outstanding principal requires a principal-only source. */
 export interface Liability {
+  isNpa?: boolean
   loanType: string
   outstandingPrincipal: number
   emiAmount: number
@@ -148,6 +154,8 @@ export interface Liability {
 }
 
 export interface Holding {
+  /** Links a deposit holding to its account representation, so wealth counts it once. */
+  accountNumberMasked?: string
   holdingType: 'MUTUAL_FUND' | 'FD' | 'RD' | 'INSURANCE' | 'NPS' | 'PPF'
   name: string
   assetClass: 'Equity' | 'Debt' | 'Hybrid' | 'Protection' | 'Gold'

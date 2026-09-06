@@ -41,7 +41,13 @@ interface Listed {
 const CUSTOMER =
   'rise mb-3 block w-full rounded-md border border-solid border-hairline bg-white px-4 pb-3.5 pt-[18px] text-left font-sans text-ink transition-transform duration-100 active:scale-[0.985]'
 
-export function Pick(): ReactNode {
+export function Pick({
+  onPicked,
+  onCancel,
+}: {
+  onPicked: () => void
+  onCancel?: () => void
+}): ReactNode {
   const [listed, setListed] = useState<Listed | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [picking, setPicking] = useState<string | null>(null)
@@ -79,6 +85,7 @@ export function Pick(): ReactNode {
   const pick = async (customer: CustomerSummary): Promise<void> => {
     if (listed?.offline) {
       setSession({ token: null, cif: customer.cif })
+      onPicked()
       return
     }
     setPicking(customer.cif)
@@ -86,17 +93,19 @@ export function Pick(): ReactNode {
     try {
       const created = await api('createSession', { body: { cif: customer.cif } })
       setSession({ token: created.token, cif: customer.cif })
+      onPicked()
     } catch (err) {
-      setPicking(null)
       if (isApiError(err) && err.unreachable) {
         // The API went away between the list and the tap. Same answer as above.
         const mod = await loadOffline()
         if (mod) {
           setListed({ customers: mod.listCustomers(), offline: true })
           setSession({ token: null, cif: customer.cif })
+          onPicked()
           return
         }
       }
+      setPicking(null)
       setError(isApiError(err) ? err.message : 'Could not start a session.')
     }
   }
@@ -123,6 +132,16 @@ export function Pick(): ReactNode {
 
       {/* `.scroll` is unlayered and sets a `padding` shorthand, so the top padding needs `!`. */}
       <div className="scroll pt-5!">
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={picking !== null}
+            className="mb-3 min-h-11 rounded-pill border border-solid border-hairline-mint bg-white px-4 text-sm font-semibold text-brand hover:bg-tint-sage focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-55"
+          >
+            Return to current session
+          </button>
+        ) : null}
         {/* A bare line, not a card. The slab made the promise; this is only the instruction that
             gets you to the three faces below it. */}
         <p className="m-0 mb-4 text-[13.5px] leading-normal text-ink-soft">

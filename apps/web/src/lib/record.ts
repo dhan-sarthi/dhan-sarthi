@@ -42,7 +42,12 @@ export function useRecord(stored: StoredSession | null, tier: ViewTier): RecordS
     } catch (err) {
       if (run !== runRef.current) return
       const error = isApiError(err) ? err : new ApiError(0, 'NETWORK', 'Could not read the record.')
-      setState((s) => ({ ...s, key, error }))
+      setState((s) => ({
+        key,
+        record: s.key === key ? s.record : null,
+        chain: s.key === key ? s.chain : null,
+        error,
+      }))
     }
   }, [key])
 

@@ -21,17 +21,19 @@ import type {
   SeedProvenance,
 } from '@dhan/contracts'
 import type { SeedBundle } from '@dhan/fixtures'
+import { fixtureLiquidity } from '@dhan/fixtures'
 import { NotFound } from '../../application/errors.ts'
+import { SEED_FORMAT_VERSION } from '../../application/seed-format.ts'
 import { hashOf } from '../../application/hash.ts'
 import type { DriftCheck, SeedInfo } from '../../application/seed-info.ts'
 import type { BankDataDescription, BankDataPort, LoadedCustomerFile } from '../../ports/index.ts'
 
 const PROVENANCE: ProvenanceMap = {
-  PROFILE: 'memory',
-  ACCOUNTS: 'memory',
-  TXN: 'memory',
-  LIABILITIES: 'memory',
-  HOLDINGS: 'memory',
+  PROFILE: 'fixture',
+  ACCOUNTS: 'fixture',
+  TXN: 'fixture',
+  LIABILITIES: 'fixture',
+  HOLDINGS: 'fixture',
 }
 
 export interface InMemoryBankDataOptions {
@@ -53,8 +55,9 @@ function ageOn(dob: string, asOf: string): number {
 
 /** What the seed hash covers: the rows, not the picker copy. */
 export function seedContentHash(bundles: readonly SeedBundle[]): string {
-  return hashOf(
-    bundles.map((b) => ({
+  return hashOf({
+    format: SEED_FORMAT_VERSION,
+    bundles: bundles.map((b) => ({
       slug: b.slug,
       customer: b.customer,
       consent: b.consent,
@@ -66,7 +69,7 @@ export function seedContentHash(bundles: readonly SeedBundle[]): string {
       policies: b.policies,
       horizon: b.horizon,
     })),
-  )
+  })
 }
 
 export class InMemoryBankData implements BankDataPort, SeedInfo {
@@ -224,11 +227,13 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
         ...(row.maturityDate === undefined ? {} : { maturityDate: row.maturityDate }),
       }
       if (row.isPrimary) {
+        const facts = accountFactsAsOf(ledger, asOf, {
+          ...(row.openingBalance === undefined ? {} : { openingBalance: row.openingBalance }),
+        })
         return {
           ...base,
-          ...accountFactsAsOf(ledger, asOf, {
-            ...(row.openingBalance === undefined ? {} : { openingBalance: row.openingBalance }),
-          }),
+          ...facts,
+          liquidity: fixtureLiquidity(facts.currentBalance, asOf, row.liquidityTerms),
         }
       }
       return { ...base, currentBalance: row.currentBalance ?? 0 }

@@ -45,6 +45,12 @@ jobs:
       - name: Build the apps
         run: pnpm -r --filter './apps/*' build
 
+      - name: Install Chromium and its system dependencies
+        run: pnpm --filter @dhan/web exec playwright install --with-deps chromium
+
+      - name: Verify mobile layout and browser flows
+        run: pnpm --filter @dhan/web test:e2e
+
   hygiene:
     name: secrets · env files · dependency audit
     runs-on: ubuntu-latest

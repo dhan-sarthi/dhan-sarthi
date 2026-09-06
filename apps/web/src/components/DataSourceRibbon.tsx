@@ -1,10 +1,9 @@
 /**
- * One line under Today's header saying where the numbers came from and how fresh they are.
+ * One line in Today's instrument rail saying where the numbers came from and how fresh they are.
  *
  * A banker's first question about any figure is "as of when, from where". Under a real feed
  * this reads "IDBI sandbox · data to 3 September"; under the demo it says the ledger is
- * synthetic. Either way it is said, not assumed. A flex-none sibling of `.scroll`, like
- * Segments, so it never scrolls away.
+ * synthetic. Either way it is said, not assumed. Outside `.scroll`, so it never scrolls away.
  *
  * The freshness date is printed only when it is not the date the clock is already showing
  * directly below. A seeded ledger always runs right up to the simulated day, so on the demo the
@@ -33,7 +32,14 @@ export function DataSourceRibbon({
   /** The day the screen is being read as. */
   asOf: string
 }): ReactNode {
-  const source = tier === 'offline' ? 'Simulated in this browser' : SOURCE[meta.source]
+  const replay =
+    meta.source === 'idbi-sandbox' && Object.values(meta.provenance).every((p) => p === 'fixture')
+  const source =
+    tier === 'offline'
+      ? 'Simulated in this browser'
+      : replay
+        ? 'Synthetic API replay'
+        : SOURCE[meta.source]
   const stale = meta.dataFreshnessDate !== asOf
   return (
     <div

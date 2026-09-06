@@ -19,6 +19,7 @@
 export type * from './types.ts'
 export * from './dates.ts'
 export * from './asof.ts'
+export * from './liquidity.ts'
 export * from './merchants.ts'
 export * from './categorize.ts'
 export * from './recurring.ts'

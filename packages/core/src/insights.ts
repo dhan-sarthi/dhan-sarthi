@@ -129,7 +129,10 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       severity: 'important',
       headline:
         `${s.protection.dependents} ${s.protection.dependents === 1 ? 'person' : 'people'} depend ` +
-        `on your income and there is no life cover in force.`,
+        (s.protection.lifeCoverInForce > 0
+          ? `on your income; your ${inr(s.protection.lifeCoverInForce)} life cover leaves an ` +
+            `indicative gap of ${inr(s.protection.gap)}.`
+          : `on your income and there is no life cover in force.`),
       detail:
         `A rule of thumb puts the cover needed at around ten times annual income — about ` +
         `${inr(s.protection.lifeCoverNeeded)} for you. Term cover is the cheapest way to buy it ` +
@@ -154,7 +157,7 @@ export function findInsights(snapshot: Snapshot): Insight[] {
         'lock-in can be recommended to you yet — that is a rule, not a preference.',
       monthlyValue: 0,
       evidence: [
-        `Reachable savings ${inr(s.balances.total)}`,
+        `Reachable savings ${inr(s.balances.availableTotal)}`,
         `Monthly outflow ${inr(s.commitments.total + s.discretionary.monthly)}`,
         `Shortfall to a ${s.buffer.targetMonths}-month buffer: ${inr(s.buffer.shortfall)}`,
       ],

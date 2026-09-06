@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/check-bundle.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "test": "tsc --noEmit",
-    "check:bundle": "node scripts/check-bundle.mjs"
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "test:e2e": "pnpm -r --filter @dhan/core --filter @dhan/contracts --filter @dhan/fixtures build && playwright test"
   },
   "dependencies": {
     "@dhan/contracts": "workspace:*",
@@ -22,7 +23,9 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.20.1",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",

@@ -39,6 +39,7 @@ export function App(): ReactNode {
   const m = useMutations(vs, record.refresh)
   const avail = useAvailability(vs.tier === 'server' && vs.view !== null)
   const [tab, setTab] = useState<TabId>('today')
+  const [picking, setPicking] = useState(false)
 
   const offline = vs.offline
   const source = useMemo<TransactionSource>(
@@ -53,11 +54,31 @@ export function App(): ReactNode {
   const askBackend = useMemo(() => (offline ? offlineAsk(offline) : serverAsk), [offline])
   const refreshAvailability = avail.refresh
   const onOpenAsk = useCallback(() => void refreshAvailability(), [refreshAvailability])
+  // The record survives reloads; optimistic ids cover the wait for its next response. Both
+  // hooks expose only the active session's state, since action ids can repeat across sessions.
+  const decided = new Set([
+    ...m.decided,
+    ...(record.record?.decisions.map((decision) => decision.actionId) ?? []),
+  ])
+  const decisionsUnavailable =
+    vs.tier !== 'server'
+      ? 'Decisions are written to the record on the advisor service. Reconnect to act on this.'
+      : record.error
+        ? 'Your previous decisions could not be read. Open Record and try again.'
+        : !record.record
+          ? 'Reading your previous decisions…'
+          : null
 
-  if (!stored) {
+  if (!stored || picking) {
     return (
       <div className="app">
-        <Pick />
+        <Pick
+          onPicked={() => {
+            setPicking(false)
+            setTab('today')
+          }}
+          {...(stored ? { onCancel: () => setPicking(false) } : {})}
+        />
       </div>
     )
   }
@@ -122,12 +143,13 @@ export function App(): ReactNode {
             onAdvance: (days) => void m.advanceClock(days),
             onReset: () => void m.resetClock(),
           }}
-          decided={m.decided}
-          decisionsEnabled={vs.tier === 'server'}
+          decided={decided}
+          decisionsUnavailable={decisionsUnavailable}
           busy={m.busy}
           notice={m.notice}
           onDecide={(action, kind) => void m.decide(action, kind)}
           onAsk={() => setTab('ask')}
+          onSwitchCustomer={() => setPicking(true)}
         />
       ) : null}
 
@@ -146,6 +168,7 @@ export function App(): ReactNode {
           busy={m.busy}
           notice={m.notice}
           onConsent={(scope, granted) => void m.setConsent(scope, granted)}
+          onSwitchCustomer={() => setPicking(true)}
         />
       ) : null}
 

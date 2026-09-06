@@ -12,7 +12,7 @@
  * Amounts and products are never sent: the server re-derives the action from its own plan.
  */
 import { useCallback, useState } from 'react'
-import type { Action, ConsentScope } from '@dhan/contracts'
+import type { Action, ConsentScope, DecisionKind } from '@dhan/contracts'
 import { api, isApiError, newIdempotencyKey } from '../api/client.ts'
 import { clearSession } from '../api/session.ts'
 import type { ViewState } from './view.ts'
@@ -24,7 +24,7 @@ function sessionEnded(err: unknown): boolean {
   return true
 }
 
-export type DecisionKind = 'did_it' | 'declined'
+export type { DecisionKind } from '@dhan/contracts'
 
 type ClockOp = { advanceDays: 1 | 7 | 30 } | { reset: true }
 

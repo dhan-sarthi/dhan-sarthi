@@ -69,6 +69,7 @@ export function Record({
   busy,
   notice,
   onConsent,
+  onSwitchCustomer,
 }: {
   view: View
   record: RecordState
@@ -78,6 +79,7 @@ export function Record({
   /** The last consent change failed; the server's sentence. */
   notice: string | null
   onConsent: (scope: ConsentScope, granted: boolean) => void
+  onSwitchCustomer: () => void
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('decisions')
 
@@ -107,6 +109,21 @@ export function Record({
             notice={notice}
             onConsent={onConsent}
           />
+        ) : null}
+        {tab === 'consent' ? (
+          <div className="mb-4 border-0 border-t border-solid border-hairline-mint pt-3">
+            <button
+              type="button"
+              onClick={onSwitchCustomer}
+              disabled={busy}
+              className="min-h-11 rounded-pill border border-solid border-hairline-mint bg-white px-4 text-sm font-semibold text-brand hover:bg-tint-sage focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-55"
+            >
+              Switch customer
+            </button>
+            <p className="m-0 mt-2 text-xs leading-normal text-ink-soft">
+              Open the reviewer picker. This session’s decisions stay on the record.
+            </p>
+          </div>
         ) : null}
       </div>
     </>

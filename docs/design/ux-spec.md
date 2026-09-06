@@ -11,6 +11,33 @@ GO Mobile+ and what we refuse. This document governs structure: what belongs on 
 what order, and where every control sits. Where they disagree, the departure is recorded in
 §4.2 rather than papered over.
 
+### Implementation status · 7 September 2026
+
+The audit and build-order sections below retain the original findings. The initial correctness
+fixes are implemented: existing life cover is acknowledged, payroll dates require a detected
+salary series, “Not now” records `deferred`, and the picker is reachable from Today and Record
+without deleting the previous server session. Insights can review actions actually supplied by
+the API in Today's single action card. Recorded decisions remain suppressed after reload and
+stay scoped to their session, including when the reviewer picks the same customer again.
+
+Today now puts the action directly after safe-to-spend and before the supporting waterfall.
+The source label and collapsible clock sit below the scroll region. This is a bounded fold fix;
+the broader compact-header, instrument-rail and screen-restructuring proposals remain backlog.
+
+The [browser suite](../../apps/web/e2e/README.md) measures all three personas against an isolated
+memory API and a production web build. At both 390×844 and 375×812, both decision buttons are
+fully visible and their centres receive pointer hits without scrolling:
+
+| Persona | Button top–bottom, viewport px | Scroll bottom at 390×844 | Scroll bottom at 375×812 |
+|---|---|---|---|
+| Rohan | 473.25–521.25 | 683 | 651 |
+| Priya | 443.25–491.25 | 683 | 651 |
+| Sunil | 421.50–469.50 | 683 | 651 |
+
+These are Chromium measurements with reduced motion. Physical Safari and a 34px safe-area inset
+have not been verified by this suite. Generated screenshots and geometry stay in the ignored
+`apps/web/test-results/` directory; CI runs the same browser checks after the app build.
+
 ---
 
 ## 1. The Argument

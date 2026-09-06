@@ -10,7 +10,7 @@
 ![Runway Characters](https://img.shields.io/badge/Runway%20Characters-6f4cff?style=flat-square)
 ![LiveKit](https://img.shields.io/badge/LiveKit-6f4cff?style=flat-square)
 ![suitability rules](https://img.shields.io/badge/suitability%20rules-9-6f4cff?style=flat-square)
-![tests](https://img.shields.io/badge/tests-148%20passing-6f4cff?style=flat-square)
+![tests](https://img.shields.io/badge/tests-245%20passing-6f4cff?style=flat-square)
 ![keys in the browser](https://img.shields.io/badge/keys%20in%20the%20browser-0-6f4cff?style=flat-square)
 
 > [!TIP]
@@ -21,8 +21,10 @@
 
 > [!NOTE]
 > Every customer, transaction and balance in this repository is synthetic, generated from a seed by
-> `packages/fixtures`. No IDBI data, no personal data. The app runs end to end with no server and
-> no API keys; only the live avatar call needs the API and a Runway credential.
+> `packages/fixtures`. No IDBI data, no personal data. The primary path reads seeded Postgres
+> through the API; an explicit offline mode works without a server. Catalogue replay remains
+> synthetic, and a live bank connection is pending confirmed transport and field semantics.
+> See [the catalogue boundary](docs/integration/catalogue-decisions.md) for implemented support.
 
 ---
 
@@ -329,7 +331,7 @@ BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
 ```
 
 ```bash
-pnpm test                                         # builds packages, then 148 tests · rules · ledger · contracts · api
+pnpm test                                      # builds packages, then rules · ledger · contracts · api tests
 pnpm --filter @dhan/api seed:check                # the database still matches the generator, by hash
 curl -s localhost:3001/api/v1/openapi.json        # every route, generated from the registry
 ```

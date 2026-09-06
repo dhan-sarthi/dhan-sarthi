@@ -58,7 +58,8 @@ function mean(values: readonly number[]): number {
 }
 
 /**
- * The balance facts IDBI's accounts API (394) would report on `asOf`, computed from the ledger.
+ * Synthetic balance facts on `asOf`, computed from the fixture ledger. These historical
+ * averages are our calculations; the bank's account-list service does not establish them.
  *
  * Rows dated after `asOf` are ignored, so a caller may hand over the whole seeded span and
  * still get the answer for the session's date. Averages are over month-end closing balances,
@@ -106,6 +107,7 @@ const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 /** A loan as a contract: fixed facts measured at the anchor, from which any date can be rolled. */
 export interface LiabilityContract {
+  isNpa?: boolean
   loanType: string
   emiAmount: number
   /** Annual rate, as a percentage. */
@@ -141,6 +143,7 @@ export function liabilityAsOf(
     loanInterestRate: contract.rate,
     tenureRemainingMonths: remaining,
     dpdStatus: contract.dpdStatus ?? 0,
+    ...(contract.isNpa === undefined ? {} : { isNpa: contract.isNpa }),
     ...(contract.isRevolving === undefined ? {} : { isRevolving: contract.isRevolving }),
   }
 }

@@ -15,6 +15,7 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { UsersRound } from 'lucide-react'
 import type { Action, Insight, View } from '@dhan/contracts'
 import { Amount, Bar, Card, Eyebrow, Head, HeroPanel, Leader, Pill } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
@@ -28,7 +29,7 @@ import type { DecisionKind } from '../lib/mutations.ts'
 
 /* Header chips: white pills with a mint hairline. The count badge is a small orange disc. */
 const CHIP =
-  'relative grid size-10 shrink-0 place-items-center rounded-pill border border-solid border-hairline-mint bg-white text-ink'
+  'relative grid size-11 shrink-0 place-items-center rounded-pill border border-solid border-hairline-mint bg-white text-ink hover:bg-tint-sage focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-55'
 const CHIP_BADGE =
   'after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-white after:content-[attr(data-count)]'
 
@@ -47,7 +48,7 @@ const BTN_SECONDARY =
 /* The quiet link: how every disclosure in this app is offered — here, on the insight rows below,
    on a stage in Plan, and under an answer from Uday. Never a third pill. */
 const LINK =
-  'border-0 bg-transparent p-0 text-[13px] font-medium text-brand underline underline-offset-2'
+  'min-h-11 border-0 bg-transparent p-0 text-[13px] font-medium text-brand underline underline-offset-2 hover:text-brand-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-55'
 
 export interface ClockControls {
   /** False under a real bank feed, where today is today. */
@@ -63,24 +64,26 @@ export function Today({
   tier,
   clock,
   decided,
-  decisionsEnabled,
+  decisionsUnavailable,
   busy,
   notice,
   onDecide,
   onAsk,
+  onSwitchCustomer,
 }: {
   view: View
   tier: Tier
   clock: ClockControls
-  /** Action ids decided since the page loaded, so the card moves on before the server re-cuts. */
+  /** Recorded and optimistic action ids belonging to the active session. */
   decided: ReadonlySet<string>
-  /** False offline: nothing is recorded, so nothing can be decided. */
-  decisionsEnabled: boolean
+  /** Offline or waiting for the session's previous decisions; null when ready to record. */
+  decisionsUnavailable: string | null
   busy: boolean
   /** The last decision failed; the server's sentence. */
   notice: string | null
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
+  onSwitchCustomer: () => void
 }): ReactNode {
   const { snapshot, plan } = view
   const asOf = view.meta.asOf
@@ -92,10 +95,25 @@ export function Today({
   // prefers-reduced-motion.
   const counted = useCountUp(s.pot)
 
-  const primary =
+  const [selected, setSelected] = useState<{ snapshotId: string; actionId: string } | null>(null)
+  const actions = [plan.primary, ...plan.secondary].filter((a): a is Action => a !== null)
+  const suggestedPrimary =
     plan.primary && !decided.has(plan.primary.id)
       ? plan.primary
       : (plan.secondary.find((a) => !decided.has(a.id)) ?? null)
+  const primary =
+    (selected?.snapshotId === view.meta.snapshotId
+      ? actions.find((a) => a.id === selected.actionId && !decided.has(a.id))
+      : null) ?? suggestedPrimary
+
+  const reviewAction = (action: Action): void => {
+    setSelected({ snapshotId: view.meta.snapshotId, actionId: action.id })
+    requestAnimationFrame(() => {
+      const card = document.getElementById('today-action')
+      card?.scrollIntoView({ block: 'start' })
+      card?.focus({ preventScroll: true })
+    })
+  }
 
   return (
     <>
@@ -109,31 +127,24 @@ export function Today({
               className={plan.insights.length > 0 ? `${CHIP} ${CHIP_BADGE}` : CHIP}
               data-count={plan.insights.length > 0 ? String(plan.insights.length) : undefined}
               aria-label="Insights"
+              onClick={() => document.getElementById('today-insights')?.scrollIntoView()}
             >
               ◔
             </button>
-            <button type="button" className={CHIP} aria-label="Profile" onClick={onAsk}>
-              U
+            <button
+              type="button"
+              className={CHIP}
+              aria-label="Switch customer"
+              onClick={onSwitchCustomer}
+              disabled={busy}
+            >
+              <UsersRound size={20} aria-hidden="true" />
             </button>
           </div>
         }
       />
-      <DataSourceRibbon meta={view.meta} tier={tier} asOf={asOf} />
-
       <div className="scroll">
-        {clock.show ? (
-          <div className="mt-3">
-            <Clock
-              asOf={asOf}
-              notice={clock.notice}
-              disabled={clock.disabled}
-              onAdvance={clock.onAdvance}
-              onReset={clock.onReset}
-            />
-          </div>
-        ) : (
-          <div className="mt-3" />
-        )}
+        <div className="mt-3" />
 
         {/* ------------------------------------------------ Safe to spend
             The one thing on this screen, and the only surface shaped like this. The figure
@@ -155,6 +166,25 @@ export function Today({
           <Bar used={usedPct} onDark />
         </HeroPanel>
 
+        {/* The action comes before its supporting ledger so both decisions are reachable on
+            the first screenful. Its full explanation is still visible before either button. */}
+        {primary ? (
+          <ActionCard
+            key={primary.id}
+            action={primary}
+            unavailable={decisionsUnavailable}
+            busy={busy}
+            notice={notice}
+            onDecide={onDecide}
+            onWhy={onAsk}
+          />
+        ) : (
+          <Card tint="sky">
+            <h2>Nothing needs you today</h2>
+            <p className={`${META} mt-1.5`}>{plan.routeNote}</p>
+          </Card>
+        )}
+
         {/* The waterfall sits below the panel as a plain ledger rather than inside another
             card: nesting a card in a card is what made every block on this page weigh the same.
             It shows signs and visibly sums, because listing the reserved amounts without them
@@ -173,23 +203,6 @@ export function Today({
             <Leader label="Still yours to spend" value={inr(s.pot)} filled />
           </div>
         </div>
-
-        {/* ------------------------------------------------ The one action */}
-        {primary ? (
-          <ActionCard
-            action={primary}
-            enabled={decisionsEnabled}
-            busy={busy}
-            notice={notice}
-            onDecide={onDecide}
-            onWhy={onAsk}
-          />
-        ) : (
-          <Card tint="sky">
-            <h2>Nothing needs you today</h2>
-            <p className={`${META} mt-1.5`}>{plan.routeNote}</p>
-          </Card>
-        )}
 
         {/* ------------------------------------------------ Since you were away
             A ledger, not a card: merchant left, amount right, hairline rules between. The total
@@ -234,11 +247,31 @@ export function Today({
             Six findings are a list, not six cards. One hairline container, hairline rules inside
             it, and the severity carried by the tint behind the icon rather than by six identical
             borders. The rows rise in sequence because they are the last thing to arrive. */}
-        <Eyebrow>What I noticed</Eyebrow>
+        <div id="today-insights">
+          <Eyebrow>What I noticed</Eyebrow>
+        </div>
         <div className="mb-3 min-w-0 divide-y divide-solid divide-hairline-mint rounded-md border border-solid border-hairline-mint bg-surface px-3.5">
-          {plan.insights.map((i, idx) => (
-            <InsightRow key={i.kind} insight={i} index={idx} />
-          ))}
+          {plan.insights.map((i, idx) => {
+            // Match both the kind and evidence: two findings can suggest the same kind of
+            // action. Only a server-provided action can ever be reviewed or submitted.
+            const action = actions.find(
+              (a) =>
+                a.kind === i.suggests &&
+                a.evidence.length === i.evidence.length &&
+                a.evidence.every((e, n) => e === i.evidence[n]),
+            )
+            return (
+              <InsightRow
+                key={i.kind}
+                insight={i}
+                index={idx}
+                action={action ?? null}
+                decided={action ? decided.has(action.id) : false}
+                busy={busy}
+                onReview={reviewAction}
+              />
+            )
+          })}
         </div>
 
         <p className={`${NOTE} mb-0 mt-5`}>
@@ -248,6 +281,18 @@ export function Today({
           merchant or a mandate.
         </p>
       </div>
+      <div className="flex-none border-0 border-t border-solid border-hairline-mint bg-tint-clay/60 pb-2">
+        <DataSourceRibbon meta={view.meta} tier={tier} asOf={asOf} />
+        {clock.show ? (
+          <Clock
+            asOf={asOf}
+            notice={clock.notice}
+            disabled={clock.disabled}
+            onAdvance={clock.onAdvance}
+            onReset={clock.onReset}
+          />
+        ) : null}
+      </div>
     </>
   )
 }
@@ -256,24 +301,29 @@ export function Today({
 
 function ActionCard({
   action,
-  enabled,
+  unavailable,
   busy,
   notice,
   onDecide,
   onWhy,
 }: {
   action: Action
-  enabled: boolean
+  unavailable: string | null
   busy: boolean
   notice: string | null
   onDecide: (a: Action, kind: DecisionKind) => void
   onWhy: () => void
 }): ReactNode {
   const [showWhy, setShowWhy] = useState(false)
-  const locked = !enabled || busy
+  const locked = unavailable !== null || busy
 
   return (
-    <section className="relative mb-3 min-w-0 rounded-md border border-solid border-hairline bg-surface p-4 pt-5">
+    <section
+      id="today-action"
+      aria-label="Today's action"
+      tabIndex={-1}
+      className="relative mb-3 mt-5 min-w-0 scroll-mt-3 rounded-md border border-solid border-hairline bg-surface p-4 pt-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+    >
       {/* The legend chip, sitting on the card's own edge, is how GO Mobile+ titles a section. */}
       <span className="absolute -top-2 left-3.5 rounded-pill bg-legend-chip px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-brand">
         Today's one thing
@@ -321,16 +371,14 @@ function ActionCard({
           type="button"
           className={BTN_SECONDARY}
           disabled={locked}
-          onClick={() => onDecide(action, 'declined')}
+          onClick={() => onDecide(action, 'deferred')}
         >
           Not now
         </button>
       </div>
 
-      {!enabled ? (
-        <p className="mb-0 mt-3 text-[13px] leading-normal text-ink-soft">
-          Decisions are written to the record on the advisor service. Reconnect to act on this.
-        </p>
+      {unavailable ? (
+        <p className="mb-0 mt-3 text-[13px] leading-normal text-ink-soft">{unavailable}</p>
       ) : null}
       {notice ? (
         <p role="alert" className="mb-0 mt-3 text-[13px] leading-normal text-danger">
@@ -341,7 +389,12 @@ function ActionCard({
       {/* Revealing the evidence is a quiet link on every other surface in the app — the insight
           rows below, a stage on Plan, an answer from Uday — so it is a quiet link here too. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-3">
-        <button type="button" onClick={() => setShowWhy((v) => !v)} className={LINK}>
+        <button
+          type="button"
+          onClick={() => setShowWhy((v) => !v)}
+          aria-expanded={showWhy}
+          className={LINK}
+        >
           Why?
         </button>
         <button type="button" onClick={onWhy} className={LINK}>
@@ -368,7 +421,21 @@ const PILL_TONE = {
   opportunity: 'plain',
 } as const
 
-function InsightRow({ insight, index }: { insight: Insight; index: number }): ReactNode {
+function InsightRow({
+  insight,
+  index,
+  action,
+  decided,
+  busy,
+  onReview,
+}: {
+  insight: Insight
+  index: number
+  action: Action | null
+  decided: boolean
+  busy: boolean
+  onReview: (action: Action) => void
+}): ReactNode {
   const [open, setOpen] = useState(false)
 
   return (
@@ -414,9 +481,25 @@ function InsightRow({ insight, index }: { insight: Insight; index: number }): Re
                 ? 'Worth doing'
                 : 'Opportunity'}
           </Pill>
-          <button type="button" onClick={() => setOpen((v) => !v)} className={LINK}>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className={LINK}
+          >
             {open ? 'Hide the numbers' : 'Show me the numbers'}
           </button>
+          {action ? (
+            <button
+              type="button"
+              onClick={() => onReview(action)}
+              disabled={busy || decided}
+              className={LINK}
+              aria-label={`Review action: ${action.label}`}
+            >
+              {decided ? 'Decision recorded' : 'Review this action'}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -39,6 +39,8 @@ import type {
   LedgerHorizon,
   ProvenanceMap,
 } from '@dhan/contracts'
+import { fixtureLiquidity } from '@dhan/fixtures'
+import type { FixtureLiquidityTerms } from '@dhan/fixtures'
 import { NotFound } from '../../application/errors.ts'
 import type { Db } from '../../db/pool.ts'
 import type { BankDataDescription, BankDataPort, LoadedCustomerFile } from '../../ports/index.ts'
@@ -55,11 +57,11 @@ import type { DepositType, HeldVia } from './codes.ts'
 
 const SOURCE: BankSource = 'postgres'
 const PROVENANCE: ProvenanceMap = {
-  PROFILE: 'postgres',
-  ACCOUNTS: 'postgres',
-  TXN: 'postgres',
-  LIABILITIES: 'postgres',
-  HOLDINGS: 'postgres',
+  PROFILE: 'fixture',
+  ACCOUNTS: 'fixture',
+  TXN: 'fixture',
+  LIABILITIES: 'fixture',
+  HOLDINGS: 'fixture',
 }
 const SCOPES: ReadonlySet<string> = new Set<ConsentScope>([
   'PROFILE',
@@ -80,6 +82,8 @@ const BLOCKS_CACHE_SIZE = 32
 
 interface CustomerRow {
   id: string
+  profile_source: string | null
+  data_source: string
   cif: string
   cust_id: string
   display_name: string
@@ -112,7 +116,11 @@ interface CustomerRow {
   customer_since: IsoDate | null
 }
 
-interface TransactionRow {
+interface SourceRow {
+  source: string
+}
+
+interface TransactionRow extends SourceRow {
   account_id: string
   tran_id: string
   tran_date: IsoDate
@@ -139,9 +147,11 @@ interface CasaRow {
   opening_date: IsoDate | null
   interest_rate: number | null
   branch_ifsc: string | null
+  source: string
+  fixture_liquidity_terms: FixtureLiquidityTerms | null
 }
 
-interface DepositRow {
+interface DepositRow extends SourceRow {
   account_number_masked: string
   deposit_type: DepositType
   description: string | null
@@ -153,7 +163,8 @@ interface DepositRow {
   branch_ifsc: string | null
 }
 
-interface LoanRow {
+interface LoanRow extends SourceRow {
+  is_npa: boolean | null
   lender: string
   loan_type: string
   loan_type_raw: string | null
@@ -165,7 +176,7 @@ interface LoanRow {
   as_of_date: IsoDate
 }
 
-interface SipRow {
+interface SipRow extends SourceRow {
   scheme_name: string
   asset_class: Holding['assetClass']
   amount: number
@@ -175,7 +186,7 @@ interface SipRow {
   as_of_date: IsoDate
 }
 
-interface MfRow {
+interface MfRow extends SourceRow {
   scheme_name: string
   asset_class: string
   cost_value: number | null
@@ -183,7 +194,7 @@ interface MfRow {
   held_via: HeldVia
 }
 
-interface PolicyRow {
+interface PolicyRow extends SourceRow {
   plan_name: string
   sum_assured: number | null
   cover_amount: number | null
@@ -193,7 +204,7 @@ interface PolicyRow {
   maturity_date: IsoDate | null
 }
 
-interface OpeningRow {
+interface OpeningRow extends SourceRow {
   account_id: string
   tran_type: 'CREDIT' | 'DEBIT'
   amount: number
@@ -229,7 +240,7 @@ type Blocks = FileRow & { customer: CustomerRow }
  * ------------------------------------------------------------------ */
 
 const CUSTOMER_COLUMNS = `
-  c.id, c.cif, c.cust_id, c.display_name, c.preferred_language, c.tax_regime, c.display_order,
+  c.id, c.data_source, p.source AS profile_source, c.cif, c.cust_id, c.display_name, c.preferred_language, c.tax_regime, c.display_order,
   c.persona_slug, c.pitch, c.demonstrates, c.ledger_anchor, c.ledger_history_from, c.ledger_horizon,
   p.cust_name, p.date_of_birth, p.age, p.gender, p.gender_raw, p.marital_status, p.marital_status_raw,
   p.dependents_count, p.employment_type, p.employment_type_raw, p.declared_annual_income,
@@ -260,7 +271,7 @@ const FILE_SQL = `
   SELECT
     (SELECT row_to_json(cust) FROM cust) AS customer,
     (SELECT coalesce(json_agg(x ORDER BY x.tran_date, x.seq, x.tran_id), '[]'::json) FROM (
-       SELECT t.account_id, t.tran_id, t.tran_date, t.value_date, t.seq, t.amount, t.tran_type,
+       SELECT t.source, t.account_id, t.tran_id, t.tran_date, t.value_date, t.seq, t.amount, t.tran_type,
               t.channel_code, t.channel_raw, t.narration, t.spend_category_bank, t.balance_after,
               t.is_salary_credit_bank, t.is_recurring_bank, t.mcc, t.counterparty_vpa,
               t.merchant_name_bank
@@ -268,20 +279,21 @@ const FILE_SQL = `
        WHERE t.customer_id = win.customer_id AND t.tran_date >= win.from_date AND t.tran_date <= $3
          AND t.status = 'POSTED') x) AS transactions,
     (SELECT coalesce(json_agg(x), '[]'::json) FROM (
-       SELECT DISTINCT ON (t.account_id) t.account_id, t.tran_type, t.amount, t.balance_after
+       SELECT DISTINCT ON (t.account_id) t.source, t.account_id, t.tran_type, t.amount, t.balance_after
        FROM bank.transactions t, win
        WHERE t.customer_id = win.customer_id AND t.status = 'POSTED'
        ORDER BY t.account_id, t.tran_date, t.seq, t.tran_id) x) AS openings,
     (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
        SELECT a.id, a.account_number_masked, a.created_at, a.account_ref,
-              s.account_type, s.account_type_raw, s.opening_date, s.interest_rate, s.branch_ifsc
+              s.account_type, s.account_type_raw, s.opening_date, s.interest_rate, s.branch_ifsc,
+              s.source, to_jsonb(s)->'fixture_liquidity_terms' AS fixture_liquidity_terms
        FROM bank.accounts a
        JOIN bank.account_snapshots_current s ON s.account_id = a.id, win
        WHERE a.customer_id = win.customer_id AND a.product_kind = 'CASA' AND s.status <> 'CLOSED'
          AND (s.opening_date IS NULL OR s.opening_date <= $3)) x) AS casa,
     (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
        SELECT a.account_number_masked, a.created_at, a.account_ref, td.deposit_type, td.description,
-              td.principal_amount, td.current_value, td.opening_date, td.maturity_date,
+              td.source, td.principal_amount, td.current_value, td.opening_date, td.maturity_date,
               td.interest_rate, td.branch_ifsc
        FROM bank.accounts a
        JOIN bank.term_deposits_current td ON td.account_id = a.id, win
@@ -289,19 +301,19 @@ const FILE_SQL = `
          AND td.status IN ('ACTIVE', 'MATURED', 'RENEWED') AND td.opening_date <= $3) x) AS deposits,
     (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
        SELECT a.created_at, a.account_ref, ln.lender, ln.loan_type, ln.loan_type_raw, ln.emi_amount,
-              ln.interest_rate, ln.tenure_remaining_months, ln.dpd, ln.is_revolving,
+              ln.source, ln.interest_rate, ln.tenure_remaining_months, ln.dpd, ln.is_revolving, (to_jsonb(ln)->>'is_npa')::boolean AS is_npa,
               (ln.as_of AT TIME ZONE 'UTC')::date AS as_of_date
        FROM bank.accounts a
        JOIN bank.loans_current ln ON ln.account_id = a.id, win
        WHERE a.customer_id = win.customer_id AND ln.status = 'ACTIVE') x) AS loans,
     (SELECT coalesce(json_agg(x ORDER BY x.registration_ref), '[]'::json) FROM (
-       SELECT s.registration_ref, s.scheme_name, s.asset_class, s.amount, s.instalment_day, s.start_date,
+       SELECT s.source, s.registration_ref, s.scheme_name, s.asset_class, s.amount, s.instalment_day, s.start_date,
               s.held_via, (s.as_of AT TIME ZONE 'UTC')::date AS as_of_date
        FROM bank.sip_registrations_current s, win
        WHERE s.customer_id = win.customer_id AND s.status = 'ACTIVE'
          AND (s.start_date IS NULL OR s.start_date <= $3)) x) AS sips,
     (SELECT coalesce(json_agg(x ORDER BY x.folio_no, x.scheme_name), '[]'::json) FROM (
-       SELECT m.folio_no, m.scheme_name, m.asset_class, m.cost_value, m.current_value, m.held_via
+       SELECT m.source, m.folio_no, m.scheme_name, m.asset_class, m.cost_value, m.current_value, m.held_via
        FROM bank.mf_holdings_current m, win
        WHERE m.customer_id = win.customer_id
          AND NOT EXISTS (SELECT 1 FROM bank.sip_registrations_current s
@@ -309,14 +321,14 @@ const FILE_SQL = `
                            AND (s.start_date IS NULL OR s.start_date <= $3)
                            AND s.scheme_name = m.scheme_name)) x) AS funds,
     (SELECT coalesce(json_agg(x ORDER BY x.insurer, x.policy_number), '[]'::json) FROM (
-       SELECT p.insurer, p.policy_number, p.plan_name, p.sum_assured, p.cover_amount, p.premium_amount,
+       SELECT p.source, p.insurer, p.policy_number, p.plan_name, p.sum_assured, p.cover_amount, p.premium_amount,
               p.premium_frequency, p.fund_value, p.maturity_date
        FROM bank.insurance_policies_current p, win
        WHERE p.customer_id = win.customer_id AND p.status = 'IN_FORCE'
          AND (p.policy_start_date IS NULL OR p.policy_start_date <= $3)) x) AS policies`
 
 const TRANSACTIONS_SQL = `
-  SELECT t.account_id, t.tran_id, t.tran_date, t.value_date, t.amount, t.tran_type, t.channel_code,
+  SELECT t.source, t.account_id, t.tran_id, t.tran_date, t.value_date, t.amount, t.tran_type, t.channel_code,
          t.channel_raw, t.narration, t.spend_category_bank, t.balance_after, t.is_salary_credit_bank,
          t.is_recurring_bank, t.mcc, t.counterparty_vpa, t.merchant_name_bank
   FROM bank.transactions t
@@ -348,6 +360,8 @@ function employment(code: string | null, raw: string | null): Customer['employme
 }
 
 function toCustomer(row: CustomerRow): Customer {
+  requireFixtureSource(row.data_source)
+  requireFixtureSource(row.profile_source)
   return {
     cif: row.cif,
     custId: row.cust_id,
@@ -370,6 +384,7 @@ function toCustomer(row: CustomerRow): Customer {
 }
 
 function toTransaction(row: TransactionRow): Transaction {
+  requireFixtureSource(row.source)
   return {
     txnId: row.tran_id,
     txnDate: row.tran_date,
@@ -405,6 +420,7 @@ function depositAccount(row: DepositRow): Account {
 
 function depositHolding(row: DepositRow): Holding {
   return {
+    accountNumberMasked: row.account_number_masked,
     holdingType: holdingTypeForDeposit(row.deposit_type),
     name: row.description ?? `IDBI ${row.deposit_type === 'RD' ? 'Recurring' : 'Fixed'} Deposit`,
     assetClass: 'Debt',
@@ -424,6 +440,7 @@ function loanContract(row: LoanRow): LiabilityContract {
     tenureRemainingAtAnchor: row.tenure_remaining_months ?? 0,
     ...(row.dpd > 0 ? { dpdStatus: row.dpd } : {}),
     ...(row.is_revolving ? { isRevolving: true } : {}),
+    ...(row.is_npa === null ? {} : { isNpa: row.is_npa }),
   }
 }
 
@@ -506,14 +523,28 @@ function accountsOf(b: Blocks, asOf: IsoDate): Account[] {
   }
 
   const out: Account[] = b.casa.map((row) => {
+    if (row.source !== 'fixtures')
+      throw new Error(
+        'Observed bank balances require a dated bank projector; fixture clock replay is not allowed.',
+      )
     const own = b.transactions.filter((t) => t.account_id === row.id).map(toTransaction)
     const opening = openingBalance.get(row.id)
+    const facts = accountFactsAsOf(
+      own,
+      asOf,
+      opening === undefined ? {} : { openingBalance: opening },
+    )
     return {
       accountNumberMasked: row.account_number_masked,
       accountType: accountTypeForCasa(row.account_type, row.account_type_raw),
       accountOpeningDate: row.opening_date ?? b.customer.customer_since ?? '',
       ...(row.branch_ifsc === null ? {} : { branchIfsc: row.branch_ifsc }),
-      ...accountFactsAsOf(own, asOf, opening === undefined ? {} : { openingBalance: opening }),
+      ...facts,
+      liquidity: fixtureLiquidity(
+        facts.currentBalance,
+        asOf,
+        row.fixture_liquidity_terms ?? undefined,
+      ),
     }
   })
   for (const row of b.deposits) out.push(depositAccount(row))
@@ -776,6 +807,18 @@ export class PostgresBankData implements BankDataPort {
     const { rows } = await this.db.query<FileRow>(FILE_SQL, [cif, windowMonths, asOf])
     const row = rows[0]
     if (!row?.customer) throw new NotFound(`No customer with cif ${cif}.`)
+    toCustomer(row.customer)
+    for (const item of [
+      ...row.transactions,
+      ...row.openings,
+      ...row.casa,
+      ...row.deposits,
+      ...row.loans,
+      ...row.sips,
+      ...row.funds,
+      ...row.policies,
+    ])
+      requireFixtureSource(item.source)
     const blocks: Blocks = { ...row, customer: row.customer }
     this.blocks.set(key, blocks, now)
     this.customers.set(cif, row.customer, now)
@@ -789,4 +832,11 @@ function historyMonths(c: CustomerRow): number {
     return elapsedMonths(c.ledger_history_from, c.ledger_anchor) + 1
   }
   return 24
+}
+
+function requireFixtureSource(source: string | null): void {
+  if (source !== 'fixtures')
+    throw new Error(
+      'Observed provider data requires its dated projector; fixture clock replay is not allowed.',
+    )
 }

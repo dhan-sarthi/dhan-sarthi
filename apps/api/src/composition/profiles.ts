@@ -19,10 +19,11 @@ import { NullRpcHost } from '../adapters/null/rpc-host.null.ts'
 import { RunwayAvatarProvider } from '../adapters/runway/provider.ts'
 import { RunwayRpcHost } from '../adapters/runway/rpc-host.ts'
 import { RunwayTransport } from '../adapters/runway/transport.ts'
-import { IdbiSandboxBankData } from '../adapters/idbi-sandbox/bank-data.idbi-sandbox.ts'
-import { IdbiClient } from '../adapters/idbi-sandbox/client.ts'
-import { CompositeBankData, customerDirectory } from '../adapters/idbi-sandbox/composite.ts'
-import { OFFLINE_BASE_URL, OfflineSandbox } from '../adapters/idbi-sandbox/offline-sandbox.ts'
+import {
+  buildCatalogueSeedPayload,
+  projectCatalogueSeedPayload,
+} from '../adapters/idbi-sandbox/catalogue-seed.ts'
+import { CatalogueReplayBankData } from '../adapters/idbi-sandbox/catalogue-replay.ts'
 import { PostgresAuditStore } from '../adapters/postgres/audit-store.postgres.ts'
 import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
 import { PostgresLeaseStore } from '../adapters/postgres/lease-store.postgres.ts'
@@ -133,41 +134,26 @@ export function bankAdapters(
       }
     }
     case 'idbi-sandbox': {
-      // The seam the bank's own feed will arrive through. The bank answers for the profile,
-      // accounts, statement and loans; fixtures answer for holdings, policies and the shelf,
-      // because IDBI's catalogue has no endpoint for those (docs/integration/field-mapping.md).
-      // Reviewer state stays in memory: which store holds sessions is orthogonal to where the
-      // customer's data comes from, and this profile exists to prove the data seam.
+      // The catalogue specifies response fields but no executable URLs, authentication or
+      // date/code conventions. Until confirmed, only synthetic capture replay is available.
+      if (config.IDBI_API_BASE)
+        throw new Error(
+          'Live IDBI transport is not configured: confirm endpoint paths, authentication, date formats and enum mappings before enabling a bank feed.',
+        )
       const options = {
         anchor: config.SEED_ANCHOR,
         historyMonths: HISTORY_WINDOW_MONTHS,
         forwardMonths: config.SEED_FORWARD_MONTHS,
       }
-      const bundles = seedBundles(options)
+      const bundles = seedBundles(options).map((bundle) =>
+        projectCatalogueSeedPayload(buildCatalogueSeedPayload(bundle)),
+      )
       const fixtures = new InMemoryBankData(bundles, {
         generatorVersion: `@dhan/fixtures@${versions.fixtures}`,
         ranAt: clock.now().toISOString(),
         regenerate: () => seedBundles(options),
       })
-      // With no base URL configured there is nothing to call, so the recorded samples are
-      // served in process: the adapter runs offline, on a reserved TLD that cannot resolve.
-      const offline = config.IDBI_API_BASE
-        ? null
-        : new OfflineSandbox({ bundles, shelf: shelfRows() })
-      const client = new IdbiClient({
-        baseUrl: config.IDBI_API_BASE ?? OFFLINE_BASE_URL,
-        ...(offline ? { fetch: offline.fetch } : {}),
-        ...(config.IDBI_API_KEY ? { apiKey: config.IDBI_API_KEY } : {}),
-      })
-      const bank = new CompositeBankData(
-        new IdbiSandboxBankData({
-          client,
-          directory: customerDirectory(fixtures, { consentId: config.IDBI_CONSENT_ID }),
-          initialFreshness: config.SEED_ANCHOR,
-          windowAnchor: config.SEED_ANCHOR,
-        }),
-        fixtures,
-      )
+      const bank = new CatalogueReplayBankData(fixtures)
       return {
         bank,
         shelf: new InMemoryProductShelf(shelfRows()),

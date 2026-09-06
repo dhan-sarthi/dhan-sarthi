@@ -2,17 +2,20 @@
  * What `pnpm seed` writes, computed without a database.
  *
  * The rows come from `@dhan/fixtures`' `seedBundles()`: the same bundles the in-memory adapter
- * holds, so the two profiles are the same facts shaped by the same functions. One bundle per
- * persona is the raw payload that lands in staging.raw_payloads; the projector in cli/seed.ts
- * reads only the payload, never the persona spec, so the seed exercises the path a bank
- * response will take.
+ * holds, so the two profiles are the same facts shaped by the same functions. Each staged
+ * packet contains synthetic catalogue captures and a separate supplement for unsupported
+ * fixture facts. The seed projector reads only this packet, never the persona spec, and
+ * validates statement, lien, overdue and limit observations before writing normalized rows.
  *
  * Everything here is deterministic, which is what makes `--check` meaningful: regenerate,
  * hash, compare with the hash the last run recorded.
  */
 import { seedBundles, shelfRows } from '@dhan/fixtures'
 import type { SeedBundle, SeedProductRow } from '@dhan/fixtures'
+import { SEED_FORMAT_VERSION } from '../application/seed-format.ts'
 import { hashOf } from '../application/hash.ts'
+import { buildCatalogueSeedPayload } from '../adapters/idbi-sandbox/catalogue-seed.ts'
+import type { CatalogueSeedPayload } from '../adapters/idbi-sandbox/catalogue-seed.ts'
 
 export interface SeedOptions {
   anchor: string
@@ -24,7 +27,8 @@ export interface SeedOptions {
 
 export interface SeedPersona {
   bundle: SeedBundle
-  /** sha256 of the canonical bundle: the raw payload's content address. */
+  payload: CatalogueSeedPayload
+  /** sha256 of the capture packet: the raw payload's content address. */
   payloadHash: string
 }
 
@@ -47,8 +51,9 @@ export interface SeedPlan {
  * agree, so `/health` shows one seed hash whichever profile is running.
  */
 export function seedContentHash(bundles: readonly SeedBundle[]): string {
-  return hashOf(
-    bundles.map((b) => ({
+  return hashOf({
+    format: SEED_FORMAT_VERSION,
+    bundles: bundles.map((b) => ({
       slug: b.slug,
       customer: b.customer,
       consent: b.consent,
@@ -60,7 +65,7 @@ export function seedContentHash(bundles: readonly SeedBundle[]): string {
       policies: b.policies,
       horizon: b.horizon,
     })),
-  )
+  })
 }
 
 export function buildSeedPlan(opts: SeedOptions): SeedPlan {
@@ -78,7 +83,10 @@ export function buildSeedPlan(opts: SeedOptions): SeedPlan {
     historyMonths: opts.historyMonths,
     forwardMonths: opts.forwardMonths,
     generatorVersion: opts.generatorVersion,
-    personas: bundles.map((bundle) => ({ bundle, payloadHash: hashOf(bundle) })),
+    personas: bundles.map((bundle) => {
+      const payload = buildCatalogueSeedPayload(bundle)
+      return { bundle, payload, payloadHash: hashOf(payload) }
+    }),
     shelf: shelfRows(),
     contentSha256: seedContentHash(bundles),
   }
