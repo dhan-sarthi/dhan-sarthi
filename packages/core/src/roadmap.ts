@@ -303,16 +303,22 @@ export function buildRoadmap(
            amount written here also had to agree with how the same figure is rendered two lines
            below — two ways to get one row wrong. Every other stage label is an outcome, and
            this one now matches. */
-        label: 'Put life cover in force',
+        label:
+          snapshot.protection.lifeCoverInForce > 0
+            ? 'Increase life cover'
+            : 'Put life cover in force',
         why:
           `${snapshot.customer.dependents} ${snapshot.customer.dependents === 1 ? 'person' : 'people'} ` +
-          `depend on your income and there is nothing in force. This is the cheapest thing on ` +
-          `this list and the only one that cannot be caught up on later.` +
+          (snapshot.protection.lifeCoverInForce > 0
+            ? `depend on your income. Your ${inr(snapshot.protection.lifeCoverInForce)} of life cover ` +
+              `leaves an indicative gap of ${inr(snapshot.protection.gap)}. `
+            : `depend on your income and there is no life cover in force. `) +
+          `Closing that gap cannot be caught up on later.` +
           (closesGap
             ? ''
-            : ` It does not close the whole gap — ${spokenAmount(snapshot.protection.gap)} would — ` +
-              `but it ` +
-              `is what is affordable today, and something in force beats the right amount later.`),
+            : ` This adds ${inr(term.coverAmount ?? 0)} of cover, leaving ` +
+              `${inr(Math.max(0, snapshot.protection.gap - (term.coverAmount ?? 0)))} still to close. ` +
+              `It is what is affordable today; review the remaining gap as your budget allows.`),
         productId: term.productId,
         productName: term.name,
         monthly: term.minInvestment,
@@ -392,7 +398,7 @@ export function buildRoadmap(
   /* Stage: emergency buffer -------------------------------------------- */
 
   const bufferTarget = Math.round(opts.bufferFloorMonths * monthlyOutflow)
-  const bufferHave = snapshot.balances.total
+  const bufferHave = snapshot.balances.availableTotal
   const bufferGap = Math.max(0, bufferTarget - bufferHave)
 
   if (bufferGap > 0 && available > 0) {

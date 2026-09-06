@@ -12,3 +12,6 @@ apps/web/public/
 # Markdown is written by hand with deliberate line breaks; Prettier leaves prose alone but would
 # still rewrap tables and lists in ways that hurt review diffs.
 *.md
+
+apps/web/test-results/
+apps/web/playwright-report/

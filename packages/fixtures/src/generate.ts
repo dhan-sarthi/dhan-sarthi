@@ -67,6 +67,7 @@ import {
 import { rng } from './random.ts'
 import type { Rng } from './random.ts'
 import type { EmiSpec, PersonaSpec, SipSpec } from './personas.ts'
+import { fixtureLiquidity } from './liquidity.ts'
 
 export interface GenerateOptions {
   /**
@@ -900,6 +901,7 @@ export function generateCustomerFile(
     branchIfsc: cityProfile(spec.customer.city).branchIfsc,
     ...accountFactsAsOf(transactions, asOf, { openingBalance: spec.openingBalance }),
   }
+  savings.liquidity = fixtureLiquidity(savings.currentBalance, asOf, spec.liquidityTerms)
 
   const liabilities: Liability[] = spec.emis
     .map((emi) => liabilityAsOf(liabilityContract(emi), anchor, asOf))

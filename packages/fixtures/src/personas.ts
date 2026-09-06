@@ -17,6 +17,7 @@
  */
 import type { Account, Customer, Holding, SpendCategory } from '@dhan/core'
 import { CARD_FINANCE_RATE_PA, GOVT_COVER, NETFLIX_TIERS, cityProfile } from './calibration.ts'
+import type { FixtureLiquidityTerms } from './liquidity.ts'
 
 /** A subscription: same merchant, same amount, same day. Detectable precisely because of that. */
 export interface SubscriptionSpec {
@@ -124,6 +125,8 @@ export interface LumpSpec {
 }
 
 export interface PersonaSpec {
+  /** A synthetic active hold and unsettled funds, kept separate from owned ledger balance. */
+  liquidityTerms?: FixtureLiquidityTerms
   slug: string
   seed: number
   customer: Customer
@@ -369,6 +372,7 @@ export const ROHAN: PersonaSpec = {
   holdings: [
     {
       holdingType: 'FD',
+      accountNumberMasked: 'XXXXXXXXXXXX9930',
       name: 'IDBI Suvidha Fixed Deposit',
       assetClass: 'Debt',
       investedAmount: 200_000,
@@ -528,6 +532,7 @@ export const SUNIL: PersonaSpec = {
   seed: 19790423,
   employer: { name: 'Kumar Hardware & Sanitary', ifsc: 'HDFC0000060' },
   accountNumberMasked: 'XXXXXXXXXXXX5107',
+  liquidityTerms: { lienAmount: 5_000, floatingBalance: 1_250 },
   cardLast4: '9042',
   coverReference: '500110066214',
   // Both covers, auto-debited before 1 June. Nearly every small-business account in the country

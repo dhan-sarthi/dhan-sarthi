@@ -25,7 +25,7 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { accountFactsAsOf, addMonths, derive, liabilityAsOf, ruleBook } from '@dhan/core'
 import type { Holding, Transaction } from '@dhan/core'
-import { PERSONAS, generateCustomerFile } from '@dhan/fixtures'
+import { PERSONAS, fixtureLiquidity, generateCustomerFile } from '@dhan/fixtures'
 import type { SeedAccountRow, SeedBundle } from '@dhan/fixtures'
 import type pg from 'pg'
 import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
@@ -54,9 +54,11 @@ import { createPool } from '../db/pool.ts'
 import type { Db } from '../db/pool.ts'
 import { buildSeedPlan } from '../db/seed-bundle.ts'
 import type { SeedOptions, SeedPersona, SeedPlan } from '../db/seed-bundle.ts'
+import { projectCatalogueSeedPayload } from '../adapters/idbi-sandbox/catalogue-seed.ts'
+import type { CatalogueSeedPayload } from '../adapters/idbi-sandbox/catalogue-seed.ts'
 
 const ENDPOINT = 'fixtures/customer-file'
-const PROJECTOR = { name: 'projectFixturesCustomerFile', version: '1' }
+const PROJECTOR = { name: 'projectFixturesCustomerFile', version: '2' }
 
 export interface SeedReport {
   skipped: boolean
@@ -240,7 +242,7 @@ async function openSyncRun(
 }
 
 async function storePayload(db: Db, ctx: RunContext, p: SeedPersona): Promise<string> {
-  const json = JSON.stringify(p.bundle)
+  const json = JSON.stringify(p.payload)
   const params = { slug: p.bundle.slug, ...p.bundle.horizon }
   const inserted = await db.query<{ id: string }>(
     `INSERT INTO staging.raw_payloads
@@ -358,12 +360,13 @@ async function projectCasa(
     b.horizon.anchor,
     account.openingBalance === undefined ? {} : { openingBalance: account.openingBalance },
   )
+  const liquidity = fixtureLiquidity(facts.currentBalance, b.horizon.anchor, account.liquidityTerms)
   await db.query(
     `INSERT INTO bank.account_snapshots
        (account_id, sync_run_id, source, as_of, raw_payload_id, account_type, account_type_raw, is_salary_account,
         mode_of_operation, status, opening_date, current_balance, avg_monthly_balance_3m, avg_monthly_balance_12m,
-        min_balance_12m, balance_as_of, branch_ifsc)
-     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, 'SINGLE', 'ACTIVE', $8, $9, $10, $11, $12, $3::timestamptz, $13)
+        min_balance_12m, balance_as_of, branch_ifsc, available_balance, lien_amount, fixture_liquidity_terms)
+     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, 'SINGLE', 'ACTIVE', $8, $9, $10, $11, $12, $3::timestamptz, $13, $14, $15, $16)
      ON CONFLICT (account_id, sync_run_id) DO NOTHING`,
     [
       accountId,
@@ -379,6 +382,9 @@ async function projectCasa(
       facts.avgMonthlyBalance12m,
       facts.minBalance12m,
       account.branchIfsc ?? null,
+      liquidity.availableBalance,
+      liquidity.lienAmount,
+      JSON.stringify(account.liquidityTerms ?? { lienAmount: 0, floatingBalance: 0 }),
     ],
   )
   count(ctx, 'bank.account_snapshots', 1)
@@ -524,8 +530,8 @@ async function projectLoans(db: Db, ctx: RunContext, b: SeedBundle): Promise<voi
       `INSERT INTO bank.loan_snapshots
          (account_id, sync_run_id, source, as_of, raw_payload_id, lender, loan_type, loan_type_raw,
           outstanding_principal, interest_rate, emi_amount, emi_due_day, tenure_remaining_months, dpd,
-          status, is_revolving, security_type)
-       VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'ACTIVE', $14, 'UNSECURED')
+          status, is_revolving, security_type, is_npa)
+       VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'ACTIVE', $14, 'UNSECURED', $15)
        ON CONFLICT (account_id, sync_run_id) DO NOTHING`,
       [
         accountId,
@@ -542,6 +548,7 @@ async function projectLoans(db: Db, ctx: RunContext, b: SeedBundle): Promise<voi
         loan.tenureRemainingAtAnchor,
         loan.dpdStatus ?? 0,
         loan.isRevolving ?? false,
+        loan.isNpa ?? null,
       ],
     )
     count(ctx, 'bank.loan_snapshots', 1)
@@ -654,7 +661,11 @@ async function projectPersona(
   p: SeedPersona,
   engine: string,
 ): Promise<Record<string, number>> {
-  const b = p.bundle
+  // Parse the exact serialized payload that staging will retain. No bank-shaped monetary
+  // field is taken from the original in-memory bundle behind the projector's back.
+  const b = projectCatalogueSeedPayload(
+    JSON.parse(JSON.stringify(p.payload)) as CatalogueSeedPayload,
+  )
   const customerId = await upsertCustomer(db, b)
   const consentId = await upsertConsent(db, customerId, b)
   const syncRunId = await openSyncRun(db, customerId, consentId, b, engine)

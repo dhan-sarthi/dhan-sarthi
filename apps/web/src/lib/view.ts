@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionState, View } from '@dhan/contracts'
 import { ApiError, api, isApiError, request } from '../api/client.ts'
-import { clearSession, setSession } from '../api/session.ts'
+import { clearSession, getSession, setSession } from '../api/session.ts'
 import type { StoredSession } from '../api/session.ts'
 import type * as Offline from '../offline/index.ts'
 import type { OfflineState } from '../offline/index.ts'
@@ -91,13 +91,23 @@ export function useView(stored: StoredSession | null): ViewState {
   // carry across a failed retry, and a run counter so a slow reply cannot overwrite a newer one.
   const etagRef = useRef<string | null>(null)
   const offlineRef = useRef<OfflineHandle | null>(null)
+  const loadedKeyRef = useRef<string | null>(null)
   const runRef = useRef(0)
 
   const load = useCallback(
     async (kind: 'initial' | 'refresh' | 'reconnect'): Promise<void> => {
+      // A callback from the previous session must not start a request with the new token or
+      // invalidate its in-flight load. The store changes before React's next effect runs.
+      if (keyOf(getSession()) !== key) return
       runRef.current += 1
       const run = runRef.current
-      const fresh = (): boolean => run === runRef.current
+      const fresh = (): boolean => run === runRef.current && keyOf(getSession()) === key
+
+      if (loadedKeyRef.current !== key) {
+        etagRef.current = null
+        offlineRef.current = null
+        loadedKeyRef.current = key
+      }
 
       if (!stored) {
         etagRef.current = null

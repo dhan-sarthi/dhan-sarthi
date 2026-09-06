@@ -91,10 +91,20 @@ export type Transaction = z.infer<typeof TransactionSchema>
 
 export const AccountTypeSchema = z.enum(['Savings', 'Current', 'FD', 'RD', 'PPF', 'NPS'])
 
+export const AccountLiquiditySchema = z.object({
+  observedOn: IsoDateSchema,
+  availableBalance: MoneySchema.nullable(),
+  lienAmount: MoneySchema.nonnegative().nullable(),
+  floatingBalance: MoneySchema.nullable(),
+  fFDBalance: MoneySchema.nullable(),
+  userDefinedBalance: MoneySchema.nullable(),
+})
+
 export const AccountSchema = z.object({
   accountNumberMasked: z.string(),
   accountType: AccountTypeSchema,
   currentBalance: MoneySchema,
+  liquidity: AccountLiquiditySchema.optional(),
   accountOpeningDate: IsoDateSchema,
   /** The home branch's IFSC, on the header of every statement. IDBI's prefix is `IBKL`. */
   branchIfsc: z.string().optional(),
@@ -131,6 +141,7 @@ export const CustomerSchema = z.object({
 export type Customer = z.infer<typeof CustomerSchema>
 
 export const LiabilitySchema = z.object({
+  isNpa: z.boolean().optional(),
   loanType: z.string(),
   outstandingPrincipal: MoneySchema,
   emiAmount: MoneySchema,
@@ -144,6 +155,7 @@ export type Liability = z.infer<typeof LiabilitySchema>
 export const AssetClassSchema = z.enum(['Equity', 'Debt', 'Hybrid', 'Protection', 'Gold'])
 
 export const HoldingSchema = z.object({
+  accountNumberMasked: z.string().optional(),
   holdingType: z.enum(['MUTUAL_FUND', 'FD', 'RD', 'INSURANCE', 'NPS', 'PPF']),
   name: z.string(),
   assetClass: AssetClassSchema,
@@ -338,6 +350,9 @@ export const IrregularFactsSchema = z.object({
 
 export const BalanceFactsSchema = z.object({
   savings: MoneySchema,
+  availableSavings: MoneySchema,
+  lockedSavings: MoneySchema,
+  availableTotal: MoneySchema,
   deposits: MoneySchema,
   total: MoneySchema,
   idleFloor: MoneySchema,
@@ -403,7 +418,12 @@ export const SnapshotSchema = z.object({
   buffer: BufferFactsSchema,
   debt: DebtFactsSchema,
   protection: ProtectionFactsSchema,
-  holdings: z.object({ total: MoneySchema, equity: MoneySchema, debt: MoneySchema }),
+  holdings: z.object({
+    total: MoneySchema,
+    outsideAccounts: MoneySchema,
+    equity: MoneySchema,
+    debt: MoneySchema,
+  }),
   quality: QualityFactsSchema,
 })
 export type Snapshot = z.infer<typeof SnapshotSchema>

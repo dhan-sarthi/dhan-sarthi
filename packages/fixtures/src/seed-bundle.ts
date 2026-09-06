@@ -28,6 +28,7 @@ import { generateLedger, liabilityContract, sipContract } from './generate.ts'
 import { PERSONAS, branchIfscFor } from './personas.ts'
 import type { PersonaSpec } from './personas.ts'
 import { PRODUCT_SHELF } from './shelf.ts'
+import type { FixtureLiquidityTerms } from './liquidity.ts'
 
 export interface SeedBundleOptions {
   /** The persona anchor. Never moves. */
@@ -53,6 +54,7 @@ export interface SeedConsent {
 }
 
 export interface SeedAccountRow {
+  liquidityTerms?: FixtureLiquidityTerms
   accountNumberMasked: string
   accountType: Account['accountType']
   accountOpeningDate: string
@@ -155,6 +157,7 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
         accountOpeningDate: spec.customer.customerSince,
         branchIfsc: branchIfscFor(spec),
         openingBalance: spec.openingBalance,
+        ...(spec.liquidityTerms ? { liquidityTerms: spec.liquidityTerms } : {}),
         isPrimary: true,
       },
       ...spec.extraAccounts.map((a): SeedAccountRow => ({

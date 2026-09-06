@@ -16,6 +16,7 @@
  * single day.
  */
 import { categorize } from './categorize.ts'
+import { reachableOwnFunds } from './liquidity.ts'
 import { addMonths, daysBetween, monthKey, nextPayDay, ymd } from './dates.ts'
 import { commitments, detectHabits, detectRecurring, seriesKey } from './recurring.ts'
 import type { Habit, Series } from './recurring.ts'
@@ -37,6 +38,7 @@ export interface IncomeFacts {
   variation: number
   /** Day of month the money lands, where there is one. */
   payDay: number | null
+  /** Next expected salary, or the next calendar-month boundary when payDay is null. */
   nextPayDate: string
   daysToNextPay: number
   /** How we worked it out. Recorded because the two paths deserve different confidence. */
@@ -107,6 +109,9 @@ export interface IrregularFacts {
 
 export interface BalanceFacts {
   savings: number
+  availableSavings: number
+  lockedSavings: number
+  availableTotal: number
   deposits: number
   total: number
   /**
@@ -185,7 +190,7 @@ export interface Snapshot {
   buffer: BufferFacts
   debt: DebtFacts
   protection: ProtectionFacts
-  holdings: { total: number; equity: number; debt: number }
+  holdings: { total: number; outsideAccounts: number; equity: number; debt: number }
   quality: QualityFacts
 }
 
@@ -264,8 +269,30 @@ export function derive(
 
   /* Income ------------------------------------------------------------ */
 
+  // A repeating credit is not necessarily payroll: shop collections and transfers repeat too.
+  // Only an explicit payroll marker or bank salary flag earns this classification.
+  const salaryTxnIds = new Set(
+    window
+      .filter((t) => {
+        if (t.txnType !== 'CREDIT') return false
+        const category = categorize(t)
+        return (
+          category.category === 'Income' &&
+          category.method === 'keyword' &&
+          category.confidence === 'high'
+        )
+      })
+      .map((t) => t.txnId),
+  )
   const incomeSeries = allSeries
-    .filter((s) => s.kind === 'income' && s.active)
+    .filter(
+      (s) =>
+        s.kind === 'income' &&
+        s.active &&
+        s.cadence === 'monthly' &&
+        s.dayOfMonth !== null &&
+        s.txnIds.every((id) => salaryTxnIds.has(id)),
+    )
     .sort((a, b) => b.monthlyCost - a.monthlyCost)
 
   const creditsByMonth = months.map((k) =>
@@ -279,14 +306,15 @@ export function derive(
   // what the daily plan needs. Fall back to summing credits, which is the only option for a
   // trader — and mark it, because a number derived that way deserves less confidence.
   const primary = incomeSeries[0]
-  const useSeries = primary !== undefined && primary.cadence === 'monthly' && incomeVariation < 0.15
+  const useSeries = primary !== undefined && incomeVariation < 0.15
 
   const payDayOfMonth = useSeries && primary ? primary.dayOfMonth : null
-  const nextPayDate = nextPayDay(asOf, payDayOfMonth ?? 1)
+  const nextPayDate =
+    payDayOfMonth === null ? addMonths(`${monthKey(asOf)}-01`, 1) : nextPayDay(asOf, payDayOfMonth)
 
   const income: IncomeFacts = {
     monthly: useSeries && primary ? primary.monthlyCost : median(creditsByMonth),
-    stability: incomeVariation < 0.15 ? 'regular' : 'variable',
+    stability: useSeries ? 'regular' : 'variable',
     variation: Number(incomeVariation.toFixed(3)),
     payDay: payDayOfMonth,
     nextPayDate,
@@ -409,9 +437,11 @@ export function derive(
 
   /* Balances ---------------------------------------------------------- */
 
-  const savings = file.accounts
-    .filter((a) => a.accountType === 'Savings' || a.accountType === 'Current')
-    .reduce((s, a) => s + a.currentBalance, 0)
+  const operative = file.accounts.filter(
+    (a) => a.accountType === 'Savings' || a.accountType === 'Current',
+  )
+  const savings = operative.reduce((s, a) => s + a.currentBalance, 0)
+  const availableSavings = operative.reduce((s, a) => s + reachableOwnFunds(a, asOf), 0)
   const deposits = file.accounts
     .filter((a) => a.accountType === 'FD' || a.accountType === 'RD')
     .reduce((s, a) => s + a.currentBalance, 0)
@@ -437,11 +467,30 @@ export function derive(
     idleMonths += 1
   }
 
+  const reachable =
+    availableSavings +
+    file.accounts
+      .filter((a) => a.accountType === 'FD' || a.accountType === 'RD')
+      .reduce((sum, a) => sum + reachableOwnFunds(a, asOf), 0)
   const balances: BalanceFacts = {
     savings,
+    availableSavings,
+    lockedSavings: Math.max(0, savings - availableSavings),
+    availableTotal: reachable,
     deposits,
     total: savings + deposits,
-    idleFloor: balancesInWindow.length > 0 ? Math.min(...balancesInWindow) : savings,
+    // Running balances from separate accounts cannot be treated as one historical series.
+    // Until history is account-keyed, suppress that claim on a multi-CASA file.
+    idleFloor:
+      operative.length > 1
+        ? 0
+        : Math.max(
+            0,
+            Math.min(
+              balancesInWindow.length > 0 ? Math.min(...balancesInWindow) : savings,
+              availableSavings,
+            ),
+          ),
     idleMonths,
   }
 
@@ -450,7 +499,6 @@ export function derive(
   // Deposits count towards a buffer only where they can actually be reached. An ordinary FD can
   // be broken at a penalty, so it counts; a five-year tax-saver could not, and should be
   // excluded once the shelf carries the lock-in per holding.
-  const reachable = savings + deposits
   const monthsCovered = monthlyOutflow === 0 ? 0 : reachable / monthlyOutflow
 
   const buffer: BufferFacts = {
@@ -472,7 +520,7 @@ export function derive(
     total: file.liabilities.reduce((s, l) => s + l.outstandingPrincipal, 0),
     hasHighInterest: file.liabilities.some((l) => l.loanInterestRate >= opts.highInterestThreshold),
     highestRate: rates.length > 0 ? Math.max(...rates) : 0,
-    missedRepayment: file.liabilities.some((l) => l.dpdStatus > 0),
+    missedRepayment: file.liabilities.some((l) => l.dpdStatus > 0 || l.isNpa === true),
     monthlyOutgo: file.liabilities.reduce((s, l) => s + l.emiAmount, 0),
     endingSoon: endingSoon
       ? {
@@ -509,6 +557,16 @@ export function derive(
 
   const holdings = {
     total: file.holdings.reduce((s, h) => s + h.currentValue, 0),
+    outsideAccounts: file.holdings
+      .filter(
+        (h) =>
+          !h.accountNumberMasked ||
+          !file.accounts.some(
+            (a) =>
+              a.accountNumberMasked === h.accountNumberMasked && a.accountType === h.holdingType,
+          ),
+      )
+      .reduce((sum, h) => sum + h.currentValue, 0),
     equity: file.holdings
       .filter((h) => h.assetClass === 'Equity')
       .reduce((s, h) => s + h.currentValue, 0),

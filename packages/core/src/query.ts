@@ -197,7 +197,7 @@ export function answer(
           `Income ${inr(snapshot.income.monthly)}/month`,
           ...s.reserved.map((r) => `${r.label} ${inr(r.amount)}`),
           `Safe to spend ${inr(s.pot)} — ${inr(s.perDay)}/day for ${s.daysToSalary} days`,
-          `Next salary ${s.nextSalaryDate}`,
+          `${s.incomeStability === 'regular' ? 'Next salary' : 'Budget resets'} ${s.nextSalaryDate}`,
         ],
       }
     }
@@ -207,13 +207,16 @@ export function answer(
     return {
       matched: true,
       text:
-        `After everything committed, this month's envelope is ${inr(envelope)}. Your salary lands ` +
-        `on ${Number(snapshot.income.nextPayDate.slice(8))} ${spokenMonth(snapshot.income.nextPayDate)}, ` +
-        `${snapshot.income.daysToNextPay} days away.`,
+        `After everything committed, this month's envelope is ${inr(envelope)}. ` +
+        (snapshot.income.stability === 'regular'
+          ? `Your salary lands on ${Number(snapshot.income.nextPayDate.slice(8))} ${spokenMonth(snapshot.income.nextPayDate)}, ` +
+            `${snapshot.income.daysToNextPay} days away.`
+          : `Your income varies, so this budget runs to the end of the month, ` +
+            `${snapshot.income.daysToNextPay} days away.`),
       evidence: [
         `Income ${inr(snapshot.income.monthly)}/month`,
         `Commitments ${inr(snapshot.commitments.total)}/month`,
-        `Next salary ${snapshot.income.nextPayDate}`,
+        `${snapshot.income.stability === 'regular' ? 'Next salary' : 'Budget resets'} ${snapshot.income.nextPayDate}`,
       ],
     }
   }
@@ -371,6 +374,8 @@ export function answer(
         `touched in twelve months — it is sitting at about 2.7% while prices rise faster than that.`,
       evidence: [
         `Savings ${inr(snapshot.balances.savings)}`,
+        `Available owned savings ${inr(snapshot.balances.availableSavings)}`,
+        `Unavailable or held ${inr(snapshot.balances.lockedSavings)}`,
         `Deposits ${inr(snapshot.balances.deposits)}`,
         `Twelve-month minimum balance ${inr(snapshot.balances.idleFloor)}`,
         `Held above one month of outgoings for ${snapshot.balances.idleMonths} consecutive months`,

@@ -4,9 +4,10 @@
  * Implemented by: `adapters/postgres/bank-data.postgres.ts` (the demo's source of truth: seeded
  * rows up to `asOf`, as-of facts through `@dhan/core`'s `asof` module), `adapters/memory/
  * bank-data.memory.ts` (the same generator output held in process; tests, CI and
- * `BANK_SOURCE=memory`), `adapters/idbi-sandbox/*` (a stub anti-corruption layer over IDBI's
- * catalogue; `simulatedClock` false; holdings and policies not available from the bank) and the
- * composite that answers each block from whichever of those has it, stamping provenance.
+ * `BANK_SOURCE=memory`), and `adapters/idbi-sandbox/catalogue-replay.ts` (synthetic catalogue
+ * captures run through the same parser/projector as the Postgres seed; `simulatedClock` false).
+ * Every current block is fixture-origin. A live adapter still requires confirmed transport,
+ * source semantics and a reader for dated observations rather than fixture clock arithmetic.
  *
  * Every read is bounded by `asOf`. Nothing dated after it may be returned, because the
  * simulated clock is a session fact and the future is revealed one row at a time.
@@ -47,7 +48,7 @@ export interface BankDataPort {
   getTransactions(cif: string, range: { from: IsoDate; to: IsoDate }): Promise<Transaction[]>
   getLiabilities(cif: string, asOf: IsoDate): Promise<Liability[]>
   getHoldings(cif: string, asOf: IsoDate): Promise<{ holdings: Holding[]; policies: Holding[] }>
-  /** Block 08: the consent artefact echoed on every advice record. */
+  /** The consent artefact echoed on every advice record. */
   getConsent(cif: string): Promise<Consent>
   /** The whole file the engine derives from: `windowMonths` of history ending at `asOf`. */
   loadCustomerFile(cif: string, asOf: IsoDate, windowMonths: number): Promise<LoadedCustomerFile>

@@ -42,7 +42,8 @@ export function Amount({
    */
   fit?: boolean
 }): ReactNode {
-  const p = parts(value)
+  // Hiding paise must round like the surrounding ledger lines, not silently floor the amount.
+  const p = parts(paise ? value : Math.round(value))
   const sizeCls = fit ? 'text-[clamp(17px,6.2vw,22px)] font-bold' : AMOUNT_SIZE[size]
   return (
     <span

@@ -128,7 +128,7 @@ const MASKED = '•••• •••• •••• ••••'
 
 function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
   const { balances, holdings, debt, protection } = snapshot
-  const net = balances.total + holdings.total - debt.total
+  const net = balances.total + holdings.outsideAccounts - debt.total
   const counted = useCountUp(net)
 
   return (
@@ -140,8 +140,8 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
         settled={net}
         footer={
           <>
-            <PanelLine label="Reachable savings" value={balances.total} />
-            <PanelLine label="Invested" value={holdings.total} />
+            <PanelLine label="Account balances" value={balances.total} />
+            <PanelLine label="Other investments" value={holdings.outsideAccounts} />
             <PanelLine label="Owed" value={debt.total} />
           </>
         }
@@ -175,6 +175,12 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
           <p className="m-0 mt-2 text-xs tracking-[0.14em] text-on-dark/55">{MASKED}</p>
           <div className="mt-1.5">
             <Amount value={balances.savings} size="md" paise />
+          </div>
+          <div className="mt-3 border-0 border-t border-solid border-white/20 pt-2">
+            <PanelLine label="Available to use" value={balances.availableSavings} />
+            {balances.lockedSavings > 0 ? (
+              <PanelLine label="Unavailable or held" value={balances.lockedSavings} />
+            ) : null}
           </div>
           {balances.idleFloor > 0 ? (
             <p className="mb-0 mt-2.5 text-xs leading-[1.5] text-on-dark/75">

@@ -41,6 +41,7 @@ export function buildBrief(
     `Committed ${inr(s.commitments.total)}/month. Discretionary ${inr(s.discretionary.monthly)}.`,
     `Deployable surplus ${inr(s.surplus.deployable)}/month.`,
     `Savings ${inr(s.balances.savings)}; ${inr(s.balances.idleFloor)} untouched for ${s.balances.idleMonths} months.`,
+    `Available owned savings ${inr(s.balances.availableSavings)}; unavailable or held ${inr(s.balances.lockedSavings)}. Borrowing limits are not savings.`,
     `Buffer covers ${s.buffer.monthsCovered} months. Debt ${inr(s.debt.total)} at up to ${s.debt.highestRate}%.`,
     ...(s.debt.endingSoon
       ? [

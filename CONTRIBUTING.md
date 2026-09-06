@@ -98,6 +98,17 @@ A seed whose content already matches is a no-op and never asks. `pnpm --filter @
 walks every record chain. Integration tests run when `DATABASE_URL` is set:
 `pnpm --filter @dhan/api exec node --test --experimental-strip-types 'test/integration/*.test.ts'`.
 
+The seed stages synthetic catalogue request/response captures, then parses them into the bank
+tables. Its format version participates in the seed hash. `BANK_SOURCE=idbi-sandbox` exercises
+this replay with fixture provenance; it does not connect to a live bank. Transport details and
+source semantics still need confirmation before live use. See
+[`docs/integration/catalogue-decisions.md`](docs/integration/catalogue-decisions.md) for the
+implemented boundary, unsupported facts and migration requirements.
+
+`pnpm --filter @dhan/web test:e2e` checks the mobile fold, decision history and customer switching
+against an isolated in-memory API. Run `pnpm --filter @dhan/web exec playwright install chromium`
+once first. Browser tests never start a paid avatar call.
+
 `pnpm test` on a fresh clone requires the packages to be built first because `@dhan/fixtures`
 imports `@dhan/core` through its `dist/` export. The root scripts do this for you.
 

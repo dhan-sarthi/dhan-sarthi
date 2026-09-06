@@ -1,5 +1,7 @@
 # Dhan Sarthi: sandbox data requirements
 
+> Historical proposal, superseded by the supplied catalogue. These requested fields are not a provider contract. See [Catalogue decisions](catalogue-decisions.md) for verified coverage and the current replay seam.
+
 IDBI Innovate 2026 · Problem Statement 1 · Team Atomic
 
 Request parameters and expected response fields for the retail wealth-advisory prototype. Formatted to match the GSTN reference schema supplied by the organisers. All development runs on synthetic or consented sandbox data.
