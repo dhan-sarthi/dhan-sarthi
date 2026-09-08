@@ -39,8 +39,10 @@ import {
   AaAccount,
 } from './schemas.ts'
 import type { WireAaAccount, WireConsentListEntry, WireCustomerRecord } from './schemas.ts'
+import type { AaConsentSummary } from '../../../ports/aa-gateway.port.ts'
 import type { IdbiCustomerKey, IdbiSandboxCustomer } from './customers.ts'
-import { isoDateToNaiveStamp, optionalText, paiseToRupees } from './scalars.ts'
+import { sandboxCustomer } from './customers.ts'
+import { isoDateToNaiveStamp, optionalIsoDate, optionalText, paiseToRupees } from './scalars.ts'
 import type { Paise } from './scalars.ts'
 import {
   accountFromEnquiry,
@@ -751,8 +753,49 @@ export class IdbiGateway {
     }
   }
 
+  /**
+   * 591, in the shape the consent flow's port asks for.
+   *
+   * Named separately from `consentList` because that returns IDBI's own wire rows and this
+   * returns the aggregator-neutral summary `AaGatewayPort` declares — which is what lets the
+   * flow be written against an interface rather than against Finacle.
+   */
+  async consents(cif: string): Promise<AaConsentSummary[]> {
+    const customer = sandboxCustomer(cif)
+    if (customer === null) return []
+    const report = newReport()
+    const rows = await this.consentList(customer, report)
+    return rows.map((row) => ({
+      consentId: optionalText(row.consentID),
+      consentHandle: optionalText(row.consent_handle) ?? optionalText(row.consentHandle),
+      status: optionalText(row.status),
+      createdAt: optionalIsoDate(row.consentCreationData, '591.consentCreationData'),
+      accounts: row.accounts.map((a) => ({
+        linkReferenceNumber: a.linkReferenceNumber,
+        maskedAccountNumber: optionalText(a.maskedAccountNumber),
+        fipName: optionalText(a.fipName),
+        fiType: optionalText(a.fiType),
+        accountType: optionalText(a.accountType),
+      })),
+    }))
+  }
+
+  /**
+   * 590, keyed by CIF, for the consent flow's port.
+   *
+   * A separate entry point from `requestConsent` below only because the port speaks in CIFs
+   * while the gateway speaks in customer keys.
+   */
+  async requestConsent(cif: string): Promise<{ consentHandle: string; status: string }> {
+    const customer = sandboxCustomer(cif)
+    if (customer === null) throw new Error(`no IDBI customer for cif ${cif}`)
+    return this.requestConsentFor(customer)
+  }
+
   /** 590: step one. Raises a consent request and may notify the customer. */
-  async requestConsent(key: IdbiCustomerKey): Promise<{ consentHandle: string; status: string }> {
+  async requestConsentFor(
+    key: IdbiCustomerKey,
+  ): Promise<{ consentHandle: string; status: string }> {
     const res = await this.transport.call(operation('590'), {
       partyIdentifierType: 'MOBILE',
       partyIdentifierValue: key.mobile ?? '',
@@ -788,9 +831,15 @@ export class IdbiGateway {
     ecres: string
     resdate: string
     fi: string
-  }): Promise<z.output<typeof DecryptedCallback>> {
+  }): Promise<{ status: string | null; consentHandle: string | null; sessionId: string | null }> {
     const res = await this.transport.call(operation('593'), { webRedirectionURL: payload })
-    return parse(DecryptedCallback, res.envelope.payload, '593')
+    const body = parse(DecryptedCallback, res.envelope.payload, '593')
+    return {
+      status: optionalText(body.status),
+      // `srcref` is where 593 puts the handle the redirect belonged to.
+      consentHandle: optionalText(body.srcref),
+      sessionId: optionalText(body.sessionid),
+    }
   }
 
   /**

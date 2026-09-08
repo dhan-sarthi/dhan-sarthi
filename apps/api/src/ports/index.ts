@@ -5,6 +5,8 @@
 export type * from './bank-data.port.ts'
 export type * from './declared-profile.port.ts'
 export type * from './holdings.port.ts'
+export type * from './aa-consent.port.ts'
+export type * from './aa-gateway.port.ts'
 export type * from './product-shelf.port.ts'
 export type * from './session-store.port.ts'
 export type * from './snapshot-store.port.ts'

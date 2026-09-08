@@ -85,6 +85,15 @@ export const ConfigSchema = z
     // The IDBI sandbox. Unset, BANK_SOURCE=idbi-sandbox serves the recorded sample payloads
     // through an in-process fake, so the adapter runs with no network and no credential.
     IDBI_API_BASE: z.string().url().optional(),
+    /**
+     * Where the Account Aggregator sends the customer back to after they approve a consent.
+     *
+     * It is encrypted into 592's redirection URL, so it has to be a URL this deployment
+     * actually serves and the aggregator can reach — which for a local run means it cannot be
+     * localhost. Unset, the consent flow still raises a handle and records notifications; only
+     * the browser-return leg needs it.
+     */
+    AA_REDIRECT_URL: z.string().url().optional(),
     IDBI_API_KEY: z.string().optional(),
     IDBI_CONSENT_ID: z.string().optional(),
 

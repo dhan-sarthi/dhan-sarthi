@@ -11,6 +11,7 @@ import type { RecordService } from '../../application/record.service.ts'
 import type { SeedInfo } from '../../application/seed-info.ts'
 import type { SessionService } from '../../application/session.service.ts'
 import type { BankDataPort, ProductShelfPort } from '../../ports/index.ts'
+import type { AaConsentService } from '../../application/aa-consent.service.ts'
 import type { DeclaredProfileStore } from '../../ports/declared-profile.port.ts'
 import type { HoldingsStore } from '../../ports/holdings.port.ts'
 
@@ -20,6 +21,8 @@ export interface AppServices {
   profiles: DeclaredProfileStore
   /** What a customer already owns, which IDBI has no endpoint for. */
   holdings: HoldingsStore
+  /** The Account Aggregator consent flow: the only path to another bank's accounts. */
+  aaConsent: AaConsentService
   shelf: ProductShelfPort
   sessions: SessionService
   advisory: AdvisoryService

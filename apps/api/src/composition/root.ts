@@ -46,15 +46,37 @@ import type {
   SessionStore,
   SnapshotStore,
 } from '../ports/index.ts'
+import type { AaConsentStore } from '../ports/aa-consent.port.ts'
+import type { AaGatewayPort } from '../ports/aa-gateway.port.ts'
 import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
 import type { HoldingsStore } from '../ports/holdings.port.ts'
+import { AaConsentService } from '../application/aa-consent.service.ts'
+import { InMemoryAaConsents } from '../adapters/memory/aa-consent.memory.ts'
+import { unavailableAaGateway } from '../application/aa-unavailable.ts'
 import { avatarAdapters, bankAdapters, describeProfile, resolveProfile } from './profiles.ts'
+
+/**
+ * The redirect URL IDBI's sandbox will accept, which is not ours to choose.
+ *
+ * 592 validates it against the fixture it holds and answers `redirectUrl does not match` for
+ * anything else — so the sandbox only ever produces a redirection back to `myapp.com`, and a
+ * deployment cannot receive the customer at its own address until IDBI widens that. The whole
+ * flow works apart from the final hop, and `AA_REDIRECT_URL` overrides this the day they do.
+ */
+const SANDBOX_REDIRECT_URL = 'https://myapp.com/consent/callback'
 
 export interface Deps {
   bank: BankDataPort
   /** The declared half of a profile, and a customer's holdings: neither is the bank's to send. */
   profiles: DeclaredProfileStore
   holdings: HoldingsStore
+  /**
+   * The Account Aggregator consent flow's state and the bank's side of it.
+   *
+   * Null where the source is not IDBI: a generated ledger has no aggregator to ask, and the
+   * routes answer 503 rather than pretending a consent could be raised.
+   */
+  aa: { store: AaConsentStore; gateway: AaGatewayPort } | null
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -239,10 +261,22 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     }
   }
 
+  const aaConsent = new AaConsentService({
+    // Unavailable rather than absent: the routes exist under every source and answer 503 where
+    // there is no aggregator behind them, which is a clearer thing for a client to handle than
+    // a route that is sometimes registered and sometimes not.
+    gateway: deps.aa?.gateway ?? unavailableAaGateway(profile.bank),
+    store: deps.aa?.store ?? new InMemoryAaConsents(clock),
+    clock,
+    log,
+    redirectUrl: config.AA_REDIRECT_URL ?? SANDBOX_REDIRECT_URL,
+  })
+
   const services: AppServices = {
     bank: deps.bank,
     profiles: deps.profiles,
     holdings: deps.holdings,
+    aaConsent,
     shelf: deps.shelf,
     sessions,
     advisory,

@@ -26,6 +26,7 @@ import { REPLAY_BASE_URL, createReplayTransport } from '../adapters/idbi-sandbox
 import { loadCapturedCalls } from '../adapters/idbi-sandbox/api/captured.ts'
 import { DECLARED_SEEDS, HOLDINGS_SEEDS } from '../adapters/idbi-sandbox/api/customers.ts'
 import { BankBackedHoldings, InMemoryHoldings } from '../adapters/memory/holdings.memory.ts'
+import { InMemoryAaConsents } from '../adapters/memory/aa-consent.memory.ts'
 import {
   InMemoryDeclaredProfiles,
   declaredSeedsFrom,
@@ -44,6 +45,8 @@ import { avatarIsLive, runwayCredentials } from '../config.ts'
 import type { Config } from '../config.ts'
 import { createPool } from '../db/pool.ts'
 import type { Logger } from '../infra/logger.ts'
+import type { AaConsentStore } from '../ports/aa-consent.port.ts'
+import type { AaGatewayPort } from '../ports/aa-gateway.port.ts'
 import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
 import type { HoldingsStore } from '../ports/holdings.port.ts'
 import type {
@@ -87,6 +90,11 @@ export interface BankAdapters {
    * `/api/v1/holdings` behaves the same way whichever one is running.
    */
   holdings: HoldingsStore
+  /**
+   * The Account Aggregator consent flow's state and the bank's side of it, or null where the
+   * source has no aggregator behind it.
+   */
+  aa: { store: AaConsentStore; gateway: AaGatewayPort } | null
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -119,6 +127,7 @@ export function bankAdapters(
         bank,
         profiles: new InMemoryDeclaredProfiles(declaredSeedsFrom(memoryBundles), clock),
         holdings: new BankBackedHoldings(bank, clock),
+        aa: null,
         shelf: new InMemoryProductShelf(shelfRows()),
         sessions: new InMemorySessionStore(clock),
         snapshots: new InMemorySnapshotStore(clock),
@@ -163,6 +172,7 @@ export function bankAdapters(
         // sibling of this store belongs here once the profile is editable in a deployment.
         profiles: new InMemoryDeclaredProfiles(postgresSeeds, clock),
         holdings: new BankBackedHoldings(bank, clock),
+        aa: null,
         shelf: new PostgresProductShelf(db),
         sessions: new PostgresSessionStore(db, clock),
         snapshots: new PostgresSnapshotStore(db, clock),
@@ -209,18 +219,16 @@ export function bankAdapters(
       })
       const profiles = new InMemoryDeclaredProfiles(DECLARED_SEEDS, clock)
       const holdings = new InMemoryHoldings(HOLDINGS_SEEDS, clock)
+      const gateway = new IdbiGateway({ transport, logger: log })
       const bank = new CompositeBankData(
-        new IdbiSandboxBankData({
-          gateway: new IdbiGateway({ transport, logger: log }),
-          profiles,
-          logger: log,
-        }),
+        new IdbiSandboxBankData({ gateway, profiles, logger: log }),
         holdings,
       )
       return {
         bank,
         profiles,
         holdings,
+        aa: { store: new InMemoryAaConsents(clock), gateway },
         shelf: new InMemoryProductShelf(shelfRows()),
         sessions: new InMemorySessionStore(clock),
         snapshots: new InMemorySnapshotStore(clock),
