@@ -1,0 +1,19 @@
+{
+  "acctTypeRequested": "SBA",
+  "cifId": "98655854",
+  "customData": {
+    "thb": "49"
+  },
+  "customerAccountInfo": [
+    {
+      "acctBalance": {
+        "amountValue": "56780.25",
+        "currencyCode": "INR"
+      },
+      "acctCurrCode": "INR",
+      "acctNumber": "660100100003",
+      "acctType": "SBA"
+    }
+  ],
+  "numOfAccounts": "1"
+}

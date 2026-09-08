@@ -1,0 +1,26 @@
+HTTP/2 200 
+date: Tue, 08 Sep 2026 19:48:22 GMT
+content-type: application/json; charset=utf-8
+content-length: 7631
+x-atlas-request-id: d8cd8cfe-096f-4838-8f0f-4c35c81f4a86
+x-atlas-utc-offset: +00:00
+content-security-policy: default-src 'self';base-uri 'self';block-all-mixed-content;font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+cross-origin-embedder-policy: require-corp
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+x-dns-prefetch-control: off
+expect-ct: max-age=0
+x-frame-options: SAMEORIGIN
+strict-transport-security: max-age=15552000; includeSubDomains
+x-download-options: noopen
+x-content-type-options: nosniff
+origin-agent-cluster: ?1
+x-permitted-cross-domain-policies: none
+referrer-policy: no-referrer
+x-xss-protection: 0
+access-control-allow-origin: *
+access-control-allow-credentials: true
+access-control-expose-headers: *
+x-atlas-trace-id: 096c18b2-01a8-48f9-b359-b93882263a5a
+vary: Accept-Encoding
+

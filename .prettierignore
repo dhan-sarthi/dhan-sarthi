@@ -15,6 +15,7 @@ docs/idbi-openapi/
 
 # Raw responses captured off IDBI's sandbox. Same reason: evidence, not source.
 apps/api/src/adapters/idbi-sandbox/captured/
+idbi-capture-*/
 
 # Markdown is written by hand with deliberate line breaks; Prettier leaves prose alone but would
 # still rewrap tables and lists in ways that hurt review diffs.

@@ -1,0 +1,281 @@
+{
+  "data": [
+    {
+      "Profile": {
+        "Holders": {
+          "Holder": [
+            {
+              "address": "142, Lake View, Near City Mall, PUNE, MH, 411001",
+              "ckycRegistered": "YES",
+              "dob": "1995-06-20",
+              "email": "priya@gmail",
+              "landline": "",
+              "mobile": "9988776655",
+              "name": "PRIYAPATIL",
+              "nominee": "REGISTERED",
+              "pan": "FGHPP4567T"
+            }
+          ],
+          "type": "SINGLE"
+        }
+      },
+      "Summary": {
+        "PendingTxns": {
+          "PendingTxn": {
+            "amount": 0,
+            "transactionType": "Debit"
+          }
+        },
+        "accountSubType": "SAVINGS",
+        "accountType": "SBA",
+        "balanceDateTime": "2025-05-31T10:21:03.000Z",
+        "branch": "PUNE",
+        "currency": "INR",
+        "currentBalance": "56780.25",
+        "currentODLimit": "0",
+        "drawingLimit": "0",
+        "facility": "NO_FACILITY_GRANTED",
+        "ifsc": "IBKL0000105",
+        "micrCode": "411259002",
+        "openingDate": "2018-04-18",
+        "status": "ACTIVE"
+      },
+      "Transactions": {
+        "Transaction": [
+          {
+            "amount": "868.96",
+            "currentBalance": "55922.04",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 1",
+            "reference": "RFNF11",
+            "transactionTimestamp": "2025-05-01T11:00:00.000",
+            "txnId": "F1D2001",
+            "type": "DEBIT",
+            "valueDate": "2025-05-01"
+          },
+          {
+            "amount": "8350.48",
+            "currentBalance": "47571.56",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 2",
+            "reference": "RFNF12",
+            "transactionTimestamp": "2025-05-02T11:00:00.000",
+            "txnId": "F1D2002",
+            "type": "DEBIT",
+            "valueDate": "2025-05-02"
+          },
+          {
+            "amount": "14117.66",
+            "currentBalance": "61689.22",
+            "mode": "REMITTANCE",
+            "narration": "F1 FinPro 3",
+            "reference": "RFNF13",
+            "transactionTimestamp": "2025-05-03T11:00:00.000",
+            "txnId": "F1D2003",
+            "type": "CREDIT",
+            "valueDate": "2025-05-03"
+          },
+          {
+            "amount": "6027.46",
+            "currentBalance": "55661.76",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 4",
+            "reference": "RFNF14",
+            "transactionTimestamp": "2025-05-04T11:00:00.000",
+            "txnId": "F1D2004",
+            "type": "DEBIT",
+            "valueDate": "2025-05-04"
+          },
+          {
+            "amount": "3640.69",
+            "currentBalance": "52021.07",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 5",
+            "reference": "RFNF15",
+            "transactionTimestamp": "2025-05-05T11:00:00.000",
+            "txnId": "F1D2005",
+            "type": "DEBIT",
+            "valueDate": "2025-05-05"
+          },
+          {
+            "amount": "6620.69",
+            "currentBalance": "58641.76",
+            "mode": "REMITTANCE",
+            "narration": "F1 FinPro 6",
+            "reference": "RFNF16",
+            "transactionTimestamp": "2025-05-06T11:00:00.000",
+            "txnId": "F1D2006",
+            "type": "CREDIT",
+            "valueDate": "2025-05-06"
+          },
+          {
+            "amount": "921.09",
+            "currentBalance": "57720.67",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 7",
+            "reference": "RFNF17",
+            "transactionTimestamp": "2025-05-07T11:00:00.000",
+            "txnId": "F1D2007",
+            "type": "DEBIT",
+            "valueDate": "2025-05-07"
+          },
+          {
+            "amount": "3714.53",
+            "currentBalance": "54006.14",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 8",
+            "reference": "RFNF18",
+            "transactionTimestamp": "2025-05-08T11:00:00.000",
+            "txnId": "F1D2008",
+            "type": "DEBIT",
+            "valueDate": "2025-05-08"
+          },
+          {
+            "amount": "6849.37",
+            "currentBalance": "60855.51",
+            "mode": "REMITTANCE",
+            "narration": "F1 FinPro 9",
+            "reference": "RFNF19",
+            "transactionTimestamp": "2025-05-09T11:00:00.000",
+            "txnId": "F1D2009",
+            "type": "CREDIT",
+            "valueDate": "2025-05-09"
+          },
+          {
+            "amount": "7689.28",
+            "currentBalance": "53166.23",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 10",
+            "reference": "RFNF110",
+            "transactionTimestamp": "2025-05-10T11:00:00.000",
+            "txnId": "F1D2010",
+            "type": "DEBIT",
+            "valueDate": "2025-05-10"
+          },
+          {
+            "amount": "3879.72",
+            "currentBalance": "49286.51",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 11",
+            "reference": "RFNF111",
+            "transactionTimestamp": "2025-05-11T11:00:00.000",
+            "txnId": "F1D2011",
+            "type": "DEBIT",
+            "valueDate": "2025-05-11"
+          },
+          {
+            "amount": "3847.56",
+            "currentBalance": "53134.07",
+            "mode": "REMITTANCE",
+            "narration": "F1 FinPro 12",
+            "reference": "RFNF112",
+            "transactionTimestamp": "2025-05-12T11:00:00.000",
+            "txnId": "F1D2012",
+            "type": "CREDIT",
+            "valueDate": "2025-05-12"
+          },
+          {
+            "amount": "3672.33",
+            "currentBalance": "49461.74",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 13",
+            "reference": "RFNF113",
+            "transactionTimestamp": "2025-05-13T11:00:00.000",
+            "txnId": "F1D2013",
+            "type": "DEBIT",
+            "valueDate": "2025-05-13"
+          },
+          {
+            "amount": "7164.25",
+            "currentBalance": "42297.49",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 14",
+            "reference": "RFNF114",
+            "transactionTimestamp": "2025-05-14T11:00:00.000",
+            "txnId": "F1D2014",
+            "type": "DEBIT",
+            "valueDate": "2025-05-14"
+          },
+          {
+            "amount": "4701.83",
+            "currentBalance": "46999.32",
+            "mode": "REMITTANCE",
+            "narration": "F1 FinPro 15",
+            "reference": "RFNF115",
+            "transactionTimestamp": "2025-05-15T11:00:00.000",
+            "txnId": "F1D2015",
+            "type": "CREDIT",
+            "valueDate": "2025-05-15"
+          },
+          {
+            "amount": "811.60",
+            "currentBalance": "46187.72",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 16",
+            "reference": "RFNF116",
+            "transactionTimestamp": "2025-05-16T11:00:00.000",
+            "txnId": "F1D2016",
+            "type": "DEBIT",
+            "valueDate": "2025-05-16"
+          },
+          {
+            "amount": "12644.88",
+            "currentBalance": "33542.84",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 17",
+            "reference": "RFNF117",
+            "transactionTimestamp": "2025-05-17T11:00:00.000",
+            "txnId": "F1D2017",
+            "type": "DEBIT",
+            "valueDate": "2025-05-17"
+          },
+          {
+            "amount": "8568.59",
+            "currentBalance": "42111.43",
+            "mode": "REMITTANCE",
+            "narration": "F1 FinPro 18",
+            "reference": "RFNF118",
+            "transactionTimestamp": "2025-05-18T11:00:00.000",
+            "txnId": "F1D2018",
+            "type": "CREDIT",
+            "valueDate": "2025-05-18"
+          },
+          {
+            "amount": "9813.27",
+            "currentBalance": "32298.16",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 19",
+            "reference": "RFNF119",
+            "transactionTimestamp": "2025-05-19T11:00:00.000",
+            "txnId": "F1D2019",
+            "type": "DEBIT",
+            "valueDate": "2025-05-19"
+          },
+          {
+            "amount": "3195.64",
+            "currentBalance": "29102.52",
+            "mode": "OTHERS",
+            "narration": "F1 FinPro 20",
+            "reference": "RFNF120",
+            "transactionTimestamp": "2025-05-20T11:00:00.000",
+            "txnId": "F1D2020",
+            "type": "DEBIT",
+            "valueDate": "2025-05-20"
+          }
+        ],
+        "endDate": "2025-05-31",
+        "startDate": "2025-05-01"
+      },
+      "bank": "IDBIBANK",
+      "fiType": "DEPOSIT",
+      "linkReferenceNumber": "19818fc6-d5ee-429b-9d14-4dfd5d92fc8e",
+      "maskedAccountNumber": "XXXXXXXX0003"
+    }
+  ],
+  "errorCode": null,
+  "errorMsg": null,
+  "errors": [],
+  "status": "success",
+  "timestamp": "",
+  "ver": "1.21.0"
+}

@@ -1,0 +1,54 @@
+{
+  "data": [
+    {
+      "aaId": "onemoney",
+      "accountID": "660100100006,660100100007,660100100008,660100100009",
+      "accounts": [
+        {
+          "accountType": "SAVINGS",
+          "fiType": "DEPOSIT",
+          "fipId": "IDBI",
+          "fipName": "IDBI Bank",
+          "linkReferenceNumber": "lr-003-sav-0001-11aa22bb33cc",
+          "maskedAccountNumber": "XXXXXXXXXX0006"
+        },
+        {
+          "accountType": "CURRENT",
+          "fiType": "DEPOSIT",
+          "fipId": "IDBI",
+          "fipName": "IDBI Bank",
+          "linkReferenceNumber": "lr-003-cur-0002-44dd55ee66ff",
+          "maskedAccountNumber": "XXXXXXXXXX0007"
+        },
+        {
+          "accountType": "TERM_DEPOSIT",
+          "fiType": "TERM_DEPOSIT",
+          "fipId": "IDBI",
+          "fipName": "IDBI Bank",
+          "linkReferenceNumber": "lr-003-fd-0003-77gg88hh99ii",
+          "maskedAccountNumber": "XXXXXXXXXX0008"
+        },
+        {
+          "accountType": "SALARY",
+          "fiType": "DEPOSIT",
+          "fipId": "IDBI",
+          "fipName": "IDBI Bank",
+          "linkReferenceNumber": "lr-003-sal-0004-00jj11kk22ll",
+          "maskedAccountNumber": "XXXXXXXXXX0009"
+        }
+      ],
+      "consentCreationData": "2025-05-01T10:00:00.000Z",
+      "consentID": "CONSENT123456001",
+      "consent_handle": "aa003-CONSENT123456001-handle",
+      "productID": "TEST",
+      "status": "ACTIVE",
+      "vua": "9765400022@onemoney"
+    }
+  ],
+  "errorCode": null,
+  "errorMsg": null,
+  "errors": [],
+  "status": "SUCCESS",
+  "timestamp": "",
+  "ver": "1.0"
+}

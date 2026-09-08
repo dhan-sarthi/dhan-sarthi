@@ -1,0 +1,248 @@
+{
+  "customData": {
+    "THB": "49"
+  },
+  "result": {
+    "accountBalances": {
+      "acid": "660100100003",
+      "availableBalance": {
+        "amountValue": "55780.25",
+        "currencyCode": "INR"
+      },
+      "branchId": "105",
+      "currencyCode": "INR",
+      "fFDBalance": {
+        "amountValue": "10000.00",
+        "currencyCode": "INR"
+      },
+      "floatingBalance": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "ledgerBalance": {
+        "amountValue": "56780.25",
+        "currencyCode": "INR"
+      },
+      "userDefinedBalance": {
+        "amountValue": "50780.25",
+        "currencyCode": "INR"
+      }
+    },
+    "field125": "",
+    "field126": "",
+    "field127": "",
+    "hasMoreData": "N",
+    "transactionDetails": [
+      {
+        "pstdDate": "2025-05-01T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "2448.28",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-01T00:00:00.000",
+          "txnDesc": "S1 TXN 1",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "397551.72",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11001",
+        "txnSrlNo": "1",
+        "valueDate": "2025-05-01T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-02T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "12787.79",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-02T00:00:00.000",
+          "txnDesc": "S1 TXN 2",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "384763.93",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11002",
+        "txnSrlNo": "2",
+        "valueDate": "2025-05-02T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-03T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "11574.73",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-03T00:00:00.000",
+          "txnDesc": "S1 TXN 3",
+          "txnType": "C"
+        },
+        "txnBalance": {
+          "amountValue": "396338.66",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11003",
+        "txnSrlNo": "3",
+        "valueDate": "2025-05-03T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-04T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "4198.50",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-04T00:00:00.000",
+          "txnDesc": "S1 TXN 4",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "392140.16",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11004",
+        "txnSrlNo": "4",
+        "valueDate": "2025-05-04T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-05T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "7683.81",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-05T00:00:00.000",
+          "txnDesc": "S1 TXN 5",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "384456.35",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11005",
+        "txnSrlNo": "5",
+        "valueDate": "2025-05-05T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-06T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "7017.62",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-06T00:00:00.000",
+          "txnDesc": "S1 TXN 6",
+          "txnType": "C"
+        },
+        "txnBalance": {
+          "amountValue": "391473.97",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11006",
+        "txnSrlNo": "6",
+        "valueDate": "2025-05-06T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-07T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "9948.10",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-07T00:00:00.000",
+          "txnDesc": "S1 TXN 7",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "381525.87",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11007",
+        "txnSrlNo": "7",
+        "valueDate": "2025-05-07T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-08T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "11936.49",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-08T00:00:00.000",
+          "txnDesc": "S1 TXN 8",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "369589.38",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11008",
+        "txnSrlNo": "8",
+        "valueDate": "2025-05-08T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-09T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "1860.96",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-09T00:00:00.000",
+          "txnDesc": "S1 TXN 9",
+          "txnType": "C"
+        },
+        "txnBalance": {
+          "amountValue": "371450.34",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11009",
+        "txnSrlNo": "9",
+        "valueDate": "2025-05-09T00:00:00.000"
+      },
+      {
+        "pstdDate": "2025-05-10T10:00:00.000",
+        "transactionSummary": {
+          "instrumentId": "",
+          "txnAmt": {
+            "amountValue": "911.04",
+            "currencyCode": "INR"
+          },
+          "txnDate": "2025-05-10T00:00:00.000",
+          "txnDesc": "S1 TXN 10",
+          "txnType": "D"
+        },
+        "txnBalance": {
+          "amountValue": "370539.30",
+          "currencyCode": "INR"
+        },
+        "txnCat": "TCI",
+        "txnId": "S11010",
+        "txnSrlNo": "10",
+        "valueDate": "2025-05-10T00:00:00.000"
+      }
+    ]
+  }
+}

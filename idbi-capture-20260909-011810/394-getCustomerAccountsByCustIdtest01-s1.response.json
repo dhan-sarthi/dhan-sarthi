@@ -1,0 +1,46 @@
+{
+  "acctTypeRequested": "SBA",
+  "cifId": "88234567",
+  "customData": {
+    "thb": "49"
+  },
+  "customerAccountInfo": [
+    {
+      "acctBalance": {
+        "amountValue": "72400.00",
+        "currencyCode": "INR"
+      },
+      "acctCurrCode": "INR",
+      "acctNumber": "660100100006",
+      "acctType": "SAVINGS"
+    },
+    {
+      "acctBalance": {
+        "amountValue": "250000.00",
+        "currencyCode": "INR"
+      },
+      "acctCurrCode": "INR",
+      "acctNumber": "660100100007",
+      "acctType": "CURRENT"
+    },
+    {
+      "acctBalance": {
+        "amountValue": "500000.00",
+        "currencyCode": "INR"
+      },
+      "acctCurrCode": "INR",
+      "acctNumber": "660100100008",
+      "acctType": "TERM_DEPOSIT"
+    },
+    {
+      "acctBalance": {
+        "amountValue": "118000.00",
+        "currencyCode": "INR"
+      },
+      "acctCurrCode": "INR",
+      "acctNumber": "660100100009",
+      "acctType": "SALARY"
+    }
+  ],
+  "numOfAccounts": "4"
+}

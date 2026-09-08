@@ -1,0 +1,58 @@
+{
+  "loanOvduRec": [
+    {
+      "acctId": {
+        "acctCurr": "INR",
+        "acctId": "660100100003",
+        "acctType": {
+          "schmCode": "SB002",
+          "schmType": "SAVINGS"
+        },
+        "bankInfo": {
+          "bankId": "IDBI001",
+          "branchId": "105",
+          "branchName": "PUNE",
+          "name": "IDBIBANK",
+          "postAddr": {
+            "addr1": "142, Lake View",
+            "addr2": "Near City Mall",
+            "addr3": "",
+            "addrType": "REGISTERED",
+            "city": "PUNE",
+            "country": "India",
+            "postalCode": "411001",
+            "stateProv": "MH"
+          }
+        }
+      },
+      "pTotalColl": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "pTotalDmd": {
+        "amountValue": "34601.39",
+        "currencyCode": "INR"
+      },
+      "pTotalOvdu": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "totalIntColl": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "totalIntDmd": {
+        "amountValue": "268.00",
+        "currencyCode": "INR"
+      },
+      "totalIntOvdu": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      }
+    }
+  ],
+  "recCtrlOut": {
+    "isLastSet": "Y",
+    "setNum": "0"
+  }
+}

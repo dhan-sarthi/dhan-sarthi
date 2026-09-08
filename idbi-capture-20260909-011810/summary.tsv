@@ -1,0 +1,36 @@
+api	name	sample	tier	http	bytes	atlas_request_id	label
+362	accountLienEnquirytest	1	read	200	700	3d400792-ef9f-450c-989a-e6611ac7c48b	Sample 1
+362	accountLienEnquirytest	2	read	400	174	11014fed-6d2f-4163-a975-52a9a5e3d2ea	Sample 2
+365	performAccountEnquirytest	1	read	200	1213	05b9a6f6-4287-4061-b5b9-4949925b791c	Sample 1
+365	performAccountEnquirytest	2	read	200	1217	8121cde7-9901-4bbc-95e8-2dd7b155f5dd	Sample 2
+365	performAccountEnquirytest01	1	read	200	1179	935932b6-5cf8-4619-81de-e6cfdc47c2bf	Sample 1
+391	getLoanAccountDetailstest	1	read	200	3697	e4b5e535-06f5-4519-8fb4-3292f4be1e95	sample 1
+391	getLoanAccountDetailstest	2	read	400	174	05c1db56-8ab5-4964-9d9c-067659482ac8	Sample 2
+393	getFullAccountStatementWithPaginationtest	1	read	200	7631	d8cd8cfe-096f-4838-8f0f-4c35c81f4a86	sample 1
+393	getFullAccountStatementWithPaginationtest	2	read	200	7631	fcc8d9f0-8605-4b9e-802b-d6db51b6b46f	probe: first page, no cursor
+393	getFullAccountStatementWithPaginationtest	3	read	200	4068	770d8676-c7b3-48ce-872d-ee47a4e2a28d	probe: 10-day window, is 20 a page size
+394	getCustomerAccountsByCustIdtest	1	read	200	246	6bc44908-3fcd-4e2a-9c26-7edaf7823e8d	sample 1
+394	getCustomerAccountsByCustIdtest01	1	read	200	659	30da6c08-e1ac-4d9b-b0e3-2f3697e3eb27	sample 1
+402	getLoanOverdueDetailstest	1	read	200	529	f3d09f89-6834-492f-979c-76d68979f099	sample 1
+402	getLoanOverdueDetailstest01	1	read	200	513	6a0f95da-2e75-47cc-a6a6-7e7493380c6e	sample 1
+404	getLoanOverduePositionEnquirytest	1	read	200	776	e4d24e0e-6f85-4a66-b149-cc9f25c4cee4	sample 1
+404	getLoanOverduePositionEnquirytest	2	read	200	780	ab14ec94-4997-4fb1-9b30-84ea37a39821	Sample 2
+433	fetchLoanInterestRatestest	1	read	200	21780	838eb7ea-1ddb-4a65-a267-e2c2d28014ac	sample 1
+433	fetchLoanInterestRatestest	2	read	200	16624	6172953d-3f7d-47fa-9f50-335df9c02a07	Sample 2
+441	fetchLoanAccountLimitstest	1	read	200	957	d1ec7dd0-5ea4-488a-8593-8023f6df0498	sample 1
+442	fetchCustomerLimitDetailstest	1	read	200	1334	0f1e7f3f-cb98-4344-b4dc-6357c78be6b9	sample 1
+473	generateLoanRepaymentScheduletest	1	read	200	11696	9eac2be9-4f1e-4728-95d9-261ac52941b6	sample 1
+538	InquireHPAyofftest	1	read	200	269	447eef60-9fd6-4fc9-8ae1-d0cb5dbfbf67	sample 1
+591	getConsentListFromFinProtest	1	read	200	531	7356d972-2194-41d7-9245-822d6a55979f	sample 1
+591	getConsentListFromFinProtest01	1	read	200	1098	3ded0dec-8d84-4b13-914f-23e87ed2c040	sample 1
+591	getConsentListFromFinProtest01	2	read	200	1098	46ed84ce-aa1a-4056-b7d3-bdbce2e95afa	Sample 2
+591	getConsentListFromFinProtest01	3	read	200	1098	9a71205a-e853-42bf-a3d0-9995067ffc91	Sample 3
+591	getConsentListFromFinProtest01	4	read	200	1098	d5bc34ff-a052-4f16-8724-e2a7ea4b4997	Sample 4
+592	getWebRedirectionEncryptedURLtest	1	read	200	534	eac632eb-45ab-4961-89f7-6ae3feff402a	sample 1
+593	generateDecryptedResponseFromFinProtest	1	read	200	342	3bdc2072-1eb7-493f-9bb4-ccedaa2706b8	sample 1
+595	getAccountStatementtest	1	read	200	1671	574dee5a-4962-45cd-ac54-614d18644824	sample 1
+595	getAccountStatementtest01	1	read	200	3435	e0990dcb-ee0c-4025-b697-3c6c5a88122f	sample 1 saving account
+595	getAccountStatementtest01	2	read	200	3446	c258c596-5109-4e92-9bfe-b0b025993049	sample 2 cuurent account
+595	getAccountStatementtest01	3	read	200	3455	f9aee2c9-ce30-492c-a9b8-eed51e526cb4	sample 3 fix deposit account
+595	getAccountStatementtest01	4	read	200	3445	bda0526d-3544-4737-8d6b-033102db3d17	Sample 4 salary account
+739	getAccountStatementFromFinProtest	1	read	200	5424	910d4856-e976-443d-a4b4-0f8f75faa6da	sample 1

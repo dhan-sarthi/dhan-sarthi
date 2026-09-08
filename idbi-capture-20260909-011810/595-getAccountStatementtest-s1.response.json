@@ -1,0 +1,89 @@
+{
+  "data": [
+    {
+      "Profile": {
+        "Holders": {
+          "Holder": [
+            {
+              "address": "142, Lake View, Near City Mall, PUNE, MH, 411001",
+              "ckycCompliance": "true",
+              "dob": "1995-06-20",
+              "email": "priya@gmail",
+              "landline": "",
+              "mobile": "9988776655",
+              "name": "PRIYAPATIL",
+              "nominee": "REGISTERED",
+              "pan": "FGHPP4567T"
+            }
+          ],
+          "type": "SINGLE"
+        }
+      },
+      "Summary": {
+        "Pending": {
+          "amount": "0.00",
+          "transactionType": ""
+        },
+        "accountType": "SBA",
+        "balanceDateTime": "2025-05-27T00:00:00.000",
+        "branch": "PUNE",
+        "currency": "INR",
+        "currentBalance": "56780.25",
+        "ifsc": "IBKL0000105",
+        "ifscCode": "IBKL0000105",
+        "micrCode": "411259002",
+        "openingDate": "2018-04-18",
+        "status": "ACTIVE",
+        "type": "SBA"
+      },
+      "Transactions": {
+        "Transaction": [
+          {
+            "amount": "52513.74",
+            "balance": "395991.54",
+            "currentBalance": "395991.54",
+            "mode": "UPI",
+            "narration": "Sms Charges For April Qtr ,2024",
+            "reference": "RFN00178427",
+            "transactionDateTime": "2025-05-27T10:15:00.000",
+            "transactionTimeStamp": "2025-05-27T10:15:00.000",
+            "txnId": "TXN0001",
+            "type": "DEBIT",
+            "valueDate": "2025-05-27T00:00:00.000"
+          },
+          {
+            "amount": "10000.00",
+            "balance": "405991.54",
+            "currentBalance": "405991.54",
+            "mode": "NEFT",
+            "narration": "Salary Credit",
+            "reference": "RFN00178500",
+            "transactionDateTime": "2025-05-20T09:00:00.000",
+            "transactionTimeStamp": "2025-05-20T09:00:00.000",
+            "txnId": "TXN0002",
+            "type": "CREDIT",
+            "valueDate": "2025-05-20T00:00:00.000"
+          }
+        ],
+        "endDate": "2025-05-27T00:00:00.000",
+        "startDate": "2025-05-01T00:00:00.000"
+      },
+      "bank": "IDBIBANK",
+      "fiType": "DEPOSIT",
+      "linkReferenceNumber": "19818fc6-d5ee-429b-9d14-4dfd5d92fc8e",
+      "maskedAccountNumber": "XXXXXXXX0003"
+    }
+  ],
+  "errorCode": null,
+  "errorMsg": null,
+  "errors": [],
+  "pageDetails": {
+    "currentPageNumber": "1",
+    "totalPages": "1",
+    "totalRecords": "2"
+  },
+  "response": "Success",
+  "status": "Success",
+  "timestamp": "",
+  "ver": "1.21.0"
+}

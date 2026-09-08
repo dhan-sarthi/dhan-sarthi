@@ -1,0 +1,34 @@
+{
+  "overdueDetails": [
+    {
+      "accountId": "660100100003",
+      "customerId": "68453002",
+      "dpd": "0",
+      "npaDate": "NULL",
+      "npaStatus": "SA",
+      "outstandingBal": "3754903",
+      "overdueDate": "NULL",
+      "totalOverdueAmt": "0"
+    },
+    {
+      "accountId": "094651100000064",
+      "customerId": "68453002",
+      "dpd": "0",
+      "npaDate": "NULL",
+      "npaStatus": "SA",
+      "outstandingBal": "674623.83",
+      "overdueDate": "NULL",
+      "totalOverdueAmt": "0"
+    },
+    {
+      "accountId": "1354651100000675",
+      "customerId": "68453002",
+      "dpd": "0",
+      "npaDate": "NULL",
+      "npaStatus": "SA",
+      "outstandingBal": "241960",
+      "overdueDate": "NULL",
+      "totalOverdueAmt": "0"
+    }
+  ]
+}

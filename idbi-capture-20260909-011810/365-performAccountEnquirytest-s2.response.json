@@ -1,0 +1,94 @@
+{
+  "acctBal": [
+    {
+      "balAmt": {
+        "amountValue": "89500.50",
+        "currencyCode": "INR"
+      },
+      "balType": "LEDGER"
+    },
+    {
+      "balAmt": {
+        "amountValue": "88500.50",
+        "currencyCode": "INR"
+      },
+      "balType": "AVAIL"
+    },
+    {
+      "balAmt": {
+        "amountValue": "85500.50",
+        "currencyCode": "INR"
+      },
+      "balType": "EFFAVL"
+    },
+    {
+      "balAmt": {
+        "amountValue": "3000.00",
+        "currencyCode": "INR"
+      },
+      "balType": "LIEN"
+    },
+    {
+      "balAmt": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "balType": "FLOAT"
+    },
+    {
+      "balAmt": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "balType": "DRWPWR"
+    },
+    {
+      "balAmt": {
+        "amountValue": "89500.50",
+        "currencyCode": "INR"
+      },
+      "balType": "ACCBAL"
+    }
+  ],
+  "acctCurr": "INR",
+  "acctId": "660100100004",
+  "acctInqCustomData": {
+    "acctName": "ARJUNMEHTA",
+    "status": "A"
+  },
+  "acctOpenDt": "2019-09-12T00:00:00.000",
+  "acctType": {
+    "schmCode": "SB003",
+    "schmType": "SAVINGS"
+  },
+  "bankAcctStatusCode": "A",
+  "bankInfo": {
+    "bankId": "IDBI001",
+    "branchId": "106",
+    "branchName": "MUMBAI",
+    "name": "IDBIBANK",
+    "postAddr": {
+      "addr1": "88 Marine Drive",
+      "addr2": "Nariman Point",
+      "addr3": "",
+      "addrType": "REGISTERED",
+      "city": "MUMBAI",
+      "country": "India",
+      "postalCode": "400021",
+      "stateProv": "MH"
+    }
+  },
+  "custId": "77712345",
+  "custStat": {
+    "refCode": "GEN",
+    "refDesc": "GENERAL",
+    "refRecType": ""
+  },
+  "personName": {
+    "firstName": "ARJUN",
+    "lastName": "MEHTA",
+    "middleName": "",
+    "name": "ARJUNMEHTA",
+    "titlePrefix": "MR"
+  }
+}

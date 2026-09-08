@@ -1,0 +1,58 @@
+{
+  "loanOvduRec": [
+    {
+      "acctId": {
+        "acctCurr": "INR",
+        "acctId": "660100100004",
+        "acctType": {
+          "schmCode": "SB003",
+          "schmType": "SAVINGS"
+        },
+        "bankInfo": {
+          "bankId": "IDBI001",
+          "branchId": "106",
+          "branchName": "MUMBAI",
+          "name": "IDBIBANK",
+          "postAddr": {
+            "addr1": "88 Marine Drive",
+            "addr2": "Nariman Point",
+            "addr3": "",
+            "addrType": "REGISTERED",
+            "city": "MUMBAI",
+            "country": "India",
+            "postalCode": "400021",
+            "stateProv": "MH"
+          }
+        }
+      },
+      "pTotalColl": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "pTotalDmd": {
+        "amountValue": "45200.75",
+        "currencyCode": "INR"
+      },
+      "pTotalOvdu": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "totalIntColl": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "totalIntDmd": {
+        "amountValue": "512.00",
+        "currencyCode": "INR"
+      },
+      "totalIntOvdu": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      }
+    }
+  ],
+  "recCtrlOut": {
+    "isLastSet": "Y",
+    "setNum": "0"
+  }
+}

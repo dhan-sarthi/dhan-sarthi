@@ -1,0 +1,91 @@
+{
+  "customerLimits": [
+    {
+      "currency": "INR",
+      "expiryDate": "31-12-2099",
+      "sanctionDate": "22-11-2018"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "10-10-2027",
+      "sanctionDate": "08-11-2008"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "12-10-2026",
+      "sanctionDate": "13-10-2023"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "13-11-2024",
+      "sanctionDate": "13-11-2023"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "16-11-2024",
+      "sanctionDate": "16-11-2023"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "31-07-2037",
+      "sanctionDate": "05-07-2019"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "30-01-2025",
+      "sanctionDate": "29-10-2024"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "01-02-2025",
+      "sanctionDate": "30-10-2024"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "25-03-2025",
+      "sanctionDate": "18-11-2024"
+    },
+    {
+      "currency": "INR",
+      "expiryDate": "01-02-2025",
+      "sanctionDate": "21-11-2024"
+    }
+  ],
+  "customerSummary": {
+    "accountManager": "MIGR1",
+    "custCifId": "98655854",
+    "custRating": "NA",
+    "customerID": "68453002",
+    "customerName": "PRIYAPATIL"
+  },
+  "emptyLimitRecords": "4",
+  "exposureSummary": {
+    "fundedLimit": {
+      "amount": "7249562.75",
+      "currency": "INR"
+    },
+    "nonFundedLimit": {
+      "amount": "0.00",
+      "currency": ""
+    },
+    "totalLimit": {
+      "amount": "11821212.00",
+      "currency": "INR"
+    },
+    "totalNodeLimit": {
+      "amount": "11821212.00",
+      "currency": "INR"
+    },
+    "totalNodeOutstanding": {
+      "amount": "7249562.75",
+      "currency": "INR"
+    },
+    "totalOutstanding": {
+      "amount": "7249562.75",
+      "currency": "INR"
+    }
+  },
+  "rawMetadata": {
+    "inquireCustomerLimitDetails_CustomData": ""
+  }
+}
