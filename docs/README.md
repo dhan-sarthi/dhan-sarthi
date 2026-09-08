@@ -52,8 +52,13 @@ Reading order for someone new to the project. About thirty minutes end to end.
 
 ## IDBI integration
 
+- [`integration/idbi-sandbox.md`](integration/idbi-sandbox.md): **what the sandbox actually
+  does.** The twenty-four real operations, three envelopes, three refusals, every trap that cost
+  a capture to find, the per-customer coverage table, and the list of things for IDBI to fix.
+  Read this before the one below.
 - [`integration/data-requirements.md`](integration/data-requirements.md): the 93 fields across
-  8 groups the product needs from the bank, with fallbacks for every optional field.
+  8 groups the product asked the bank for. A request, not a description — IDBI built something
+  different, and the file above is what exists.
 - [`integration/aws-sandbox.md`](integration/aws-sandbox.md): the sandbox stack requested, and
   the network-egress requirement the voice feature depends on.
 

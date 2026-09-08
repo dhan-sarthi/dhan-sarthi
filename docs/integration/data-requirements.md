@@ -4,6 +4,14 @@ IDBI Innovate 2026 · Problem Statement 1 · Team Atomic
 
 Request parameters and expected response fields for the retail wealth-advisory prototype. Formatted to match the GSTN reference schema supplied by the organisers. All development runs on synthetic or consented sandbox data.
 
+> **This is what we asked for, not what exists.** IDBI's sandbox implements none of it: every one
+> of its twenty-four APIs is a `POST` to `/Development/<op>test` with a camelCase Finacle body,
+> there is no `data_blocks` selector, no `response_status`, and no endpoint at all for holdings,
+> the product shelf or any declared profile field. Read
+> [`idbi-sandbox.md`](idbi-sandbox.md) for what the bank really returns. This document is kept as
+> the record of the request — it is what a bank would need to build for the product to run on one
+> feed instead of four — and the field list still drives the fallback decisions in the engine.
+
 - Retail customer feed
 - 8 field groups
 - 93 response fields
