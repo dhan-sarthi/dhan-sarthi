@@ -9,6 +9,13 @@ docs/engineering/evidence/
 docs/assets/
 apps/web/public/
 
+# IDBI's own OpenAPI exports, byte for byte as the Atlas portal produced them. Reformatting
+# would cost us the one thing they are good for: being exactly what the bank handed over.
+docs/idbi-openapi/
+
+# Raw responses captured off IDBI's sandbox. Same reason: evidence, not source.
+apps/api/src/adapters/idbi-sandbox/captured/
+
 # Markdown is written by hand with deliberate line breaks; Prettier leaves prose alone but would
 # still rewrap tables and lists in ways that hurt review diffs.
 *.md
