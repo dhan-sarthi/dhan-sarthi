@@ -36,16 +36,35 @@ import {
   LienEnquiryResult,
   LoanAccountDetailsResult,
   LoanOverdueDetailsResponse,
+  LoanOverduePositionResponse,
+  AccountLimitsResponse,
+  RepaymentScheduleResponse,
+  HpPayoffResponse,
+  HrmsResponse,
   WebRedirection,
   AaAccount,
 } from './schemas.ts'
-import type { WireAaAccount, WireConsentListEntry, WireCustomerRecord } from './schemas.ts'
+import type {
+  WireAaAccount,
+  WireConsentListEntry,
+  WireCustomerRecord,
+  WireHrms,
+} from './schemas.ts'
 import type { AaConsentSummary } from '../../../ports/aa-gateway.port.ts'
 import type { LeadDraft, LeadOutcome } from '../../../ports/lead-sink.port.ts'
 import { readValidationRefusal } from './envelope.ts'
 import type { IdbiCustomerKey, IdbiSandboxCustomer } from './customers.ts'
 import { sandboxCustomer } from './customers.ts'
-import { isoDateToNaiveStamp, optionalIsoDate, optionalText, paiseToRupees } from './scalars.ts'
+import {
+  isoDateToNaiveStamp,
+  optionalAmountToPaise,
+  optionalInt,
+  optionalIsoDate,
+  optionalPaise,
+  optionalRate,
+  optionalText,
+  paiseToRupees,
+} from './scalars.ts'
 import type { Paise } from './scalars.ts'
 import {
   accountFromEnquiry,
@@ -83,6 +102,40 @@ export interface TransactionsResult {
   report: MappingReport
   /** The statement header's own balances, which are the only trustworthy ones. */
   balances: { ledger: number | null; spendable: number | null }
+}
+
+export interface OverduePosition {
+  acctId: string | null
+  principalDemanded: Paise | null
+  principalOverdue: Paise | null
+  principalCollected: Paise | null
+  interestDemanded: Paise | null
+  interestOverdue: Paise | null
+  interestCollected: Paise | null
+}
+
+export interface LimitHistoryPoint {
+  kind: 'drawing-power' | 'sanction'
+  applicableDate: IsoDate | null
+  expiryDate: IsoDate | null
+  amount: Paise | null
+}
+
+export interface RepaymentSchedule {
+  instalmentPaise: Paise | null
+  instalments: number | null
+  flows: number
+  amortisationRows: number
+}
+
+export interface PayoffQuote {
+  acctId: string
+  /** What closing the loan today costs: principal plus everything accrued. */
+  netPayoffPaise: Paise | null
+  principalPaise: Paise | null
+  accruedInterestPaise: Paise | null
+  penaltyPaise: Paise | null
+  ratePct: number | null
 }
 
 export interface AaStatement {
@@ -737,6 +790,174 @@ export class IdbiGateway {
   }
 
   /* ---------------------------------------------------------------- *
+   * The rest of the catalogue
+   * ---------------------------------------------------------------- */
+
+  /**
+   * 404: the overdue position split into principal, interest and charges demanded.
+   *
+   * 402 gives an outstanding and a days-past-due; this is the composition of it, which is what
+   * separates "you owe ₹34,601" from "₹268 of that is interest".
+   */
+  async overduePosition(customer: IdbiSandboxCustomer): Promise<OverduePosition[]> {
+    const report = newReport()
+    const attempt = await this.attempt(
+      '404',
+      [
+        {
+          label: 'custId',
+          body: overduePositionBody(customer.custId, customer.primaryAcctId, customer.branchId),
+        },
+        {
+          label: 'cif',
+          body: overduePositionBody(customer.cif, customer.primaryAcctId, customer.branchId),
+        },
+      ],
+      report,
+    )
+    if (attempt === null) return []
+    const body = parse(LoanOverduePositionResponse, attempt.response.envelope.payload, '404')
+    return body.loanOvduRec.map((row) => ({
+      acctId: optionalText(row.acctId?.acctId),
+      principalDemanded: optionalAmountToPaise(row.pTotalDmd, '404.pTotalDmd'),
+      principalOverdue: optionalAmountToPaise(row.pTotalOvdu, '404.pTotalOvdu'),
+      principalCollected: optionalAmountToPaise(row.pTotalColl, '404.pTotalColl'),
+      interestDemanded: optionalAmountToPaise(row.totalIntDmd, '404.totalIntDmd'),
+      interestOverdue: optionalAmountToPaise(row.totalIntOvdu, '404.totalIntOvdu'),
+      interestCollected: optionalAmountToPaise(row.totalIntColl, '404.totalIntColl'),
+    }))
+  }
+
+  /** 441: the drawing-power and sanction history of a loan account, newest first. */
+  async accountLimits(acctId: string): Promise<LimitHistoryPoint[]> {
+    const report = newReport()
+    const attempt = await this.attempt(
+      '441',
+      [{ label: 'foracid', body: { foracid: acctId } }],
+      report,
+    )
+    if (attempt === null) return []
+    const body = parse(AccountLimitsResponse, attempt.response.envelope.payload, '441')
+    const details = body.accountLimitDetails
+    const rows = [
+      ...(details?.acctDrwngPowerLimitHistMsgInq?.olimitLL ?? []).map((r) => ({
+        row: r,
+        kind: 'drawing-power' as const,
+      })),
+      ...(details?.acctSanctLimitHistMsg?.olimitLL ?? []).map((r) => ({
+        row: r,
+        kind: 'sanction' as const,
+      })),
+    ]
+    return rows
+      .map(({ row, kind }) => ({
+        kind,
+        applicableDate: optionalIsoDate(row.applicableDate, '441.applicableDate'),
+        expiryDate: optionalIsoDate(row.expiryDate, '441.expiryDate'),
+        amount: optionalAmountToPaise(row.drwngPower ?? row.sanctLimit, '441.amount'),
+      }))
+      .sort((a, b) => ((a.applicableDate ?? '') < (b.applicableDate ?? '') ? 1 : -1))
+  }
+
+  /**
+   * 473: an amortisation schedule for a modelled loan.
+   *
+   * The only forward-looking operation in the catalogue, and the basis of an honest
+   * affordability answer: what a loan of this size at this rate over this term actually costs a
+   * month, from the bank's own engine rather than from our arithmetic.
+   */
+  async repaymentSchedule(loan: {
+    amount: number
+    ratePct: number
+    months: number
+    schemeCode?: string | undefined
+    originationDate?: string | undefined
+  }): Promise<RepaymentSchedule | null> {
+    const report = newReport()
+    const attempt = await this.attempt(
+      '473',
+      [
+        {
+          label: 'modelled',
+          body: {
+            loanModellingMsgInputVO: {
+              mandatoryParameters: {
+                crncyCode: 'INR',
+                originationDate: loan.originationDate ?? '2020-08-31T00:00:00.000',
+                schmCode: { schmCode: loan.schemeCode ?? 'EIDEM' },
+              },
+              advanceParameters: { eIFormula: '' },
+              Variables: {
+                loanAmount: { amountValue: String(Math.round(loan.amount)), currencyCode: 'INR' },
+                intRate: { Value: String(loan.ratePct) },
+                noOfInstalmnts: String(Math.round(loan.months)),
+              },
+            },
+          },
+        },
+      ],
+      report,
+    )
+    if (attempt === null) return null
+    const body = parse(RepaymentScheduleResponse, attempt.response.envelope.payload, '473')
+    const flows = body.loanModellingSchOutputVO?.lamodRepaymentLL ?? []
+    const instalment = flows.find((f) =>
+      /INSTALMENT|INSTALLMENT|EI/i.test(optionalText(f.flowDesc) ?? ''),
+    )
+    return {
+      instalmentPaise: optionalAmountToPaise(instalment?.flowAmt, '473.flowAmt'),
+      instalments: optionalInt(instalment?.noOfInstalments, '473.noOfInstalments'),
+      flows: flows.length,
+      amortisationRows: (body.loanModellingSchOutputVO?.oamortLL ?? []).length,
+    }
+  }
+
+  /**
+   * 538: what it costs to close a loan today.
+   *
+   * Principal, accrued interest and any penalty, which is the whole of a "should I prepay
+   * this" answer — and an answer no screen could give before, because 402's outstanding is not
+   * the same number as a payoff.
+   */
+  async payoffQuote(acctId: string): Promise<PayoffQuote | null> {
+    const report = newReport()
+    const attempt = await this.attempt(
+      '538',
+      [{ label: 'foracid', body: { hPayOffInq: { foracid: acctId } } }],
+      report,
+    )
+    if (attempt === null) return null
+    const body = parse(HpPayoffResponse, attempt.response.envelope.payload, '538')
+    const d = body.executeFinacleScriptCustomData
+    if (d === undefined) return null
+    return {
+      acctId,
+      netPayoffPaise: optionalPaise(d.netPayofamt, '538.netPayofamt'),
+      principalPaise: optionalPaise(d.pendingPrincipal, '538.pendingPrincipal'),
+      accruedInterestPaise: optionalPaise(d.interestSinceLastApplication, '538.interest'),
+      penaltyPaise: optionalPaise(d.pendingPenalInterest, '538.pendingPenalInterest'),
+      ratePct: optionalRate(d.interestRate, '538.interestRate'),
+    }
+  }
+
+  /**
+   * 508: bank staff and their reporting line.
+   *
+   * Not customer data. It is here because it is the operation that would key an adviser's
+   * identity if this app grew a staff-facing side, and because `otpRequired: "Y"` sends an OTP
+   * to the employee — so it is a write, registered as one, and nothing in the customer app
+   * calls it.
+   */
+  async employee(ein: string, otpRequired = false): Promise<WireHrms> {
+    const res = await this.transport.call(operation('508'), {
+      ein,
+      otpRequired: otpRequired ? 'Y' : 'N',
+      channelName: 'MOBILE_APP',
+    })
+    return parse(HrmsResponse, res.envelope.payload, '508')
+  }
+
+  /* ---------------------------------------------------------------- *
    * Leads
    * ---------------------------------------------------------------- */
 
@@ -962,6 +1183,54 @@ export class IdbiGateway {
 
 /** A rupee of slack, which is more than enough for rounding and far less than a real gap. */
 const RECONCILE_TOLERANCE = 1
+
+/**
+ * 404's request, which Finacle nests four levels deep and wants a *range* of account ids for.
+ *
+ * The low and high bounds are the same account: the operation is written for a range and its
+ * fixture holds one account, so asking for a genuine range earns a refusal.
+ */
+function overduePositionBody(custId: string, acctId: string, branchId: string): unknown {
+  const acct = {
+    acctType: { schmCode: '', schmType: '' },
+    acctCurr: '',
+    acctId,
+  }
+  return {
+    input: {
+      loanOvduPosInqCustomData: { setId: '1234' },
+      asOnDate: '2026-05-27T07:08:38.194',
+      recCtrlIn: { maxRec: '', setNum: '' },
+      custId: {
+        personName: { lastName: '', firstName: '', name: '', middleName: '', titlePrefix: '' },
+        custId,
+      },
+      curCode: 'INR',
+      selRangeLoanAcctId: {
+        lowAcctId: { ...acct, bankInfo: { branchId: '' } },
+        highAcctId: {
+          ...acct,
+          bankInfo: {
+            branchId,
+            bankId: '',
+            postAddr: {
+              stateProv: '',
+              country: '',
+              addr2: '',
+              addr1: '',
+              city: '',
+              addr3: '',
+              postalCode: '',
+              addrType: '',
+            },
+            name: '',
+            branchName: '',
+          },
+        },
+      },
+    },
+  }
+}
 
 function moneyOf(raw: unknown): number | null {
   if (raw === null || raw === undefined || raw === '') return null
