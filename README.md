@@ -322,6 +322,21 @@ pnpm install
 BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev   # api → :3001 · web → :5173 · no database, no keys
 ```
 
+On IDBI's own data, with no credential — the sandbox allow-lists IP addresses and that is the
+whole gate, so this needs a machine on the list:
+
+```bash
+BANK_SOURCE=idbi-sandbox IDBI_API_BASE=https://sandboxpocgatewayprod.idbi.bank.in   AVATAR_PROVIDER=none pnpm dev
+```
+
+Off the allow-list, leave `IDBI_API_BASE` unset and the adapter replays the captured responses
+in process — IDBI's own bytes, and the same numbers the live sandbox gives, at 17ms instead of
+2.4s:
+
+```bash
+BANK_SOURCE=idbi-sandbox AVATAR_PROVIDER=none pnpm dev
+```
+
 ```bash
 cp .env.example apps/api/.env                     # DATABASE_URL for the shared Postgres; Runway keys for the live call
 pnpm --filter @dhan/api migrate && pnpm --filter @dhan/api seed
@@ -329,10 +344,14 @@ BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
 ```
 
 ```bash
-pnpm test                                         # builds packages, then 148 tests · rules · ledger · contracts · api
+pnpm test                                         # builds packages, then 248 tests · rules · ledger · contracts · api · the IDBI captures
 pnpm --filter @dhan/api seed:check                # the database still matches the generator, by hash
 curl -s localhost:3001/api/v1/openapi.json        # every route, generated from the registry
+./scripts/capture-idbi.sh                         # re-capture the sandbox; writes and bureau are behind flags
 ```
+
+What the sandbox actually returns, and every trap in it, is
+[`docs/integration/idbi-sandbox.md`](docs/integration/idbi-sandbox.md).
 
 ---
 
