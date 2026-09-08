@@ -43,6 +43,8 @@ export const ErrorCodeSchema = z.enum([
   'FORBIDDEN',
   'NOT_FOUND',
   'CONFLICT',
+  /** A write to a block this data source owns rather than the app. See ReadOnlyBlock. */
+  'READ_ONLY_BLOCK',
   'STALE_CLOCK',
   'CLOCK_BEYOND_SEEDED_HORIZON',
   'IDEMPOTENCY_KEY_REQUIRED',

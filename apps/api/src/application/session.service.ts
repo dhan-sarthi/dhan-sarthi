@@ -53,12 +53,24 @@ export class SessionService {
     // Throws NotFound for an unknown cif, which is the 404 the route declares.
     await this.deps.bank.getCustomer(cif)
 
+    /*
+     * A session opens at the anchor, or at the end of the ledger where the ledger stops first.
+     *
+     * `advance` has always refused to move past the horizon, but `create` used the anchor
+     * unconditionally, which was harmless only for as long as every source had data up to it.
+     * The IDBI sandbox does not: it holds twenty transactions ending 2025-05-20 and answers a
+     * 2026 window with zero rows, correctly. Opening at the anchor there put every session
+     * sixteen months past the last row, so the three-month aggregates every screen is built on
+     * were all zero — an empty app over a feed that had answered perfectly well.
+     */
+    const horizon = await this.deps.bank.ledgerHorizon(cif)
+    const asOf = this.deps.anchor > horizon.to ? horizon.to : this.deps.anchor
     const token = `ds_${randomBytes(32).toString('base64url')}`
     const session = await this.deps.sessions.create({
       cif,
       tokenHash: sha256Hex(token),
-      asOf: this.deps.anchor,
-      lastSeen: addDays(this.deps.anchor, LAST_SEEN_OFFSET_DAYS),
+      asOf,
+      lastSeen: addDays(asOf, LAST_SEEN_OFFSET_DAYS),
       expiresAt: this.expiry(),
       ...(clientHint === undefined ? {} : { clientHint }),
     })
@@ -109,7 +121,14 @@ export class SessionService {
 
     const next =
       'reset' in request
-        ? { asOf: this.deps.anchor, lastSeen: addDays(this.deps.anchor, LAST_SEEN_OFFSET_DAYS) }
+        ? {
+            // Reset lands where `create` lands, for the same reason.
+            asOf: this.deps.anchor > horizon.to ? horizon.to : this.deps.anchor,
+            lastSeen: addDays(
+              this.deps.anchor > horizon.to ? horizon.to : this.deps.anchor,
+              LAST_SEEN_OFFSET_DAYS,
+            ),
+          }
         : { asOf: addDays(session.asOf, request.advanceDays), lastSeen: session.asOf }
 
     if (next.asOf > horizon.to) throw new BeyondHorizon(next.asOf, horizon.to)

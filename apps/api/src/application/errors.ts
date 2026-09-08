@@ -119,6 +119,26 @@ export class NotAvailableFromBank extends DomainError {
   }
 }
 
+/**
+ * A write to a block this data source does not own.
+ *
+ * Holdings are the app's only under the IDBI source, because that is the only source with no
+ * holdings feed of its own. Under the fixtures generator or the seeded database the portfolio
+ * comes with the customer, so an edit here would be accepted and then ignored by every screen
+ * — which is worse than refusing it.
+ */
+export class ReadOnlyBlock extends DomainError {
+  constructor(block: string, source: string) {
+    super(
+      409,
+      'READ_ONLY_BLOCK',
+      `The ${source} source serves its own ${block}, so they cannot be edited here. ` +
+        `Run with BANK_SOURCE=idbi-sandbox, where the app owns ${block} because no bank feed ` +
+        'for them exists.',
+    )
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * The avatar path. These bodies are what the client renders as a tier.
  * ------------------------------------------------------------------ */

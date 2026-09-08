@@ -565,6 +565,15 @@ function loanTypeFrom(acctName: string | null): string | null {
 export interface DeclaredProfile {
   custId: string
   custName?: string | undefined
+  /**
+   * A declared date of birth, used only where the bank has none.
+   *
+   * 433 carries one and a consented Account Aggregator pull carries one, and between them they
+   * cover two of the sandbox's three customers. The third has neither, and age decides
+   * suitability — so rather than invent a date, the profile store may hold one the customer
+   * gave us, and `profileGaps` reports it as missing until they do.
+   */
+  dateOfBirth?: string | undefined
   maritalStatus: string
   dependents: number
   employmentType: Customer['employmentType']
@@ -572,6 +581,25 @@ export interface DeclaredProfile {
   preferredLanguage: string
   riskProfile: Customer['riskProfile']
   taxRegime: Customer['taxRegime']
+}
+
+/**
+ * A customer the bank knows but the app cannot yet advise.
+ *
+ * Age gates suitability, so a file with no date of birth anywhere is not a file to guess at.
+ * Naming the missing fields lets the API answer with what to ask the customer for rather than
+ * with a stack trace.
+ */
+export class ProfileIncomplete extends Error {
+  readonly cif: string
+  readonly missing: readonly string[]
+
+  constructor(cif: string, missing: readonly string[]) {
+    super(`${cif}: the profile is missing ${missing.join(', ')}`)
+    this.name = 'ProfileIncomplete'
+    this.cif = cif
+    this.missing = missing
+  }
 }
 
 export interface CustomerSources {
@@ -594,11 +622,13 @@ export function customerFrom(
 
   const dob =
     optionalIsoDate(record?.dateOfBirth, '433.dateOfBirth') ??
-    optionalIsoDate(holder?.dob, '595.Holder.dob')
+    optionalIsoDate(holder?.dob, '595.Holder.dob') ??
+    optionalIsoDate(declared.dateOfBirth, 'declared.dateOfBirth')
   if (dob === null) {
-    throw new Error(
-      `${cif}: no date of birth from 433 or 595, and age-based suitability cannot run without one`,
-    )
+    throw new ProfileIncomplete(cif, ['dateOfBirth'])
+  }
+  if (record?.dateOfBirth === undefined && holder?.dob === undefined) {
+    report.unmappedPaths.add('dateOfBirth: declared by the customer; the bank did not send one')
   }
 
   const name =
@@ -670,10 +700,18 @@ function genderFrom(
 /**
  * 591's consent entry as the artefact every advice record echoes.
  *
- * The Account Aggregator consent covers the accounts it lists, which is what the scopes are
- * read from: a consent naming a deposit account grants the statement and balance scopes, and
- * nothing in the catalogue's consent object mentions holdings, so `HOLDINGS` is granted only
- * when a linked account's `fiType` says the consent actually reaches one.
+ * Every scope is granted, including `HOLDINGS`, and the reason is worth stating because the
+ * first version of this got it wrong. The Account Aggregator consent lists deposit accounts,
+ * so reading `HOLDINGS` off its `fiType` withheld the block — and `scopeFile` duly blanked the
+ * holdings and policies out of the file before `derive()` ran, so a customer with a ₹7.2 lakh
+ * portfolio and a ₹1 crore term policy came out with a zero portfolio and no cover, and the
+ * protection gap the app exists to spot silently disappeared.
+ *
+ * The mistake was treating one consent as governing two different things. The AA consent
+ * governs what the *bank* may hand over; the holdings block is not the bank's at all — it is
+ * what the customer told us directly, and it is theirs to withdraw on Record → Your data,
+ * which `scopeOverrides` already does. When a real holdings feed exists, `fiType` becomes
+ * meaningful again for the part of the block that comes from the bank.
  */
 export function consentFrom(
   wire: WireConsentListEntry,
@@ -688,14 +726,19 @@ export function consentFrom(
   const reachesInvestments = [...fiTypes].some((t) =>
     ['MUTUAL_FUNDS', 'EQUITIES', 'INSURANCE_POLICIES', 'NPS', 'ETF', 'IDR'].includes(t),
   )
+  if (!reachesInvestments && fiTypes.size > 0) {
+    // Worth recording: it is the difference between holdings we could one day read from the
+    // bank and holdings that will always be the customer's own account of them.
+    report.unmappedPaths.add(
+      `591: the consent covers ${[...fiTypes].join(', ')} only, so no holdings feed is reachable under it`,
+    )
+  }
   const created = optionalIsoDate(wire.consentCreationData, '591.consentCreationData')
 
   return {
     consentId: id,
     purpose: 'Wealth advisory',
-    scopes: reachesInvestments
-      ? ['PROFILE', 'ACCOUNTS', 'TXN', 'LIABILITIES', 'HOLDINGS']
-      : ['PROFILE', 'ACCOUNTS', 'TXN', 'LIABILITIES'],
+    scopes: ['PROFILE', 'ACCOUNTS', 'TXN', 'LIABILITIES', 'HOLDINGS'],
     status: status ?? 'REVOKED',
     validFrom: created ?? window.validFrom,
     validTo: window.validTo,

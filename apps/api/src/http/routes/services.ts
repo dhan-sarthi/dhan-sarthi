@@ -11,9 +11,15 @@ import type { RecordService } from '../../application/record.service.ts'
 import type { SeedInfo } from '../../application/seed-info.ts'
 import type { SessionService } from '../../application/session.service.ts'
 import type { BankDataPort, ProductShelfPort } from '../../ports/index.ts'
+import type { DeclaredProfileStore } from '../../ports/declared-profile.port.ts'
+import type { HoldingsStore } from '../../ports/holdings.port.ts'
 
 export interface AppServices {
   bank: BankDataPort
+  /** The declared half of a profile: the facts no bank endpoint carries. */
+  profiles: DeclaredProfileStore
+  /** What a customer already owns, which IDBI has no endpoint for. */
+  holdings: HoldingsStore
   shelf: ProductShelfPort
   sessions: SessionService
   advisory: AdvisoryService

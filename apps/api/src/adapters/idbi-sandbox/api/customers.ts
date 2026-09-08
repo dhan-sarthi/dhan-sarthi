@@ -20,6 +20,8 @@
  * different accounts: the base path answers for 003, 004 and 008, and `…test01` answers for
  * 006, 007, 008 and 009. Only 008 is in both.
  */
+
+import type { HoldingDraft } from '../../../ports/holdings.port.ts'
 /**
  * What the app knows about a customer before IDBI is asked.
  *
@@ -51,16 +53,59 @@ export interface IdbiCoverage {
   customerRecord: boolean
 }
 
+/**
+ * A consented pull the sandbox will actually answer.
+ *
+ * 591 and 595 do not agree with each other. 591 reports one consent per customer — Priya's is
+ * `CONSENT-0001` and Neha's is `CONSENT123456001` — while 595's fixtures are keyed on
+ * `CONSENT-0003-SAV` and its siblings, one per account. Passing 591's answer to 595 therefore
+ * earns `sentKey: consentId#CONSENT123456001` for the customer whose four accounts 595 holds
+ * statements for. The pairs below are the ones that answer, established by asking, and the
+ * consent 591 reports is still tried first so that a sandbox IDBI later makes consistent
+ * needs no change here.
+ */
+export interface AaPull {
+  consentId: string
+  linkRefNumber: string
+  /** The `…test01` fixture set, where that is the one holding it. */
+  variant?: string | undefined
+  /** True to go through 739 rather than 595. */
+  viaFinPro?: boolean | undefined
+}
+
 export interface IdbiSandboxCustomer extends IdbiCustomerKey {
   name: string
-  /** What the picker shows about why this customer is worth opening. */
+  slug: string
+  city: string
+  /** One line on the picker card. */
+  pitch: string
+  /** What opening this customer demonstrates about the integration. */
   story: string
   coverage: IdbiCoverage
+  /**
+   * The date of birth the *bank* reports, recorded so the picker can show an age without a
+   * round trip. `getCustomer` still reads it from 433 or the consented pull rather than from
+   * here — this is a cache of a bank fact, not a substitute for one, and a customer the bank
+   * reports no date for does not get one invented.
+   */
+  reportedDateOfBirth?: string | undefined
+  /**
+   * Whether the picker offers this customer.
+   *
+   * Arjun is in the registry and not in the picker. The bank holds his account enquiry and
+   * nothing else — no account list, no statement, no overdue record, no consent and no date of
+   * birth — so there is no file to advise on and no honest way to make one. Keeping him
+   * registered means a direct lookup still resolves and the coverage stays written down;
+   * keeping him out of the picker means nobody opens a customer the app cannot serve.
+   */
+  inPicker: boolean
   /**
    * The `…test01` variant to try 365 on first for this customer's accounts, where the base
    * fixture set does not hold them.
    */
   enquiryVariant?: string | undefined
+  /** The consented pulls the sandbox holds for this customer, in the order to try them. */
+  aaPulls: readonly AaPull[]
 }
 
 export const IDBI_SANDBOX_CUSTOMERS: readonly IdbiSandboxCustomer[] = [
@@ -71,8 +116,21 @@ export const IDBI_SANDBOX_CUSTOMERS: readonly IdbiSandboxCustomer[] = [
     primaryAcctId: '660100100003',
     mobile: '9988776655',
     name: 'Priya Patil',
+    slug: 'priya-patil',
+    city: 'Pune',
+    pitch: 'Three loans against a savings account with a lien on it.',
     story:
       'The only customer the sandbox answers everything for: an own-bank statement, a lien, three loans and a live Account Aggregator consent.',
+    reportedDateOfBirth: '1995-06-20',
+    inPicker: true,
+    aaPulls: [
+      { consentId: 'CONSENT-0001', linkRefNumber: '19818fc6-d5ee-429b-9d14-4dfd5d92fc8e' },
+      {
+        consentId: 'CONSENT-0001',
+        linkRefNumber: '76ae28bd-eebf-4a49-8701-68a14346d996',
+        viaFinPro: true,
+      },
+    ],
     coverage: {
       accountList: true,
       ownStatement: true,
@@ -88,8 +146,39 @@ export const IDBI_SANDBOX_CUSTOMERS: readonly IdbiSandboxCustomer[] = [
     primaryAcctId: '660100100006',
     mobile: '9765400022',
     name: 'Neha Singh',
+    slug: 'neha-singh',
+    // The branch 365 reports for her accounts. Kept in step with what `getCustomer` derives,
+    // so the picker card and the profile screen cannot disagree about where she lives.
+    city: 'Delhi',
+    pitch: 'Four accounts, and a statement only a consent can reach.',
     story:
       'Four accounts of four different types, and no own-bank statement for any of them — so her transactions come from a consented pull or not at all.',
+    reportedDateOfBirth: '1992-03-14',
+    inPicker: true,
+    // One consent per account, which is how 595's `01` fixture set is keyed. The masked numbers
+    // in the responses line up with her four accounts: 0006, 0007, 0008 and 0009.
+    aaPulls: [
+      {
+        consentId: 'CONSENT-0003-SAV',
+        linkRefNumber: 'lr-003-sav-0001-11aa22bb33cc',
+        variant: 'getAccountStatementtest01',
+      },
+      {
+        consentId: 'CONSENT-0003-CUR',
+        linkRefNumber: 'lr-003-cur-0002-44dd55ee66ff',
+        variant: 'getAccountStatementtest01',
+      },
+      {
+        consentId: 'CONSENT-0003-FD',
+        linkRefNumber: 'lr-003-fd-0003-77gg88hh99ii',
+        variant: 'getAccountStatementtest01',
+      },
+      {
+        consentId: 'CONSENT-0003-SAL',
+        linkRefNumber: 'lr-003-sal-0004-00jj11kk22ll',
+        variant: 'getAccountStatementtest01',
+      },
+    ],
     coverage: {
       accountList: true,
       ownStatement: false,
@@ -108,8 +197,12 @@ export const IDBI_SANDBOX_CUSTOMERS: readonly IdbiSandboxCustomer[] = [
     branchId: '106',
     primaryAcctId: '660100100004',
     name: 'Arjun Mehta',
+    slug: 'arjun-mehta',
+    city: 'Mumbai',
+    pitch: 'One account enquiry, and nothing else in the sandbox.',
     story:
-      'One savings account and nothing else: the sandbox holds his account enquiry and no list, statement or overdue record.',
+      'One savings account and nothing else: the sandbox holds his account enquiry and no list, statement, overdue record, consent or date of birth. Registered so the coverage is written down; kept out of the picker because there is no file to advise on.',
+    inPicker: false,
     coverage: {
       accountList: false,
       ownStatement: false,
@@ -117,6 +210,7 @@ export const IDBI_SANDBOX_CUSTOMERS: readonly IdbiSandboxCustomer[] = [
       accountAggregator: false,
       customerRecord: false,
     },
+    aaPulls: [],
   },
 ]
 
@@ -124,6 +218,11 @@ const BY_CIF = new Map(IDBI_SANDBOX_CUSTOMERS.map((c) => [c.cif, c]))
 
 export function sandboxCustomer(cif: string): IdbiSandboxCustomer | null {
   return BY_CIF.get(cif) ?? null
+}
+
+/** The customers the picker offers: the ones the bank holds enough about to advise. */
+export function pickableCustomers(): readonly IdbiSandboxCustomer[] {
+  return IDBI_SANDBOX_CUSTOMERS.filter((c) => c.inPicker)
 }
 
 /**
@@ -170,6 +269,10 @@ export const DECLARED_SEEDS: readonly DeclaredSeed[] = [
     taxRegime: 'new',
   },
   {
+    // Registered but not pickable. The declared half is seeded so that if IDBI later seeds his
+    // statement the customer works immediately; the date of birth is deliberately absent,
+    // because the bank reports none and inventing one would put a made-up age into a
+    // suitability decision.
     cif: '77712345',
     maritalStatus: 'Married',
     dependents: 2,
@@ -178,5 +281,83 @@ export const DECLARED_SEEDS: readonly DeclaredSeed[] = [
     preferredLanguage: 'en',
     riskProfile: 'Conservative',
     taxRegime: 'old',
+  },
+]
+
+/**
+ * What the sandbox's customers already own.
+ *
+ * IDBI has no holdings endpoint, so this is the app's own record and the UI says so. The
+ * shapes are chosen to give the suitability gate something real to refuse: Priya already
+ * holds an equity fund with a live SIP and a term policy, so "start an equity SIP" has to
+ * argue with an existing one, and Neha holds only a PPF, so her protection gap is genuine
+ * rather than manufactured.
+ *
+ * Nothing here duplicates an account. A term deposit held at IDBI arrives on 394 and 365 as an
+ * account and is already in the accounts block; recording it again would count it twice in
+ * every net-worth figure.
+ */
+export interface HoldingsSeed {
+  cif: string
+  holdings: readonly HoldingDraft[]
+  policies: readonly HoldingDraft[]
+}
+
+export const HOLDINGS_SEEDS: readonly HoldingsSeed[] = [
+  {
+    cif: '98655854',
+    holdings: [
+      {
+        holdingType: 'MUTUAL_FUND',
+        name: 'Nifty 50 Index Fund — Direct Growth',
+        assetClass: 'Equity',
+        investedAmount: 180_000,
+        currentValue: 214_500,
+        sipActive: true,
+        sipAmount: 5_000,
+        sipDebitDay: 5,
+      },
+      {
+        holdingType: 'PPF',
+        name: 'Public Provident Fund',
+        assetClass: 'Debt',
+        investedAmount: 450_000,
+        currentValue: 512_000,
+        sipActive: false,
+        interestRate: 7.1,
+        maturityDate: '2031-03-31',
+      },
+    ],
+    policies: [
+      {
+        holdingType: 'INSURANCE',
+        // `investedAmount` carries the cover and `currentValue` stays zero: the personas use
+        // the same convention, because a term policy is protection rather than capital and a
+        // net-worth figure that counted the sum assured would be wrong by a crore.
+        name: 'Term Life — 1 crore, to age 60',
+        assetClass: 'Protection',
+        investedAmount: 10_000_000,
+        currentValue: 0,
+        sipActive: false,
+      },
+    ],
+  },
+  {
+    cif: '88234567',
+    holdings: [
+      {
+        holdingType: 'PPF',
+        name: 'Public Provident Fund',
+        assetClass: 'Debt',
+        investedAmount: 150_000,
+        currentValue: 163_000,
+        sipActive: false,
+        interestRate: 7.1,
+        maturityDate: '2034-03-31',
+      },
+    ],
+    // No cover at all, which is the point: four accounts and ₹9.6 lakh across them, and
+    // nothing protecting the income that filled them.
+    policies: [],
   },
 ]

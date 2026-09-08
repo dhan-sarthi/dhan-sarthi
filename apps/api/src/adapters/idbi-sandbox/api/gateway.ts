@@ -80,6 +80,12 @@ export interface TransactionsResult {
   balances: { ledger: number | null; spendable: number | null }
 }
 
+export interface AaStatement {
+  accounts: WireAaAccount[]
+  transactions: Transaction[]
+  report: MappingReport
+}
+
 export interface LiabilitiesResult {
   liabilities: Liability[]
   report: MappingReport
@@ -442,11 +448,36 @@ export class IdbiGateway {
     }
 
     const header = first.header
-    const transactions = transactionsFromStatement(
+    const balances = header?.accountBalances
+    const mapped = transactionsFromStatement(
       { ...(header ?? { transactionDetails: [] }), transactionDetails: paged.rows },
       report,
     )
-    const balances = header?.accountBalances
+
+    /*
+     * Drop the running balance when it does not reconcile with the account's own.
+     *
+     * In this sandbox it does not: the last row of the captured statement closes at ₹344,483
+     * while the ledger balance in the same payload is ₹56,780. We knew that and wrote it down,
+     * and still passed the per-row figure straight through — where `derive()` took the minimum
+     * of it as the twelve-month idle floor and reported ₹344,483 of idle money in an account
+     * holding ₹56,780. An engine cannot be expected to distrust a number the adapter handed it,
+     * so the adapter stops handing it over: the rows keep their amounts and dates, which are
+     * sound, and lose a balance column that is not.
+     */
+    const ledger = moneyOf(balances?.ledgerBalance?.amountValue)
+    const closing = mapped.at(-1)?.balanceAfterTxn ?? null
+    const reconciles =
+      ledger === null || closing === null || Math.abs(ledger - closing) < RECONCILE_TOLERANCE
+    const transactions = reconciles ? mapped : mapped.map((t) => ({ ...t, balanceAfterTxn: null }))
+    if (!reconciles) {
+      report.notes.push({
+        where: '393',
+        detail:
+          `the statement closes at ${String(closing)} against a ledger balance of ${String(ledger)}, ` +
+          'so the per-row running balance is dropped rather than derived from',
+      })
+    }
     return {
       transactions,
       pages: paged.pages,
@@ -583,16 +614,99 @@ export class IdbiGateway {
         ? this.customerRecord().catch(() => undefined)
         : Promise.resolve(undefined),
     ])
+
+    // 433 holds one customer's record and the consented pull holds another's, so between them
+    // the date of birth, PAN and KYC flag are covered for two of the three. The AA read only
+    // happens when the cheaper source came back without a date.
+    const aaAccount =
+      record?.dateOfBirth === undefined && customer.coverage.accountAggregator
+        ? await this.tryAaProfile(customer, report)
+        : undefined
+
     const mapped = customerFrom(
       key.cif,
       {
         ...(enquiry === null ? {} : { enquiry }),
         ...(record === undefined ? {} : { record }),
+        ...(aaAccount === undefined ? {} : { aaAccount }),
       },
       declared,
       report,
     )
     return { customer: mapped, report }
+  }
+
+  /**
+   * One consented account, for its holder block alone.
+   *
+   * The Account Aggregator statement is the only source of a date of birth for a customer 433
+   * does not hold, and the holder block is identical across that customer's linked accounts,
+   * so the first account that answers is enough.
+   */
+  private async tryAaProfile(
+    customer: IdbiSandboxCustomer,
+    report: MappingReport,
+  ): Promise<WireAaAccount | undefined> {
+    for await (const pulled of this.aaStatements(customer, report)) {
+      const first = pulled.accounts.find((a) => a.Profile?.Holders?.Holder?.[0] !== undefined)
+      if (first !== undefined) return first
+    }
+    return undefined
+  }
+
+  /**
+   * Every consented statement the sandbox will answer for a customer.
+   *
+   * 591's own answer is tried first, so a consistent environment needs nothing recorded; the
+   * pairs written down against the customer are the fallback for this sandbox, where 591 and
+   * 595 disagree about what a consent is called. A refusal on one pair is not a failure of the
+   * read — 595 holds a statement for some of a consent's accounts and not others.
+   */
+  async *aaStatements(
+    customer: IdbiSandboxCustomer,
+    report: MappingReport,
+  ): AsyncGenerator<AaStatement> {
+    const attempts: {
+      consentId: string
+      refs: string[]
+      variant?: string | undefined
+      viaFinPro?: boolean | undefined
+    }[] = []
+
+    for (const consent of await this.consentList(customer, report)) {
+      const consentId = optionalText(consent.consentID)
+      const refs = consent.accounts
+        .map((a) => optionalText(a.linkReferenceNumber))
+        .filter((r): r is string => r !== null)
+      if (consentId !== null && refs.length > 0) attempts.push({ consentId, refs })
+    }
+    for (const pull of customer.aaPulls) {
+      attempts.push({
+        consentId: pull.consentId,
+        refs: [pull.linkRefNumber],
+        variant: pull.variant,
+        viaFinPro: pull.viaFinPro,
+      })
+    }
+
+    for (const attempt of attempts) {
+      const variants =
+        attempt.variant === undefined
+          ? ([undefined, 'getAccountStatementtest01'] as const)
+          : ([attempt.variant] as const)
+      for (const variant of variants) {
+        try {
+          yield await this.consentedStatement(attempt.consentId, attempt.refs, {
+            ...(variant === undefined ? {} : { variant }),
+            ...(attempt.viaFinPro === true ? { viaFinPro: true } : {}),
+          })
+          break
+        } catch (err) {
+          if (err instanceof IdbiCallError) continue
+          throw err
+        }
+      }
+    }
   }
 
   /* ---------------------------------------------------------------- *
@@ -700,6 +814,9 @@ export class IdbiGateway {
     return { accounts, transactions, report }
   }
 }
+
+/** A rupee of slack, which is more than enough for rounding and far less than a real gap. */
+const RECONCILE_TOLERANCE = 1
 
 function moneyOf(raw: unknown): number | null {
   if (raw === null || raw === undefined || raw === '') return null

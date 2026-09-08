@@ -16,6 +16,8 @@ import { rulesRoutes } from './rules.ts'
 import type { AppServices } from './services.ts'
 import { sessionRoutes } from './session.ts'
 import { sessionsRoutes } from './sessions.ts'
+import { holdingsRoutes } from './holdings.ts'
+import { profileRoutes } from './profile.ts'
 import { shelfRoutes } from './shelf.ts'
 import { suitabilityRoutes } from './suitability.ts'
 import { transactionRoutes } from './transactions.ts'
@@ -40,6 +42,8 @@ export function registerAllRoutes(
   askRoutes(r, services)
   recordRoutes(r, services)
   shelfRoutes(r, services)
+  profileRoutes(r, services)
+  holdingsRoutes(r, services)
   rulesRoutes(r, services)
   avatarRoutes(r, services)
   operatorRoutes(r, services)

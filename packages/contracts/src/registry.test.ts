@@ -70,8 +70,12 @@ describe('the route registry', () => {
     assert.throws(() => routeById('nope' as never), /no route/)
   })
 
-  it('has the 28 routes of the API surface', () => {
-    assert.equal(ROUTES.length, 28)
+  it('has the 34 routes of the API surface', () => {
+    // 28 before the IDBI integration; six more for the two blocks no bank endpoint carries.
+    // `/profile` holds the declared facts — income, employment, dependents, risk profile —
+    // and `/holdings` holds what the customer already owns, because IDBI's catalogue has no
+    // operation for either and advice cannot be given without them.
+    assert.equal(ROUTES.length, 34)
   })
 })
 

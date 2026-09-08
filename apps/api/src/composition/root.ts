@@ -46,10 +46,15 @@ import type {
   SessionStore,
   SnapshotStore,
 } from '../ports/index.ts'
+import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
+import type { HoldingsStore } from '../ports/holdings.port.ts'
 import { avatarAdapters, bankAdapters, describeProfile, resolveProfile } from './profiles.ts'
 
 export interface Deps {
   bank: BankDataPort
+  /** The declared half of a profile, and a customer's holdings: neither is the bank's to send. */
+  profiles: DeclaredProfileStore
+  holdings: HoldingsStore
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -123,7 +128,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
   const log = app.log
 
   const deps: Deps = {
-    ...bankAdapters(profile, config, clock, versions),
+    ...bankAdapters(profile, config, clock, versions, log),
     ...avatarAdapters(profile, config, log),
     clock,
     ...options.deps,
@@ -236,6 +241,8 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
 
   const services: AppServices = {
     bank: deps.bank,
+    profiles: deps.profiles,
+    holdings: deps.holdings,
     shelf: deps.shelf,
     sessions,
     advisory,

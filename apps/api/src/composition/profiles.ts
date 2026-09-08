@@ -20,9 +20,17 @@ import { RunwayAvatarProvider } from '../adapters/runway/provider.ts'
 import { RunwayRpcHost } from '../adapters/runway/rpc-host.ts'
 import { RunwayTransport } from '../adapters/runway/transport.ts'
 import { IdbiSandboxBankData } from '../adapters/idbi-sandbox/bank-data.idbi-sandbox.ts'
-import { IdbiClient } from '../adapters/idbi-sandbox/client.ts'
-import { CompositeBankData, customerDirectory } from '../adapters/idbi-sandbox/composite.ts'
-import { OFFLINE_BASE_URL, OfflineSandbox } from '../adapters/idbi-sandbox/offline-sandbox.ts'
+import { IdbiGateway } from '../adapters/idbi-sandbox/api/gateway.ts'
+import { IdbiTransport } from '../adapters/idbi-sandbox/api/transport.ts'
+import { REPLAY_BASE_URL, createReplayTransport } from '../adapters/idbi-sandbox/api/replay.ts'
+import { loadCapturedCalls } from '../adapters/idbi-sandbox/api/captured.ts'
+import { DECLARED_SEEDS, HOLDINGS_SEEDS } from '../adapters/idbi-sandbox/api/customers.ts'
+import { BankBackedHoldings, InMemoryHoldings } from '../adapters/memory/holdings.memory.ts'
+import {
+  InMemoryDeclaredProfiles,
+  declaredSeedsFrom,
+} from '../adapters/memory/declared-profile.memory.ts'
+import { CompositeBankData } from '../adapters/idbi-sandbox/composite.ts'
 import { PostgresAuditStore } from '../adapters/postgres/audit-store.postgres.ts'
 import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
 import { PostgresLeaseStore } from '../adapters/postgres/lease-store.postgres.ts'
@@ -36,6 +44,8 @@ import { avatarIsLive, runwayCredentials } from '../config.ts'
 import type { Config } from '../config.ts'
 import { createPool } from '../db/pool.ts'
 import type { Logger } from '../infra/logger.ts'
+import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
+import type { HoldingsStore } from '../ports/holdings.port.ts'
 import type {
   AuditStore,
   AvatarCredential,
@@ -64,6 +74,19 @@ export function describeProfile(profile: Profile): string {
 
 export interface BankAdapters {
   bank: BankDataPort
+  /**
+   * The declared half of a customer's profile, which no bank endpoint carries.
+   *
+   * Present under every source so `/api/v1/profile` behaves the same way whichever one is
+   * running: over the generator it starts as a mirror of the generated customers, and over
+   * IDBI it is the only place income, employment and risk profile exist at all.
+   */
+  profiles: DeclaredProfileStore
+  /**
+   * A customer's investments, which no bank endpoint carries. Present under every source so
+   * `/api/v1/holdings` behaves the same way whichever one is running.
+   */
+  holdings: HoldingsStore
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -77,6 +100,7 @@ export function bankAdapters(
   config: Config,
   clock: Clock,
   versions: { fixtures: string },
+  log: Logger,
 ): BankAdapters {
   switch (profile.bank) {
     case 'memory': {
@@ -85,13 +109,16 @@ export function bankAdapters(
         historyMonths: HISTORY_WINDOW_MONTHS,
         forwardMonths: config.SEED_FORWARD_MONTHS,
       }
-      const bank = new InMemoryBankData(seedBundles(options), {
+      const memoryBundles = seedBundles(options)
+      const bank = new InMemoryBankData(memoryBundles, {
         generatorVersion: `@dhan/fixtures@${versions.fixtures}`,
         ranAt: clock.now().toISOString(),
         regenerate: () => seedBundles(options),
       })
       return {
         bank,
+        profiles: new InMemoryDeclaredProfiles(declaredSeedsFrom(memoryBundles), clock),
+        holdings: new BankBackedHoldings(bank, clock),
         shelf: new InMemoryProductShelf(shelfRows()),
         sessions: new InMemorySessionStore(clock),
         snapshots: new InMemorySnapshotStore(clock),
@@ -116,6 +143,13 @@ export function bankAdapters(
       // The ledger was generated at the seed anchor and the mirrors carry that as their as-of;
       // the bank adapter reports it as the data freshness date on every view.
       const bank = new PostgresBankData(db, { dataFreshnessDate: config.SEED_ANCHOR })
+      const postgresSeeds = declaredSeedsFrom(
+        seedBundles({
+          anchor: config.SEED_ANCHOR,
+          historyMonths: HISTORY_WINDOW_MONTHS,
+          forwardMonths: config.SEED_FORWARD_MONTHS,
+        }),
+      )
       const seed = new PostgresSeedInfo(db, {
         anchor: config.SEED_ANCHOR,
         historyMonths: HISTORY_WINDOW_MONTHS,
@@ -124,6 +158,11 @@ export function bankAdapters(
       })
       return {
         bank,
+        // The rows in Postgres came from this generator, so mirroring its declared fields keeps
+        // the profile API's answers consistent with the ledger the database holds. A Postgres
+        // sibling of this store belongs here once the profile is editable in a deployment.
+        profiles: new InMemoryDeclaredProfiles(postgresSeeds, clock),
+        holdings: new BankBackedHoldings(bank, clock),
         shelf: new PostgresProductShelf(db),
         sessions: new PostgresSessionStore(db, clock),
         snapshots: new PostgresSnapshotStore(db, clock),
@@ -149,27 +188,39 @@ export function bankAdapters(
         ranAt: clock.now().toISOString(),
         regenerate: () => seedBundles(options),
       })
-      // With no base URL configured there is nothing to call, so the recorded samples are
-      // served in process: the adapter runs offline, on a reserved TLD that cannot resolve.
-      const offline = config.IDBI_API_BASE
+      // With no base URL configured there is nothing to call, so the captured responses are
+      // replayed in process against a reserved TLD that cannot resolve. That is IDBI's own
+      // bytes rather than wire we generated, so the offline path exercises the same mapping
+      // the live one does.
+      const replay = config.IDBI_API_BASE
         ? null
-        : new OfflineSandbox({ bundles, shelf: shelfRows() })
-      const client = new IdbiClient({
-        baseUrl: config.IDBI_API_BASE ?? OFFLINE_BASE_URL,
-        ...(offline ? { fetch: offline.fetch } : {}),
-        ...(config.IDBI_API_KEY ? { apiKey: config.IDBI_API_KEY } : {}),
+        : createReplayTransport({
+            captures: loadCapturedCalls(),
+            onMiss: (miss) =>
+              log.warn(
+                { op: miss.op, fingerprint: miss.fingerprint, reason: miss.reason },
+                'the IDBI replay transport had no capture for a request',
+              ),
+          })
+      const transport = new IdbiTransport({
+        baseUrl: config.IDBI_API_BASE ?? REPLAY_BASE_URL,
+        ...(replay ? { fetch: replay.fetch } : {}),
+        logger: log,
       })
+      const profiles = new InMemoryDeclaredProfiles(DECLARED_SEEDS, clock)
+      const holdings = new InMemoryHoldings(HOLDINGS_SEEDS, clock)
       const bank = new CompositeBankData(
         new IdbiSandboxBankData({
-          client,
-          directory: customerDirectory(fixtures, { consentId: config.IDBI_CONSENT_ID }),
-          initialFreshness: config.SEED_ANCHOR,
-          windowAnchor: config.SEED_ANCHOR,
+          gateway: new IdbiGateway({ transport, logger: log }),
+          profiles,
+          logger: log,
         }),
-        fixtures,
+        holdings,
       )
       return {
         bank,
+        profiles,
+        holdings,
         shelf: new InMemoryProductShelf(shelfRows()),
         sessions: new InMemorySessionStore(clock),
         snapshots: new InMemorySnapshotStore(clock),

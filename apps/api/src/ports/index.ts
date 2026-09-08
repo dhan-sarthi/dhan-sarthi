@@ -3,6 +3,8 @@
  * exactly one of these. The composition root is the only file that names a concrete class.
  */
 export type * from './bank-data.port.ts'
+export type * from './declared-profile.port.ts'
+export type * from './holdings.port.ts'
 export type * from './product-shelf.port.ts'
 export type * from './session-store.port.ts'
 export type * from './snapshot-store.port.ts'
