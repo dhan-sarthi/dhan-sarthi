@@ -165,16 +165,29 @@ export function buildDailyPlan(
   // for the next few days, let's see how we can make that stretch" tested well. Empathy,
   // encouragement, timing. A *bank* saying the first version is worse still.
   const onRoute = pot > 0 && !capBreached
-  const routeNote = !roadmap
-    ? `${inr(pot)} to last ${daysToSalary} days — about ${inr(safeToSpend.perDay)} a day.`
-    : pot <= 0
-      ? `Tight until ${snapshot.income.nextPayDate.slice(8)} ${monthName(snapshot.income.nextPayDate)}. ` +
-        `Your plan is safe — I have kept that aside. Let us get through the ${daysToSalary} days.`
-      : capBreached
-        ? `You are over on a cap you set. Still ${inr(pot)} in hand for ${daysToSalary} days, ` +
-          `so nothing is broken — worth knowing, not worth worrying about.`
-        : `On track. ${inr(safeToSpend.perDay)} a day for the next ${daysToSalary} days, and this ` +
-          `month's ${inr(commitment)} is already set aside.`
+  /*
+   * Every branch below but the last two quotes a pay date, and there is not always one to
+   * quote. With no salary recognisable in the statement `nextPayDate` is a month boundary the
+   * derivation guessed at, so "Tight until 02 June. Let us get through the 13 days" was told to
+   * a customer whose statement contains no salary and no commitments — a countdown to a date
+   * that came from nowhere. Where the income is unknown the note says what is actually true and
+   * asks for the missing piece.
+   */
+  const incomeKnown = snapshot.income.monthly > 0
+  const routeNote = !incomeKnown
+    ? `I have not found a salary in this statement, so I am not counting down to one. ` +
+      `${inr(snapshot.balances.total)} is what I can see in your accounts. Tell me what comes ` +
+      `in each month and I can tell you what is safe to spend.`
+    : !roadmap
+      ? `${inr(pot)} to last ${daysToSalary} days — about ${inr(safeToSpend.perDay)} a day.`
+      : pot <= 0
+        ? `Tight until ${snapshot.income.nextPayDate.slice(8)} ${monthName(snapshot.income.nextPayDate)}. ` +
+          `Your plan is safe — I have kept that aside. Let us get through the ${daysToSalary} days.`
+        : capBreached
+          ? `You are over on a cap you set. Still ${inr(pot)} in hand for ${daysToSalary} days, ` +
+            `so nothing is broken — worth knowing, not worth worrying about.`
+          : `On track. ${inr(safeToSpend.perDay)} a day for the next ${daysToSalary} days, and this ` +
+            `month's ${inr(commitment)} is already set aside.`
 
   /* The one action ----------------------------------------------------- */
 

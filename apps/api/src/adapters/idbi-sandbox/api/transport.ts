@@ -26,6 +26,12 @@ export type FetchLike = typeof fetch
 
 const CALL_TIMEOUT_MS = 15_000
 
+/**
+ * Long enough to collapse the duplicate reads within one request, short enough that a screen
+ * refreshed by hand shows the bank's current answer rather than the last one.
+ */
+const DEFAULT_READ_CACHE_MS = 3_000
+
 /** Every raw body, with the hash and the trace, for the staging table and for a fixture. */
 export interface IdbiCapture {
   operation: string
@@ -42,6 +48,16 @@ export interface IdbiCapture {
 
 export interface IdbiTransportOptions {
   baseUrl: string
+  /**
+   * How long an identical read is answered from the last response instead of the bank.
+   *
+   * Zero disables it. This is not a performance nicety, it is what makes the app usable: one
+   * `/view` fans out to a customer read, an account read, a statement and a liabilities read,
+   * and each of those needs 365 and 433 for the same customer — so the same body went to the
+   * bank five and six times, and a single decision took ten seconds over twenty round trips.
+   * Only reads are cached, and only successful ones; a write is never served from memory.
+   */
+  readCacheMs?: number | undefined
   fetch?: FetchLike | undefined
   timeoutMs?: number | undefined
   breaker?: CircuitBreaker | undefined
@@ -121,6 +137,15 @@ export class IdbiTransport {
   private readonly logger: Logger
   private readonly onCapture: ((capture: IdbiCapture) => void) | undefined
   private readonly applicationId: string
+  private readonly readCacheMs: number
+  /**
+   * In-flight and recently-settled reads, keyed on operation and body.
+   *
+   * The promise is stored rather than the result, so two callers asking at the same moment —
+   * which is exactly what `Promise.all` over four legs of one view does — share one round trip
+   * instead of racing to make two.
+   */
+  private readonly reads = new Map<string, { at: number; result: Promise<IdbiResponse> }>()
 
   constructor(options: IdbiTransportOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '')
@@ -130,6 +155,7 @@ export class IdbiTransport {
     this.logger = options.logger ?? silentLogger
     this.onCapture = options.onCapture
     this.applicationId = options.applicationId ?? 'dhan-sarthi'
+    this.readCacheMs = options.readCacheMs ?? DEFAULT_READ_CACHE_MS
   }
 
   breakerState(): ReturnType<CircuitBreaker['state']> {
@@ -153,6 +179,30 @@ export class IdbiTransport {
     if (opts.variant !== undefined && !operation.variants.includes(opts.variant)) {
       throw new Error(`${opts.variant} is not a registered variant of ${operation.op}`)
     }
+
+    // Writes and bureau pulls are never served from memory: a lead created twice is two leads,
+    // and a cached credit pull is a credit pull somebody paid for and did not get.
+    if (operation.tier !== 'read' || this.readCacheMs <= 0) {
+      return this.execute(operation, op, body)
+    }
+
+    const key = `${op}|${JSON.stringify(body)}`
+    const cached = this.reads.get(key)
+    if (cached !== undefined && Date.now() - cached.at < this.readCacheMs) return cached.result
+
+    const result = this.execute(operation, op, body)
+    this.reads.set(key, { at: Date.now(), result })
+    // A refusal is not worth remembering: the caller is about to try a different candidate, and
+    // holding the rejection would make the retry look like it had already been made.
+    result.catch(() => this.reads.delete(key))
+    return result
+  }
+
+  private async execute(
+    operation: IdbiOperation,
+    op: string,
+    body: unknown,
+  ): Promise<IdbiResponse> {
     const path = requestPath(op)
     const url = `${this.baseUrl}${path}`
     const transactionId = randomUUID()

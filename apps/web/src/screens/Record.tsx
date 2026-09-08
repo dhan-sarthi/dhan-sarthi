@@ -404,6 +404,7 @@ function Rules({ view }: { view: View }): ReactNode {
 
 const PROVENANCE_LABEL: Record<Provenance, string> = {
   idbi: 'From IDBI',
+  declared: 'From what you told us, not from the bank',
   fixture: 'From the synthetic ledger',
   memory: 'From the synthetic ledger',
   postgres: 'From the seeded database',
@@ -436,13 +437,27 @@ function Consent({
       scope: 'PROFILE',
       what: 'Profile',
       why: 'Age, dependents and risk profile decide which products can even be considered for you.',
-      detail: `${snapshot.customer.age}, ${snapshot.customer.dependents} dependents, ${snapshot.customer.riskProfile.toLowerCase()} risk profile.`,
+      detail:
+        `${snapshot.customer.age}, ` +
+        `${snapshot.customer.dependents} ${snapshot.customer.dependents === 1 ? 'dependent' : 'dependents'}, ` +
+        `${snapshot.customer.riskProfile.toLowerCase()} risk profile.`,
     },
     {
       scope: 'TXN',
       what: 'Transactions',
       why: 'To work out what a normal month looks like, and what is committed before you decide anything.',
-      detail: `${snapshot.quality.transactions} transactions across ${snapshot.quality.monthsOfHistory} complete months.`,
+      detail:
+        `${snapshot.quality.transactions} ` +
+        `${snapshot.quality.transactions === 1 ? 'transaction' : 'transactions'}, ` +
+        // "across 0 complete months" is the honest arithmetic and reads like a defect. Over
+        // IDBI's own statement — twenty days — this is the usual branch.
+        `${
+          snapshot.quality.monthsOfHistory <= 0
+            ? 'less than a complete month'
+            : snapshot.quality.monthsOfHistory === 1
+              ? 'across one complete month'
+              : `across ${snapshot.quality.monthsOfHistory} complete months`
+        }.`,
     },
     {
       scope: 'ACCOUNTS',

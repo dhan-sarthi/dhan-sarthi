@@ -718,6 +718,22 @@ export function consentFrom(
   window: { validFrom: IsoDate; validTo: IsoDate },
   report: MappingReport,
 ): Consent {
+  /*
+   * When the consent expires, which 591 does not say.
+   *
+   * Its entry carries a creation stamp and a status and no expiry at all; the only expiry
+   * anywhere in the catalogue is `consentExpiry` on the 497 notification, which arrives later
+   * and only if it arrives. The caller used to pass the ledger's last date as `validTo`, so a
+   * consent was reported as expiring on the day the bank's data happened to stop — a number
+   * with no relationship to the consent.
+   *
+   * A year from creation is the conservative reading, and conservative is the right direction:
+   * erring short means the app stops trusting a consent sooner than it must, which costs a
+   * re-verification, while erring long means acting on one that has lapsed. Recorded on the
+   * report either way, because a consent artefact on an advice record should not carry an
+   * assumption nobody can see.
+   */
+  const CONSENT_ASSUMED_YEARS = 1
   const id = optionalText(wire.consentID) ?? optionalText(wire.consent_handle) ?? 'UNKNOWN'
   const status = code(CONSENT_STATUS, optionalText(wire.status), '591.status', report)
   const fiTypes = new Set(
@@ -741,6 +757,15 @@ export function consentFrom(
     scopes: ['PROFILE', 'ACCOUNTS', 'TXN', 'LIABILITIES', 'HOLDINGS'],
     status: status ?? 'REVOKED',
     validFrom: created ?? window.validFrom,
-    validTo: window.validTo,
+    validTo: assumedExpiry(created ?? window.validFrom, CONSENT_ASSUMED_YEARS, report),
   }
+}
+
+/** `validFrom` plus n years, as text, so no Date and no timezone gets involved. */
+function assumedExpiry(from: IsoDate, years: number, report: MappingReport): IsoDate {
+  report.unmappedPaths.add(
+    `591: no consent expiry is sent, so validTo is assumed to be ${String(years)} year(s) from creation`,
+  )
+  const [y, rest] = [Number(from.slice(0, 4)), from.slice(4)]
+  return `${String(y + years).padStart(4, '0')}${rest}` as IsoDate
 }

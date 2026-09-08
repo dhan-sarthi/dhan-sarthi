@@ -90,8 +90,9 @@ export class CompositeBankData implements BankDataPort {
         TXN: 'idbi',
         LIABILITIES: 'idbi',
         // Declared, and labelled as such on Record → Your data. There is no holdings endpoint
-        // in the catalogue, so calling this block `idbi` would be the one lie this app tells.
-        HOLDINGS: 'fixture',
+        // in the catalogue, so calling this block `idbi` would be the one lie this app tells —
+        // and calling it `fixture` was a smaller one, since the customer told us this.
+        HOLDINGS: 'declared',
       },
     }
   }

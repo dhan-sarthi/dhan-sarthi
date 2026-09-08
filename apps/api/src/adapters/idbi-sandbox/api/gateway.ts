@@ -276,30 +276,47 @@ export class IdbiGateway {
       })
     }
 
-    const accounts: Account[] = []
-    const unenriched: { acctId: string; reason: string }[] = []
+    /*
+     * Every account enriched at once, not one after another.
+     *
+     * This was a sequential loop, and each turn of it is up to three round trips — 365 on the
+     * base fixture, 365 on the `01` fixture, then 362. Four accounts came to twelve trips in
+     * series, which is most of why a single decision took ten seconds. They are independent
+     * reads of different accounts, so there is nothing to serialise them for.
+     */
+    const enriched = await Promise.all(
+      stubs.map(async (stub) => {
+        const enquiry = await this.tryEnquiry(stub.acctId, customer.enquiryVariant)
+        if (enquiry === null) {
+          // The list still knows the number, the type and the balance. That is a real account.
+          return {
+            account: {
+              accountNumberMasked: maskAccountNumber(stub.acctId),
+              accountType: stub.accountType,
+              currentBalance: stub.balancePaise === null ? 0 : paiseToRupees(stub.balancePaise),
+              accountOpeningDate: '1970-01-01',
+              ...(stub.balancePaise === null
+                ? {}
+                : { effectiveAvailableBalance: paiseToRupees(stub.balancePaise) }),
+            } satisfies Account,
+            unenriched: { acctId: stub.acctId, reason: 'no 365 fixture for this account' },
+          }
+        }
+        const lien = await this.tryLien(stub.acctId, enquiry, report)
+        return {
+          account: accountFromEnquiry(enquiry, { lienPaise: lien }, report),
+          unenriched: null,
+        }
+      }),
+    )
 
-    for (const stub of stubs) {
-      const enquiry = await this.tryEnquiry(stub.acctId, customer.enquiryVariant)
-      if (enquiry === null) {
-        unenriched.push({ acctId: stub.acctId, reason: 'no 365 fixture for this account' })
-        // The list still knows the number, the type and the balance. That is a real account.
-        accounts.push({
-          accountNumberMasked: maskAccountNumber(stub.acctId),
-          accountType: stub.accountType,
-          currentBalance: stub.balancePaise === null ? 0 : paiseToRupees(stub.balancePaise),
-          accountOpeningDate: '1970-01-01',
-          ...(stub.balancePaise === null
-            ? {}
-            : { effectiveAvailableBalance: paiseToRupees(stub.balancePaise) }),
-        })
-        continue
-      }
-      const lien = await this.tryLien(stub.acctId, enquiry, report)
-      accounts.push(accountFromEnquiry(enquiry, { lienPaise: lien }, report))
+    return {
+      accounts: enriched.map((e) => e.account),
+      report,
+      unenriched: enriched
+        .map((e) => e.unenriched)
+        .filter((u): u is { acctId: string; reason: string } => u !== null),
     }
-
-    return { accounts, report, unenriched }
   }
 
   /** 365, or null when the sandbox has no fixture for the account. */
@@ -542,11 +559,16 @@ export class IdbiGateway {
       '402',
     )
 
-    const terms = new Map<string, LoanFacts>()
-    for (const row of overdues.overdueDetails) {
-      const facts = await this.tryLoanDetails(row.accountId, key, report)
-      if (facts !== null) terms.set(row.accountId, facts)
-    }
+    // Independent reads of different loan accounts; nothing to serialise them for.
+    const termPairs = await Promise.all(
+      overdues.overdueDetails.map(async (row) => {
+        const facts = await this.tryLoanDetails(row.accountId, key, report)
+        return facts === null ? null : ([row.accountId, facts] as const)
+      }),
+    )
+    const terms = new Map<string, LoanFacts>(
+      termPairs.filter((p): p is [string, LoanFacts] => p !== null),
+    )
 
     // One 433 read for the instalment the other two operations never send.
     if (customer.coverage.customerRecord) {

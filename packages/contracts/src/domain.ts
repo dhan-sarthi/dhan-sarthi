@@ -710,8 +710,16 @@ export type CategoryCap = z.infer<typeof CategoryCapSchema>
 export const BankSourceSchema = z.enum(['postgres', 'memory', 'idbi-sandbox'])
 export type BankSource = z.infer<typeof BankSourceSchema>
 
-/** Where a block of the file came from. Shown per block on Record → Your data. */
-export const ProvenanceSchema = z.enum(['idbi', 'fixture', 'postgres', 'memory'])
+/**
+ * Where a block of the file came from. Shown per block on Record → Your data.
+ *
+ * `declared` is the customer's own account of something no bank endpoint carries — their
+ * holdings, and the profile facts IDBI has no operation for. It is deliberately distinct from
+ * `fixture`: a generated portfolio and a portfolio the customer told us about are different
+ * claims, and labelling the second one "from the synthetic ledger" was telling a reviewer that
+ * real declared data was invented.
+ */
+export const ProvenanceSchema = z.enum(['idbi', 'declared', 'fixture', 'postgres', 'memory'])
 export type Provenance = z.infer<typeof ProvenanceSchema>
 
 export const ProvenanceMapSchema = z.object({
