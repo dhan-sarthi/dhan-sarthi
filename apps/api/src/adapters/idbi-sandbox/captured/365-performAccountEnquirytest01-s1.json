@@ -1,0 +1,92 @@
+{
+  "acctBal": [
+    {
+      "balAmt": {
+        "amountValue": "72400.00",
+        "currencyCode": "INR"
+      },
+      "balType": "LEDGER"
+    },
+    {
+      "balAmt": {
+        "amountValue": "71400.00",
+        "currencyCode": "INR"
+      },
+      "balType": "AVAIL"
+    },
+    {
+      "balAmt": {
+        "amountValue": "70400.00",
+        "currencyCode": "INR"
+      },
+      "balType": "EFFAVL"
+    },
+    {
+      "balAmt": {
+        "amountValue": "1000.00",
+        "currencyCode": "INR"
+      },
+      "balType": "LIEN"
+    },
+    {
+      "balAmt": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "balType": "FLOAT"
+    },
+    {
+      "balAmt": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "balType": "DRWPWR"
+    },
+    {
+      "balAmt": {
+        "amountValue": "72400.00",
+        "currencyCode": "INR"
+      },
+      "balType": "ACCBAL"
+    }
+  ],
+  "acctCurr": "INR",
+  "acctId": "660100100006",
+  "acctInqCustomData": {
+    "acctName": "NEHASINGH",
+    "status": "A"
+  },
+  "acctOpenDt": "2020-02-20T00:00:00.000",
+  "acctType": {
+    "schmCode": "SB004",
+    "schmType": "SAVINGS"
+  },
+  "bankAcctStatusCode": "A",
+  "bankInfo": {
+    "bankId": "IDBI001",
+    "branchId": "107",
+    "branchName": "DELHI",
+    "name": "IDBIBANK",
+    "postAddr": {
+      "addr1": "12 Connaught Place",
+      "addr2": "Central Delhi",
+      "addr3": "",
+      "addrType": "REGISTERED",
+      "city": "DELHI",
+      "country": "India",
+      "postalCode": "110001",
+      "stateProv": "DL"
+    }
+  },
+  "custId": "88823456",
+  "custStat": {
+    "refRecType": ""
+  },
+  "personName": {
+    "firstName": "NEHA",
+    "lastName": "SINGH",
+    "middleName": "",
+    "name": "NEHASINGH",
+    "titlePrefix": "MS"
+  }
+}

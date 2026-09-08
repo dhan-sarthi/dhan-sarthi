@@ -1,0 +1,167 @@
+{
+  "data": [
+    {
+      "Profile": {
+        "Holders": {
+          "Holder": [
+            {
+              "address": "12 Connaught Place, Central Delhi, DELHI, DL, 110001",
+              "ckycRegistered": "YES",
+              "dob": "1992-03-14",
+              "email": "neha.singh@gmail",
+              "landline": "",
+              "mobile": "9765400022",
+              "name": "NEHASINGH",
+              "nominee": "REGISTERED",
+              "pan": "QRSTU1234M"
+            }
+          ],
+          "type": "SINGLE"
+        }
+      },
+      "Summary": {
+        "PendingTxns": {
+          "PendingTxn": {
+            "amount": 0,
+            "transactionType": "Debit"
+          }
+        },
+        "accountSubType": "CURRENT",
+        "accountType": "REGULAR",
+        "balanceDateTime": "2025-07-19T07:30:00.000Z",
+        "branch": "DELHI",
+        "currency": "INR",
+        "currentBalance": "260549.93",
+        "currentODLimit": "0",
+        "drawingLimit": "0",
+        "facility": "NO_FACILITY_GRANTED",
+        "ifsc": "IBKL0000107",
+        "micrCode": "110259003",
+        "openingDate": "2020-02-20",
+        "status": "ACTIVE"
+      },
+      "Transactions": {
+        "Transaction": [
+          {
+            "amount": "4324.61",
+            "mode": "ATM",
+            "narration": "UPI/CR/22071/PAYEE0/ABCD",
+            "reference": "RFN315300",
+            "transactionTimestamp": "2025-05-08T07:30:00.000Z",
+            "transactionalBalance": "245675.39",
+            "txnId": "T3153100",
+            "type": "DEBIT",
+            "valueDate": "2025-05-08T00:00:00.000"
+          },
+          {
+            "amount": "4535.80",
+            "mode": "CASH",
+            "narration": "TO TRANSFER",
+            "reference": "RFN315301",
+            "transactionTimestamp": "2025-05-12T07:30:00.000Z",
+            "transactionalBalance": "250211.19",
+            "txnId": "T3153101",
+            "type": "CREDIT",
+            "valueDate": "2025-05-12T00:00:00.000"
+          },
+          {
+            "amount": "4746.99",
+            "mode": "RTGS",
+            "narration": "By Transfer",
+            "reference": "RFN315302",
+            "transactionTimestamp": "2025-05-17T07:30:00.000Z",
+            "transactionalBalance": "254958.18",
+            "txnId": "T3153102",
+            "type": "CREDIT",
+            "valueDate": "2025-05-17T00:00:00.000"
+          },
+          {
+            "amount": "4958.18",
+            "mode": "NACH",
+            "narration": "ACCT CHARGES",
+            "reference": "RFN315303",
+            "transactionTimestamp": "2025-05-23T07:30:00.000Z",
+            "transactionalBalance": "250000.00",
+            "txnId": "T3153103",
+            "type": "DEBIT",
+            "valueDate": "2025-05-23T00:00:00.000"
+          },
+          {
+            "amount": "5169.37",
+            "mode": "ECS",
+            "narration": "AEPS-ONUS-CW-34687",
+            "reference": "RFN315304",
+            "transactionTimestamp": "2025-05-30T07:30:00.000Z",
+            "transactionalBalance": "255169.37",
+            "txnId": "T3153104",
+            "type": "CREDIT",
+            "valueDate": "2025-05-30T00:00:00.000"
+          },
+          {
+            "amount": "5380.56",
+            "mode": "CHEQUE",
+            "narration": "CREDIT ENTRY",
+            "reference": "RFN315305",
+            "transactionTimestamp": "2025-06-07T07:30:00.000Z",
+            "transactionalBalance": "260549.93",
+            "txnId": "T3153105",
+            "type": "CREDIT",
+            "valueDate": "2025-06-07T00:00:00.000"
+          },
+          {
+            "amount": "5591.75",
+            "mode": "CARD",
+            "narration": "INTEREST/SALARY",
+            "reference": "RFN315306",
+            "transactionTimestamp": "2025-06-16T07:30:00.000Z",
+            "transactionalBalance": "254958.18",
+            "txnId": "T3153106",
+            "type": "DEBIT",
+            "valueDate": "2025-06-16T00:00:00.000"
+          },
+          {
+            "amount": "5802.94",
+            "mode": "UPI",
+            "narration": "IMPS TRANSFER 3160",
+            "reference": "RFN315307",
+            "transactionTimestamp": "2025-06-26T07:30:00.000Z",
+            "transactionalBalance": "260761.12",
+            "txnId": "T3153107",
+            "type": "CREDIT",
+            "valueDate": "2025-06-26T00:00:00.000"
+          },
+          {
+            "amount": "6014.13",
+            "mode": "NEFT",
+            "narration": "UPI/CR/15773/SENDER/PQRS",
+            "reference": "RFN315308",
+            "transactionTimestamp": "2025-07-07T07:30:00.000Z",
+            "transactionalBalance": "266775.25",
+            "txnId": "T3153108",
+            "type": "CREDIT",
+            "valueDate": "2025-07-07T00:00:00.000"
+          },
+          {
+            "amount": "6225.32",
+            "mode": "IMPS",
+            "narration": "NEFT OUTWARD 3162",
+            "reference": "RFN315309",
+            "transactionTimestamp": "2025-07-19T07:30:00.000Z",
+            "transactionalBalance": "260549.93",
+            "txnId": "T3153109",
+            "type": "DEBIT",
+            "valueDate": "2025-07-19T00:00:00.000"
+          }
+        ],
+        "endDate": "2025-07-19T07:30:00.000Z",
+        "startDate": "2025-05-05T07:30:00.000Z"
+      },
+      "bank": "IDBIBANK",
+      "fiType": "DEPOSIT",
+      "linkReferenceNumber": "lr-003-cur-0002-44dd55ee66ff",
+      "maskedAccountNumber": "XXXXXXXXXX0007"
+    }
+  ],
+  "status": "success",
+  "ver": "1.21.0"
+}

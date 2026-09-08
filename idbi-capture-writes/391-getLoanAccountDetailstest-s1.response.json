@@ -1,0 +1,232 @@
+{
+  "errors": [],
+  "result": {
+    "ACHDetails": {
+      "paySysId": "NACH",
+      "respAcctId": {
+        "acctCurr": "INR",
+        "acctId": "660100100003",
+        "acctType": {
+          "schmCode": "SB002",
+          "schmType": "SAVINGS"
+        },
+        "bankInfo": {
+          "bankId": "IDBI001",
+          "branchId": "105",
+          "branchName": "PUNE",
+          "name": "IDBIBANK",
+          "postAddr": {
+            "addr1": "142, Lake View",
+            "addr2": "Near City Mall",
+            "addr3": "",
+            "addrType": "REGISTERED",
+            "city": "PUNE",
+            "country": "India",
+            "postalCode": "411001",
+            "stateProv": "MH"
+          }
+        }
+      }
+    },
+    "acctOpenDt": "2018-04-18T00:00:00.000",
+    "amtAlreadyDisb": {
+      "amountValue": "1500000",
+      "currencyCode": "INR"
+    },
+    "amtAvailForDisb": {
+      "amountValue": "500000",
+      "currencyCode": "INR"
+    },
+    "custId": {
+      "custId": "68453002",
+      "personName": {
+        "firstName": "PRIYA",
+        "lastName": "PATIL",
+        "middleName": "",
+        "name": "PRIYAPATIL",
+        "titlePrefix": "MS"
+      }
+    },
+    "disbAmt": {
+      "amountValue": "2000000",
+      "currencyCode": "INR"
+    },
+    "disbDealerCode": {
+      "dsaId": "",
+      "dsaName": ""
+    },
+    "loanAcctGenInfo": {
+      "acctName": "PRIYAPATIL Loan",
+      "acctShortName": "PRIYL",
+      "acctStmtFreq": {
+        "cal": "Monthly",
+        "holStat": "Ignore",
+        "startDt": "2018-04-18T00:00:00.000",
+        "type": "Regular",
+        "weekDay": "Monday",
+        "weekNum": "1"
+      },
+      "acctStmtMode": "Email",
+      "acctStmtNxtPrintDt": "",
+      "despatchMode": "E",
+      "drIntMethodInd": "Reducing Balance",
+      "eotEnabled": "Y",
+      "genLedgerSubHead": {
+        "curCode": "INR",
+        "genLedgerSubHeadCode": "GL0000"
+      }
+    },
+    "loanAcctId": {
+      "acctCurr": "INR",
+      "acctId": "660100100003",
+      "acctType": {
+        "schmCode": "SB002",
+        "schmType": "SAVINGS"
+      },
+      "bankInfo": {
+        "bankId": "IDBI001",
+        "branchId": "105",
+        "branchName": "PUNE",
+        "name": "IDBIBANK",
+        "postAddr": {
+          "addr1": "142, Lake View",
+          "addr2": "Near City Mall",
+          "addr3": "",
+          "addrType": "REGISTERED",
+          "city": "PUNE",
+          "country": "India",
+          "postalCode": "411001",
+          "stateProv": "MH"
+        }
+      }
+    },
+    "loanGenDetails": {
+      "loanAmt": {
+        "amountValue": "2000000",
+        "currencyCode": "INR"
+      },
+      "loanPeriodDays": "0",
+      "loanPeriodMonths": "240",
+      "operAcctId": {
+        "acctCurr": "INR",
+        "acctId": "660100100003",
+        "acctType": {
+          "schmCode": "SB002",
+          "schmType": "SAVINGS"
+        },
+        "bankInfo": {
+          "bankId": "IDBI001",
+          "branchId": "105",
+          "branchName": "PUNE",
+          "name": "IDBIBANK",
+          "postAddr": {
+            "addr1": "142, Lake View",
+            "addr2": "Near City Mall",
+            "addr3": "",
+            "addrType": "REGISTERED",
+            "city": "PUNE",
+            "country": "India",
+            "postalCode": "411001",
+            "stateProv": "MH"
+          }
+        }
+      },
+      "pmtPlan": {
+        "brokenPeriodInterestFlg": "Y",
+        "capEMIFlg": "N",
+        "defApplIntRate": {
+          "value": "8.75"
+        },
+        "defApplIntRateFlg": "N",
+        "defStartMonth": "06",
+        "eqInstallDetails": {
+          "eqInstallFlg": "Y",
+          "eqInstallFormula": "Standard",
+          "eqInstallType": "EMI",
+          "repayCode": "EMI01"
+        },
+        "hldyPerdIntAmt": {
+          "amountValue": "0",
+          "currencyCode": "INR"
+        },
+        "holidayPeriodDetails": {
+          "autoReschedPostHolidayPeriod": "Y",
+          "holidayPeriod": "0",
+          "intDuringHolidayPeriod": "Y",
+          "intFreq": {
+            "cal": "Monthly",
+            "holStat": "Ignore",
+            "startDt": "2018-04-18T00:00:00.000",
+            "type": "Regular",
+            "weekDay": "",
+            "weekNum": ""
+          }
+        },
+        "intRestBasis": "Monthly",
+        "intRestFreq": "1M",
+        "negotiatedRate": {
+          "value": "8.75"
+        },
+        "numOfAdvInst": "0",
+        "repmtRec": [
+          {
+            "actualNoOfFlows": {
+              "value": "240"
+            },
+            "flowAmt": {
+              "amountValue": "16800",
+              "currencyCode": "INR"
+            },
+            "installFreq": {
+              "cal": "Monthly",
+              "holStat": "Ignore",
+              "startDt": "2018-04-18T00:00:00.000",
+              "type": "Regular",
+              "weekDay": "",
+              "weekNum": ""
+            },
+            "installIndicator": "EMI",
+            "installRate": {
+              "value": "8.75"
+            },
+            "installStartDt": "2018-04-18T00:00:00.000",
+            "installmentId": "1",
+            "intFreq": {
+              "cal": "Monthly",
+              "holStat": "Ignore",
+              "startDt": "2018-04-18T00:00:00.000",
+              "type": "Regular",
+              "weekDay": "",
+              "weekNum": ""
+            },
+            "intStartDt": "2018-04-18T00:00:00.000",
+            "noOfInstall": "240"
+          }
+        ],
+        "singEmiDiffFlg": "N"
+      },
+      "rePmtMethod": "EMI",
+      "reschedParams": {
+        "InstallmentGracePeriodMonths": "0",
+        "autoReschedForEveryDisbFlg": "N",
+        "autoReschedForIntRateChange": "Y",
+        "autoReschedPrepaymentFlg": "Y",
+        "installmentGracePeriodDays": "5",
+        "rephasementCapitalizeChargeFlg": "N",
+        "reschedAdjTenorAmtFlg": "Y",
+        "reschedAmtFlg": "N"
+      }
+    },
+    "modeOfOper": "SINGLE",
+    "netIntRate": {
+      "value": "8.75"
+    },
+    "refNum": "",
+    "srcDealerCode": {
+      "dsaId": "",
+      "dsaName": ""
+    },
+    "tranDt": "",
+    "tranId": ""
+  }
+}

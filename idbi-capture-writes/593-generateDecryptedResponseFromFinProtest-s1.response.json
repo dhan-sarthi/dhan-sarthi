@@ -1,0 +1,16 @@
+{
+  "data": {
+    "email": null,
+    "errorcode": "0",
+    "pan": null,
+    "redirect": "https://myapp.com/consent/callback",
+    "sessionid": "8f0012b8-fcdd-4149-8154-6894dc986c5c",
+    "srcref": "6afdd734-be3b-475f-a8fc-3fcd18c04714",
+    "status": "S",
+    "txnid": "2513d094-1f24-4076-9933-ccef1adeda3f",
+    "userid": "9988776655@onemoney"
+  },
+  "message": "Success",
+  "status": "success",
+  "ver": "1.21.0"
+}

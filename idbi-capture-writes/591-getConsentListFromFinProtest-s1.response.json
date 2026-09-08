@@ -1,0 +1,30 @@
+{
+  "data": [
+    {
+      "aaId": "AA_00112233",
+      "accountID": "660100100003",
+      "accounts": [
+        {
+          "accountType": "SAVINGS",
+          "fiType": "DEPOSIT",
+          "fipId": "IDBI001",
+          "fipName": "IDBI Bank",
+          "linkReferenceNumber": "LRN0001",
+          "maskedAccountNumber": "XXXXXXXX0003"
+        }
+      ],
+      "consentCreationData": "2026-06-22T17:30:45Z",
+      "consentID": "CONSENT-0001",
+      "consent_handle": "6afdd734-be3b-475f-a8fc-3fcd18c04714",
+      "productID": "TEST",
+      "status": "ACTIVE",
+      "vua": "9988776655@onemoney"
+    }
+  ],
+  "errorCode": null,
+  "errorMsg": null,
+  "errors": [],
+  "status": "SUCCESS",
+  "timestamp": "2026-06-22T17:40:00Z",
+  "ver": "1.0"
+}

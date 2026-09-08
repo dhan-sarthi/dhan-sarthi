@@ -1,0 +1,94 @@
+{
+  "acctBal": [
+    {
+      "balAmt": {
+        "amountValue": "56780.25",
+        "currencyCode": "INR"
+      },
+      "balType": "LEDGER"
+    },
+    {
+      "balAmt": {
+        "amountValue": "55780.25",
+        "currencyCode": "INR"
+      },
+      "balType": "AVAIL"
+    },
+    {
+      "balAmt": {
+        "amountValue": "50780.25",
+        "currencyCode": "INR"
+      },
+      "balType": "EFFAVL"
+    },
+    {
+      "balAmt": {
+        "amountValue": "5000.00",
+        "currencyCode": "INR"
+      },
+      "balType": "LIEN"
+    },
+    {
+      "balAmt": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "balType": "FLOAT"
+    },
+    {
+      "balAmt": {
+        "amountValue": "0.00",
+        "currencyCode": "INR"
+      },
+      "balType": "DRWPWR"
+    },
+    {
+      "balAmt": {
+        "amountValue": "56780.25",
+        "currencyCode": "INR"
+      },
+      "balType": "ACCBAL"
+    }
+  ],
+  "acctCurr": "INR",
+  "acctId": "660100100003",
+  "acctInqCustomData": {
+    "acctName": "PRIYAPATIL",
+    "status": "A"
+  },
+  "acctOpenDt": "2018-04-18T00:00:00.000",
+  "acctType": {
+    "schmCode": "SB002",
+    "schmType": "SAVINGS"
+  },
+  "bankAcctStatusCode": "A",
+  "bankInfo": {
+    "bankId": "IDBI001",
+    "branchId": "105",
+    "branchName": "PUNE",
+    "name": "IDBIBANK",
+    "postAddr": {
+      "addr1": "142, Lake View",
+      "addr2": "Near City Mall",
+      "addr3": "",
+      "addrType": "REGISTERED",
+      "city": "PUNE",
+      "country": "India",
+      "postalCode": "411001",
+      "stateProv": "MH"
+    }
+  },
+  "custId": "68453002",
+  "custStat": {
+    "refCode": "GEN",
+    "refDesc": "GENERAL",
+    "refRecType": ""
+  },
+  "personName": {
+    "firstName": "PRIYA",
+    "lastName": "PATIL",
+    "middleName": "",
+    "name": "PRIYAPATIL",
+    "titlePrefix": "MS"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "executeFinacleScriptCustomData": {
+    "accountLiab": "400000.00",
+    "interestRate": "7.000000",
+    "interestSinceLastApplication": "537.00",
+    "netPayofamt": "400537.00",
+    "pendingNormalInterest": "0",
+    "pendingOverdueInterest": "0",
+    "pendingPenalInterest": "0",
+    "pendingPrincipal": "400000.00"
+  }
+}

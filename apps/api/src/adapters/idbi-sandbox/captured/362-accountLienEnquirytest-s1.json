@@ -1,0 +1,46 @@
+{
+  "errors": [],
+  "result": {
+    "acctCurr": "INR",
+    "acctId": "660100100003",
+    "acctType": {
+      "schmCode": "SB002",
+      "schmType": "SAVINGS"
+    },
+    "bankInfo": {
+      "bankId": "IDBI001",
+      "branchId": "105",
+      "branchName": "PUNE",
+      "lienDetails": {
+        "isDeleted": "N",
+        "lienDate": {
+          "endDate": "2027-07-08",
+          "startDate": "2026-07-09"
+        },
+        "lienId": "LIEN660100100003",
+        "newLienAmt": {
+          "amountValue": "5000",
+          "currencyCode": "INR"
+        },
+        "oldLienAmt": {
+          "amountValue": "0",
+          "currencyCode": "INR"
+        },
+        "reasonCode": "ACCOUNT_LIEN",
+        "remarks": "Lien marked on savings account"
+      },
+      "name": "IDBIBANK",
+      "postAddr": {
+        "addr1": "142, Lake View",
+        "addr2": "Near City Mall",
+        "addr3": "",
+        "addrType": "REGISTERED",
+        "city": "PUNE",
+        "country": "India",
+        "postalCode": "411001",
+        "stateProv": "MH"
+      }
+    },
+    "moduleType": "DEPOSIT"
+  }
+}

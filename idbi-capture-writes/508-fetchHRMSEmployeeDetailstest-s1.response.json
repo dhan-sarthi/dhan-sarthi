@@ -1,0 +1,29 @@
+{
+  "errors": [],
+  "failureStage": null,
+  "getHRMSEmployeeDetails": {
+    "ein": "137075",
+    "email": "priya@gmail",
+    "empClass": "Permanent",
+    "fullNameTitle": "Ms Priya Patil",
+    "gender": "F",
+    "grade": "Manager",
+    "location": "Mumbai",
+    "organization": "Corporate Centre Mumbai",
+    "posId": "POS98765",
+    "position": "Assistant Manager",
+    "region": "West",
+    "sol": "CC001",
+    "supEin": "120045",
+    "supEmail": "pawan.sharma@bank.com",
+    "supFullNameTitle": "Mr Pawan Sharma",
+    "supGrade": "Senior Manager",
+    "supLocation": "Mumbai",
+    "supSol": "CC001",
+    "supZone": "Mumbai Zone",
+    "supposition": "Manager - DBD",
+    "vertical": "Digital Banking",
+    "zone": "Mumbai Zone"
+  },
+  "otpId": 982374
+}

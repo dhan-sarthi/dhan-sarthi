@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "webRedirectionUrl": "https://webrd.onemoney.in/uat/v2/?ecreq=nwjkn5kcSuRkDUDIKekQhcB6QCtrcsQ9ks4jvi-L8gaWia-pJnZgEqnD1Tzqv-mDHrHKkji20RHBmCoXPGcb8e1ev7upLYGcXbVVbUuySceXTMAOg511Q89REzhggPj7DbG2woiCZPzbtkZfnwSRlEa5yFaGPdwqMhoNPPk6llcnTa_WX5CXqHKo5He0tdrP2-2hXgKUHhiJS50Nu-ZECHEGqrq72P1fak_c2aSxZ_DkbF1hCxenxrQ5QtAR14Oa&reqdate=250220261248050&fi=W1FSW1BRXF0cVF1NHUBRRg&requestorType=dHxl"
+    }
+  ],
+  "errorCode": null,
+  "errorMsg": null,
+  "errors": [],
+  "message": "Success",
+  "status": "Success",
+  "timestamp": "2026-06-22T17:40:00Z",
+  "ver": "1.21.0"
+}
