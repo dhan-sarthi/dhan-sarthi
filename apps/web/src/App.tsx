@@ -117,6 +117,7 @@ export function App(): ReactNode {
           tier={tier}
           clock={{
             show: view.meta.simulatedClock,
+            horizonTo: vs.session?.ledgerHorizon.to ?? view.meta.dataFreshnessDate,
             notice: m.clockNotice,
             disabled: m.busy,
             onAdvance: (days) => void m.advanceClock(days),

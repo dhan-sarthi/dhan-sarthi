@@ -43,6 +43,8 @@ const BTN_ON_INK_SECONDARY =
 export interface ClockControls {
   /** False under a real bank feed, where today is today. */
   show: boolean
+  /** The last date the feed has data for; a step past it is refused by the server. */
+  horizonTo: string
   notice: string | null
   disabled: boolean
   onAdvance: (days: 1 | 7 | 30) => void
@@ -113,6 +115,7 @@ export function Today({
           <div className="mt-3">
             <Clock
               asOf={asOf}
+              horizonTo={clock.horizonTo}
               notice={clock.notice}
               disabled={clock.disabled}
               onAdvance={clock.onAdvance}
