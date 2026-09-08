@@ -2,7 +2,7 @@
  * What the route handlers may reach. Wired by the composition root; read by every route file.
  * Kept apart from the route index so the route files and the index do not import each other.
  */
-import type { HealthResponse, OpenApiDocument } from '@dhan/contracts'
+import type { HealthResponse, MappingReportResponse, OpenApiDocument } from '@dhan/contracts'
 import type { AdvisoryService } from '../../application/advisory.service.ts'
 import type { AvatarSessionService } from '../../application/avatar/avatar-session.service.ts'
 import type { ConversationService } from '../../application/conversation.service.ts'
@@ -23,6 +23,11 @@ export interface AppServices {
   holdings: HoldingsStore
   /** The Account Aggregator consent flow: the only path to another bank's accounts. */
   aaConsent: AaConsentService
+  /**
+   * What the last read off the bank could not map cleanly, or null under a source with no
+   * mapping layer. A function rather than a value because it is read at request time.
+   */
+  mappingReport: () => MappingReportResponse['report']
   shelf: ProductShelfPort
   sessions: SessionService
   advisory: AdvisoryService

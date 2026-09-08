@@ -49,6 +49,7 @@ import type {
 import type { AaConsentStore } from '../ports/aa-consent.port.ts'
 import type { AaGatewayPort } from '../ports/aa-gateway.port.ts'
 import type { LeadSinkPort } from '../ports/lead-sink.port.ts'
+import type { MappingReport } from '../adapters/idbi-sandbox/api/to-domain.ts'
 import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
 import type { HoldingsStore } from '../ports/holdings.port.ts'
 import { AaConsentService } from '../application/aa-consent.service.ts'
@@ -80,6 +81,13 @@ export interface Deps {
   aa: { store: AaConsentStore; gateway: AaGatewayPort } | null
   /** Where an accepted product goes: IDBI's lead queue, or nowhere. */
   leads: LeadSinkPort
+  /**
+   * The mapping report of the last read, where the source has a mapping layer.
+   *
+   * Supplied as a function by whichever profile built the adapter, because only that profile
+   * knows the concrete type and `BankDataPort` has no business carrying one.
+   */
+  mappingReport: (() => MappingReport | null) | null
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -281,6 +289,24 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     profiles: deps.profiles,
     holdings: deps.holdings,
     aaConsent,
+    /*
+     * The mapping report, read through the concrete adapter.
+     *
+     * `deps.bank` is a port and does not carry one — only the IDBI adapter has a mapping layer
+     * to report on, and it is the composition root's job to know that. A `Set` does not survive
+     * JSON, so the unmapped paths are flattened here.
+     */
+    mappingReport: () => {
+      const reporter = deps.mappingReport
+      if (reporter === null) return null
+      const report = reporter()
+      if (report === null) return null
+      return {
+        codeFallbacks: report.codeFallbacks,
+        unmappedPaths: [...report.unmappedPaths].sort(),
+        notes: report.notes,
+      }
+    },
     shelf: deps.shelf,
     sessions,
     advisory,

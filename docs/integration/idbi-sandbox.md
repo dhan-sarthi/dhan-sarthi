@@ -115,6 +115,14 @@ is ₹344,483.14 while the ledger balance in the same payload is ₹56,780.25. T
 per-row balance entirely when it fails to reconcile, because `derive()` took the minimum of it as
 the twelve-month idle floor and reported ₹344,483 sitting idle in an account holding ₹56,780.
 
+**538 and 402 disagree about the same loan.** For `660100100003` the overdue record reports
+₹37,54,903 outstanding and the payoff enquiry reports ₹4,00,000 of principal pending — an order
+of magnitude apart, one account, one bank, the same day. The payoff is the better answer to "what
+would clearing this cost", and it is deliberately *not* mapped onto the liability: two
+irreconcilable figures for one loan on one screen is worse than the one we can source
+consistently. The gap is recorded on the mapping report instead, so an operator sees it, and it
+becomes a mapping the day the fixtures agree.
+
 **`custId` is not `cifId`.** 442's `customerSummary` is the only place both appear:
 `custCifId: 98655854` and `customerID: 68453002`, for the same PRIYAPATIL.
 
@@ -224,14 +232,16 @@ Worth raising, in rough order of how much it costs us:
    on another, and 394 needing `txn` on one and not the other, means a client cannot be written
    against a rule.
 3. **Reconcile 591 with 595.** A consent id from 591 is refused by 595.
-4. **Three of your own exported samples are rejected by your own sandbox**: 362 and 391 sample 2
+4. **Reconcile 538 with 402.** ₹4,00,000 of pending principal against ₹37,54,903 outstanding,
+   for one account. We cannot show a payoff figure until we know which is meant.
+5. **Three of your own exported samples are rejected by your own sandbox**: 362 and 391 sample 2
    on an address the fixture does not hold, and 428 sample 3 on the PAN `ABCDX99995`, which fails
    the `AAAAA9999A` rule that same endpoint enforces.
-5. **Widen 592's `redirectUrl`**, or the redirect leg cannot be tested by anyone.
-6. **Populate `responses` in the OpenAPI exports.** Twenty-eight of twenty-nine are `{}`.
-7. **State the balance semantics.** `EFFAVL` differing from `AVAIL − LIEN` on a current account
+6. **Widen 592's `redirectUrl`**, or the redirect leg cannot be tested by anyone.
+7. **Populate `responses` in the OpenAPI exports.** Twenty-eight of twenty-nine are `{}`.
+8. **State the balance semantics.** `EFFAVL` differing from `AVAIL − LIEN` on a current account
    is almost certainly a minimum balance, but we are inferring that.
-8. **Send a consent expiry in 591**, and a payment mode in 393.
+9. **Send a consent expiry in 591**, and a payment mode in 393.
 
 ## Where the code is
 

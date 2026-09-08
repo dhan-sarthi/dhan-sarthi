@@ -37,6 +37,7 @@ import {
   listCustomersRoute,
   listTransactionsRoute,
   operatorAvatarStatusRoute,
+  operatorMappingReportRoute,
   operatorReleaseAllRoute,
   operatorSeedRoute,
   patchProfileRoute,
@@ -92,6 +93,7 @@ export const ROUTES = [
   operatorAvatarStatusRoute,
   operatorReleaseAllRoute,
   operatorSeedRoute,
+  operatorMappingReportRoute,
 ] as const satisfies readonly RouteEntry[]
 
 export type Route = (typeof ROUTES)[number]

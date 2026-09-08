@@ -29,4 +29,9 @@ export function operatorRoutes(r: Registrar, s: AppServices): void {
     const [seedRun, drift] = await Promise.all([s.seed.provenance(), s.seed.drift()])
     return { seedRun, drift, bankSource: description.source, provenance }
   })
+
+  r(routeById('operatorMappingReport'), async () => ({
+    source: s.bank.describe().source,
+    report: s.mappingReport(),
+  }))
 }

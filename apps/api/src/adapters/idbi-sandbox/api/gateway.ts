@@ -652,7 +652,48 @@ export class IdbiGateway {
       }
     }
 
+    await this.crossCheckPayoff(overdues.overdueDetails, report)
+
     return { liabilities: liabilitiesFromOverdues(overdues, terms, report), report }
+  }
+
+  /**
+   * 538's payoff against 402's outstanding, for the same account.
+   *
+   * They do not agree. For 660100100003 the overdue record says ₹37,54,903 outstanding and the
+   * payoff enquiry says ₹4,00,000 of principal pending — an order of magnitude apart, for one
+   * account, from one bank, on the same day.
+   *
+   * So neither number is shown beside the other, and the payoff is deliberately *not* mapped
+   * onto the liability even though it is the better answer to "what would clearing this cost".
+   * Putting two irreconcilable figures for one loan on one screen is worse than showing the one
+   * we can source consistently. What happens instead is that the gap is recorded, so an
+   * operator sees it and IDBI can be asked which of the two their fixtures mean — and the day
+   * they agree, this becomes a mapping rather than a note.
+   */
+  private async crossCheckPayoff(
+    rows: readonly { accountId: string; outstandingBal?: unknown }[],
+    report: MappingReport,
+  ): Promise<void> {
+    const quotes = await Promise.all(
+      rows.map(async (row) => ({
+        row,
+        quote: await this.payoffQuote(row.accountId).catch(() => null),
+      })),
+    )
+    for (const { row, quote } of quotes) {
+      if (quote === null || quote.principalPaise === null) continue
+      const outstanding = optionalPaise(row.outstandingBal, '402.outstandingBal')
+      if (outstanding === null) continue
+      if (Math.abs(outstanding - quote.principalPaise) <= RECONCILE_TOLERANCE) continue
+      report.notes.push({
+        where: `538(${row.accountId})`,
+        detail:
+          `the payoff enquiry reports ${String(quote.principalPaise)} paise of principal ` +
+          `pending against ${String(outstanding)} from the overdue record; the payoff is not ` +
+          'mapped while the two disagree',
+      })
+    }
   }
 
   private async tryLoanDetails(

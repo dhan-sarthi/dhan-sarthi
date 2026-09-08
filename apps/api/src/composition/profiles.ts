@@ -48,6 +48,7 @@ import { createPool } from '../db/pool.ts'
 import type { Logger } from '../infra/logger.ts'
 import type { AaConsentStore } from '../ports/aa-consent.port.ts'
 import type { LeadSinkPort } from '../ports/lead-sink.port.ts'
+import type { MappingReport } from '../adapters/idbi-sandbox/api/to-domain.ts'
 import type { AaGatewayPort } from '../ports/aa-gateway.port.ts'
 import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
 import type { HoldingsStore } from '../ports/holdings.port.ts'
@@ -99,6 +100,8 @@ export interface BankAdapters {
   aa: { store: AaConsentStore; gateway: AaGatewayPort } | null
   /** Where an accepted product goes. Nowhere, under a source with no bank behind it. */
   leads: LeadSinkPort
+  /** The mapping report of the last read. Null under a source with no mapping layer. */
+  mappingReport: (() => MappingReport | null) | null
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -133,6 +136,7 @@ export function bankAdapters(
         holdings: new BankBackedHoldings(bank, clock),
         aa: null,
         leads: noLeadSink('memory'),
+        mappingReport: null,
         shelf: new InMemoryProductShelf(shelfRows()),
         sessions: new InMemorySessionStore(clock),
         snapshots: new InMemorySnapshotStore(clock),
@@ -179,6 +183,7 @@ export function bankAdapters(
         holdings: new BankBackedHoldings(bank, clock),
         aa: null,
         leads: noLeadSink('postgres'),
+        mappingReport: null,
         shelf: new PostgresProductShelf(db),
         sessions: new PostgresSessionStore(db, clock),
         snapshots: new PostgresSnapshotStore(db, clock),
@@ -226,16 +231,15 @@ export function bankAdapters(
       const profiles = new InMemoryDeclaredProfiles(DECLARED_SEEDS, clock)
       const holdings = new InMemoryHoldings(HOLDINGS_SEEDS, clock)
       const gateway = new IdbiGateway({ transport, logger: log })
-      const bank = new CompositeBankData(
-        new IdbiSandboxBankData({ gateway, profiles, logger: log }),
-        holdings,
-      )
+      const idbi = new IdbiSandboxBankData({ gateway, profiles, logger: log })
+      const bank = new CompositeBankData(idbi, holdings)
       return {
         bank,
         profiles,
         holdings,
         aa: { store: new InMemoryAaConsents(clock), gateway },
         leads: new IdbiLeadSink({ gateway, logger: log }),
+        mappingReport: () => idbi.lastReport(),
         shelf: new InMemoryProductShelf(shelfRows()),
         sessions: new InMemorySessionStore(clock),
         snapshots: new InMemorySnapshotStore(clock),

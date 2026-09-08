@@ -23,6 +23,7 @@ import {
   sandboxCustomer,
 } from '../../src/adapters/idbi-sandbox/api/customers.ts'
 import { OPERATIONS, operationByPath } from '../../src/adapters/idbi-sandbox/api/operations.ts'
+import type { ServiceCode } from '../../src/adapters/idbi-sandbox/api/operations.ts'
 import { newReport } from '../../src/adapters/idbi-sandbox/api/to-domain.ts'
 import { silentLogger } from '../../src/infra/logger.ts'
 import type { ReplayTransport } from '../../src/adapters/idbi-sandbox/api/replay.ts'
@@ -38,7 +39,7 @@ import type { ReplayTransport } from '../../src/adapters/idbi-sandbox/api/replay
  * were not given. Their response shapes are mapped anyway, because 433 returns both bodies in
  * full without spending either.
  */
-const NOT_CALLED_BY_THE_APP = new Set(['497', '498', '408', '415'])
+const NOT_CALLED_BY_THE_APP = new Set<ServiceCode>(['497', '498', '408', '415'])
 
 const PRIYA = '98655854'
 
@@ -116,7 +117,7 @@ describe('the reach of the IDBI gateway', () => {
     const called = new Set(
       replay.calls
         .map((c) => operationByPath(c.op)?.code)
-        .filter((code): code is string => code !== undefined),
+        .filter((code): code is ServiceCode => code !== undefined),
     )
     const missing = OPERATIONS.filter(
       (o) => !NOT_CALLED_BY_THE_APP.has(o.code) && !called.has(o.code),
