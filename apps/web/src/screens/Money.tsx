@@ -146,8 +146,13 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
             <div className="flex justify-between gap-2.5">
               <div className="flex-1">
                 <div className="text-[15.5px] font-bold text-ink">Loans and cards</div>
+                {/* Terms come from 391 and 433, and IDBI holds them for one loan account out
+                    of five. "₹0/month at up to 0%" on a ₹6 lakh balance is not a fact about the
+                    loan, it is the absence of one. */}
                 <p className={`${META} mt-[3px]`}>
-                  {inr(debt.monthlyOutgo)}/month at up to {debt.highestRate}%
+                  {debt.monthlyOutgo > 0 || debt.highestRate > 0
+                    ? `${inr(debt.monthlyOutgo)}/month at up to ${debt.highestRate}%`
+                    : 'The bank sends no rate or instalment for these'}
                 </p>
               </div>
               <Amount value={debt.total} size="md" />
@@ -174,9 +179,13 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
         <div className="flex justify-between gap-2.5">
           <div className="flex-1">
             <div className="text-[15.5px] font-bold text-ink">Life cover in force</div>
+            {/* With nobody depending on the income there is no requirement to quote, and
+                "0 dependents · indicative need ₹0" reads as a calculation that failed rather
+                than as the right answer. */}
             <p className={`${META} mt-[3px]`}>
-              {protection.dependents} {protection.dependents === 1 ? 'dependent' : 'dependents'} ·
-              indicative need {inr(protection.lifeCoverNeeded)}
+              {protection.dependents === 0
+                ? 'Nobody on record depends on your income'
+                : `${protection.dependents} ${protection.dependents === 1 ? 'dependent' : 'dependents'} · indicative need ${inr(protection.lifeCoverNeeded)}`}
             </p>
           </div>
           <Amount value={protection.lifeCoverInForce} size="md" />

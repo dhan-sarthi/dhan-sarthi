@@ -256,10 +256,17 @@ export function Today({
         ) : null}
 
         {/* ------------------------------------------------ The rest */}
-        <Eyebrow>What I noticed</Eyebrow>
-        {plan.insights.map((i) => (
-          <InsightCard key={i.kind} insight={i} />
-        ))}
+        {/* No heading without something under it. An insight list can legitimately be empty —
+            it is over a statement whose narrations carry no habit and no mandate — and
+            "What I noticed" over nothing reads as a section that failed to load. */}
+        {plan.insights.length > 0 ? (
+          <>
+            <Eyebrow>What I noticed</Eyebrow>
+            {plan.insights.map((i) => (
+              <InsightCard key={i.kind} insight={i} />
+            ))}
+          </>
+        ) : null}
 
         <p className={`${NOTE} mb-0 mt-5`}>
           Every figure on this screen is computed from {snapshot.quality.transactions}{' '}
