@@ -30,7 +30,15 @@ export interface CapturedCall {
 /** The reserved TLD the replay transport is addressed at: it cannot resolve, by design. */
 export const REPLAY_BASE_URL = 'https://idbi-replay.invalid'
 
-/** The fields that distinguish one fixture of an operation from another. */
+/**
+ * The fields that distinguish one fixture of an operation from another.
+ *
+ * Identifiers only. Dates were here at first and had to come out: 393 honours whatever window
+ * it is given, so `fromDate` and `toDate` do not select a fixture — including them meant every
+ * statement request for a window other than the captured one missed, and the miss was then
+ * papered over by serving the first capture anyway. The account number is what picks the
+ * statement; the adapter windows the rows itself.
+ */
 const DISCRIMINATORS = [
   'acctId',
   'acid',
@@ -46,8 +54,6 @@ const DISCRIMINATORS = [
   'ein',
   'leadId',
   'intTblCode',
-  'fromDate',
-  'toDate',
 ] as const
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -78,6 +84,52 @@ function fingerprint(body: unknown): string {
     .join('&')
 }
 
+/** Every identifier a request or capture names, as key/value pairs. */
+function discriminatorsOf(body: unknown): [string, string][] {
+  const out: [string, string][] = []
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) {
+      for (const x of v) walk(x)
+      return
+    }
+    if (!isRecord(v)) return
+    for (const [k, x] of Object.entries(v)) {
+      if ((DISCRIMINATORS as readonly string[]).includes(k)) {
+        if ((typeof x === 'string' && x !== '') || typeof x === 'number') out.push([k, String(x)])
+        else if (isRecord(x) && typeof x['tblCode'] === 'string') out.push([k, x['tblCode']])
+      }
+      walk(x)
+    }
+  }
+  walk(body)
+  return out
+}
+
+/** The first identifier a request names, for the refusal's `sentKey`. */
+function firstDiscriminator(body: unknown): { key: string; value: string } | null {
+  let found: { key: string; value: string } | null = null
+  const walk = (v: unknown): void => {
+    if (found !== null) return
+    if (Array.isArray(v)) {
+      for (const x of v) walk(x)
+      return
+    }
+    if (!isRecord(v)) return
+    for (const [k, x] of Object.entries(v)) {
+      if (found !== null) return
+      if ((DISCRIMINATORS as readonly string[]).includes(k)) {
+        if ((typeof x === 'string' && x !== '') || typeof x === 'number') {
+          found = { key: k, value: String(x) }
+          return
+        }
+      }
+      walk(x)
+    }
+  }
+  walk(body)
+  return found
+}
+
 export interface ReplayOptions {
   captures: readonly CapturedCall[]
   /** Called when a request matched an operation but no fixture, or matched ambiguously. */
@@ -106,13 +158,31 @@ export function createReplayTransport(options: ReplayOptions): ReplayTransport {
     else list.push(c)
   }
 
-  const byFingerprint = new Map<string, CapturedCall>()
-  const ambiguous = new Set<string>()
+  /*
+   * Captures grouped by fingerprint, as a list rather than one each.
+   *
+   * Several captures of an operation legitimately share an identifier — 393 has three, all for
+   * the same account over different windows — and once dates stopped being part of the
+   * fingerprint they collided. Treating a collision as "no match" made the statement request
+   * for the one account the sandbox holds answer "Data not found", which is the opposite of the
+   * truth. Ambiguity means several fixtures fit; absence means none do, and only absence is a
+   * refusal.
+   */
+  const byFingerprint = new Map<string, CapturedCall[]>()
+  /** Every identifier value any capture of an operation holds, for telling absence apart. */
+  const known = new Map<string, Set<string>>()
   for (const [op, list] of byOp) {
     for (const c of list) {
       const key = `${op}|${fingerprint(c.request)}`
-      if (byFingerprint.has(key)) ambiguous.add(key)
-      else byFingerprint.set(key, c)
+      const at = byFingerprint.get(key)
+      if (at === undefined) byFingerprint.set(key, [c])
+      else at.push(c)
+      for (const [k, v] of discriminatorsOf(c.request)) {
+        const bucket = `${op}|${k}`
+        const set = known.get(bucket)
+        if (set === undefined) known.set(bucket, new Set([v]))
+        else set.add(v)
+      }
     }
   }
 
@@ -138,10 +208,18 @@ export function createReplayTransport(options: ReplayOptions): ReplayTransport {
 
     const print = fingerprint(body)
     const key = `${op}|${print}`
-    const exact = byFingerprint.get(key)
-    if (exact !== undefined && !ambiguous.has(key)) {
+    const matches = byFingerprint.get(key)
+    const chosen = matches?.[0]
+    if (chosen !== undefined) {
       calls.push({ op, body, matched: true })
-      return json(exact.response, exact.status)
+      if ((matches?.length ?? 0) > 1) {
+        options.onMiss?.({
+          op,
+          fingerprint: print,
+          reason: `${String(matches?.length)} captures share these fields; served the first`,
+        })
+      }
+      return json(chosen.response, chosen.status)
     }
 
     const list = byOp.get(op)
@@ -154,14 +232,40 @@ export function createReplayTransport(options: ReplayOptions): ReplayTransport {
       )
     }
 
-    const fallback = exact ?? list[0]
+    /*
+     * A request naming an identifier no capture holds is a "Data not found", not a reason to
+     * serve somebody else's fixture.
+     *
+     * Serving the first was how replay diverged from the bank in the way that matters most:
+     * live, 391 refuses Priya's two other loan accounts and their terms stay unknown; in replay
+     * it handed back the first loan's rate, EMI and tenure under the wrong account number.
+     * Fidelity here is the whole point of replaying captures instead of generating wire, so the
+     * refusal is reproduced — in the sandbox's own shape, `sentKey` included, which is what the
+     * gateway reads to tell a missing fixture from a broken line.
+     */
+    const asked = firstDiscriminator(body)
+    // Only an identifier no capture of this operation holds is an absence. One that is held, in
+    // some other combination, means the request is shaped differently from the capture.
+    if (asked !== null && known.get(`${op}|${asked.key}`)?.has(asked.value) !== true) {
+      calls.push({ op, body, matched: false })
+      options.onMiss?.({
+        op,
+        fingerprint: print,
+        reason: `no capture holds ${asked.key} ${asked.value}; answering Data not found`,
+      })
+      return json({ message: 'Data not found', sentKey: `${asked.key}#${asked.value}` }, 400)
+    }
+
+    // No identifier at all, so there is nothing to disagree about: the operation's own fixture
+    // is the answer. 497, 498 and the rate card arrive this way.
+    const fallback = list[0]
     calls.push({ op, body, matched: false })
     options.onMiss?.({
       op,
       fingerprint: print,
-      reason: ambiguous.has(key)
-        ? 'more than one capture shares these fields'
-        : 'no capture matches these fields; served the first',
+      // Ambiguity is handled above, where the first of the matching captures is served; by the
+      // time we are here the request simply named nothing that selects a fixture.
+      reason: 'the request names no identifier this operation is keyed on; served its fixture',
     })
     return json(fallback?.response ?? null, fallback?.status ?? 501)
   }
