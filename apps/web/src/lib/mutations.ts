@@ -12,7 +12,7 @@
  * Amounts and products are never sent: the server re-derives the action from its own plan.
  */
 import { useCallback, useState } from 'react'
-import type { Action, ConsentScope } from '@dhan/contracts'
+import type { Action, ConsentScope, LeadOutcomeResponse } from '@dhan/contracts'
 import { api, isApiError, newIdempotencyKey } from '../api/client.ts'
 import { clearSession } from '../api/session.ts'
 import type { ViewState } from './view.ts'
@@ -39,6 +39,8 @@ export interface Mutations {
   decided: ReadonlySet<string>
   /** The last decision or consent change failed; the sentence to show. */
   notice: string | null
+  /** What the bank did with the last accepted recommendation, where one was handed over. */
+  lead: LeadOutcomeResponse | null
   busy: boolean
 }
 
@@ -56,6 +58,10 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
     sid: null,
     value: new Set(),
   })
+  const [leadState, setLead] = useState<Scoped<LeadOutcomeResponse | null>>({
+    sid: null,
+    value: null,
+  })
   const [busy, setBusy] = useState(false)
 
   const setClockNotice = useCallback((value: string | null) => setClock({ sid, value }), [sid])
@@ -63,6 +69,7 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
   const clockNotice = clock.sid === sid ? clock.value : null
   const notice = general.sid === sid ? general.value : null
   const decided: ReadonlySet<string> = decidedIds.sid === sid ? decidedIds.value : new Set()
+  const lead = leadState.sid === sid ? leadState.value : null
 
   const moveClock = useCallback(
     async (op: ClockOp): Promise<void> => {
@@ -115,8 +122,9 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
       if (vs.tier === 'offline') return
       setBusy(true)
       setNotice(null)
+      setLead({ sid, value: null })
       try {
-        await api('decideAction', {
+        const result = await api('decideAction', {
           params: { actionId: action.id },
           body: { kind },
           idempotencyKey: newIdempotencyKey(),
@@ -125,6 +133,15 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
           sid,
           value: new Set(prev.sid === sid ? prev.value : []).add(action.id),
         }))
+        /*
+         * What the bank did with it.
+         *
+         * Worth surfacing rather than swallowing: accepting a recommendation hands IDBI a lead
+         * their staff will work, and a customer who presses "Do it" has a right to know whether
+         * that actually reached anybody. It is not an error either way — the decision is
+         * recorded regardless — so it is a note rather than a failure.
+         */
+        setLead({ sid, value: result.lead })
         onRecorded()
         await vs.refresh()
       } catch (err) {
@@ -165,6 +182,7 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
     setConsent,
     decided,
     notice,
+    lead,
     busy: busy || vs.busy,
   }
 }

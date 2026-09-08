@@ -48,6 +48,7 @@ import type {
 } from '../ports/index.ts'
 import type { AaConsentStore } from '../ports/aa-consent.port.ts'
 import type { AaGatewayPort } from '../ports/aa-gateway.port.ts'
+import type { LeadSinkPort } from '../ports/lead-sink.port.ts'
 import type { DeclaredProfileStore } from '../ports/declared-profile.port.ts'
 import type { HoldingsStore } from '../ports/holdings.port.ts'
 import { AaConsentService } from '../application/aa-consent.service.ts'
@@ -77,6 +78,8 @@ export interface Deps {
    * routes answer 503 rather than pretending a consent could be raised.
    */
   aa: { store: AaConsentStore; gateway: AaGatewayPort } | null
+  /** Where an accepted product goes: IDBI's lead queue, or nowhere. */
+  leads: LeadSinkPort
   shelf: ProductShelfPort
   sessions: SessionStore
   snapshots: SnapshotStore
@@ -188,6 +191,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     shelf: deps.shelf,
     audit: deps.audit,
     sessions: deps.sessions,
+    leads: deps.leads,
   })
   const conversation = new ConversationService({ advisory, shelf: deps.shelf, audit: deps.audit })
   const records = new RecordService({

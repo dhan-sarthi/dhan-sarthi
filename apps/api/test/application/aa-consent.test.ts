@@ -13,12 +13,16 @@ import { describe, it } from 'node:test'
 import { AaConsentService } from '../../src/application/aa-consent.service.ts'
 import { InMemoryAaConsents } from '../../src/adapters/memory/aa-consent.memory.ts'
 import { silentLogger } from '../../src/infra/logger.ts'
+import type { Clock } from '../../src/ports/index.ts'
 import { Forbidden } from '../../src/application/errors.ts'
 import type { AaConsentSummary, AaGatewayPort } from '../../src/ports/aa-gateway.port.ts'
 
 const CIF = '98655854'
 const HANDLE = '6afdd734-be3b-475f-a8fc-3fcd18c04714'
-const clock = { now: () => new Date('2026-09-08T00:00:00.000Z') }
+const clock: Clock = {
+  now: () => new Date('2026-09-08T00:00:00.000Z'),
+  today: () => '2026-09-08',
+}
 
 interface FakeOptions {
   status?: string

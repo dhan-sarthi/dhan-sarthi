@@ -23,11 +23,15 @@ import {
 import { loadCapturedCalls } from '../../src/adapters/idbi-sandbox/api/captured.ts'
 import { DECLARED_SEEDS } from '../../src/adapters/idbi-sandbox/api/customers.ts'
 import { silentLogger } from '../../src/infra/logger.ts'
+import type { Clock } from '../../src/ports/index.ts'
 import type { Account } from '@dhan/core'
 
 const PRIYA = '98655854'
 const NEHA = '88234567'
-const clock = { now: () => new Date('2026-09-08T00:00:00.000Z') }
+const clock: Clock = {
+  now: () => new Date('2026-09-08T00:00:00.000Z'),
+  today: () => '2026-09-08',
+}
 
 function build(): IdbiSandboxBankData {
   const replay = createReplayTransport({ captures: loadCapturedCalls() })

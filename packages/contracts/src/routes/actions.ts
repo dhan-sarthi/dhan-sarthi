@@ -19,11 +19,28 @@ export const IdempotencyHeadersSchema = z
   .object({ 'idempotency-key': z.string().min(8).max(128) })
   .passthrough()
 
+/**
+ * What became of the lead, where one was attempted.
+ *
+ * The bank's side of an accepted recommendation, reported beside the decision rather than
+ * folded into it: the decision is the customer's and is already on the record, and a bank that
+ * refuses or is unreachable does not un-decide it. Null for a behavioural action, which
+ * recommends no product, and for a decline.
+ */
+export const LeadOutcomeSchema = z.object({
+  status: z.enum(['created', 'duplicate', 'refused', 'unavailable', 'incomplete']),
+  /** The bank's own sentence, or ours where nothing was sent. Safe to show a customer. */
+  message: z.string(),
+  leadId: z.string().nullable(),
+})
+export type LeadOutcomeResponse = z.infer<typeof LeadOutcomeSchema>
+
 export const DecisionResponseSchema = z.object({
   /** Null for behavioural actions, which recommend no product and so have no verdict. */
   adviceRecord: AdviceRecordSchema.nullable(),
   decision: DecisionRecordSchema,
   roadmapVersion: z.number().int(),
+  lead: LeadOutcomeSchema.nullable(),
 })
 export type DecisionResponse = z.infer<typeof DecisionResponseSchema>
 

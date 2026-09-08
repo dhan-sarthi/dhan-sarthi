@@ -29,6 +29,7 @@ import {
   ConsentRequestData,
   CustomerAccountsResponse,
   CustomerLimitsResponse,
+  CreateLeadResult,
   CustomerRecordResponse,
   DecryptedCallback,
   FullStatementResult,
@@ -40,6 +41,8 @@ import {
 } from './schemas.ts'
 import type { WireAaAccount, WireConsentListEntry, WireCustomerRecord } from './schemas.ts'
 import type { AaConsentSummary } from '../../../ports/aa-gateway.port.ts'
+import type { LeadDraft, LeadOutcome } from '../../../ports/lead-sink.port.ts'
+import { readValidationRefusal } from './envelope.ts'
 import type { IdbiCustomerKey, IdbiSandboxCustomer } from './customers.ts'
 import { sandboxCustomer } from './customers.ts'
 import { isoDateToNaiveStamp, optionalIsoDate, optionalText, paiseToRupees } from './scalars.ts'
@@ -729,6 +732,77 @@ export class IdbiGateway {
           if (err instanceof IdbiCallError) continue
           throw err
         }
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Leads
+   * ---------------------------------------------------------------- */
+
+  /**
+   * 428: hand a product interest to the bank.
+   *
+   * The one write the product actually needs, and the only call in the app that changes
+   * anything at IDBI. A refusal is returned as an outcome rather than thrown, because the
+   * customer's decision is already recorded and a bank that says no does not un-decide it.
+   *
+   * `solid` is the branch's sol id, which the sandbox's own samples set to `0183` regardless of
+   * branch; there is nothing in the catalogue that maps a branch to one, so it is sent as the
+   * samples send it and flagged here as the guess it is.
+   */
+  async createLead(draft: LeadDraft): Promise<LeadOutcome> {
+    const body = {
+      input: {
+        leadType: 'NEW',
+        customerType: 'INDIVIDUAL',
+        firstName: draft.firstName,
+        lastName: draft.lastName,
+        mobileNo: draft.mobileNo,
+        emailId: draft.emailId ?? '',
+        pancard: draft.pan,
+        addressLine1: draft.addressLine1 ?? '',
+        pincode: draft.pincode ?? '',
+        state: draft.state ?? '',
+        product: draft.product.name,
+        prodCategory: draft.product.category,
+        prodSubCategory: draft.product.subCategory,
+        estimatedAmount: String(Math.round(draft.estimatedAmount)),
+        solid: '0183',
+        leadChannel: 'Online',
+        leadSource: 'Dhan Sarthi',
+        leadId: draft.leadId,
+      },
+    }
+
+    try {
+      const res = await this.transport.call(operation('428'), body)
+      const parsed = parse(CreateLeadResult, res.envelope.payload, '428')
+      const message = optionalText(parsed.message) ?? res.envelope.message ?? 'Lead accepted.'
+      // "Lead already created" is the right answer to the same decision made twice, and the
+      // sandbox answers it with a 200 — so it is read from the message rather than the status.
+      const duplicate = /already/i.test(message)
+      return {
+        status: duplicate ? 'duplicate' : 'created',
+        message,
+        leadId: optionalText(parsed.leadId) ?? draft.leadId,
+      }
+    } catch (err) {
+      if (err instanceof IdbiCallError) {
+        return {
+          status: 'refused',
+          message:
+            err.failedFields.length > 0
+              ? err.failedFields.join('; ')
+              : (readValidationRefusal(err.body)?.message ?? err.message),
+          leadId: null,
+        }
+      }
+      // A timeout or a dropped line. Reported, not thrown: the decision stands either way.
+      return {
+        status: 'unavailable',
+        message: err instanceof Error ? err.message : String(err),
+        leadId: null,
       }
     }
   }

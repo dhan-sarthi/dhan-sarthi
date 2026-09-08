@@ -38,6 +38,10 @@ export const REPLAY_BASE_URL = 'https://idbi-replay.invalid'
  * statement request for a window other than the captured one missed, and the miss was then
  * papered over by serving the first capture anyway. The account number is what picks the
  * statement; the adapter windows the rows itself.
+ *
+ * `leadId` came out for a different reason: it is an id *we* generate, not one that selects a
+ * fixture. Treating it as an identifier meant every lead the app raised looked like a key the
+ * captures did not hold, so replay refused a write the real bank accepts.
  */
 const DISCRIMINATORS = [
   'acctId',
@@ -52,7 +56,6 @@ const DISCRIMINATORS = [
   'accountID',
   'partyIdentifierValue',
   'ein',
-  'leadId',
   'intTblCode',
 ] as const
 

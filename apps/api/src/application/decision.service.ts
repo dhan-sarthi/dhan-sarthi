@@ -13,12 +13,15 @@ import type { DecisionKind, DecisionResponse } from '@dhan/contracts'
 import type { AdvisoryService, ServerView } from './advisory.service.ts'
 import { Conflict, NotFound } from './errors.ts'
 import type { AuditStore, ProductShelfPort, Session, SessionStore } from '../ports/index.ts'
+import type { LeadOutcome, LeadSinkPort } from '../ports/lead-sink.port.ts'
 
 export interface DecisionDeps {
   advisory: AdvisoryService
   shelf: ProductShelfPort
   audit: AuditStore
   sessions: SessionStore
+  /** Where an accepted product goes: IDBI's lead queue, or nowhere under a source with no bank. */
+  leads: LeadSinkPort
 }
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -36,7 +39,7 @@ export class DecisionService {
     kind: DecisionKind,
     note?: string,
   ): Promise<DecisionResponse> {
-    const { advisory, shelf, audit, sessions } = this.deps
+    const { advisory, shelf, audit, sessions, leads } = this.deps
     const view = await advisory.view(session)
 
     const action = findAction(view, actionId)
@@ -116,6 +119,38 @@ export class DecisionService {
       }
     }
 
+    /*
+     * The bank's half of an accepted recommendation.
+     *
+     * Everything else in this app reads. A customer who says yes has to reach somebody, and
+     * IDBI's 428 is that route — so an accepted product becomes a lead their staff will work,
+     * and the loop from "read their statements" to "hand it back" actually closes.
+     *
+     * After the record, never before, and never allowed to fail the decision: the advice record
+     * and the decision are already written and are the source of truth. A bank that refuses, or
+     * that cannot be reached, is reported beside the decision instead. Only an acceptance of a
+     * product raises one — a decline has nothing to hand over, and a behavioural action has no
+     * product to hand.
+     */
+    let lead: LeadOutcome | null = null
+    if (kind === 'did_it' && product !== null && verdictPassed(adviceRecord)) {
+      lead = await leads.create({
+        cif: session.cif,
+        product: {
+          name: product.name,
+          category: product.category,
+          // The bank's lead form wants a sub-category and the shelf has no second level, so
+          // the manufacturer is the most informative thing we hold: it is what tells a member
+          // of staff whether this is IDBI's own deposit or somebody's fund.
+          subCategory: product.manufacturer,
+        },
+        estimatedAmount: action.amount,
+        // Stable across a repeat of the same decision, so 428 recognises it as one lead. The
+        // session is in it because two reviewers accepting the same thing are two leads.
+        leadId: `DS-${session.id.slice(0, 8)}-${action.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 20)}`,
+      })
+    }
+
     const didIt =
       trail.decisions.filter((d) => d.kind === 'did_it').length + (kind === 'did_it' ? 1 : 0)
     const roadmapVersion = await advisory.recut(
@@ -125,8 +160,13 @@ export class DecisionService {
         : `Re-cut after ${plural(didIt, 'decision')} you made.`,
     )
 
-    return { adviceRecord, decision, roadmapVersion }
+    return { adviceRecord, decision, roadmapVersion, lead }
   }
+}
+
+/** A blocked recommendation is not handed to the bank, whatever the customer pressed. */
+function verdictPassed(adviceRecord: DecisionResponse['adviceRecord']): boolean {
+  return adviceRecord !== null && adviceRecord.verdict === 'PASS'
 }
 
 function findAction(view: ServerView, actionId: string): Action | null {

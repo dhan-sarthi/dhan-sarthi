@@ -127,6 +127,7 @@ export function App(): ReactNode {
           decisionsEnabled={vs.tier === 'server'}
           busy={m.busy}
           notice={m.notice}
+          lead={m.lead}
           onDecide={(action, kind) => void m.decide(action, kind)}
           onAsk={() => setTab('ask')}
         />

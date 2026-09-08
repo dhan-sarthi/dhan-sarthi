@@ -15,7 +15,7 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Action, Insight, Snapshot, View } from '@dhan/contracts'
+import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
 import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
 import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
@@ -59,6 +59,7 @@ export function Today({
   decisionsEnabled,
   busy,
   notice,
+  lead,
   onDecide,
   onAsk,
 }: {
@@ -72,6 +73,8 @@ export function Today({
   busy: boolean
   /** The last decision failed; the server's sentence. */
   notice: string | null
+  /** What IDBI did with the last accepted recommendation, where one was handed over. */
+  lead: LeadOutcomeResponse | null
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
 }): ReactNode {
@@ -208,6 +211,10 @@ export function Today({
           <Card tint="sky">
             <h2>Nothing needs you today</h2>
             <p className={`${META} mt-1.5`}>{plan.routeNote}</p>
+            {/* What the bank did with the last acceptance. A customer who presses "Do it" has a
+                right to know whether it reached anybody — and this is the only place in the app
+                where something is handed *to* IDBI rather than read from it. */}
+            {lead ? <p className={`${META} mt-2.5`}>{leadSentence(lead)}</p> : null}
           </Card>
         )}
 
@@ -264,6 +271,22 @@ export function Today({
       </div>
     </>
   )
+}
+
+/** What became of the lead, in a sentence a customer would accept. */
+function leadSentence(lead: LeadOutcomeResponse): string {
+  switch (lead.status) {
+    case 'created':
+      return 'IDBI has your request. Someone from the bank will pick it up.'
+    case 'duplicate':
+      return 'IDBI already had this request on file, so nothing was sent twice.'
+    case 'refused':
+      return `The bank did not accept the request: ${lead.message}`
+    case 'incomplete':
+      return lead.message
+    case 'unavailable':
+      return 'Your decision is recorded. The bank could not be reached to pass it on, so it will need sending again.'
+  }
 }
 
 /**
