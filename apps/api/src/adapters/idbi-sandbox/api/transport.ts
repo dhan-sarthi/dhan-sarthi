@@ -58,6 +58,8 @@ export class IdbiCallError extends Error {
   readonly rawStatus: string | null
   readonly errorCode: string | null
   readonly failedFields: readonly string[]
+  /** `acctId#660100100007` where the sandbox said which key it could not place. */
+  readonly sentKey: string | null
   readonly trace: AtlasTrace
   readonly body: unknown
 
@@ -69,6 +71,7 @@ export class IdbiCallError extends Error {
       rawStatus?: string | null
       errorCode?: string | null
       failedFields?: readonly string[]
+      sentKey?: string | null
       trace: AtlasTrace
       body?: unknown
     },
@@ -80,6 +83,7 @@ export class IdbiCallError extends Error {
     this.rawStatus = opts.rawStatus ?? null
     this.errorCode = opts.errorCode ?? null
     this.failedFields = opts.failedFields ?? []
+    this.sentKey = opts.sentKey ?? null
     this.trace = opts.trace
     this.body = opts.body
   }
@@ -223,7 +227,7 @@ export class IdbiTransport {
     if (status >= 400) {
       const refusal = readValidationRefusal(raw)
       this.logger.warn(
-        { ...log, failedFields: refusal?.failedFields ?? [] },
+        { ...log, failedFields: refusal?.failedFields ?? [], sentKey: refusal?.sentKey ?? null },
         'IDBI refused a request',
       )
       throw new IdbiCallError(
@@ -232,6 +236,7 @@ export class IdbiTransport {
           operation: op,
           httpStatus: status,
           failedFields: refusal?.failedFields ?? [],
+          sentKey: refusal?.sentKey ?? null,
           trace,
           body: raw,
         },

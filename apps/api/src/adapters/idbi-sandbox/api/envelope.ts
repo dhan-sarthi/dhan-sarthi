@@ -158,15 +158,25 @@ export function unwrap(operation: string, family: EnvelopeFamily, body: unknown)
 export interface ValidationRefusal {
   message: string
   failedFields: readonly string[]
+  /**
+   * `sentKey` on a "Data not found": the sandbox names the field and value it could not place,
+   * as `acctId#660100100007`. It is the most useful thing any refusal in this catalogue says,
+   * because it distinguishes "we asked wrongly" from "this fixture does not exist".
+   */
+  sentKey: string | null
 }
 
 /**
- * The 400 the sandbox answers when the request body does not match the fixture it holds:
- * `{"failedFields":["addr1 does not match", ...],"message":"..."}`.
+ * A 400 from the sandbox, which comes in three shapes and all of them matter.
  *
- * Worth naming rather than treating as an opaque 400, because it is the sandbox telling us our
- * request was wrong in a specific, fixable way — and because two of IDBI's own exported
- * samples trip it, which is a question for the bank and not a bug on this side.
+ * `{failedFields, message}` is "your body does not match my fixture", field by field, and
+ * three of IDBI's own exported samples trip it. `{message, sentKey}` is "I hold no fixture for
+ * this key", naming the key — `acctId#660100100007` — which is how the per-customer coverage
+ * map in `customers.ts` was established. And `{message}` alone is a validation complaint, as
+ * 428 answers for a malformed PAN.
+ *
+ * Telling them apart is what lets the gateway treat a missing fixture as an account to fall
+ * back on rather than an outage, while a mismatched body stays something we should fix.
  */
 export function readValidationRefusal(body: unknown): ValidationRefusal | null {
   if (!isRecord(body)) return null
@@ -175,8 +185,14 @@ export function readValidationRefusal(body: unknown): ValidationRefusal | null {
   const failedFields = Array.isArray(raw)
     ? raw.filter((f): f is string => typeof f === 'string')
     : []
-  if (message === null && failedFields.length === 0) return null
-  return { message: message ?? 'the sandbox refused the request body', failedFields }
+  const sentKey = textOf(body['sentKey'])
+  if (message === null && failedFields.length === 0 && sentKey === null) return null
+  return { message: message ?? 'the sandbox refused the request body', failedFields, sentKey }
+}
+
+/** A refusal that means "no such fixture" rather than "your request was wrong". */
+export function isDataNotFound(refusal: ValidationRefusal | null): boolean {
+  return refusal !== null && refusal.sentKey !== null
 }
 
 /* ------------------------------------------------------------------ *

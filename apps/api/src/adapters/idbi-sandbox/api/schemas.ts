@@ -86,11 +86,18 @@ export const AccountRef = z
  * ------------------------------------------------------------------ */
 
 /**
- * The seven balance types, and the arithmetic between them that the capture settled.
+ * The seven balance types, and why only one of them may be trusted as the spendable figure.
  *
- * `EFFAVL` is `AVAIL` minus `LIEN` exactly — 55780.25 less 5000.00 is 50780.25 — and it is the
- * spendable floor, which is the figure the advice engine needs and the one we had been
- * deriving by hand. 393 calls the same number `userDefinedBalance`.
+ * `EFFAVL` looked like `AVAIL` minus `LIEN` exactly: 55780.25 less 5000.00 is 50780.25, and it
+ * held on all three accounts the first capture covered. Sweeping all six accounts the sandbox
+ * holds broke it. On the current account 660100100007, `AVAIL` is 248000.00 and `LIEN` is
+ * 2000.00, and `EFFAVL` is 245000.00 rather than 246000.00 — a further ₹1,000 withheld, which
+ * is what a current account's minimum balance looks like.
+ *
+ * So `EFFAVL` is the spendable floor and it is *not* derivable. Computing it from the other
+ * two would have overstated this customer's usable money by a thousand rupees, which is the
+ * kind of error an advice engine turns into a recommendation. 393 calls the same quantity
+ * `userDefinedBalance`.
  */
 export const BALANCE_TYPES = [
   'LEDGER',

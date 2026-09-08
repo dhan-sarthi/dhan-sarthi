@@ -1,0 +1,1 @@
+{"loanModellingMsgInputVO":{"mandatoryParameters":{"crncyCode":"INR","originationDate":"2020-08-31T00:00:00.000","schmCode":{"schmCode":"EIDEM"}},"advanceParameters":{"eIFormula":""},"Variables":{"loanAmount":{"amountValue":"100000","currencyCode":"INR"},"intRate":{"Value":"1.2"},"noOfInstalmnts":"24"}}}

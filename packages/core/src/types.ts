@@ -11,8 +11,17 @@
 
 export type TxnType = 'CREDIT' | 'DEBIT'
 
-/** How the money moved. Useful signal on its own — SI and ACH-D imply a standing mandate. */
-export type TxnMode = 'UPI' | 'CARD' | 'NEFT' | 'IMPS' | 'ACH-D' | 'SI' | 'CASH' | 'CHQ'
+/**
+ * How the money moved. Useful signal on its own — SI and ACH-D imply a standing mandate.
+ *
+ * `UNKNOWN` is here because IDBI's own statement API does not send a mode. 393 carries
+ * `txnCat`, and `txnCat` is the three letters `TCI` on every row of every window we have
+ * captured, so there is nothing to read. The alternative was to let the code map's fallback
+ * fire and stamp `NEFT` on lines that might be anything, which is a fabrication the rest of
+ * this codebase does not permit itself. A consented Account Aggregator pull does carry a real
+ * mode on every row, so a transaction from that feed is never `UNKNOWN`.
+ */
+export type TxnMode = 'UPI' | 'CARD' | 'NEFT' | 'IMPS' | 'ACH-D' | 'SI' | 'CASH' | 'CHQ' | 'UNKNOWN'
 
 /**
  * Spend categories. Deliberately coarse: a category a customer would recognise on a
@@ -105,6 +114,18 @@ export interface Account {
   minBalance12m?: number
   maturityDate?: string
   interestRate?: number
+  /**
+   * What the customer may actually spend today, and the hold that explains the gap.
+   *
+   * IDBI's account enquiry sends seven balance types and the arithmetic between two of them is
+   * exact on every account captured: `EFFAVL` is `AVAIL` less `LIEN`, to the paisa. That makes
+   * `EFFAVL` the spendable floor rather than a figure to derive, which is what we had been
+   * doing by hand — and it is the number a "can I afford this" answer has to be built on,
+   * because `currentBalance` includes money a lien has already promised to someone else. 393
+   * calls the same quantity `userDefinedBalance`. Absent on a feed that sends one balance.
+   */
+  effectiveAvailableBalance?: number
+  lienAmount?: number
 }
 
 export type RiskProfile = 'Conservative' | 'Balanced' | 'Growth'

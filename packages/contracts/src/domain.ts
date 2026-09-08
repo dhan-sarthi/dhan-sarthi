@@ -48,7 +48,18 @@ import {
  * ------------------------------------------------------------------ */
 
 export const TxnTypeSchema = z.enum(['CREDIT', 'DEBIT'])
-export const TxnModeSchema = z.enum(['UPI', 'CARD', 'NEFT', 'IMPS', 'ACH-D', 'SI', 'CASH', 'CHQ'])
+/** `UNKNOWN` is what IDBI's own statement forces: 393 sends no mode. See core's TxnMode. */
+export const TxnModeSchema = z.enum([
+  'UPI',
+  'CARD',
+  'NEFT',
+  'IMPS',
+  'ACH-D',
+  'SI',
+  'CASH',
+  'CHQ',
+  'UNKNOWN',
+])
 export const SpendCategorySchema = z.enum([
   'Income',
   'Rent & bills',
@@ -103,6 +114,18 @@ export const AccountSchema = z.object({
   minBalance12m: MoneySchema.optional(),
   maturityDate: IsoDateSchema.optional(),
   interestRate: z.number().optional(),
+  /**
+   * What the customer may actually spend today, and the hold that explains the gap.
+   *
+   * IDBI's account enquiry sends seven balance types and the arithmetic between two of them is
+   * exact on every account captured: `EFFAVL` is `AVAIL` less `LIEN`, to the paisa. That makes
+   * `EFFAVL` the spendable floor rather than a figure to derive, which is what we had been
+   * doing by hand — and it is the number a "can I afford this" answer has to be built on,
+   * because `currentBalance` includes money a lien has already promised to someone else. 393
+   * calls the same quantity `userDefinedBalance`. Absent on a feed that sends one balance.
+   */
+  effectiveAvailableBalance: MoneySchema.optional(),
+  lienAmount: MoneySchema.optional(),
 })
 export type Account = z.infer<typeof AccountSchema>
 

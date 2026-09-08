@@ -38,13 +38,19 @@ interface Capture {
   op: string
   operation: IdbiOperation
   body: unknown
+  /** The body that produced it. Every response is stored beside its request. */
+  request: unknown
 }
 
-/** `393-getFullAccountStatementWithPaginationtest-s2.json` → the operation it answers for. */
+/**
+ * `393-getFullAccountStatementWithPaginationtest-s2.json` → the operation it answers for, with
+ * the `.request.json` beside it that produced it. The pair is what lets the replay transport
+ * answer the adapter's real requests rather than serving one fixture for everything.
+ */
 function loadCaptures(): Capture[] {
   const out: Capture[] = []
   for (const file of readdirSync(CAPTURED).sort()) {
-    if (!file.endsWith('.json')) continue
+    if (!file.endsWith('.json') || file.endsWith('.request.json')) continue
     const m = /^(\d{3})-(.+?)(?:-s\d+)?\.json$/.exec(file)
     assert.ok(m, `${file}: not named <code>-<op>[-sN].json`)
     const code = m[1] as string
@@ -52,12 +58,14 @@ function loadCaptures(): Capture[] {
     const operation = operationByPath(op)
     assert.ok(operation, `${file}: no operation registered for path ${op}`)
     assert.equal(operation.code, code, `${file}: filename code disagrees with the registry`)
+    const requestFile = file.replace(/\.json$/, '.request.json')
     out.push({
       file,
       code,
       op,
       operation,
       body: JSON.parse(readFileSync(join(CAPTURED, file), 'utf8')),
+      request: JSON.parse(readFileSync(join(CAPTURED, requestFile), 'utf8')),
     })
   }
   return out
@@ -161,7 +169,7 @@ describe('the traps the captures found', () => {
     ])
   })
 
-  it('makes EFFAVL exactly AVAIL less LIEN, on every account 365 answered for', () => {
+  it('makes EFFAVL AVAIL less LIEN on the captured accounts, though not on every account', () => {
     const enquiries = CAPTURES.filter((c) => c.code === '365')
     assert.equal(enquiries.length, 3)
     for (const c of enquiries) {
@@ -173,6 +181,12 @@ describe('the traps the captures found', () => {
       }
       assert.equal(at('EFFAVL'), at('AVAIL') - at('LIEN'), `${c.file}: EFFAVL is not AVAIL - LIEN`)
     }
+    // It holds here and it is still not a rule. Sweeping all six accounts the sandbox holds
+    // breaks it on the current account 660100100007, where AVAIL 248000.00 less LIEN 2000.00
+    // is 246000.00 and EFFAVL is 245000.00 — a further ₹1,000 withheld, which is what a
+    // minimum balance looks like. Hence `spendableFloor` prefers the sent value and only ever
+    // falls back to the subtraction. This assertion documents the three that agree; it must
+    // not be read as licence to derive the floor.
   })
 
   it('does not let the statement rows reconcile with the ledger balance', () => {

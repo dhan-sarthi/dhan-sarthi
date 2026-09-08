@@ -80,7 +80,9 @@ export const TXN_TYPE = labelled<TxnType>('txn_type', null, [
 export const TXN_MODE = labelled<TxnMode>('txn_mode', 'NEFT', [
   ['UPI', ['UPI']],
   ['CARD', ['CARD', 'POS', 'ECOM', 'DEBIT CARD', 'CREDIT CARD', 'DC', 'CC']],
-  ['NEFT', ['NEFT', 'RTGS', 'ACH_CR', 'NACH_CR', 'ACH CREDIT']],
+  // REMITTANCE is 739's word for a wire credit, and OTHERS is what it writes when the rail is
+  // not stated. Both fell on the NEFT fallback silently before the captures named them.
+  ['NEFT', ['NEFT', 'RTGS', 'ACH_CR', 'NACH_CR', 'ACH CREDIT', 'REMITTANCE', 'OTHERS']],
   ['IMPS', ['IMPS', 'TFR', 'FT', 'TRANSFER']],
   ['ACH-D', ['NACH', 'ACH-D', 'ACH_DR', 'ACH', 'NACH_DR', 'ECS', 'MANDATE', 'ACH DEBIT']],
   ['SI', ['STANDING INSTRUCTION', 'SI', 'STO']],
@@ -109,9 +111,27 @@ export const SPEND_CATEGORY = labelled<SpendCategory>('spend_category', 'Transfe
 
 /** "Savings, current, salary. Salary accounts enable payday triggers" — a salary account is a savings account to the engine. */
 export const ACCOUNT_TYPE = labelled<Account['accountType']>('account_type', 'Savings', [
-  ['Savings', ['Savings', 'SB', 'Saving', 'Salary', 'Basic', 'BSBDA', 'SAVINGS BANK']],
+  // `SBA` is what 394 and 595 call a savings account and `REGULAR` is 595's word for the
+  // ordinary variant of whatever `fiType` already said; both used to land on the fallback,
+  // which happened to be right and told us nothing. `DEPOSIT` is 595's fiType for the
+  // current-and-savings family, so it can only mean savings once CURRENT has had its turn.
+  [
+    'Savings',
+    [
+      'Savings',
+      'SB',
+      'Saving',
+      'Salary',
+      'Basic',
+      'BSBDA',
+      'SAVINGS BANK',
+      'SBA',
+      'REGULAR',
+      'DEPOSIT',
+    ],
+  ],
   ['Current', ['Current', 'CA', 'Cash Credit', 'CC', 'OD']],
-  ['FD', ['FD', 'Fixed Deposit', 'Term Deposit', 'TD', 'Tax Saver']],
+  ['FD', ['FD', 'Fixed Deposit', 'Term Deposit', 'TD', 'Tax Saver', 'TERM_DEPOSIT']],
   ['RD', ['RD', 'Recurring Deposit', 'SSP', 'Systematic Savings Plan']],
   ['PPF', ['PPF', 'Public Provident Fund']],
   ['NPS', ['NPS', 'National Pension System']],

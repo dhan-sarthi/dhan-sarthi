@@ -21,9 +21,13 @@ const MODE_TO_CHANNEL: Record<TxnMode, string> = {
   SI: 'SI',
   CASH: 'ATM',
   CHQ: 'CHQ',
+  // IDBI's own statement sends no mode at all, so the seam has to be able to store "we were
+  // not told" rather than pick a channel on the bank's behalf.
+  UNKNOWN: 'UNKNOWN',
 }
 
 const CHANNEL_TO_MODE: Record<string, TxnMode> = {
+  UNKNOWN: 'UNKNOWN',
   UPI: 'UPI',
   POS: 'CARD',
   ECOM: 'CARD',
