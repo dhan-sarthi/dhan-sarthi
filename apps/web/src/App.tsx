@@ -184,7 +184,9 @@ function Gate({
             <Card tint="sage">
               <h2>One moment</h2>
               <p className="m-0 mt-1.5 text-sm text-ink-soft" aria-live="polite">
-                Twenty-four months of statements are being turned into a plan.
+                {/* No month count: how much statement there is depends on the feed, and over
+                    IDBI's sandbox it is about one month rather than twenty-four. */}
+                Their statements are being turned into a plan.
               </p>
             </Card>
           ) : (

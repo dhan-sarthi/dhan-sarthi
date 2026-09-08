@@ -368,7 +368,8 @@ export const BalanceFactsSchema = z.object({
 })
 
 export const BufferFactsSchema = z.object({
-  monthsCovered: z.number(),
+  /** Null where the monthly outflow is unknown, which a sparse statement makes common. */
+  monthsCovered: z.number().nullable(),
   targetMonths: z.number(),
   shortfall: MoneySchema,
 })
@@ -408,6 +409,12 @@ export const SnapshotCustomerSchema = z.object({
   employmentType: EmploymentTypeSchema,
   language: z.string(),
   taxRegime: TaxRegimeSchema,
+  /**
+   * A twelfth of the declared annual income, carried beside `income.monthly` rather than
+   * instead of it. The observed figure is always preferred; this is the fallback for a
+   * statement too sparse to show a salary, which over IDBI's own feed is the normal case.
+   */
+  declaredMonthlyIncome: MoneySchema,
 })
 
 export const SnapshotSchema = z.object({
@@ -426,7 +433,13 @@ export const SnapshotSchema = z.object({
   buffer: BufferFactsSchema,
   debt: DebtFactsSchema,
   protection: ProtectionFactsSchema,
-  holdings: z.object({ total: MoneySchema, equity: MoneySchema, debt: MoneySchema }),
+  holdings: z.object({
+    total: MoneySchema,
+    equity: MoneySchema,
+    debt: MoneySchema,
+    /** What the holdings say goes in monthly, as against the SIP debits found in the statement. */
+    sipMonthly: MoneySchema,
+  }),
   quality: QualityFactsSchema,
 })
 export type Snapshot = z.infer<typeof SnapshotSchema>

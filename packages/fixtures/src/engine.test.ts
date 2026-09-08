@@ -287,12 +287,16 @@ describe('the snapshot', () => {
     // Charging a customer twice — holding six months in reserve *and* shrinking their SIP for
     // the same hospital bill — is wrong. A funded buffer is what absorbs it.
     const rohan = derive(generateCustomerFile(ROHAN, OPTS), ASOF)
-    assert.ok(rohan.buffer.monthsCovered >= rohan.buffer.targetMonths)
+    // A generated ledger always shows an outflow, so this is never null here; asserting it is
+    // part of the point, since a null would mean the generator had stopped producing spending.
+    assert.notEqual(rohan.buffer.monthsCovered, null)
+    assert.ok((rohan.buffer.monthsCovered ?? 0) >= rohan.buffer.targetMonths)
     assert.equal(rohan.irregular.monthlyProvision, 0)
     assert.ok(rohan.irregular.monthlyRunRate > 0, 'but the run rate is still reported')
 
     const sunil = derive(generateCustomerFile(SUNIL, OPTS), ASOF)
-    assert.ok(sunil.buffer.monthsCovered < sunil.buffer.targetMonths)
+    assert.notEqual(sunil.buffer.monthsCovered, null)
+    assert.ok((sunil.buffer.monthsCovered ?? 0) < sunil.buffer.targetMonths)
     assert.ok(sunil.irregular.monthlyProvision > 0)
   })
 

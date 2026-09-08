@@ -127,24 +127,36 @@ export function findInsights(snapshot: Snapshot): Insight[] {
     out.push({
       kind: 'protection_gap',
       severity: 'important',
+      // Two different sentences, because a gap is not always an absence. Saying "there is no
+      // life cover in force" to someone holding a ₹1 crore policy is simply wrong, and it is
+      // the kind of wrong that costs the whole screen its credibility.
       headline:
-        `${s.protection.dependents} ${s.protection.dependents === 1 ? 'person' : 'people'} depend ` +
-        `on your income and there is no life cover in force.`,
+        s.protection.lifeCoverInForce <= 0
+          ? `${s.protection.dependents} ${s.protection.dependents === 1 ? 'person depends' : 'people depend'} ` +
+            `on your income and there is no life cover in force.`
+          : `Your life cover is about ${inr(s.protection.gap)} short of what ` +
+            `${s.protection.dependents === 1 ? 'your dependent' : 'your dependents'} would need.`,
       detail:
         `A rule of thumb puts the cover needed at around ten times annual income — about ` +
-        `${inr(s.protection.lifeCoverNeeded)} for you. Term cover is the cheapest way to buy it ` +
-        `and the only thing on this list that cannot be caught up on later.`,
+        `${inr(s.protection.lifeCoverNeeded)} for you, against ` +
+        `${inr(s.protection.lifeCoverInForce)} in force. Term cover is the cheapest way to buy ` +
+        `the difference and the only thing on this list that cannot be caught up on later.`,
       monthlyValue: 0,
       evidence: [
-        `${s.protection.dependents} dependents on record`,
+        `${s.protection.dependents} ${s.protection.dependents === 1 ? 'dependent' : 'dependents'} on record`,
         `Life cover in force: ${inr(s.protection.lifeCoverInForce)}`,
         `Indicative requirement (10x annual income): ${inr(s.protection.lifeCoverNeeded)}`,
+        s.income.monthly > 0
+          ? `Annual income observed in the statement: ${inr(s.income.monthly * 12)}`
+          : `Annual income as declared, since no salary credit was recognisable: ${inr(s.customer.declaredMonthlyIncome * 12)}`,
       ],
       suggests: 'buy_term_cover',
     })
   }
 
-  if (s.buffer.monthsCovered < 3) {
+  // An unknown outflow cannot be short of a buffer. Saying nothing is right here: the quality
+  // line at the foot of the screen already reports how little of the statement was readable.
+  if (s.buffer.monthsCovered !== null && s.buffer.monthsCovered < 3) {
     out.push({
       kind: 'buffer_thin',
       severity: 'important',

@@ -229,15 +229,32 @@ export function buildRoadmap(
     const targets = snapshot.discretionary.topHabits.slice(0, 2)
     const recoverable = Math.round(targets.reduce((s, h) => s + h.monthlyAverage, 0) * 0.4)
 
+    /*
+     * With no habits to name, this stage cannot name any.
+     *
+     * The sentence was built assuming there would always be one or two — and with an empty
+     * list it produced "there is nothing to put anywhere. cost about ₹0 a month between them.
+     * Cutting that by not quite half is the whole plan starting", which is not a sentence and
+     * quotes ₹0 twice. A statement whose narrations carry no merchant makes that the normal
+     * case rather than an edge one: IDBI's own feed recognises no habit at all.
+     */
+    const habitless = targets.length === 0
+
     push({
       kind: 'free_up',
-      label: `Free up about ${inr(recoverable)} a month`,
-      why:
-        `Right now everything that comes in goes out, so there is nothing to put anywhere. ` +
-        `${targets.map((h) => h.merchant ?? h.key).join(' and ')} ` +
-        `${targets.length === 1 ? 'costs' : 'cost'} about ` +
-        `${inr(targets.reduce((s, h) => s + h.monthlyAverage, 0))} a month between them. ` +
-        `Cutting that by not quite half is the whole plan starting.`,
+      label: habitless
+        ? 'Find the first thing to spare'
+        : `Free up about ${inr(recoverable)} a month`,
+      why: habitless
+        ? `Right now everything that comes in goes out, so there is nothing to put anywhere ` +
+          `yet — and nothing in this statement is recognisable enough for me to point at a ` +
+          `habit and say "start there". Tell me one regular outgoing you could live without ` +
+          `and the rest of this plan has somewhere to begin.`
+        : `Right now everything that comes in goes out, so there is nothing to put anywhere. ` +
+          `${targets.map((h) => h.merchant ?? h.key).join(' and ')} ` +
+          `${targets.length === 1 ? 'costs' : 'cost'} about ` +
+          `${inr(targets.reduce((s, h) => s + h.monthlyAverage, 0))} a month between them. ` +
+          `Cutting that by not quite half is the whole plan starting.`,
       productId: null,
       productName: null,
       monthly: 0,

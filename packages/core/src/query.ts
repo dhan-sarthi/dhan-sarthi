@@ -393,10 +393,17 @@ export function answer(
 /**
  * The opening line for a conversation.
  *
- * Deliberately a statement, not a question. The advisor has just read twenty-four months of
- * statements — opening with *"what are your financial goals?"* wastes that, and it is a question
- * a customer who has never had advice genuinely cannot answer. Cleo make the same point: she can
- * suggest the goal. Proposing beats interrogating on both product quality and demo time.
+ * Deliberately a statement, not a question. The advisor has just read the statements — opening
+ * with *"what are your financial goals?"* wastes that, and it is a question a customer who has
+ * never had advice genuinely cannot answer. Cleo make the same point: she can suggest the goal.
+ * Proposing beats interrogating on both product quality and demo time.
+ *
+ * There is a second version for when the statement will not support the first. Over IDBI's own
+ * feed no salary is recognisable and no habit has a merchant, so the diagnosis came out as
+ * "Priya, ₹0 comes in. ₹0 is committed before you decide anything, and about ₹0 goes on
+ * everything else" — three fabricated zeros, in the opening sentence, from an advisor whose
+ * whole claim is that it read the ledger. Saying what is actually known is better than saying
+ * nothing three times.
  */
 export function openingLine(snapshot: Snapshot): Answer {
   const s = snapshot
@@ -405,15 +412,21 @@ export function openingLine(snapshot: Snapshot): Answer {
   const lead = insights[0]
 
   const diagnosis =
-    `${first}, ${inr(s.income.monthly)} comes in. ${inr(s.commitments.total)} is committed ` +
-    `before you decide anything, and about ${inr(s.discretionary.monthly)} goes on everything ` +
-    `else.`
+    s.income.monthly > 0
+      ? `${first}, ${inr(s.income.monthly)} comes in. ${inr(s.commitments.total)} is committed ` +
+        `before you decide anything, and about ${inr(s.discretionary.monthly)} goes on ` +
+        `everything else.`
+      : `${first}, I can see ${inr(s.balances.total)} across your accounts and ` +
+        `${inr(s.debt.total)} owed, but nothing in this statement looks like a salary — so I ` +
+        `am not going to put a number on what you can spend until you tell me what comes in.`
 
   return {
     matched: true,
     text: lead ? `${diagnosis} ${lead.headline}` : diagnosis,
     evidence: [
-      `Income ${inr(s.income.monthly)}/month (${s.income.source})`,
+      s.income.monthly > 0
+        ? `Income ${inr(s.income.monthly)}/month (${s.income.source})`
+        : 'No salary credit recognisable in the statement',
       `Commitments ${inr(s.commitments.total)}/month`,
       `Discretionary ${inr(s.discretionary.monthly)}/month`,
       `Deployable surplus ${inr(s.surplus.deployable)}/month`,

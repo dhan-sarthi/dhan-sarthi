@@ -83,7 +83,9 @@ export function personaFigures(spec: PersonaSpec, asOf: string): PersonaFigures 
     surplus: snapshot.surplus.monthly,
     deployable: snapshot.surplus.deployable,
     idleFloor: snapshot.balances.idleFloor,
-    bufferMonths: snapshot.buffer.monthsCovered,
+    // Null where the outflow could not be read. The CLI's table wants a number, and 0 is the
+    // conservative reading everywhere else this appears.
+    bufferMonths: snapshot.buffer.monthsCovered ?? 0,
     debtTotal: snapshot.debt.total,
     highestRate: snapshot.debt.highestRate,
     protectionGap: snapshot.protection.gap,

@@ -45,7 +45,15 @@ import type {
 /** Months of statements the engine reasons over. The generator's default, kept for parity. */
 export const HISTORY_WINDOW_MONTHS = 24
 
-export const FIRST_PLAN_REASON = 'First plan, from twenty-four months of your statements.'
+/**
+ * Why version 1 exists.
+ *
+ * It used to say "from twenty-four months of your statements", which was true of the generated
+ * ledger and false the moment the app read a real feed: IDBI's sandbox holds about a month. How
+ * much history there was is already stated exactly, on Today and on the plan's own evidence, so
+ * this line does not need to guess at it.
+ */
+export const FIRST_PLAN_REASON = 'First plan, built from the statements on file.'
 export const TARGET_CHANGED_REASON = 'Target changed by the customer.'
 
 /** Where a view's snapshot came from: this process, the database, or a derivation just now. */

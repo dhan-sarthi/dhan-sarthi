@@ -151,7 +151,11 @@ const RULES: readonly Rule[] = [
       'Products with a lock-in are not recommended below a three-month emergency buffer.',
     check: ({ snapshot, product, alternatives }) => {
       const floor = 3
-      if (snapshot.buffer.monthsCovered >= floor) return null
+      // An unreadable outflow is not a buffer. The gate can only ever refuse more than the
+      // truth, never less, so an unknown ratio is treated as below the floor.
+      if (snapshot.buffer.monthsCovered !== null && snapshot.buffer.monthsCovered >= floor) {
+        return null
+      }
       if (isProtection(product)) return null
       if (product.lockInYears <= 0 && product.category !== 'ULIP') return null
 

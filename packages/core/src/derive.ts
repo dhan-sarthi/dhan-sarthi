@@ -119,7 +119,8 @@ export interface BalanceFacts {
 }
 
 export interface BufferFacts {
-  monthsCovered: number
+  /** Null where the monthly outflow is unknown: an unknown ratio, not a zero one. */
+  monthsCovered: number | null
   targetMonths: number
   shortfall: number
 }
@@ -164,6 +165,22 @@ export interface Snapshot {
     employmentType: CustomerFile['customer']['employmentType']
     language: string
     taxRegime: CustomerFile['customer']['taxRegime']
+    /**
+     * A twelfth of the income the customer declared, which is not the same thing as
+     * `income.monthly` and is needed beside it.
+     *
+     * `income.monthly` is read off the credits in the statement and is the better number when
+     * there is a statement to read. Over IDBI's own feed there frequently is not: `txnCat` is
+     * `TCI` on every row and the narrations carry no payroll marker, so no salary is
+     * recognisable and the derived figure is zero for a customer who plainly has an income.
+     * Anything sized from the derived figure then comes out at zero too — which is how a
+     * six-month emergency fund ended up proposed with a target of ₹0.
+     *
+     * So the declared figure is carried as the fallback it is. It comes from the customer
+     * rather than the bank, `/api/v1/profile` is where they change it, and nothing prefers it
+     * over a figure actually observed in the ledger.
+     */
+    declaredMonthlyIncome: number
   }
   income: IncomeFacts
   commitments: CommitmentFacts
@@ -185,7 +202,20 @@ export interface Snapshot {
   buffer: BufferFacts
   debt: DebtFacts
   protection: ProtectionFacts
-  holdings: { total: number; equity: number; debt: number }
+  holdings: {
+    total: number
+    equity: number
+    debt: number
+    /**
+     * What the holdings themselves say is going in each month.
+     *
+     * Distinct from `commitments.investments`, which is the SIP debits *recognised in the
+     * statement* — and over a feed whose narrations carry no merchant that is zero even for a
+     * customer with a live SIP. The screen said "Nothing going in each month" above a ₹7.2 lakh
+     * portfolio with a ₹5,000 monthly mandate on it.
+     */
+    sipMonthly: number
+  }
   quality: QualityFacts
 }
 
@@ -451,10 +481,21 @@ export function derive(
   // be broken at a penalty, so it counts; a five-year tax-saver could not, and should be
   // excluded once the shelf carries the lock-in per holding.
   const reachable = savings + deposits
-  const monthsCovered = monthlyOutflow === 0 ? 0 : reachable / monthlyOutflow
+  /*
+   * Null where the outflow is unknown, which is not the same as zero cover.
+   *
+   * This used to report 0 when `monthlyOutflow` was 0, and the buffer insight fires below
+   * three months — so a customer with ₹4.4 lakh in reachable savings and a statement too
+   * sparse to show any commitments was told her savings cover about zero months of her
+   * outgoings. Over IDBI's own statement that is the normal case rather than an edge one:
+   * `txnCat` is `TCI` on every row, so nothing is recognisable as rent or an EMI and the
+   * outflow legitimately comes out unknown. A ratio with an unknown denominator has no value,
+   * and saying so is the only honest option.
+   */
+  const monthsCovered = monthlyOutflow === 0 ? null : reachable / monthlyOutflow
 
   const buffer: BufferFacts = {
-    monthsCovered: Number(monthsCovered.toFixed(1)),
+    monthsCovered: monthsCovered === null ? null : Number(monthsCovered.toFixed(1)),
     targetMonths: opts.bufferTargetMonths,
     shortfall: Math.max(0, Math.round(opts.bufferTargetMonths * monthlyOutflow - reachable)),
   }
@@ -493,9 +534,21 @@ export function derive(
     .reduce((s, p) => s + p.investedAmount, 0)
 
   const dependents = file.customer.dependents
-  // Ten times annual income is the standard thumb rule, and it is a rule of thumb rather than a
-  // calculation. Anything shown to a customer as a cover requirement has to say so.
-  const needed = dependents > 0 ? income.monthly * 12 * 10 : 0
+  /*
+   * Ten times annual income is the standard thumb rule, and it is a rule of thumb rather than a
+   * calculation. Anything shown to a customer as a cover requirement has to say so.
+   *
+   * Which income, though. The observed figure is the better one and is used wherever it exists,
+   * but it is read off payroll markers in the narrations and IDBI's own statement carries none
+   * — so it comes out zero for a customer who plainly earns. Ten times zero is zero, and a
+   * requirement of zero closes the protection gap by arithmetic: a customer with a dependent
+   * and a ₹1 crore policy against a ₹24 lakh declared income was told she needed no cover at
+   * all, and the gap the app exists to find silently did not exist. So the declared income is
+   * the fallback, and a cover requirement is never sized from a figure of zero.
+   */
+  const annualForCover =
+    income.monthly > 0 ? income.monthly * 12 : file.customer.declaredAnnualIncome
+  const needed = dependents > 0 ? annualForCover * 10 : 0
 
   const protection: ProtectionFacts = {
     dependents,
@@ -515,6 +568,9 @@ export function derive(
     debt: file.holdings
       .filter((h) => h.assetClass === 'Debt')
       .reduce((s, h) => s + h.currentValue, 0),
+    sipMonthly: file.holdings
+      .filter((h) => h.sipActive)
+      .reduce((s, h) => s + (h.sipAmount ?? 0), 0),
   }
 
   let named = 0
@@ -561,8 +617,11 @@ export function derive(
   const oneOffTotal = oneOffs.reduce((s, o) => s + o.amount, 0)
   const runRate = oneOffTotal / historyMonths
 
-  // 1 where the buffer is at or above target, 0 where there is nothing saved.
-  const bufferCoverage = Math.min(1, Math.max(0, monthsCovered / opts.bufferTargetMonths))
+  // 1 where the buffer is at or above target, 0 where there is nothing saved — and 0 where the
+  // outflow is unknown, because an unproven buffer has to be treated as an absent one wherever
+  // the number gates something.
+  const bufferCoverage =
+    monthsCovered === null ? 0 : Math.min(1, Math.max(0, monthsCovered / opts.bufferTargetMonths))
 
   const irregular: IrregularFacts = {
     oneOffs,
@@ -580,6 +639,7 @@ export function derive(
       age: ageOn(file.customer.dateOfBirth, asOf),
       dependents,
       city: file.customer.city,
+      declaredMonthlyIncome: Math.round(file.customer.declaredAnnualIncome / 12),
       riskProfile: file.customer.riskProfile,
       employmentType: file.customer.employmentType,
       language: file.customer.preferredLanguage,

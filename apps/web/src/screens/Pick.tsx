@@ -104,9 +104,15 @@ export function Pick(): ReactNode {
         an IDBI product that is wrong for you.
       </p>
 
+      {/*
+        This used to promise "synthetic ledgers — twenty-four months each, generated". True of
+        the fixtures, and false the moment the app was pointed at IDBI: the sandbox holds the
+        bank's own customers and about a month of statement. The line that replaces it is true
+        under every source, and Today's ribbon names the source exactly.
+      */}
       <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
-        Pick a customer to try it. These are synthetic ledgers — twenty-four months each, generated,
-        not written. Every number you see is arithmetic over them.
+        Pick a customer to try it. Every figure on these screens is computed from that customer’s
+        own statements — none of it is written by hand.
       </p>
 
       {listed?.offline ? (

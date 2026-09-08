@@ -15,6 +15,22 @@ import type { Goal } from './roadmap.ts'
 export function suggestGoal(snapshot: Snapshot, asOf: string, override: number | null): Goal {
   const monthlyOutflow = snapshot.commitments.total + snapshot.discretionary.monthly
 
+  /*
+   * What a month costs, for sizing a target.
+   *
+   * The observed outflow first, because a ledger beats a declaration. Where the statement is
+   * too sparse to show one — IDBI's own feed routinely is — the observed income is the next
+   * best thing, and the declared income after that. Without this ladder both remaining goals
+   * multiply zero: a six-month emergency fund with a target of ₹0, and a retirement number of
+   * ₹0, proposed to a customer with three loans and ₹56,780 in the bank.
+   */
+  const monthlyBasis =
+    monthlyOutflow > 0
+      ? monthlyOutflow
+      : snapshot.income.monthly > 0
+        ? snapshot.income.monthly
+        : snapshot.customer.declaredMonthlyIncome
+
   if (snapshot.debt.hasHighInterest) {
     return {
       id: 'goal-debt',
@@ -26,12 +42,14 @@ export function suggestGoal(snapshot: Snapshot, asOf: string, override: number |
     }
   }
 
-  if (snapshot.buffer.monthsCovered < 3) {
+  // Null means the outflow could not be read, which is not proof of a buffer, so the ladder
+  // treats it the same as a thin one: it is the rung most likely to be right when little is known.
+  if (snapshot.buffer.monthsCovered === null || snapshot.buffer.monthsCovered < 3) {
     return {
       id: 'goal-buffer',
       kind: 'emergency_fund',
       purpose: 'Six months of breathing room',
-      targetAmount: override ?? Math.round(monthlyOutflow * 6),
+      targetAmount: override ?? Math.round(monthlyBasis * 6),
       targetDate: `${Number(asOf.slice(0, 4)) + 2}${asOf.slice(4)}`,
       createdAt: asOf,
     }
@@ -47,7 +65,7 @@ export function suggestGoal(snapshot: Snapshot, asOf: string, override: number |
   // recognises, and the inflation is handled where it belongs — in the projection, which already
   // shows a real-terms line beside the nominal one.
   const yearsTo60 = Math.max(5, 60 - snapshot.customer.age)
-  const target = monthlyOutflow * 12 * 25
+  const target = monthlyBasis * 12 * 25
   return {
     id: 'goal-retire',
     kind: 'retirement',

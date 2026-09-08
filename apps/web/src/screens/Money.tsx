@@ -88,9 +88,12 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
         <div className="mt-2">
           <Amount value={balances.savings} size="lg" paise />
         </div>
-        {balances.idleFloor > 0 ? (
+        {/* The claim needs whole months behind it. With `idleMonths` at 0 it read "never fell
+            below ₹56,780 in 0 months", which asserts a floor over no period at all. */}
+        {balances.idleFloor > 0 && balances.idleMonths > 0 ? (
           <p className={`${NOTE} mt-2`}>
-            Never fell below {inr(balances.idleFloor)} in {balances.idleMonths} months — that part
+            Never fell below {inr(balances.idleFloor)} in{' '}
+            {balances.idleMonths === 1 ? 'a month' : `${balances.idleMonths} months`} — that part
             has not been needed once.
           </p>
         ) : null}
@@ -115,10 +118,15 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
             <div className="flex justify-between gap-2.5">
               <div className="flex-1">
                 <div className="text-[15.5px] font-bold text-ink">What you hold</div>
+                {/* Prefer the SIP debits seen in the statement; fall back to what the holdings
+                    themselves declare, since a feed with no recognisable narration finds no
+                    debits and would otherwise report "nothing going in" over a live mandate. */}
                 <p className={`${META} mt-[3px]`}>
                   {snapshot.commitments.investments > 0
                     ? `${inr(snapshot.commitments.investments)}/month already going in`
-                    : 'Nothing going in each month'}
+                    : holdings.sipMonthly > 0
+                      ? `${inr(holdings.sipMonthly)}/month going in, on your own record`
+                      : 'Nothing going in each month'}
                 </p>
               </div>
               <Amount value={holdings.total} size="md" />
