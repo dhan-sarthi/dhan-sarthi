@@ -12,7 +12,7 @@
  * into one it refuses. The customer should press save knowing that, and should see the numbers
  * move when they come back.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DeclaredProfileResponse, ProfilePatch } from '@dhan/contracts'
 import { Sheet } from '../components/Sheet.tsx'
@@ -89,24 +89,22 @@ export function ProfileSheet({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      const next = await api('getProfile')
+      setLoaded(next)
+      setDraft(toDraft(next))
+      setError(null)
+    } catch (err) {
+      setError(isApiError(err) ? err.message : 'Your profile could not be read.')
+    }
+  }, [])
+
   useEffect(() => {
     if (!open) return
-    let live = true
-    setError(null)
-    void api('getProfile')
-      .then((p) => {
-        if (!live) return
-        setLoaded(p)
-        setDraft(toDraft(p))
-      })
-      .catch((err: unknown) => {
-        if (!live) return
-        setError(isApiError(err) ? err.message : 'Your profile could not be read.')
-      })
-    return () => {
-      live = false
-    }
-  }, [open])
+    // Off the effect's own tick, as everywhere else in this app.
+    queueMicrotask(() => void load())
+  }, [open, load])
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]): void =>
     setDraft((d) => (d === null ? d : { ...d, [key]: value }))

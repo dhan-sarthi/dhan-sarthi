@@ -36,9 +36,13 @@ export function Toast({
 }): ReactNode {
   const [closing, setClosing] = useState(false)
 
+  /*
+   * No reset on the way in. The shell keys this component on the message id, so a new message
+   * is a new component with `closing` already false, and re-showing the same sentence after a
+   * retry works without a synchronous state write here.
+   */
   useEffect(() => {
     if (!message) return
-    setClosing(false)
     // Long enough to read a sentence, short enough not to sit over the tab bar.
     const hide = setTimeout(() => setClosing(true), 3600)
     const drop = setTimeout(onDone, 3900)

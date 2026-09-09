@@ -10,7 +10,7 @@
  * decides which tier is on screen: the live avatar, the same engine in text, or the simulation
  * in this browser when the API is out of reach. Each tier is labelled; none of them spins.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from './api/client.ts'
 import { clearSession, useStoredSession } from './api/session.ts'
@@ -210,7 +210,7 @@ export function App(): ReactNode {
         onClose={() => setSheet(null)}
         onLinked={afterEdit}
       />
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast key={toast?.id ?? 'none'} message={toast} onDone={() => setToast(null)} />
     </div>
   )
 }

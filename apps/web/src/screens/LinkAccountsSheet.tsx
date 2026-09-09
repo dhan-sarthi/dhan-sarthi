@@ -51,7 +51,8 @@ export function LinkAccountsSheet({
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      setRequests(await api('listConsentRequests'))
+      const next = await api('listConsentRequests')
+      setRequests(next)
       setError(null)
     } catch (err) {
       setError(isApiError(err) ? err.message : 'That could not be read.')
@@ -59,7 +60,10 @@ export function LinkAccountsSheet({
   }, [])
 
   useEffect(() => {
-    if (open) void load()
+    if (!open) return
+    // Off the effect's own tick, as everywhere else in this app: state changes when the reply
+    // arrives, never during the effect that asked for it.
+    queueMicrotask(() => void load())
   }, [open, load])
 
   const start = async (): Promise<void> => {

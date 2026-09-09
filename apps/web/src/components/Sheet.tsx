@@ -31,8 +31,17 @@ export function Sheet({
   children: ReactNode
   footer?: ReactNode
 }): ReactNode {
-  const [closing, setClosing] = useState(false)
-  const [mounted, setMounted] = useState(open)
+  /*
+   * `open` is the caller's and `lingering` is ours; between them they are the closing animation.
+   *
+   * Mounted is derived rather than stored, so opening is instant and needs no state write at
+   * all. Closing keeps the node alive until the timer clears `lingering`, which is the only
+   * reason any of this exists: React removing the sheet the moment `open` went false would
+   * make every dismissal, including a successful save, look like a crash.
+   */
+  const [lingering, setLingering] = useState(false)
+  const mounted = open || lingering
+  const closing = !open && lingering
   const panel = useRef<HTMLDivElement>(null)
   const ripple = useRipple()
 
@@ -43,29 +52,17 @@ export function Sheet({
    */
   const dismiss = useCallback(() => onClose(), [onClose])
 
-  /*
-   * `open` is the caller's, `mounted` is ours, and the gap between them is the closing
-   * animation.
-   *
-   * Both directions matter. Opening mounts immediately. Closing has to be driven from here as
-   * well, because a sheet that saved successfully closes itself from the outside — the caller
-   * sets `open` to false — and if only `dismiss` unmounted, that sheet would sit there after a
-   * save looking like the save had failed.
-   */
   useEffect(() => {
     if (open) {
-      setClosing(false)
-      setMounted(true)
-      return
+      // Marked as lingering while open too, so that when `open` next goes false the node is
+      // already known to need an exit rather than vanishing on the same tick.
+      const id = requestAnimationFrame(() => setLingering(true))
+      return () => cancelAnimationFrame(id)
     }
-    if (!mounted) return
-    setClosing(true)
-    const t = setTimeout(() => {
-      setClosing(false)
-      setMounted(false)
-    }, 200)
+    // Matches `ds-sheet-out`. A shorter wait clips the animation; a longer one feels stuck.
+    const t = setTimeout(() => setLingering(false), 200)
     return () => clearTimeout(t)
-  }, [open, mounted])
+  }, [open])
 
   useEffect(() => {
     if (!mounted) return

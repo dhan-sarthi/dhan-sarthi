@@ -43,16 +43,19 @@ export function useCountUp(value: number, durationMs = 520): number {
   const first = useRef(true)
 
   useEffect(() => {
+    // First run needs nothing: `useState(value)` already holds it, and setting it again here
+    // would be a synchronous state write in an effect for no gain.
     if (first.current) {
       first.current = false
       from.current = value
-      setShown(value)
       return
     }
+    // Reduced motion still has to land on the new figure, but on the next frame rather than
+    // inline, so this stays out of the render that scheduled it.
     if (reduced || !Number.isFinite(value)) {
       from.current = value
-      setShown(value)
-      return
+      const id = requestAnimationFrame(() => setShown(value))
+      return () => cancelAnimationFrame(id)
     }
 
     const start = performance.now()

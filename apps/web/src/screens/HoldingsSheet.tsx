@@ -78,7 +78,8 @@ export function HoldingsSheet({
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      setHeld(await api('getHoldings'))
+      const next = await api('getHoldings')
+      setHeld(next)
       setError(null)
     } catch (err) {
       setError(isApiError(err) ? err.message : 'Your holdings could not be read.')
@@ -86,7 +87,10 @@ export function HoldingsSheet({
   }, [])
 
   useEffect(() => {
-    if (open) void load()
+    if (!open) return
+    // Off the effect's own tick, as everywhere else in this app: state changes when the reply
+    // arrives, never during the effect that asked for it.
+    queueMicrotask(() => void load())
   }, [open, load])
 
   const add = async (): Promise<void> => {
