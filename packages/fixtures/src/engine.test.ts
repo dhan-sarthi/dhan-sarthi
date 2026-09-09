@@ -14,6 +14,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  buildDailyPlan,
   categorize,
   coverage,
   derive,
@@ -358,5 +359,39 @@ describe('the snapshot', () => {
       assert.ok(s.quality.categorisedShare > 0.98)
       assert.ok(s.quality.monthsOfHistory >= 10)
     }
+  })
+
+  /*
+   * The cap window, which used to be the calendar month.
+   *
+   * Worth a test of its own because the bug it had was invisible: month-to-date on the 1st is
+   * empty, so a cap that should have been breached simply was not, on a day nobody thinks to
+   * check. The generator's anchor is the 1st, which is how it stayed hidden.
+   */
+  it('measures a cap over the thirty days ending today, not the calendar month', () => {
+    const file = generateCustomerFile(ROHAN, OPTS)
+    const snapshot = derive(file, ASOF)
+    const category = snapshot.discretionary.byCategory[0]?.[0]
+    assert.ok(category, 'the generated ledger should have a spend category')
+
+    const onTheFirst = ASOF
+    assert.equal(onTheFirst.slice(8), '01')
+    const inCategory = file.transactions.filter(
+      (t) => t.txnType === 'DEBIT' && t.spendCategory === category && t.txnDate <= onTheFirst,
+    )
+    // The premise: nothing in this category has been spent in the calendar month so far, and
+    // plenty has been spent in the thirty days before today. That is what makes the two windows
+    // give different answers, and it is the ordinary state of affairs on the 1st.
+    assert.equal(inCategory.filter((t) => t.txnDate.slice(0, 7) === '2026-09').length, 0)
+    assert.ok(inCategory.filter((t) => t.txnDate > '2026-08-02').length > 0)
+
+    const plan = buildDailyPlan(snapshot, null, file.transactions, [], onTheFirst, {
+      caps: [{ category, monthlyLimit: 1 }],
+    })
+    assert.equal(plan.since.capBreached, true)
+
+    // And it is the cap doing the work, not the window: without one, nothing is breached.
+    const uncapped = buildDailyPlan(snapshot, null, file.transactions, [], onTheFirst)
+    assert.equal(uncapped.since.capBreached, false)
   })
 })
