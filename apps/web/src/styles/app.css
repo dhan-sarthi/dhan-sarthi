@@ -12,6 +12,7 @@
 @import 'tailwindcss/preflight.css' layer(base);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @import './tokens.css';
+@import './motion.css';
 
 @theme {
   --color-ground: var(--ground);

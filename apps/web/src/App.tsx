@@ -10,7 +10,7 @@
  * decides which tier is on screen: the live avatar, the same engine in text, or the simulation
  * in this browser when the API is out of reach. Each tier is labelled; none of them spins.
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from './api/client.ts'
 import { clearSession, useStoredSession } from './api/session.ts'
@@ -19,6 +19,11 @@ import { TabBar } from './components/TabBar.tsx'
 import type { TabId } from './components/TabBar.tsx'
 import type { Tier } from './components/TierBadge.tsx'
 import { Card, Head } from './components/ui.tsx'
+import { Toast } from './components/Toast.tsx'
+import type { ToastMessage, ToastTone } from './components/Toast.tsx'
+import { ProfileSheet } from './screens/ProfileSheet.tsx'
+import { HoldingsSheet } from './screens/HoldingsSheet.tsx'
+import { LinkAccountsSheet } from './screens/LinkAccountsSheet.tsx'
 import { Ask } from './screens/Ask.tsx'
 import { Money } from './screens/Money.tsx'
 import { Pick } from './screens/Pick.tsx'
@@ -39,6 +44,29 @@ export function App(): ReactNode {
   const m = useMutations(vs, record.refresh)
   const avail = useAvailability(vs.tier === 'server' && vs.view !== null)
   const [tab, setTab] = useState<TabId>('today')
+  const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | null>(null)
+  const [toast, setToast] = useState<ToastMessage | null>(null)
+
+  /*
+   * One place a result is announced, rather than a notice under whichever card was used.
+   *
+   * An inline notice is below the fold as soon as the action is halfway down a scroll, and it
+   * stays on screen long after the thing it describes, which makes an outcome read as a state.
+   */
+  const say = useCallback((text: string, tone: ToastTone = 'ok') => {
+    setToast({ id: Date.now(), tone, text })
+  }, [])
+
+  /* An edit to the profile or the holdings changes what the engine derives, so the view is
+     re-read rather than patched: the numbers on screen are the server's, always. */
+  const refreshView = vs.refresh
+  const afterEdit = useCallback(
+    (message: string) => {
+      say(message)
+      void refreshView()
+    },
+    [say, refreshView],
+  )
 
   const offline = vs.offline
   const source = useMemo<TransactionSource>(
@@ -111,6 +139,8 @@ export function App(): ReactNode {
   return (
     <div className="app">
       {badge}
+      {/* Keyed on the tab so the fade replays on every change. Without the key React reuses the
+          subtree and the animation only ever runs once, on first mount. */}
       {tab === 'today' ? (
         <Today
           view={view}
@@ -130,6 +160,7 @@ export function App(): ReactNode {
           lead={m.lead}
           onDecide={(action, kind) => void m.decide(action, kind)}
           onAsk={() => setTab('ask')}
+          onOpenProfile={() => setSheet('profile')}
         />
       ) : null}
 
@@ -137,7 +168,13 @@ export function App(): ReactNode {
         <Plan snapshot={view.snapshot} roadmap={view.roadmap} asOf={view.meta.asOf} />
       ) : null}
       {tab === 'money' ? (
-        <Money snapshot={view.snapshot} source={source} asOf={view.meta.asOf} />
+        <Money
+          snapshot={view.snapshot}
+          source={source}
+          asOf={view.meta.asOf}
+          onEditHoldings={() => setSheet('holdings')}
+          onLinkAccounts={() => setSheet('link')}
+        />
       ) : null}
       {tab === 'record' ? (
         <Record
@@ -148,6 +185,7 @@ export function App(): ReactNode {
           busy={m.busy}
           notice={m.notice}
           onConsent={(scope, granted) => void m.setConsent(scope, granted)}
+          onEditProfile={() => setSheet('profile')}
         />
       ) : null}
 
@@ -160,6 +198,19 @@ export function App(): ReactNode {
           if (id === 'record') void record.refresh()
         }}
       />
+
+      <ProfileSheet open={sheet === 'profile'} onClose={() => setSheet(null)} onSaved={afterEdit} />
+      <HoldingsSheet
+        open={sheet === 'holdings'}
+        onClose={() => setSheet(null)}
+        onChanged={afterEdit}
+      />
+      <LinkAccountsSheet
+        open={sheet === 'link'}
+        onClose={() => setSheet(null)}
+        onLinked={afterEdit}
+      />
+      <Toast message={toast} onDone={() => setToast(null)} />
     </div>
   )
 }

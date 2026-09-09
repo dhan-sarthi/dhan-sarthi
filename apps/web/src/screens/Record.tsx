@@ -25,6 +25,7 @@ import type {
   SessionState,
   View,
 } from '@dhan/contracts'
+import { Pencil } from 'lucide-react'
 import { Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
 import { dayMonth, inr } from '../lib/money.ts'
@@ -45,6 +46,7 @@ export function Record({
   busy,
   notice,
   onConsent,
+  onEditProfile,
 }: {
   view: View
   record: RecordState
@@ -54,6 +56,8 @@ export function Record({
   /** The last consent change failed; the server's sentence. */
   notice: string | null
   onConsent: (scope: ConsentScope, granted: boolean) => void
+  /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
+  onEditProfile: () => void
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('decisions')
 
@@ -82,6 +86,7 @@ export function Record({
             busy={busy}
             notice={notice}
             onConsent={onConsent}
+            onEditProfile={onEditProfile}
           />
         ) : null}
       </div>
@@ -418,6 +423,7 @@ function Consent({
   busy,
   notice,
   onConsent,
+  onEditProfile,
 }: {
   view: View
   record: RecordView | null
@@ -426,6 +432,8 @@ function Consent({
   busy: boolean
   notice: string | null
   onConsent: (scope: ConsentScope, granted: boolean) => void
+  /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
+  onEditProfile: () => void
 }): ReactNode {
   const { snapshot } = view
   const consent = record?.consent ?? null
@@ -517,6 +525,19 @@ function Consent({
                 <p className={`${NOTE} m-0 mt-[7px]`}>
                   {i.detail} {PROVENANCE_LABEL[view.meta.provenance[i.scope]]}.
                 </p>
+                {/* A block the app owns can be corrected here, where the customer is already
+                    reading what we hold. Sending them somewhere else to fix a wrong figure is
+                    how a wrong figure stays. */}
+                {view.meta.provenance[i.scope] === 'declared' ? (
+                  <button
+                    type="button"
+                    onClick={onEditProfile}
+                    className="ds-press mt-2.5 inline-flex h-9 items-center gap-1.5 rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[13px] font-semibold text-accent-text"
+                  >
+                    <Pencil size={13} strokeWidth={2.6} />
+                    Change this
+                  </button>
+                ) : null}
               </div>
               <div className="flex-none self-start">
                 <button

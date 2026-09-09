@@ -15,6 +15,7 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { Lightbulb, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
 import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
@@ -62,6 +63,7 @@ export function Today({
   lead,
   onDecide,
   onAsk,
+  onOpenProfile,
 }: {
   view: View
   tier: Tier
@@ -77,6 +79,8 @@ export function Today({
   lead: LeadOutcomeResponse | null
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
+  /** The header's avatar. It said "Profile" and opened the advisor; now it opens the profile. */
+  onOpenProfile: () => void
 }): ReactNode {
   const { snapshot, plan } = view
   const asOf = view.meta.asOf
@@ -97,16 +101,32 @@ export function Today({
         sub={`${dayMonth(asOf)} · ${snapshot.customer.name.split(' ')[0]}`}
         right={
           <div className="flex gap-2">
+            {/* Both of these were decoration. The first counted insights and did nothing when
+                pressed; the second was labelled Profile and opened the advisor. */}
             <button
               type="button"
-              className={plan.insights.length > 0 ? `${CHIP} ${CHIP_BADGE}` : CHIP}
+              className={`ds-press ${plan.insights.length > 0 ? `${CHIP} ${CHIP_BADGE}` : CHIP}`}
               data-count={plan.insights.length > 0 ? String(plan.insights.length) : undefined}
-              aria-label="Insights"
+              aria-label={
+                plan.insights.length > 0
+                  ? `${plan.insights.length} things I noticed`
+                  : 'Nothing I noticed'
+              }
+              onClick={() => {
+                document
+                  .getElementById('what-i-noticed')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
             >
-              ◔
+              <Lightbulb size={17} strokeWidth={2.3} />
             </button>
-            <button type="button" className={CHIP} aria-label="Profile" onClick={onAsk}>
-              U
+            <button
+              type="button"
+              className={`ds-press ${CHIP}`}
+              aria-label="About you"
+              onClick={onOpenProfile}
+            >
+              <UserRound size={17} strokeWidth={2.3} />
             </button>
           </div>
         }
@@ -114,7 +134,13 @@ export function Today({
       <DataSourceRibbon meta={view.meta} tier={tier} />
 
       <div className="scroll">
-        {clock.show ? (
+        {/*
+          Hidden, not disabled, when the ledger ends where the session opens.
+          A control that can never do anything is worse than no control: it reads as broken, and
+          on IDBI's feed that is its permanent state. It comes back the moment a source has
+          headroom, which the generator and the seeded database both do.
+        */}
+        {clock.show && clock.horizonTo > asOf ? (
           <div className="mt-3">
             <Clock
               asOf={asOf}
@@ -261,7 +287,9 @@ export function Today({
             "What I noticed" over nothing reads as a section that failed to load. */}
         {plan.insights.length > 0 ? (
           <>
-            <Eyebrow>What I noticed</Eyebrow>
+            <div id="what-i-noticed" className="scroll-mt-3">
+              <Eyebrow>What I noticed</Eyebrow>
+            </div>
             {plan.insights.map((i) => (
               <InsightCard key={i.kind} insight={i} />
             ))}

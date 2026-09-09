@@ -17,9 +17,11 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Snapshot } from '@dhan/contracts'
+import { Link2, Pencil, Plus } from 'lucide-react'
 import {
   Amount,
   Bar,
+  Button,
   Card,
   Eyebrow,
   Head,
@@ -43,11 +45,17 @@ export function Money({
   snapshot,
   source,
   asOf,
+  onEditHoldings,
+  onLinkAccounts,
 }: {
   snapshot: Snapshot
   /** Pages of the statement, from the API or the offline ledger. */
   source: TransactionSource
   asOf: string
+  /** The holdings block is the app's own, so this screen is where it is changed. */
+  onEditHoldings: () => void
+  /** Accounts at other banks, through the Account Aggregator. */
+  onLinkAccounts: () => void
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('accounts')
 
@@ -65,7 +73,13 @@ export function Money({
       />
 
       <div className="scroll">
-        {tab === 'accounts' ? <Accounts snapshot={snapshot} /> : null}
+        {tab === 'accounts' ? (
+          <Accounts
+            snapshot={snapshot}
+            onEditHoldings={onEditHoldings}
+            onLinkAccounts={onLinkAccounts}
+          />
+        ) : null}
         {tab === 'spending' ? <Spending snapshot={snapshot} source={source} asOf={asOf} /> : null}
         {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
       </div>
@@ -75,7 +89,15 @@ export function Money({
 
 /* ---------------------------------------------------------------- Accounts */
 
-function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
+function Accounts({
+  snapshot,
+  onEditHoldings,
+  onLinkAccounts,
+}: {
+  snapshot: Snapshot
+  onEditHoldings: () => void
+  onLinkAccounts: () => void
+}): ReactNode {
   const { balances, holdings, debt, protection } = snapshot
 
   return (
@@ -111,9 +133,11 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
         </Card>
       ) : null}
 
+      {/* The whole block is the app's own record, so it is editable from where it is shown
+          rather than from a settings screen somebody has to go looking for. */}
+      <Eyebrow>Investments</Eyebrow>
       {holdings.total > 0 ? (
         <>
-          <Eyebrow>Investments</Eyebrow>
           <Card>
             <div className="flex justify-between gap-2.5">
               <div className="flex-1">
@@ -135,9 +159,46 @@ function Accounts({ snapshot }: { snapshot: Snapshot }): ReactNode {
               <Leader label="Equity" value={inr(holdings.equity)} filled />
               <Leader label="Debt and deposits" value={inr(holdings.debt)} filled />
             </div>
+            <div className="mt-3.5">
+              <Button tone="secondary" size="sm" full onClick={onEditHoldings}>
+                <Pencil size={15} strokeWidth={2.5} />
+                Change what you own
+              </Button>
+            </div>
           </Card>
         </>
-      ) : null}
+      ) : (
+        <Card tint="clay">
+          <h2>Tell us what you already own</h2>
+          <p className={`${META} mt-1.5`}>
+            The bank has no record of your funds, deposits elsewhere or insurance. Without them we
+            cannot tell whether you already hold what we are about to suggest.
+          </p>
+          <div className="mt-3.5">
+            <Button size="sm" full onClick={onEditHoldings}>
+              <Plus size={16} strokeWidth={2.6} />
+              Add what you own
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[15.5px] font-bold text-ink">Accounts at other banks</div>
+            <p className={`${META} mt-[3px]`}>
+              Link them and the plan works from all of your money, not just the part held here.
+            </p>
+          </div>
+          <Link2 size={19} strokeWidth={2.2} className="mt-0.5 flex-none text-accent-text" />
+        </div>
+        <div className="mt-3.5">
+          <Button tone="secondary" size="sm" full onClick={onLinkAccounts}>
+            Link an account
+          </Button>
+        </div>
+      </Card>
 
       {debt.total > 0 ? (
         <>

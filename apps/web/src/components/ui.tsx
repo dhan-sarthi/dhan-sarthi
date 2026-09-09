@@ -11,8 +11,9 @@
  * Preflight is not loaded, so every button carries an explicit `border-0` / background and every
  * border an explicit `border-solid`.
  */
-import type { ReactNode } from 'react'
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { parts } from '../lib/money.ts'
+import { useChanged, useCountUp, useRipple } from '../lib/motion.ts'
 
 /* ---------------------------------------------------------------- Amount */
 
@@ -29,6 +30,7 @@ export function Amount({
   size = 'lg',
   paise = false,
   fit = false,
+  animate = true,
 }: {
   value: number
   size?: 'xl' | 'lg' | 'md' | 'sm'
@@ -40,12 +42,26 @@ export function Amount({
    * one thing a money display must never do.
    */
   fit?: boolean
+  /**
+   * Travel to a new value rather than jumping to it, and flash once on arrival.
+   *
+   * On by default, and it costs nothing on first paint: the count only runs when the number
+   * *changes*. That is the case it exists for. Editing a declared income moves the surplus, the
+   * daily allowance and the goal target at once, and four numbers that jump together tell a
+   * customer nothing about which of them their edit touched.
+   */
+  animate?: boolean
 }): ReactNode {
-  const p = parts(value)
+  const live = useCountUp(animate ? value : value)
+  const shown = animate ? live : value
+  const moved = useChanged(animate ? value : null)
+  const p = parts(shown)
   const sizeCls = fit ? 'text-[clamp(17px,6.2vw,22px)] font-bold' : AMOUNT_SIZE[size]
   return (
     <span
-      className={`flex min-w-0 items-baseline leading-none tracking-tight tabular-nums ${sizeCls}`}
+      className={`flex min-w-0 items-baseline leading-none tracking-tight tabular-nums ${sizeCls} ${
+        moved ? 'ds-flash' : ''
+      }`}
     >
       <span className="mr-[0.06em] text-[0.55em] opacity-70">{p.cur}</span>
       <span>{p.int}</span>
@@ -155,11 +171,108 @@ export function Leader({
 export function Bar({ used, pending = 0 }: { used: number; pending?: number }): ReactNode {
   const u = Math.max(0, Math.min(100, used))
   const p = Math.max(0, Math.min(100 - u, pending))
+  // Each segment is full width and scaled down, so the change animates on the compositor.
+  // Transitioning `width` instead would relayout the row on every frame of every bar.
   return (
     <div className="flex h-2 overflow-hidden rounded-pill bg-chart-idle" role="presentation">
-      <span className="h-full bg-accent" style={{ width: `${u}%` }} />
-      <span className="h-full bg-accent-soft" style={{ width: `${p}%` }} />
+      <span
+        className="ds-bar-fill h-full bg-accent"
+        style={{ width: '100%', transform: `scaleX(${u / 100})`, flex: `0 0 ${u}%` }}
+      />
+      <span
+        className="ds-bar-fill h-full bg-accent-soft"
+        style={{ width: '100%', transform: `scaleX(${p / 100})`, flex: `0 0 ${p}%` }}
+      />
     </div>
+  )
+}
+
+/* ---------------------------------------------------------------- Skeleton */
+
+/*
+ * A shape where content will be, while it is being fetched.
+ *
+ * Better than a spinner for one specific reason: the layout does not jump when the data lands,
+ * because the skeleton is already the size of the thing. On this app that matters more than
+ * usual, since a view is four live calls to a bank and takes a second or two.
+ */
+export function Skeleton({
+  h = 16,
+  w = '100%',
+  className = '',
+}: {
+  h?: number
+  w?: number | string
+  className?: string
+}): ReactNode {
+  return (
+    <span
+      aria-hidden="true"
+      className={`ds-skeleton block ${className}`}
+      style={{ height: h, width: typeof w === 'number' ? `${w}px` : w }}
+    />
+  )
+}
+
+/* ---------------------------------------------------------------- Button */
+
+const BTN_TONE = {
+  primary: 'bg-accent text-white border-0',
+  secondary: 'bg-white text-accent-text border-[1.5px] border-solid border-accent',
+  quiet: 'bg-ground-deep text-ink-mid border-0',
+  danger: 'bg-danger-soft text-danger border-0',
+} as const
+
+/* Every tappable thing in the app, so the press response is the same everywhere. */
+export function Button({
+  tone = 'primary',
+  size = 'md',
+  full,
+  disabled,
+  busy,
+  onClick,
+  type = 'button',
+  children,
+  ariaLabel,
+}: {
+  tone?: keyof typeof BTN_TONE
+  size?: 'md' | 'sm'
+  full?: boolean
+  disabled?: boolean
+  /** Shows a spinner and blocks the press, without changing the button's width. */
+  busy?: boolean
+  onClick?: () => void
+  type?: 'button' | 'submit'
+  children: ReactNode
+  ariaLabel?: string
+}): ReactNode {
+  const ripple = useRipple()
+  const h = size === 'sm' ? 'h-10 px-3.5 text-[14px]' : 'h-12 px-5 text-[15px]'
+  return (
+    <button
+      type={type}
+      disabled={disabled === true || busy === true}
+      aria-label={ariaLabel}
+      aria-busy={busy === true}
+      onPointerDown={(e: ReactPointerEvent<HTMLElement>) => ripple(e)}
+      onClick={onClick}
+      className={`ds-press inline-flex items-center justify-center gap-2 rounded-pill font-semibold disabled:opacity-55 ${h} ${
+        BTN_TONE[tone]
+      } ${full === true ? 'w-full' : ''}`}
+    >
+      {busy === true ? <Spinner /> : null}
+      {children}
+    </button>
+  )
+}
+
+export function Spinner({ size = 15 }: { size?: number }): ReactNode {
+  return (
+    <span
+      aria-hidden="true"
+      className="ds-spin inline-block flex-none rounded-pill border-[2px] border-solid border-current border-t-transparent opacity-70"
+      style={{ width: size, height: size }}
+    />
   )
 }
 
