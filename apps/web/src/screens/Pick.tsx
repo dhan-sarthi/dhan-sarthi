@@ -29,7 +29,7 @@ interface Listed {
 }
 
 const ROW =
-  'mb-3 block w-full rounded-md border border-solid border-hairline-mint bg-white p-4 text-left font-sans text-ink transition-transform duration-100 active:scale-[0.985] disabled:opacity-60'
+  'mb-3 block w-full rounded-md border border-solid border-hairline-mint bg-white p-4 text-left font-sans text-ink disabled:opacity-60'
 
 export function Pick(): ReactNode {
   const [listed, setListed] = useState<Listed | null>(null)
@@ -95,29 +95,34 @@ export function Pick(): ReactNode {
   return (
     /* `.scroll` is unlayered and sets a `padding` shorthand, so the top padding needs `!` to win. */
     <div className="scroll pt-10!">
-      <p className="m-0 mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
-        IDBI Innovate 2026 · Team Atomic
-      </p>
+      {/* The masthead rises once, ahead of the rows, so the first screen arrives rather than
+          appearing. Wrapped rather than staggered per element: the rows below are direct
+          children of the scroller and run their own ladder. */}
+      <div className="ds-rise">
+        <p className="m-0 mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
+          IDBI Innovate 2026 · Team Atomic
+        </p>
 
-      <h1 className="m-0 mb-3 text-[30px] font-bold leading-tight text-ink">
-        A private banker for every IDBI account
-      </h1>
+        <h1 className="m-0 mb-3 text-[30px] font-bold leading-tight text-ink">
+          A private banker for every IDBI account
+        </h1>
 
-      <p className="m-0 mb-2 text-[15px] leading-normal text-ink-mid">
-        Uday reads every transaction, tells you the one thing to do today, and refuses to sell you
-        an IDBI product that is wrong for you.
-      </p>
+        <p className="m-0 mb-2 text-[15px] leading-normal text-ink-mid">
+          Uday reads every transaction, tells you the one thing to do today, and refuses to sell you
+          an IDBI product that is wrong for you.
+        </p>
 
-      {/*
-        This used to promise "synthetic ledgers — twenty-four months each, generated". True of
-        the fixtures, and false the moment the app was pointed at IDBI: the sandbox holds the
-        bank's own customers and about a month of statement. The line that replaces it is true
-        under every source, and Today's ribbon names the source exactly.
-      */}
-      <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
-        Pick a customer to try it. Every figure on these screens is computed from that customer’s
-        own statements — none of it is written by hand.
-      </p>
+        {/*
+          This used to promise "synthetic ledgers, twenty-four months each, generated". True of
+          the fixtures, and false the moment the app was pointed at IDBI: the sandbox holds the
+          bank's own customers and about a month of statement. The line that replaces it is true
+          under every source, and Today's ribbon names the source exactly.
+        */}
+        <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
+          Pick a customer to try it. Every figure on these screens is computed from that customer’s
+          own statements, none of it written by hand.
+        </p>
+      </div>
 
       {listed?.offline ? (
         <p
@@ -137,7 +142,7 @@ export function Pick(): ReactNode {
           <button
             type="button"
             onClick={() => void load()}
-            className="mt-3 h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]"
+            className="ds-press mt-3 h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text"
           >
             Try again
           </button>

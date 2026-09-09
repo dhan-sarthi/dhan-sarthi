@@ -33,6 +33,7 @@ import { api, isApiError } from '../api/client.ts'
 import { clearSession } from '../api/session.ts'
 import { dayMonth, inr } from '../lib/money.ts'
 import type { RecordState } from '../lib/record.ts'
+import { useRipple } from '../lib/motion.ts'
 
 type Tab = 'decisions' | 'rules' | 'consent'
 
@@ -146,7 +147,7 @@ function Decisions({
         <button
           type="button"
           onClick={() => void record.refresh()}
-          className="mt-3 h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]"
+          className="ds-press mt-3 h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text"
         >
           Try again
         </button>
@@ -444,6 +445,7 @@ function Consent({
 }): ReactNode {
   const { snapshot } = view
   const consent = record?.consent ?? null
+  const ripple = useRipple()
   const overrides = session?.scopeOverrides ?? []
   const editable = tier !== 'offline' && session !== null
 
@@ -547,8 +549,9 @@ function Consent({
                   aria-checked={on}
                   aria-label={`${i.what}: ${on ? 'shared' : 'withdrawn'}`}
                   disabled={!editable || busy}
+                  onPointerDown={ripple}
                   onClick={() => onConsent(i.scope, !on)}
-                  className={`inline-flex h-9 items-center rounded-pill border-0 px-[13px] text-xs font-semibold transition-transform duration-100 active:scale-[0.985] disabled:opacity-60 ${
+                  className={`ds-press inline-flex h-9 items-center rounded-pill border-0 px-[13px] text-xs font-semibold disabled:opacity-60 ${
                     on ? 'bg-brand text-on-dark' : 'bg-accent-soft text-accent-text'
                   }`}
                 >

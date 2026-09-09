@@ -19,6 +19,7 @@
  */
 import type { ReactNode } from 'react'
 import { dayMonth } from '../lib/money.ts'
+import { useRipple } from '../lib/motion.ts'
 
 /** `YYYY-MM-DD` plus n days, via UTC so no local timezone can move the date. */
 function addDays(iso: string, days: number): string {
@@ -28,7 +29,7 @@ function addDays(iso: string, days: number): string {
 }
 
 const ADVANCE_BTN =
-  'h-11 min-w-0 flex-1 whitespace-nowrap rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985] disabled:opacity-60'
+  'ds-press h-11 min-w-0 flex-1 whitespace-nowrap rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[15px] font-semibold text-accent-text disabled:opacity-60'
 
 export function Clock({
   asOf,
@@ -56,6 +57,7 @@ export function Clock({
   onReset: () => void
 }): ReactNode {
   const canAdvance = (days: number): boolean => addDays(asOf, days) <= horizonTo
+  const ripple = useRipple()
   const atTheEnd = !canAdvance(1)
   return (
     <section className="mb-3 min-w-0 rounded-md bg-tint-clay p-4 pb-3.5">
@@ -84,6 +86,7 @@ export function Clock({
             key={days}
             type="button"
             className={ADVANCE_BTN}
+            onPointerDown={ripple}
             onClick={() => onAdvance(days)}
             disabled={disabled || !canAdvance(days)}
             title={canAdvance(days) ? undefined : `The ledger ends on ${dayMonth(horizonTo)}.`}

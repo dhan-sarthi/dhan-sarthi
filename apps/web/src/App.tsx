@@ -337,7 +337,7 @@ function Gate({
                 <button
                   type="button"
                   onClick={onRetry}
-                  className="h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985]"
+                  className="ds-press h-11 rounded-pill border-[1.5px] border-solid border-accent bg-white px-4 text-[15px] font-semibold text-accent-text"
                 >
                   Try again
                 </button>

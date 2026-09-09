@@ -25,6 +25,7 @@ import type { Tier } from '../components/TierBadge.tsx'
 import { isNamed, merchantOf } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
 import type { DecisionKind } from '../lib/mutations.ts'
+import { useRipple } from '../lib/motion.ts'
 
 /* Header chips: white pills with a mint hairline. The count badge is a small orange disc. */
 const CHIP =
@@ -38,9 +39,9 @@ const NOTE = 'text-xs leading-relaxed text-ink-soft'
 
 /* Buttons on the brand-green hero card: primary stays orange, secondary becomes a white outline. */
 const BTN_ON_INK_PRIMARY =
-  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985] disabled:opacity-55'
+  'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white disabled:opacity-55'
 const BTN_ON_INK_SECONDARY =
-  'h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[15px] font-semibold text-on-dark transition-transform duration-100 active:scale-[0.985] disabled:opacity-55'
+  'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[15px] font-semibold text-on-dark disabled:opacity-55'
 
 export interface ClockControls {
   /** False under a real bank feed, where today is today. */
@@ -413,6 +414,7 @@ function ActionCard({
 }): ReactNode {
   const [showWhy, setShowWhy] = useState(false)
   const locked = !enabled || busy
+  const ripple = useRipple()
 
   return (
     <Card tint="ink">
@@ -446,6 +448,7 @@ function ActionCard({
         <button
           type="button"
           className={BTN_ON_INK_PRIMARY}
+          onPointerDown={ripple}
           disabled={locked}
           onClick={() => onDecide(action, 'did_it')}
         >
@@ -454,6 +457,7 @@ function ActionCard({
         <button
           type="button"
           className={BTN_ON_INK_SECONDARY}
+          onPointerDown={ripple}
           disabled={locked}
           onClick={() => onDecide(action, 'declined')}
         >
@@ -462,6 +466,7 @@ function ActionCard({
         <button
           type="button"
           className={`${BTN_ON_INK_SECONDARY} px-[18px]`}
+          onPointerDown={ripple}
           onClick={() => setShowWhy((v) => !v)}
         >
           Why?

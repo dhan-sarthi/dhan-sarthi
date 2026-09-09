@@ -26,6 +26,7 @@ import type { AskBackend } from '../lib/ask.ts'
 import { useAvatar } from '../lib/avatar.ts'
 import type { QueuePlace } from '../lib/avatar.ts'
 import { inr } from '../lib/money.ts'
+import { useRipple } from '../lib/motion.ts'
 import { QueueCard } from '../components/QueueCard.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
 
@@ -313,6 +314,7 @@ function TextTier({
   const [thinking, setThinking] = useState(false)
   const [checking, setChecking] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const ripple = useRipple()
   // Turn ids, so React keys survive a bubble being appended while an answer is in flight.
   const idRef = useRef(0)
   const nextId = (): number => {
@@ -427,8 +429,9 @@ function TextTier({
         {canCall ? (
           <button
             type="button"
+            onPointerDown={ripple}
             onClick={onCall}
-            className="flex h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985]"
+            className="ds-press flex h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white"
           >
             <MicIcon />
             Call
@@ -483,9 +486,10 @@ function TextTier({
               <button
                 key={q}
                 type="button"
+                onPointerDown={ripple}
                 onClick={() => void ask(q)}
                 disabled={thinking}
-                className="h-9 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3.5 text-[13px] font-semibold text-white disabled:opacity-60"
+                className="ds-press h-9 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3.5 text-[13px] font-semibold text-white disabled:opacity-60"
               >
                 {q}
               </button>
@@ -505,8 +509,9 @@ function TextTier({
           />
           <button
             type="submit"
+            onPointerDown={ripple}
             disabled={thinking || draft.trim() === ''}
-            className="h-11 flex-none rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white transition-transform duration-100 active:scale-[0.985] disabled:opacity-55"
+            className="ds-press h-11 flex-none rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white disabled:opacity-55"
           >
             Ask
           </button>
@@ -528,9 +533,10 @@ function TextTier({
             </select>
             <button
               type="button"
+              onPointerDown={ripple}
               onClick={() => void check()}
               disabled={checking}
-              className="h-11 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-4 text-[14px] font-semibold text-white disabled:opacity-60"
+              className="ds-press h-11 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-4 text-[14px] font-semibold text-white disabled:opacity-60"
             >
               Check a product
             </button>

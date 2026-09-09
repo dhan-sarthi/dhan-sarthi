@@ -334,7 +334,11 @@ export function Head({
 }): ReactNode {
   return (
     <header className="flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint p-4 shadow-card">
-      <div className="min-w-0">
+      {/* Keyed on the title so the words change with a fade rather than a jump. The header is
+          the one part of a screen that does not unmount into the entrance stagger, so without
+          this a tab change swapped "Today" for "Money" mid-frame while everything under it
+          animated. Short: this runs on every tap of the bar. */}
+      <div key={title} className="ds-screen min-w-0">
         <h1 className="m-0 text-[26px] font-semibold leading-tight text-ink">{title}</h1>
         {sub ? <p className="mb-0 mt-1 text-sm text-ink-soft">{sub}</p> : null}
       </div>
