@@ -447,11 +447,30 @@ function TextTier({
       {/* --------------------------------------------------- The conversation */}
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4" aria-live="polite">
         {turns.map((t) => (
-          <Bubble key={t.id} turn={t} />
+          <div key={t.id} className="ds-rise">
+            <Bubble turn={t} />
+          </div>
         ))}
         {thinking || checking ? (
-          <div className="mb-2.5 max-w-[85%] rounded-lg rounded-bl-sm bg-white/15 px-3.5 py-2.5 text-[14.5px] text-white/70">
-            {checking ? 'Checking the rules…' : 'Reading your statements…'}
+          /* Three dots rather than a sentence. "Reading your statements…" is a claim about what
+             is happening; the dots are the universal sign for "still here", and the reason a
+             chat needs one at all is that this is the only place in the app where the wait is
+             open-ended. */
+          <div
+            className="ds-rise mb-2.5 flex w-fit items-center gap-1.5 rounded-lg rounded-bl-sm bg-white/15 px-3.5 py-3"
+            role="status"
+          >
+            <span className="sr-only">
+              {checking ? 'Checking the rules' : 'Reading your statements'}
+            </span>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                className="ds-typing block size-1.5 rounded-pill bg-white/70"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
+            ))}
           </div>
         ) : null}
       </div>

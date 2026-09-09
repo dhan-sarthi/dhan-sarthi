@@ -411,14 +411,33 @@ export function openingLine(snapshot: Snapshot): Answer {
   const insights = findInsights(s)
   const lead = insights[0]
 
+  /*
+   * The diagnosis, from the parts that are actually known.
+   *
+   * The first version of this read every figure out regardless, which over a statement the
+   * categoriser cannot see into produced "₹44,805 comes in. ₹0 is committed before you decide
+   * anything, and about ₹0 goes on everything else" — an opening sentence with two fabricated
+   * zeros in it, from an advisor whose whole claim is that it read the ledger. Each clause now
+   * has to earn its place.
+   */
+  const clauses: string[] = []
+  if (s.income.monthly > 0) clauses.push(`${inr(s.income.monthly)} comes in`)
+  if (s.commitments.total > 0) {
+    clauses.push(`${inr(s.commitments.total)} is committed before you decide anything`)
+  }
+  if (s.discretionary.monthly > 0) {
+    clauses.push(`about ${inr(s.discretionary.monthly)} goes on everything else`)
+  }
+
   const diagnosis =
-    s.income.monthly > 0
-      ? `${first}, ${inr(s.income.monthly)} comes in. ${inr(s.commitments.total)} is committed ` +
-        `before you decide anything, and about ${inr(s.discretionary.monthly)} goes on ` +
-        `everything else.`
-      : `${first}, I can see ${inr(s.balances.total)} across your accounts and ` +
-        `${inr(s.debt.total)} owed, but nothing in this statement looks like a salary — so I ` +
-        `am not going to put a number on what you can spend until you tell me what comes in.`
+    clauses.length === 0
+      ? `${first}, I can see ${inr(s.balances.total)} across your accounts and ` +
+        `${inr(s.debt.total)} owed, but nothing in this statement is recognisable enough to ` +
+        `tell you what a normal month looks like. Tell me what comes in and I can.`
+      : clauses.length === 1
+        ? `${first}, ${clauses[0]}. Nothing else in this statement is recognisable enough to ` +
+          `break down yet.`
+        : `${first}, ${clauses.slice(0, -1).join(', ')} and ${clauses[clauses.length - 1]}.`
 
   return {
     matched: true,
