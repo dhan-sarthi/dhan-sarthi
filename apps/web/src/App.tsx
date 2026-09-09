@@ -162,6 +162,7 @@ export function App(): ReactNode {
           onDecide={(action, kind) => void m.decide(action, kind)}
           onAsk={() => setTab('ask')}
           onOpenProfile={() => setSheet('profile')}
+          onRefresh={refreshView}
         />
       ) : null}
 
@@ -171,6 +172,7 @@ export function App(): ReactNode {
           roadmap={view.roadmap}
           asOf={view.meta.asOf}
           onEditGoal={() => setSheet('goal')}
+          onRefresh={refreshView}
         />
       ) : null}
       {tab === 'money' ? (
@@ -180,6 +182,7 @@ export function App(): ReactNode {
           asOf={view.meta.asOf}
           onEditHoldings={() => setSheet('holdings')}
           onLinkAccounts={() => setSheet('link')}
+          onRefresh={refreshView}
         />
       ) : null}
       {tab === 'record' ? (
@@ -191,6 +194,9 @@ export function App(): ReactNode {
           busy={m.busy}
           onConsent={(scope, granted) => void m.setConsent(scope, granted)}
           onEditProfile={() => setSheet('profile')}
+          onRefresh={async () => {
+            await Promise.all([refreshView(), record.refresh()])
+          }}
         />
       ) : null}
 

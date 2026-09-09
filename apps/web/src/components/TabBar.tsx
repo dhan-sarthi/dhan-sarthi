@@ -22,6 +22,7 @@
 import type { ReactNode } from 'react'
 import { Home, IndianRupee, Route, ScrollText, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useRipple } from '../lib/motion.ts'
 
 export type TabId = 'today' | 'plan' | 'ask' | 'money' | 'record'
 
@@ -40,6 +41,7 @@ export function TabBar({
   active: TabId
   onChange: (id: TabId) => void
 }): ReactNode {
+  const ripple = useRipple()
   return (
     <nav
       className="grid min-h-16 flex-none grid-cols-5 rounded-t-lg bg-gradient-to-b from-nav-top to-nav-bottom pb-[env(safe-area-inset-bottom,0px)] text-white"
@@ -52,24 +54,42 @@ export function TabBar({
           <button
             key={t.id}
             type="button"
-            className="flex min-w-0 flex-col items-center justify-end gap-1 border-0 bg-transparent px-1 pb-1.5 pt-2 text-white"
+            className="ds-press relative flex min-w-0 flex-col items-center justify-end gap-1 border-0 bg-transparent px-1 pb-1.5 pt-2 text-white"
             aria-current={isActive ? 'page' : undefined}
+            onPointerDown={ripple}
             onClick={() => onChange(t.id)}
           >
+            {/* The dot, not a moving underline. Five items on a 375px bar are 75px apart and a
+                bar sliding that far every tap is more movement than the change deserves. */}
+            {!t.centre ? (
+              <span
+                aria-hidden="true"
+                className={`absolute top-1 h-1 w-1 rounded-pill bg-white transition-all duration-200 ${
+                  isActive ? 'opacity-100' : 'scale-50 opacity-0'
+                }`}
+              />
+            ) : null}
             {t.centre ? (
               <span
-                className="grid size-[60px] -translate-y-4 -mb-[22px] place-items-center rounded-pill border-4 border-solid border-white bg-brand-deep shadow-lift ring-2 ring-accent"
+                className="ds-press grid size-[60px] -translate-y-4 -mb-[22px] place-items-center rounded-pill border-4 border-solid border-white bg-brand-deep shadow-lift ring-2 ring-accent"
                 aria-hidden="true"
               >
                 <Glyph size={26} strokeWidth={1.75} />
               </span>
             ) : (
-              <span className="grid size-6 place-items-center" aria-hidden="true">
-                <Glyph size={22} strokeWidth={1.75} />
+              <span
+                className={`grid size-6 place-items-center transition-transform duration-200 ${
+                  isActive ? '-translate-y-0.5 scale-110' : ''
+                }`}
+                aria-hidden="true"
+              >
+                <Glyph size={22} strokeWidth={isActive ? 2.3 : 1.75} />
               </span>
             )}
             <span
-              className={`truncate text-[11px] leading-[14px] ${isActive ? 'font-bold' : 'font-medium'}`}
+              className={`truncate text-[11px] leading-[14px] transition-opacity duration-200 ${
+                isActive ? 'font-bold opacity-100' : 'font-medium opacity-80'
+              }`}
             >
               {t.label}
             </span>

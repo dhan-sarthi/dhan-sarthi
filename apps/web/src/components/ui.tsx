@@ -117,14 +117,29 @@ export function Segments<T extends string>({
   value: T
   onChange: (id: T) => void
 }): ReactNode {
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.id === value),
+  )
   return (
-    <div className="mx-4 my-3 flex flex-none rounded-md bg-ground-deep p-1" role="tablist">
+    <div className="relative mx-4 my-3 flex flex-none rounded-md bg-ground-deep p-1" role="tablist">
+      {/* One pill that slides, rather than a background appearing on the newly selected cell.
+          The movement is what tells you which way you went. */}
+      <span
+        aria-hidden="true"
+        className="absolute bottom-1 top-1 rounded-sm bg-accent transition-transform duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)]"
+        style={{
+          width: `calc((100% - 8px) / ${options.length})`,
+          left: 4,
+          transform: `translateX(${index * 100}%)`,
+        }}
+      />
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           role="tab"
-          className="h-10 min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent px-1 text-sm font-semibold text-ink-mid transition-colors duration-150 aria-selected:bg-accent aria-selected:text-white"
+          className="relative z-[1] h-10 min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent px-1 text-sm font-semibold text-ink-mid transition-colors duration-200 aria-selected:text-white"
           aria-selected={o.id === value}
           onClick={() => onChange(o.id)}
         >

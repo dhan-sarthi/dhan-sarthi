@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import type { Roadmap, Snapshot, Stage } from '@dhan/contracts'
 import { SlidersHorizontal } from 'lucide-react'
 import { Button, Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
+import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
 import { band } from '../lib/projection.ts'
 
@@ -31,12 +32,15 @@ export function Plan({
   roadmap,
   asOf,
   onEditGoal,
+  onRefresh,
 }: {
   snapshot: Snapshot
   roadmap: Roadmap
   asOf: string
   /** The plan offers to move the target in words; this is where it actually happens. */
   onEditGoal: () => void
+  /** Pull down at the top to re-read the view. */
+  onRefresh: () => Promise<void>
 }): ReactNode {
   const [rate, setRate] = useState(DEFAULT_RATE)
   const growth = roadmap.stages.find((s) => s.kind === 'grow')
@@ -66,7 +70,7 @@ export function Plan({
         sub={`${roadmap.goal.purpose ?? 'Your goal'} · version ${roadmap.version}`}
       />
 
-      <div className="scroll ds-enter">
+      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
         {/* ------------------------------------------------ Destination */}
         <div className="mt-3">
           <Card tint="sky">
@@ -170,7 +174,7 @@ export function Plan({
             the same record that lets the plan learn what you actually do.
           </p>
         </Card>
-      </div>
+      </PullToRefresh>
     </>
   )
 }

@@ -27,6 +27,7 @@ import type {
 } from '@dhan/contracts'
 import { Pencil } from 'lucide-react'
 import { Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
+import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
 import { dayMonth, inr } from '../lib/money.ts'
 import type { RecordState } from '../lib/record.ts'
@@ -46,6 +47,7 @@ export function Record({
   busy,
   onConsent,
   onEditProfile,
+  onRefresh,
 }: {
   view: View
   record: RecordState
@@ -55,6 +57,8 @@ export function Record({
   onConsent: (scope: ConsentScope, granted: boolean) => void
   /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
   onEditProfile: () => void
+  /** Pull down at the top to re-read the view. */
+  onRefresh: () => Promise<void>
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('decisions')
 
@@ -71,7 +75,7 @@ export function Record({
         ]}
       />
 
-      <div className="scroll ds-enter">
+      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
         {tab === 'decisions' ? <Decisions record={record} view={view} tier={tier} /> : null}
         {tab === 'rules' ? <Rules view={view} /> : null}
         {tab === 'consent' ? (
@@ -85,7 +89,7 @@ export function Record({
             onEditProfile={onEditProfile}
           />
         ) : null}
-      </div>
+      </PullToRefresh>
     </>
   )
 }

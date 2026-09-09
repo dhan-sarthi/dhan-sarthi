@@ -20,6 +20,7 @@ import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan
 import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
 import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
+import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
 import { merchantOf } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
@@ -63,6 +64,7 @@ export function Today({
   onDecide,
   onAsk,
   onOpenProfile,
+  onRefresh,
 }: {
   view: View
   tier: Tier
@@ -78,6 +80,8 @@ export function Today({
   onAsk: () => void
   /** The header's avatar. It said "Profile" and opened the advisor; now it opens the profile. */
   onOpenProfile: () => void
+  /** Pull down at the top to re-read the view. */
+  onRefresh: () => Promise<void>
 }): ReactNode {
   const { snapshot, plan } = view
   const asOf = view.meta.asOf
@@ -130,7 +134,7 @@ export function Today({
       />
       <DataSourceRibbon meta={view.meta} tier={tier} />
 
-      <div className="scroll ds-enter">
+      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
         {/*
           Hidden, not disabled, when the ledger ends where the session opens.
           A control that can never do anything is worse than no control: it reads as broken, and
@@ -299,7 +303,7 @@ export function Today({
           {Math.round(snapshot.quality.categorisedShare * 100)}% of them could be matched to a
           merchant or a mandate.
         </p>
-      </div>
+      </PullToRefresh>
     </>
   )
 }

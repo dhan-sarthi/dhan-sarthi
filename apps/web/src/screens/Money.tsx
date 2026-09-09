@@ -30,6 +30,7 @@ import {
   Segments,
   Tile,
 } from '../components/ui.tsx'
+import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import { dayMonth, inr, monthYear } from '../lib/money.ts'
 import { merchantOf, prettyMerchant } from '../lib/merchant.ts'
 import { useTransactions } from '../lib/transactions.ts'
@@ -47,6 +48,7 @@ export function Money({
   asOf,
   onEditHoldings,
   onLinkAccounts,
+  onRefresh,
 }: {
   snapshot: Snapshot
   /** Pages of the statement, from the API or the offline ledger. */
@@ -56,6 +58,8 @@ export function Money({
   onEditHoldings: () => void
   /** Accounts at other banks, through the Account Aggregator. */
   onLinkAccounts: () => void
+  /** Pull down at the top to re-read the view. */
+  onRefresh: () => Promise<void>
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('accounts')
 
@@ -72,7 +76,7 @@ export function Money({
         ]}
       />
 
-      <div className="scroll ds-enter">
+      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
         {tab === 'accounts' ? (
           <Accounts
             snapshot={snapshot}
@@ -82,7 +86,7 @@ export function Money({
         ) : null}
         {tab === 'spending' ? <Spending snapshot={snapshot} source={source} asOf={asOf} /> : null}
         {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
-      </div>
+      </PullToRefresh>
     </>
   )
 }
