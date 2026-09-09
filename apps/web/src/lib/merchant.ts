@@ -35,6 +35,16 @@ const RAIL: ReadonlySet<string> = new Set([
   'CASH',
   'WDL',
   'DEP',
+  /*
+   * Not rails, but not counterparties either. IDBI's own sandbox statement narrates every line
+   * as `S1 TXN 20`, and the first rule below happily read "Txn" out of that and printed it as a
+   * merchant name twenty times down the screen. A word that means "a transaction" is not the
+   * name of who was paid.
+   */
+  'TXN',
+  'TRF',
+  'TRANSFER',
+  'MISC',
 ])
 
 /**
@@ -63,8 +73,14 @@ const titleCase = (text: string): string =>
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
 
-/** `UPI/DR/824112340987/SWIGGY/ICIC/swiggy.rzp@icici/ORDER` reads as "Swiggy" to a person. */
-export function prettyMerchant(narration: string): string {
+/**
+ * The counterparty in a narration, or null when there is not one.
+ *
+ * Null is the important half. IDBI's own statement carries no narration worth the name — every
+ * line is `S1 TXN <n>` — and a function that must return a string turns that into a screen of
+ * identical merchants called "Txn", which looks like a bug in us rather than a gap in the feed.
+ */
+export function narratedName(narration: string): string | null {
   const upper = narration.toUpperCase()
   for (const [prefix, label] of BANK_LINES) {
     if (upper.startsWith(prefix)) return label
@@ -78,16 +94,36 @@ export function prettyMerchant(narration: string): string {
   )
 
   const named = parts.find((p) => p.length > 2 && !RAIL.has(p) && !p.includes('@'))
-  return titleCase(named ?? parts[0] ?? narration)
+  return named === undefined ? null : titleCase(named)
+}
+
+/**
+ * `UPI/DR/824112340987/SWIGGY/ICIC/swiggy.rzp@icici/ORDER` reads as "Swiggy" to a person.
+ *
+ * Falls back to the whole line, which is what the callers that have nowhere else to go want.
+ */
+export function prettyMerchant(narration: string): string {
+  return narratedName(narration) ?? titleCase(narration)
 }
 
 /**
  * What to call this transaction on screen.
  *
- * The bank's own merchant name where it sent one — that is the acquirer's registered name, and
- * it beats anything recovered from a narration — and the narration otherwise. It arrives on
- * every card line and on only some UPI lines, which is why the fallback still has to be good.
+ * The bank's own merchant name where it sent one, because that is the acquirer's registered
+ * name and it beats anything recovered from a narration; the narration otherwise, which is the
+ * usual case since the name arrives on every card line and only some UPI lines; and the
+ * direction of the money when the line names nobody at all.
  */
 export function merchantOf(txn: Transaction): string {
-  return txn.merchantName ?? prettyMerchant(txn.narration)
+  return (
+    txn.merchantName ??
+    narratedName(txn.narration) ??
+    // Nothing in the line names anybody. The direction is the only true thing left to say.
+    (txn.txnType === 'CREDIT' ? 'Money in' : 'Money out')
+  )
+}
+
+/** Whether anything on the row actually names a counterparty. Drives the note above the list. */
+export function isNamed(txn: Transaction): boolean {
+  return txn.merchantName !== undefined || narratedName(txn.narration) !== null
 }

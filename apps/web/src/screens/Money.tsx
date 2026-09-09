@@ -16,8 +16,8 @@
  */
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { Account as AccountRow, SpendCategory, Snapshot } from '@dhan/contracts'
-import { Link2, Pencil, Plus } from 'lucide-react'
+import type { Account as AccountRow, SpendCategory, Snapshot, Transaction } from '@dhan/contracts'
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, Link2, Pencil, Plus } from 'lucide-react'
 import {
   Amount,
   Bar,
@@ -32,8 +32,9 @@ import {
   Tile,
 } from '../components/ui.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
+import { TransactionSheet } from './TransactionSheet.tsx'
 import { dayMonth, inr, monthYear } from '../lib/money.ts'
-import { merchantOf, prettyMerchant } from '../lib/merchant.ts'
+import { isNamed, merchantOf, prettyMerchant } from '../lib/merchant.ts'
 import { useTransactions } from '../lib/transactions.ts'
 import { useRipple } from '../lib/motion.ts'
 import type { TransactionSource } from '../lib/transactions.ts'
@@ -67,6 +68,16 @@ export function Money({
   onRefresh: () => Promise<void>
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('accounts')
+  /*
+   * The open statement line lives up here rather than beside the list, and it has to.
+   *
+   * A sheet is `position: fixed`, and a fixed element inside a transformed ancestor positions
+   * against that ancestor instead of the viewport. The scroll region runs the entrance stagger,
+   * which is a transform, so a sheet mounted inside the list rendered its scrim over the page
+   * and its panel nowhere. Every other sheet in the app is a sibling of the scroller for the
+   * same reason.
+   */
+  const [line, setLine] = useState<Transaction | null>(null)
 
   return (
     <>
@@ -90,9 +101,13 @@ export function Money({
             onLinkAccounts={onLinkAccounts}
           />
         ) : null}
-        {tab === 'spending' ? <Spending snapshot={snapshot} source={source} asOf={asOf} /> : null}
+        {tab === 'spending' ? (
+          <Spending snapshot={snapshot} source={source} asOf={asOf} onOpenLine={setLine} />
+        ) : null}
         {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
       </PullToRefresh>
+
+      <TransactionSheet txn={line} onClose={() => setLine(null)} />
     </>
   )
 }
@@ -302,10 +317,13 @@ function Spending({
   snapshot,
   source,
   asOf,
+  onOpenLine,
 }: {
   snapshot: Snapshot
   source: TransactionSource
   asOf: string
+  /** Handed up to the screen, because the sheet cannot be mounted inside the scroller. */
+  onOpenLine: (txn: Transaction) => void
 }): ReactNode {
   const cats = snapshot.discretionary.byCategory
   const max = cats[0]?.[1] ?? 1
@@ -446,13 +464,21 @@ function Spending({
       )}
 
       <Eyebrow>Recent</Eyebrow>
-      <Recent source={source} asOf={asOf} />
+      <Recent source={source} asOf={asOf} onOpenLine={onOpenLine} />
     </>
   )
 }
 
 /** The statement, a page at a time. Mounted only while the Spending tab is open. */
-function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): ReactNode {
+function Recent({
+  source,
+  asOf,
+  onOpenLine,
+}: {
+  source: TransactionSource
+  asOf: string
+  onOpenLine: (txn: Transaction) => void
+}): ReactNode {
   const [filter, setFilter] = useState<SpendCategory | null>(null)
   const txns = useTransactions(source, asOf, filter)
   const ripple = useRipple()
@@ -473,6 +499,19 @@ function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): 
     const next = [...new Set(txns.items.map((t) => t.spendCategory))].sort()
     queueMicrotask(() => setSeen((prev) => (next.length > prev.length ? next : prev)))
   }, [txns.items, filter])
+
+  /*
+   * How much of this statement names anybody.
+   *
+   * Measured rather than assumed, because it is a property of the feed and not of the app: a
+   * generated ledger names almost every line, and IDBI's own sandbox names none of them — every
+   * row arrives as `S1 TXN 20`. Twenty rows all reading "Money out" with no explanation looks
+   * like something we failed to do, so when the statement is mostly nameless the list says so
+   * once, at the top, and quotes the line it is talking about.
+   */
+  const nameless = txns.items.filter((t) => !isNamed(t)).length
+  const mostlyNameless = txns.items.length >= 3 && nameless > txns.items.length / 2
+  const sample = txns.items.find((t) => !isNamed(t))?.narration ?? ''
 
   return (
     <Card>
@@ -528,22 +567,49 @@ function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): 
         </p>
       ) : null}
 
+      {mostlyNameless ? (
+        <p className={`${NOTE} mb-2 rounded-sm bg-tint-clay px-3 py-2.5`}>
+          {nameless} of these {txns.items.length} lines carry no description. The bank sends{' '}
+          <span className="font-mono text-[11.5px]">{sample}</span> and nothing else, so there is no
+          merchant to name them by. The dates and amounts are exactly what it sent.
+        </p>
+      ) : null}
+
       <div className="divide-y divide-solid divide-hairline-mint">
         {txns.items.map((t, i) => (
-          <div
-            className="ds-rise ds-stagger flex items-center gap-3 py-[11px]"
+          /* A row, and a button, because the name on it is a guess and the sheet is where the
+             line it was guessed from lives. Full width and left aligned so it stays a list. */
+          <button
+            type="button"
+            className="ds-press ds-rise ds-stagger flex w-full items-center gap-3 border-0 bg-transparent px-0 py-[11px] text-left"
             key={t.txnId}
             style={{ '--i': i } as CSSProperties}
+            onPointerDown={ripple}
+            onClick={() => onOpenLine(t)}
           >
-            <span className="grid size-8 flex-none place-items-center rounded-pill bg-tint-sage text-[11px] font-bold text-brand">
-              {t.spendCategory[0]}
+            {/* The category's initial when there is a category worth abbreviating. A screen of
+                identical "T"s says nothing, so a nameless row gets the direction instead. */}
+            <span
+              className={`grid size-8 flex-none place-items-center rounded-pill text-[11px] font-bold ${
+                t.txnType === 'CREDIT' ? 'bg-tint-sage text-good' : 'bg-ground-deep text-ink-mid'
+              }`}
+            >
+              {isNamed(t) ? (
+                t.spendCategory[0]
+              ) : t.txnType === 'CREDIT' ? (
+                <ArrowDownLeft size={15} strokeWidth={2.6} />
+              ) : (
+                <ArrowUpRight size={15} strokeWidth={2.6} />
+              )}
             </span>
             <span className="min-w-0 flex-1">
-              <b className="block text-[14.5px] font-bold text-ink">{merchantOf(t)}</b>
-              <span className="block text-xs text-ink-soft">
+              <b className="block truncate text-[14.5px] font-bold text-ink">{merchantOf(t)}</b>
+              <span className="block truncate text-xs text-ink-soft">
                 {/* The mode is UNKNOWN on every row of IDBI's own statement, which sends none.
-                    Printing the word is worse than leaving the gap. */}
-                {dayMonth(t.txnDate)} · {t.spendCategory}
+                    Printing the word is worse than leaving the gap. The narration takes the
+                    category's place on a nameless row: it is the only thing that tells two
+                    otherwise identical rows apart, and it is what the bank actually sent. */}
+                {dayMonth(t.txnDate)} · {isNamed(t) ? t.spendCategory : t.narration}
                 {t.txnMode === 'UNKNOWN' ? '' : ` · ${t.txnMode}`}
               </span>
             </span>
@@ -555,7 +621,8 @@ function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): 
               {t.txnType === 'CREDIT' ? '+' : '−'}
               {inr(t.txnAmount)}
             </span>
-          </div>
+            <ChevronRight size={16} strokeWidth={2.4} className="-ml-1 flex-none text-ink-faint" />
+          </button>
         ))}
       </div>
 

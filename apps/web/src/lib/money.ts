@@ -57,3 +57,6 @@ export const monthName = (iso: string): string => MONTHS[Number(iso.slice(5, 7))
 export const dayMonth = (iso: string): string => `${Number(iso.slice(8, 10))} ${monthName(iso)}`
 
 export const monthYear = (iso: string): string => `${monthName(iso)} ${iso.slice(0, 4)}`
+
+/** "18 September 2025" — for the places a year matters, like one line of a statement. */
+export const longDate = (iso: string): string => `${dayMonth(iso)} ${iso.slice(0, 4)}`
