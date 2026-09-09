@@ -208,7 +208,9 @@ screen is arithmetic over the ledger. Nothing is typed alongside the data.
 |---|---|---|---|---|
 | <img src="docs/assets/screens/pick.png" width="150" alt="Pick a customer"> | <img src="docs/assets/screens/today.png" width="150" alt="Today: safe to spend and one action"> | <img src="docs/assets/screens/plan.png" width="150" alt="Plan: goal, route, projection band"> | <img src="docs/assets/screens/ask-uday.png" width="150" alt="Ask Uday: video call"> | <img src="docs/assets/screens/record-rules.png" width="150" alt="Record: the nine rules"> |
 
-Three customers, each chosen so a different rule fires:
+Three generated customers, each chosen so a different rule fires. They are what
+`BANK_SOURCE=memory` and `BANK_SOURCE=postgres` serve, and they are what the engine's guarantees
+below are held against:
 
 | Customer | Who | What Sarthi finds |
 |---|---|---|
@@ -218,6 +220,13 @@ Three customers, each chosen so a different rule fires:
 
 Advance the simulated clock and the ledger produces the days it always had: the loan actually
 ends, the roadmap is re-cut, and nothing is scripted.
+
+Point it at `BANK_SOURCE=idbi-sandbox` and the picker changes: **Priya Patil** and **Neha Singh**,
+the bank's own sandbox customers, read live. Their statements are shorter and thinner than
+anything we would have generated — one carries no description on any line, the other names the
+rail where the counterparty should be, and neither shows a salary the categoriser can recognise —
+and the screens say so rather than filling the gaps in. That is the more interesting demo, and it
+is the one a banker should ask for.
 
 ---
 
@@ -272,7 +281,7 @@ Held by `pnpm test` over the three generated ledgers, with no provider configure
 | Recognition | categorisation coverage above 98% with zero disagreements against the bank's own labels |
 | Statement realism | every narration matches a declared rail template; the account's IFSC is IDBI's and the salary remitter's is the employer's; utilities, transit and local merchants are correct for Indore, Kochi and Nagpur; MCC on every merchant line and on nothing else |
 | Calibration | UPI debits per month, ticket distribution and the share of payments under ₹500 stay inside bands cited to NPCI and the RBI Payment System Report |
-| Tests | **197 passing** · generator 20 · engine 21 · realism 29 · as-of 19 · suitability 13 · goal 7 · query 5 · contracts 12 · api 71 |
+| Tests | **270 passing** · generator, engine, realism, as-of, suitability, goal and query over the ledger 115 · contracts 12 · api 139 · web 4 |
 
 ---
 
@@ -281,7 +290,15 @@ Held by `pnpm test` over the three generated ledgers, with no provider configure
 **Real.** The deterministic engine and its tests. The suitability gate on both paths: the screens
 run every action through it, and on a live avatar call the model called the tool and spoke the
 verdict our rules wrote. The live photorealistic avatar over WebRTC. The credential pool, daily
-minute budget and teardown in the API. Every screen, served by the API from Postgres.
+minute budget and teardown in the API. Every screen, served by the API.
+
+**Real, and the reason this build exists.** The IDBI sandbox. Twenty-four operations across
+twenty-nine paths, mapped from forty-two captured bodies rather than from the specification —
+which described a shape the sandbox does not send. Two of the bank's own customers, read live:
+their accounts, liens, loans, statements and consents. The six-call Account Aggregator flow,
+including the webhook the bank posts back at us and the rule that a notification grants nothing
+until 591 confirms it. And 428, so a recommendation somebody accepts becomes a lead the bank's
+staff will work.
 
 **Simulated.** The three customers and their twenty-four months of transactions — generated
 against NPCI narration grammar, IDBI's own IFSC prefix, rate card and schedule of fees, and the
@@ -293,10 +310,11 @@ and execution, which write to the record but move no money.
 
 **Known to be missing.** A guarantee that the model calls the tool on *every* turn: no provider
 offers one, so we reconcile the provider's transcript against our own tool ledger after each call
-and record the coverage rather than assume it. The IDBI sandbox adapter, which is a seam with
-sample payloads until the bank issues access. Barge-in, which Runway documents nowhere and we do
+and record the coverage rather than assume it. Barge-in, which Runway documents nowhere and we do
 not claim. Hindi, which the engine is built to take as a data file and the build does not yet
-ship.
+ship. And three blocks IDBI's catalogue has no operation for at all — declared income, what the
+customer already owns, and anything a consent has not reached — which the app owns, asks for on
+the first run, and labels as declared everywhere it is used.
 
 ### Data
 
@@ -344,7 +362,7 @@ BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
 ```
 
 ```bash
-pnpm test                                         # builds packages, then 248 tests · rules · ledger · contracts · api · the IDBI captures
+pnpm test                                         # builds packages, then 270 tests · rules · ledger · contracts · api · web · the IDBI captures
 pnpm --filter @dhan/api seed:check                # the database still matches the generator, by hash
 curl -s localhost:3001/api/v1/openapi.json        # every route, generated from the registry
 ./scripts/capture-idbi.sh                         # re-capture the sandbox; writes and bureau are behind flags
@@ -357,14 +375,25 @@ What the sandbox actually returns, and every trap in it, is
 
 ## API
 
-| Method | Endpoint | Description |
+Forty-two routes, all under `/api/v1`, every one of them declared in
+`packages/contracts/registry.ts` — which is also what generates the OpenAPI document, the typed
+browser client and the route tests, so a route that is not in the registry cannot exist. The
+full table, with what each one returns and who may call it, is
+[`docs/architecture/DATA-AND-API.md`](docs/architecture/DATA-AND-API.md); a test walks it against
+the registry in both directions so it cannot drift.
+
+The shape of it:
+
+| Group | Routes | What they are for |
 |---|---|---|
-| GET | `/api/health` | Liveness, and whether an avatar credential is configured. |
-| GET | `/api/avatar/status` | Credentials, held leases, minutes used and left today. |
-| GET | `/api/avatar/check` | Verifies the Runway credential without billing a session. |
-| POST | `/api/avatar/session` | Creates a session and returns a LiveKit url and short-lived token. 409 when Uday is busy, 429 when the day's budget is spent, 503 when unconfigured. |
-| POST | `/api/avatar/session/:id/end` | Releases the lease and cancels the Runway session. Always 204. |
-| POST | `/api/avatar/release-all` | Operator escape hatch: cancels every held session. |
+| Session | `POST /sessions` · `GET/DELETE /session` · `/session/clock` · `/session/goal` · `/session/caps` · `/session/consent` | A reviewer's own isolated session: its clock, its goal, its limits, its consent. |
+| The view | `GET /view` · `GET /transactions` | The one object every screen reads, and the statement a page at a time. |
+| Advice | `POST /actions/:id/decision` · `POST /suitability/evaluate` · `POST /ask` · `GET /ask/suggestions` | The gate, the decision, and the conversation. |
+| The record | `GET /record` · `GET /record/verify` | The audit trail and its hash chain. |
+| What the bank cannot answer | `/profile` · `/holdings` | The declared blocks no IDBI operation carries. |
+| Account Aggregator | `/consent/aa` and its two IDBI webhooks | The six-call consent flow, verified before it grants anything. |
+| The avatar | `/avatar/availability` · `/avatar/session` · the waitlist · the call record | Credential pool, daily minute budget, reaper, teardown. |
+| Operator | `/operator/avatar/status` · `/operator/seed` · `/operator/mapping-report` | Behind `X-Operator-Key`. |
 
 ---
 
@@ -373,18 +402,25 @@ What the sandbox actually returns, and every trap in it, is
 ```
 apps/
   web/                          React 19 + Vite 6 + Tailwind 4, mobile-first
-    src/screens/                Pick · Today · Plan · Ask · Money · Record
-    src/lib/                    view (engine in the browser) · session · avatar (LiveKit) · money
-    src/components/             Clock · TabBar · ui primitives
+    src/screens/                Pick · Onboarding · Today · Plan · Ask · Money · Record
+                                · sheets: Profile · Holdings · LinkAccounts · Goal · Cap · Transaction
+    src/lib/                    view · session · mutations · avatar (LiveKit) · money · merchant · motion
+    src/components/             Clock · TabBar · Sheet · Toast · Form · PullToRefresh · ui primitives
+    src/styles/motion.css       every keyframe, and the reduced-motion block that turns them all off
   api/                          Fastify 5 — the only process that holds a secret
-    src/routes/avatar.ts        credential pool · daily minute budget · reaper · teardown
-    src/providers/runway.ts     Runway Characters transport
+    src/application/            the services: advisory · decision · record · session · aa-consent · avatar
+    src/adapters/idbi-sandbox/  the bank, written from 42 captured bodies rather than from the spec
+    src/adapters/memory/        the same ports with no database, including the three blocks IDBI has no
+                                operation for: declared profile · holdings · AA consent
+    src/http/                   one registrar, and one file of routes per group
 packages/
   core/                         pure engine — categorize · recurring · derive · suitability
                                 · projection · roadmap · insights · dailyplan · actions · query
-  contracts/                    request/response schemas (zod)
-  fixtures/                     3 seeded customers · 24 months · product shelf · 54 tests
-docs/                           product reasoning · Runway findings · IDBI integration spec · submission
+  contracts/                    the route registry and the zod domain — one source for the API, the
+                                OpenAPI document and the browser's typed client
+  fixtures/                     3 generated customers · 24 months · product shelf · 115 tests, which
+                                are also where the engine is tested (core may not depend on fixtures)
+docs/                           product reasoning · Runway findings · IDBI integration evidence · submission
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) is the engineering contract: where code goes, the invariant
