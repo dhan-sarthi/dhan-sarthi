@@ -37,8 +37,6 @@ export interface Mutations {
   setConsent: (scope: ConsentScope, granted: boolean) => Promise<void>
   /** Action ids decided since this page loaded, so Today moves on before the record round-trips. */
   decided: ReadonlySet<string>
-  /** The last decision or consent change failed; the sentence to show. */
-  notice: string | null
   /** What the bank did with the last accepted recommendation, where one was handed over. */
   lead: LeadOutcomeResponse | null
   busy: boolean
@@ -50,10 +48,20 @@ interface Scoped<T> {
   value: T
 }
 
-export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
+export function useMutations(
+  vs: ViewState,
+  onRecorded: () => void,
+  /**
+   * Where a failure goes.
+   *
+   * One place, over the tab bar, rather than a notice under whichever card was used. An inline
+   * notice is below the fold as soon as the action is halfway down a scroll, and it stays on
+   * screen long after the thing it describes, which makes an outcome read as a state.
+   */
+  say: (text: string, tone: 'ok' | 'bad' | 'info') => void,
+): Mutations {
   const sid = vs.session?.id ?? null
   const [clock, setClock] = useState<Scoped<string | null>>({ sid: null, value: null })
-  const [general, setGeneral] = useState<Scoped<string | null>>({ sid: null, value: null })
   const [decidedIds, setDecidedIds] = useState<Scoped<ReadonlySet<string>>>({
     sid: null,
     value: new Set(),
@@ -65,9 +73,7 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
   const [busy, setBusy] = useState(false)
 
   const setClockNotice = useCallback((value: string | null) => setClock({ sid, value }), [sid])
-  const setNotice = useCallback((value: string | null) => setGeneral({ sid, value }), [sid])
   const clockNotice = clock.sid === sid ? clock.value : null
-  const notice = general.sid === sid ? general.value : null
   const decided: ReadonlySet<string> = decidedIds.sid === sid ? decidedIds.value : new Set()
   const lead = leadState.sid === sid ? leadState.value : null
 
@@ -121,7 +127,6 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
       // Nothing is recorded offline, so nothing is decided offline. The buttons are disabled.
       if (vs.tier === 'offline') return
       setBusy(true)
-      setNotice(null)
       setLead({ sid, value: null })
       try {
         const result = await api('decideAction', {
@@ -146,19 +151,18 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
         await vs.refresh()
       } catch (err) {
         if (sessionEnded(err)) return
-        setNotice(isApiError(err) ? err.message : 'Your decision could not be recorded.')
+        say(isApiError(err) ? err.message : 'Your decision could not be recorded.', 'bad')
       } finally {
         setBusy(false)
       }
     },
-    [vs, onRecorded, setNotice, sid],
+    [vs, onRecorded, say, sid],
   )
 
   const setConsent = useCallback(
     async (scope: ConsentScope, granted: boolean): Promise<void> => {
       if (vs.tier === 'offline') return
       setBusy(true)
-      setNotice(null)
       try {
         const session = await api('setConsent', { body: { scope, granted } })
         vs.applySession(session)
@@ -166,12 +170,12 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
         await vs.refresh()
       } catch (err) {
         if (sessionEnded(err)) return
-        setNotice(isApiError(err) ? err.message : 'The change could not be saved.')
+        say(isApiError(err) ? err.message : 'The change could not be saved.', 'bad')
       } finally {
         setBusy(false)
       }
     },
-    [vs, onRecorded, setNotice],
+    [vs, onRecorded, say],
   )
 
   return {
@@ -181,7 +185,6 @@ export function useMutations(vs: ViewState, onRecorded: () => void): Mutations {
     decide,
     setConsent,
     decided,
-    notice,
     lead,
     busy: busy || vs.busy,
   }

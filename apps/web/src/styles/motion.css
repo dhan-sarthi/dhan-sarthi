@@ -168,6 +168,48 @@
   transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
 }
 
+/* ---------------------------------------------------------------- Entrance */
+
+/*
+ * The cards of a screen arriving in sequence.
+ *
+ * Applied to the scroll container rather than to each card, so a screen does not have to know
+ * how many children it has or hand each one an index. The delay ladder is nth-child, capped at
+ * eight steps: past that the last card waits long enough to read as slow rather than as
+ * sequenced, and a long statement has thirty rows.
+ *
+ * It replays on every tab change because the shell unmounts the screen it is leaving, which is
+ * what makes a tab feel like a place you arrived at rather than a div that swapped.
+ */
+.ds-enter > * {
+  animation: ds-rise 280ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+.ds-enter > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.ds-enter > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.ds-enter > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.ds-enter > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.ds-enter > *:nth-child(5) {
+  animation-delay: 155ms;
+}
+.ds-enter > *:nth-child(6) {
+  animation-delay: 185ms;
+}
+.ds-enter > *:nth-child(7) {
+  animation-delay: 210ms;
+}
+.ds-enter > *:nth-child(n + 8) {
+  animation-delay: 230ms;
+}
+
 /* ---------------------------------------------------------------- Press */
 
 /*
@@ -256,6 +298,7 @@
 /* ---------------------------------------------------------------- Reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
+  .ds-enter > *,
   .ds-rise,
   .ds-fade,
   .ds-pop,

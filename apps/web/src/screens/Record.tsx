@@ -44,7 +44,6 @@ export function Record({
   session,
   tier,
   busy,
-  notice,
   onConsent,
   onEditProfile,
 }: {
@@ -53,8 +52,6 @@ export function Record({
   session: SessionState | null
   tier: Tier
   busy: boolean
-  /** The last consent change failed; the server's sentence. */
-  notice: string | null
   onConsent: (scope: ConsentScope, granted: boolean) => void
   /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
   onEditProfile: () => void
@@ -74,7 +71,7 @@ export function Record({
         ]}
       />
 
-      <div className="scroll">
+      <div className="scroll ds-enter">
         {tab === 'decisions' ? <Decisions record={record} view={view} tier={tier} /> : null}
         {tab === 'rules' ? <Rules view={view} /> : null}
         {tab === 'consent' ? (
@@ -84,7 +81,6 @@ export function Record({
             session={session}
             tier={tier}
             busy={busy}
-            notice={notice}
             onConsent={onConsent}
             onEditProfile={onEditProfile}
           />
@@ -421,7 +417,6 @@ function Consent({
   session,
   tier,
   busy,
-  notice,
   onConsent,
   onEditProfile,
 }: {
@@ -430,7 +425,6 @@ function Consent({
   session: SessionState | null
   tier: Tier
   busy: boolean
-  notice: string | null
   onConsent: (scope: ConsentScope, granted: boolean) => void
   /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
   onEditProfile: () => void
@@ -507,12 +501,6 @@ function Consent({
           ) : null}
         </Card>
       </div>
-
-      {notice ? (
-        <p role="alert" className="m-0 mb-3 text-[13px] leading-normal text-danger">
-          {notice}
-        </p>
-      ) : null}
 
       {items.map((i) => {
         const on = granted(i.scope)

@@ -59,7 +59,6 @@ export function Today({
   decided,
   decisionsEnabled,
   busy,
-  notice,
   lead,
   onDecide,
   onAsk,
@@ -73,8 +72,6 @@ export function Today({
   /** False offline: nothing is recorded, so nothing can be decided. */
   decisionsEnabled: boolean
   busy: boolean
-  /** The last decision failed; the server's sentence. */
-  notice: string | null
   /** What IDBI did with the last accepted recommendation, where one was handed over. */
   lead: LeadOutcomeResponse | null
   onDecide: (action: Action, kind: DecisionKind) => void
@@ -133,7 +130,7 @@ export function Today({
       />
       <DataSourceRibbon meta={view.meta} tier={tier} />
 
-      <div className="scroll">
+      <div className="scroll ds-enter">
         {/*
           Hidden, not disabled, when the ledger ends where the session opens.
           A control that can never do anything is worse than no control: it reads as broken, and
@@ -229,7 +226,6 @@ export function Today({
             action={primary}
             enabled={decisionsEnabled}
             busy={busy}
-            notice={notice}
             onDecide={onDecide}
             onWhy={onAsk}
           />
@@ -353,14 +349,12 @@ function ActionCard({
   action,
   enabled,
   busy,
-  notice,
   onDecide,
   onWhy,
 }: {
   action: Action
   enabled: boolean
   busy: boolean
-  notice: string | null
   onDecide: (a: Action, kind: DecisionKind) => void
   onWhy: () => void
 }): ReactNode {
@@ -426,12 +420,6 @@ function ActionCard({
           Decisions are written to the record on the advisor service. Reconnect to act on this.
         </p>
       ) : null}
-      {notice ? (
-        <p role="alert" className="mb-0 mt-3 text-[13px] leading-normal text-white">
-          {notice}
-        </p>
-      ) : null}
-
       <button
         type="button"
         onClick={onWhy}

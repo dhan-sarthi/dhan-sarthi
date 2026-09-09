@@ -62,7 +62,7 @@ export function Plan({
         sub={`${roadmap.goal.purpose ?? 'Your goal'} · version ${roadmap.version}`}
       />
 
-      <div className="scroll">
+      <div className="scroll ds-enter">
         {/* ------------------------------------------------ Destination */}
         <div className="mt-3">
           <Card tint="sky">

@@ -72,7 +72,7 @@ export function Money({
         ]}
       />
 
-      <div className="scroll">
+      <div className="scroll ds-enter">
         {tab === 'accounts' ? (
           <Accounts
             snapshot={snapshot}

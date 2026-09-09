@@ -18,7 +18,7 @@ import { OfflineBadge } from './components/OfflineBadge.tsx'
 import { TabBar } from './components/TabBar.tsx'
 import type { TabId } from './components/TabBar.tsx'
 import type { Tier } from './components/TierBadge.tsx'
-import { Card, Head } from './components/ui.tsx'
+import { Card, Head, Skeleton } from './components/ui.tsx'
 import { Toast } from './components/Toast.tsx'
 import type { ToastMessage, ToastTone } from './components/Toast.tsx'
 import { ProfileSheet } from './screens/ProfileSheet.tsx'
@@ -41,8 +41,6 @@ export function App(): ReactNode {
   const stored = useStoredSession()
   const vs = useView(stored)
   const record = useRecord(stored, vs.tier)
-  const m = useMutations(vs, record.refresh)
-  const avail = useAvailability(vs.tier === 'server' && vs.view !== null)
   const [tab, setTab] = useState<TabId>('today')
   const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
@@ -56,6 +54,9 @@ export function App(): ReactNode {
   const say = useCallback((text: string, tone: ToastTone = 'ok') => {
     setToast({ id: Date.now(), tone, text })
   }, [])
+
+  const m = useMutations(vs, record.refresh, say)
+  const avail = useAvailability(vs.tier === 'server' && vs.view !== null)
 
   /* An edit to the profile or the holdings changes what the engine derives, so the view is
      re-read rather than patched: the numbers on screen are the server's, always. */
@@ -156,7 +157,6 @@ export function App(): ReactNode {
           decided={m.decided}
           decisionsEnabled={vs.tier === 'server'}
           busy={m.busy}
-          notice={m.notice}
           lead={m.lead}
           onDecide={(action, kind) => void m.decide(action, kind)}
           onAsk={() => setTab('ask')}
@@ -183,7 +183,6 @@ export function App(): ReactNode {
           session={vs.session}
           tier={tier}
           busy={m.busy}
-          notice={m.notice}
           onConsent={(scope, granted) => void m.setConsent(scope, granted)}
           onEditProfile={() => setSheet('profile')}
         />
@@ -234,14 +233,34 @@ function Gate({
       <div className="scroll">
         <div className="mt-3">
           {loading ? (
-            <Card tint="sage">
-              <h2>One moment</h2>
-              <p className="m-0 mt-1.5 text-sm text-ink-soft" aria-live="polite">
-                {/* No month count: how much statement there is depends on the feed, and over
-                    IDBI's sandbox it is about one month rather than twenty-four. */}
-                Their statements are being turned into a plan.
-              </p>
-            </Card>
+            /*
+             * The shape of the screen that is coming, not a message about it.
+             *
+             * A view is four live calls to a bank and takes a second or two, and a card that
+             * says "one moment" is a second of nothing followed by a layout jump. A skeleton
+             * the size of the real thing gives the eye somewhere to rest and lands without the
+             * page moving.
+             */
+            <div aria-busy="true" aria-live="polite">
+              <span className="sr-only">Reading your statements</span>
+              <Card tint="sage">
+                <Skeleton h={15} w="42%" className="mb-3" />
+                <Skeleton h={34} w="58%" className="mb-3" />
+                <Skeleton h={8} className="mb-4" />
+                <Skeleton h={13} className="mb-2" />
+                <Skeleton h={13} w="80%" className="mb-2" />
+                <Skeleton h={13} w="64%" />
+                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                  <Skeleton h={64} />
+                  <Skeleton h={64} />
+                </div>
+              </Card>
+              <Card>
+                <Skeleton h={15} w="52%" className="mb-2.5" />
+                <Skeleton h={13} className="mb-2" />
+                <Skeleton h={13} w="72%" />
+              </Card>
+            </div>
           ) : (
             <Card tint="clay">
               <h2>The advisor could not be reached</h2>
