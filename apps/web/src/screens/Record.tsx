@@ -241,7 +241,7 @@ function Decisions({
                   </p>
                   <p className={`${NOTE} m-0 mt-2`}>
                     {advice.verdict === 'PASS'
-                      ? `Passed ${advice.rulesPassed.length} rules`
+                      ? `Passed ${advice.rulesPassed.length} ${advice.rulesPassed.length === 1 ? 'rule' : 'rules'}`
                       : `Rule ${advice.ruleId ?? '?'}`}{' '}
                     · snapshot {advice.snapshotId.slice(0, 8)} · record{' '}
                     {advice.recordHash.slice(0, 12)}…
@@ -374,7 +374,9 @@ function Rules({ view }: { view: View }): ReactNode {
         </Card>
       </div>
 
-      <Eyebrow>{view.rules.length} rules · earliest failure wins</Eyebrow>
+      <Eyebrow>
+        {view.rules.length} {view.rules.length === 1 ? 'rule' : 'rules'} · earliest failure wins
+      </Eyebrow>
       {view.rules.map((r, i) => (
         <Card key={r.id}>
           <div className="flex gap-2.5">

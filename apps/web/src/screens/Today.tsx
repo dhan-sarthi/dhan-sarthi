@@ -111,7 +111,7 @@ export function Today({
               data-count={plan.insights.length > 0 ? String(plan.insights.length) : undefined}
               aria-label={
                 plan.insights.length > 0
-                  ? `${plan.insights.length} things I noticed`
+                  ? `${plan.insights.length} ${plan.insights.length === 1 ? 'thing' : 'things'} I noticed`
                   : 'Nothing I noticed'
               }
               onClick={() => {

@@ -80,7 +80,9 @@ const PROBES: readonly Probe[] = [
     icon: FileText,
     doing: 'Reading your statement',
     done: (f) =>
-      f.lines === 0 ? 'No statement lines on this feed' : `${f.lines}${f.more ? '+' : ''} lines`,
+      f.lines === 0
+        ? 'No statement lines on this feed'
+        : `${f.lines}${f.more ? '+' : ''} ${f.lines === 1 && !f.more ? 'line' : 'lines'}`,
   },
   {
     key: 'consents',

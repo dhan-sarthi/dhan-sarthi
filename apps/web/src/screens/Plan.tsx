@@ -110,7 +110,9 @@ export function Plan({
         </div>
 
         {/* ------------------------------------------------ The route */}
-        <Eyebrow>The route · {roadmap.stages.length} stages</Eyebrow>
+        <Eyebrow>
+          The route · {roadmap.stages.length} {roadmap.stages.length === 1 ? 'stage' : 'stages'}
+        </Eyebrow>
         {roadmap.stages.map((stage, i) => (
           <StageCard key={stage.index} stage={stage} last={i === roadmap.stages.length - 1} />
         ))}
