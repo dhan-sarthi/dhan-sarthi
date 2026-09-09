@@ -17,7 +17,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronDown, Lightbulb, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
-import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
+import { Amount, Bar, Button, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
 import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
@@ -168,12 +168,31 @@ export function Today({
         */}
         {snapshot.income.monthly <= 0 ? (
           <Card tint="clay">
-            <h2>I cannot see your income yet</h2>
-            <p className={`${META} mt-1.5`}>
-              Nothing in this statement looks like a salary or a regular credit, so there is no
-              daily allowance I can stand behind. What I can see is below, and everything else on
-              this screen is built only from what is actually in the ledger.
-            </p>
+            {/*
+              Two versions of the same state, because "I cannot see your income" is the wrong
+              sentence to show somebody who has just typed their income in. A declared figure is
+              used by the plan and the goal — `goal.ts` falls back to it, `insights.ts` labels it
+              — it simply does not become a daily allowance, and the difference between those two
+              is worth one sentence rather than a headline that reads as amnesia.
+            */}
+            <h2>
+              {snapshot.customer.declaredMonthlyIncome > 0
+                ? 'No salary in this statement'
+                : 'I cannot see your income yet'}
+            </h2>
+            {snapshot.customer.declaredMonthlyIncome > 0 ? (
+              <p className={`${META} mt-1.5`}>
+                You told me {inr(snapshot.customer.declaredMonthlyIncome)} a month comes in, and the
+                plan is built on it. Nothing in this statement looks like it, though, so I am not
+                going to turn it into a daily allowance I cannot check against the ledger.
+              </p>
+            ) : (
+              <p className={`${META} mt-1.5`}>
+                Nothing in this statement looks like a salary or a regular credit, so there is no
+                daily allowance I can stand behind. What I can see is below, and everything else on
+                this screen is built only from what is actually in the ledger.
+              </p>
+            )}
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <Tile label="In your accounts" value={snapshot.balances.total} />
               {/* The observed total, not `discretionary.monthly`. That field is a normal
@@ -182,7 +201,14 @@ export function Today({
                   a list of four payments totalling ₹29,293. */}
               <Tile label="Spent in this window" value={observedSpend(snapshot)} />
             </div>
-            <p className={`${META} mt-3.5`}>Tell me your monthly income and this becomes a plan.</p>
+            <div className="mt-4">
+              <Button tone="secondary" size="sm" onClick={onOpenProfile}>
+                <UserRound size={15} strokeWidth={2.5} />
+                {snapshot.customer.declaredMonthlyIncome > 0
+                  ? 'Change what you told me'
+                  : 'Tell me your income'}
+              </Button>
+            </div>
           </Card>
         ) : (
           <Card tint="sage">

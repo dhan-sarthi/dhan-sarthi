@@ -31,9 +31,11 @@ import { Pick } from './screens/Pick.tsx'
 import { Plan } from './screens/Plan.tsx'
 import { Record } from './screens/Record.tsx'
 import { Today } from './screens/Today.tsx'
+import { Onboarding } from './screens/Onboarding.tsx'
 import { offlineAsk, serverAsk } from './lib/ask.ts'
 import { useAvailability } from './lib/availability.ts'
 import { useMutations } from './lib/mutations.ts'
+import { hasOnboarded, markOnboarded } from './lib/onboarding.ts'
 import { useRecord } from './lib/record.ts'
 import type { TransactionSource } from './lib/transactions.ts'
 import { useView } from './lib/view.ts'
@@ -45,6 +47,14 @@ export function App(): ReactNode {
   const [tab, setTab] = useState<TabId>('today')
   const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | 'goal' | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
+  /*
+   * First run, per customer, decided once and held here.
+   *
+   * Read as initial state rather than in an effect, so the tabs never flash behind the
+   * introduction; and held in state rather than re-read, so finishing it does not depend on
+   * storage having accepted the write.
+   */
+  const [greeted, setGreeted] = useState<string | null>(null)
 
   /*
    * One place a result is announced, rather than a notice under whichever card was used.
@@ -96,6 +106,30 @@ export function App(): ReactNode {
     return (
       <div className="app">
         <Pick />
+      </div>
+    )
+  }
+
+  /*
+   * The introduction owns the screen: no tab bar behind it, and no half-built view under it.
+   *
+   * Only against the real API. The offline tier has no profile to save to and no bank to read
+   * from, so walking a reviewer through four steps that all end in "could not be reached" would
+   * be worse than simply showing them the simulation. If the API drops out mid-introduction this
+   * turns false and the app falls through to the tabs with the offline badge, which is the right
+   * outcome too.
+   */
+  if (vs.tier === 'server' && greeted !== stored.cif && !hasOnboarded(stored.cif)) {
+    return (
+      <div className="app">
+        <Onboarding
+          onDone={() => {
+            markOnboarded(stored.cif)
+            setGreeted(stored.cif)
+            // The profile it just collected changes everything the engine derives.
+            void refreshView()
+          }}
+        />
       </div>
     )
   }
