@@ -1,7 +1,7 @@
 # Data model and API surface
 
 This document is the contract between the API and everything around it: the tables the API reads
-and writes, the roles that may touch them, the 28 routes and what each returns, and the session,
+and writes, the roles that may touch them, the 42 routes and what each returns, and the session,
 idempotency, caching and rate-limit rules that make many concurrent reviewers safe. It also
 records the avatar integration in the detail a reviewer of the compliance story will want. The
 route table is the human-readable twin of `packages/contracts/src/registry.ts`, which is the
@@ -126,8 +126,21 @@ subjects row and cascades everything else. All data is synthetic.
 | POST | `/api/v1/session/clock` | Body `{advanceDays: 1\|7\|30, expectedVersion}` or `{reset: true, expectedVersion}`. Moves `last_seen` to the old `as_of` (the browser's `advance()`). 409 `STALE_CLOCK` on version mismatch; 422 `CLOCK_BEYOND_SEEDED_HORIZON` past `ledger_horizon`. | session bearer | `ClockRequest → SessionState` |
 | PATCH | `/api/v1/session/goal` | Body `{targetAmount}`. Overrides the suggested goal target; the next `/view` cuts a new roadmap version with reason 'Target changed by the customer'. | session bearer | `GoalPatch → SessionState` |
 | POST | `/api/v1/session/consent` | Body `{scope, granted}`. Per-session scope override; the next `/view` recomputes with the block removed, which makes the consent copy in `Record.tsx` true. | session bearer | `ConsentPatch → SessionState` |
+| POST | `/api/v1/session/caps` | Body `{category, monthlyLimit}`, the limit nullable to remove it. A decision about the future, so it lives on the session and not on the file: no bank endpoint anywhere carries what somebody meant to spend. `dailyplan` reads caps over the thirty days ending at `as_of` and marks the plan breached. | session bearer | `CategoryCapPatch → SessionState` |
 | GET | `/api/v1/view` | The one object every screen reads: `{snapshot, goal, roadmap, plan, insights, shelf, rules, meta:{asOf, ledgerHorizon, dataFreshnessDate, source, simulatedClock, snapshotId, snapshotHash, roadmapVersion, provenance, tier}}`. ETag = `snapshotId:roadmapVersion`; 304 on If-None-Match; `Cache-Control: private, no-store`. | session bearer | `View` (zod mirror of the `View` type in `apps/web/src/lib/view.ts`) |
 | GET | `/api/v1/transactions` | Query `{from?, to?, category?, cursor?, limit≤200}`. Cursor-paged statement lines ≤ `as_of` for Money → Spending. | session bearer | `TransactionsQuery → {items: Transaction[], nextCursor}` |
+| GET | `/api/v1/profile` | The declared half of the customer: income, employment, dependents, risk profile, tax regime, date of birth, and `missing[]`. IDBI's catalogue has no operation carrying any of it, so the app owns it and the first run asks for it. | session bearer | `DeclaredProfileResponse` |
+| PATCH | `/api/v1/profile` | Body: any subset of the declared facts. The next `/view` re-derives on them, so an income typed here moves the goal, the surplus and the cover requirement. | session bearer | `ProfilePatch → DeclaredProfileResponse` |
+| GET | `/api/v1/holdings` | What the customer says they already own: funds, deposits elsewhere, and policies kept separate because cover is not capital. | session bearer | `HoldingsResponse` |
+| POST | `/api/v1/holdings` | Add one. | session bearer | `HoldingInput → Holding` |
+| PATCH | `/api/v1/holdings/:holdingId` | Replace one. | session bearer | `HoldingInput → Holding` |
+| DELETE | `/api/v1/holdings/:holdingId` | Remove one. | session bearer | 204 |
+| GET | `/api/v1/consent/aa` | Every Account Aggregator consent this session has raised, with the bank's own events against each. | session bearer | `ConsentRequestResponse[]` |
+| POST | `/api/v1/consent/aa` | Raise one (IDBI 590) and return the approval link the bank gave, if it gave one. | session bearer | `ConsentRequestResponse` |
+| POST | `/api/v1/consent/aa/:consentHandle/verify` | Ask the bank (591) whether the consent is really active. The only thing that can move one to ACTIVE: an approval that arrives any other way is recorded and then checked, never acted on. | session bearer | `ConsentRequestResponse` |
+| POST | `/api/v1/consent/aa/return` | The customer coming back from the aggregator's redirect. Records the return; grants nothing. | session bearer | `ConsentRequestResponse` |
+| POST | `/api/v1/webhooks/idbi/consent` | IDBI 497 posting a consent event at us. Recorded against the handle, then verified before it changes anything. | none · signature-free by IDBI's design, so treated as a claim | `202` |
+| POST | `/api/v1/webhooks/idbi/data` | IDBI's data-ready notification. Same rule. | none | `202` |
 | POST | `/api/v1/actions/:actionId/decision` | Body `{kind, note?}`. Server re-derives the plan, finds the action, runs `evaluate()` for money actions, appends advice_record + decision + roadmap_version in one transaction, applies a cap for `set_category_cap`. Requires `Idempotency-Key`. | session bearer | `DecisionRequest → {adviceRecord, decision, roadmapVersion}` |
 | POST | `/api/v1/suitability/evaluate` | Body `{productId, amount, goal?}`. Verdict from core `evaluate()` over the session's current snapshot; always writes an advice_record (source 'text' or 'api'). Used by 'Why?' and by the ULIP refusal in the text tier. | session bearer · 30/min/session | `EvaluateRequest → {verdict: Verdict, adviceRecordId}` |
 | POST | `/api/v1/ask` | Body `{question}`. Tier-1 text conversation: `core.answer()` over the session's snapshot and file → `{text, evidence[], resolved, matched}`. Deterministic; no model. | session bearer · 30/min/session | `AskRequest → Answer` |
@@ -144,6 +157,7 @@ subjects row and cascades everything else. All data is synthetic.
 | GET | `/api/v1/avatar/session/:runwaySessionId/record` | What the gate did during the call: tool calls, advice records, transcript status, reconciliation and gate_coverage: 'Gate fired n/n · verified against provider transcript' or 'transcript unavailable — our ledger shown'. | session bearer (owner) | `AvatarCallRecord` |
 | GET | `/api/v1/operator/avatar/status` | The `/api/avatar/status` of adoption (credentials, held leases with task_id, waitlist, minutes from Postgres, breaker), behind the operator key because it lists live session ids. | `X-Operator-Key` (constant-time compare) | `OperatorAvatarStatus` |
 | POST | `/api/v1/operator/avatar/release-all` | Cancel every held session and close every handler on this task. At adoption this route has no authentication. | `X-Operator-Key` | `{released: string[]}` |
+| GET | `/api/v1/operator/mapping-report` | What the last read of the bank could not map: the fields that were blank, the ones that failed to parse, the pages that stalled, and the cross-checks that disagreed. Behind the operator key because it quotes wire values. | `X-Operator-Key` | `MappingReportResponse` |
 | GET | `/api/v1/operator/seed` | `seed_runs` metadata, `--check` drift result, active `BANK_SOURCE`, composite provenance map. | `X-Operator-Key` | `SeedStatus` |
 
 ## Sessions and multi-client

@@ -177,9 +177,10 @@ dhan-sarthi/
 │   │   │   │   └── clock.port.ts · host-identity.port.ts (stub seam for GO Mobile+)
 │   │   │   ├── application/                  orchestration · imports core, contracts, ports · never adapters or http
 │   │   │   │   ├── advisory.service.ts       view(session): scope → derive → suggestGoal → roadmap → plan → insights · snapshot store
-│   │   │   │   ├── session.service.ts        create · advanceClock · resetClock · setGoal · setScope · erase
+│   │   │   │   ├── session.service.ts        create · advanceClock · resetClock · setGoal · setCategoryCap · setConsent · erase
 │   │   │   │   ├── decision.service.ts       re-derive action → evaluate() → advice_record + decision + roadmap_version, one txn
 │   │   │   │   ├── conversation.service.ts   /ask over core.answer() · /suitability/evaluate
+│   │   │   │   ├── aa-consent.service.ts     590→592→497→593→591→595 · a notification grants nothing; only verify() can make a consent ACTIVE
 │   │   │   │   ├── consent-scope.ts          strips CustomerFile blocks not in granted scopes
 │   │   │   │   ├── hash.ts                   canonical JSON → sha256 (snapshot input hash, record chain)
 │   │   │   │   ├── errors.ts                 DomainError → NotFound · Conflict · Unavailable · BeyondHorizon · Forbidden
@@ -197,13 +198,21 @@ dhan-sarthi/
 │   │   │   │   │   ├── bank-data.postgres.ts · product-shelf.postgres.ts · session-store.postgres.ts
 │   │   │   │   │   └── snapshot-store.postgres.ts · audit-store.postgres.ts · lease-store.postgres.ts
 │   │   │   │   ├── memory/                   shipped implementations (no-DB profile) · seeded from toSeedBundle()
-│   │   │   │   ├── idbi-sandbox/             anti-corruption layer · STUB against data-requirements.md
-│   │   │   │   │   ├── client.ts             HTTP client · consent_id on every call · AbortSignal
-│   │   │   │   │   ├── endpoints.ts          456 master · 394 accounts · 393 statement (paged) · 402 overdues · 362 liens
-│   │   │   │   │   ├── wire.ts               zod schemas of the 93 fields · DD-MM-YY · snake_case
-│   │   │   │   │   ├── mapping.ts            wire → CustomerFile · block 08 → Consent
-│   │   │   │   │   ├── composite.ts          IDBI for profile/accounts/txn/liabilities · fixtures for holdings/policies · provenance per block
-│   │   │   │   │   └── fixtures/*.json       one sample payload per block
+│   │   │   │   │   └── declared-profile · holdings · aa-consent   the three blocks no bank endpoint carries
+│   │   │   │   ├── idbi-sandbox/             anti-corruption layer · written from 42 captured bodies, not from the spec
+│   │   │   │   │   ├── api/transport.ts      one POST per operation · no credential (IP allow-list) · breaker · 3 s read cache · atlas trace on every log line
+│   │   │   │   │   ├── api/operations.ts     the 24 real operations: code · op · envelope family · read|write|bureau · paging · variants
+│   │   │   │   │   ├── api/envelope.ts       bare | result | finpro · verdict · the three refusal shapes
+│   │   │   │   │   ├── api/schemas.ts        zod per operation, from the bodies the sandbox actually sent · every one passthrough
+│   │   │   │   │   ├── api/scalars.ts        integer paise by shifting the decimal · six date formats · blank = absent | "" | "NULL" | null
+│   │   │   │   │   ├── api/paging.ts         393 row cursor (sequential) · 595 pageDetails (page 1, then the rest together)
+│   │   │   │   │   ├── api/gateway.ts        operations → domain reads · ordered candidate bodies · parallel fan-out · cross-checks
+│   │   │   │   │   ├── api/to-domain.ts      IDBI wire straight to the domain, one hop · MappingReport
+│   │   │   │   │   ├── api/replay.ts         the captured bodies as a transport · absence reproduces the sandbox's own 400
+│   │   │   │   │   ├── api/customers.ts      the three sandbox customers: coverage · variants · AA pulls · declared seeds
+│   │   │   │   │   ├── captured/*.json       42 response and request pairs · evidence, prettierignored
+│   │   │   │   │   ├── composite.ts          IDBI for what it answers · the app's own stores for what no operation carries
+│   │   │   │   │   └── lead-sink.idbi.ts     428: an accepted recommendation becomes a lead the bank's staff work
 │   │   │   │   ├── runway/                   transport.ts (providers/runway.ts + tools + timeouts + breaker) · provider.ts · rpc-host.ts
 │   │   │   │   ├── null/                     avatar-provider.null.ts · rpc-host.null.ts
 │   │   │   │   └── clock/                    system-clock.ts · fixed-clock.ts
@@ -212,7 +221,7 @@ dhan-sarthi/
 │   │   │   │   ├── auth.ts                   bearer → session preHandler · X-Operator-Key preHandler
 │   │   │   │   ├── register.ts               registerRoute(app, entry, handler) — validates in and out; the only way to add a route
 │   │   │   │   ├── openapi.ts                registry → OpenAPI 3.1 at /api/v1/openapi.json
-│   │   │   │   └── routes/                   health · customers · sessions · session · view · transactions · ask · suitability · decisions · record · avatar · operator
+│   │   │   │   └── routes/                   health · customers · sessions · session · view · transactions · ask · suitability · actions · record · rules · shelf · profile · holdings · consent-aa · avatar · operator
 │   │   │   ├── infra/                        circuit.ts · timeout.ts · lru.ts · fault-inject.ts (refused in production)
 │   │   │   ├── db/migrate.ts                 ordered SQL runner · schema_migrations
 │   │   │   └── cli/
@@ -220,21 +229,27 @@ dhan-sarthi/
 │   │   │       ├── replay.ts                 pnpm replay <advice_record_id>
 │   │   │       └── audit-verify.ts           pnpm audit:verify
 │   │   └── test/
-│   │       ├── contract/                     one file per registry entry · no-undeclared-route · openapi snapshot
+│   │       ├── contract/                     no-undeclared-route · app-owned-blocks · smoke
+│   │       ├── adapters/                     the IDBI adapter against its own captures · coverage · leads
 │   │       ├── ports/                        bankDataPortContract · auditStoreContract · leaseStoreContract · sessionStoreContract
-│   │       ├── integration/                  Postgres service: migrate → seed → parity → append-only → chain
+│   │       ├── application/                  the AA consent rule: a notification grants nothing
+│   │       ├── integration/                  every route over inject, on memory and on Postgres
 │   │       ├── avatar/                       rpc-before-consume · budget survives restart · waitlist claim · reconciler
 │   │       ├── architecture/                 dependency-cruiser rules
 │   │       └── fakes/                        FakeAvatarProvider · FakeRpcHost
 │   └── web/
 │       ├── Dockerfile                        nginx · /api proxied to api:3001 (compose only)
 │       └── src/
-│           ├── api/client.ts                 typed fetch from registry · bearer · ETag · 6 s timeout · GET retry
+│           ├── api/client.ts                 typed fetch from registry · bearer · ETag · 12 s timeout · GET retry
 │           ├── api/session.ts                token only (dhan.session.v2)
 │           ├── lib/view.ts                   useView(): server View, else offline chunk
+│           ├── lib/motion.ts                  reduced-motion · count-up · ripple · changed
+│           ├── lib/onboarding.ts              whether this browser has been through the first run, per cif
 │           ├── offline/                      lazy: core + fixtures + old buildView · VITE_OFFLINE_FALLBACK
-│           ├── components/                   Clock · TabBar · ui · TierBadge · QueueCard · OfflineBadge · ProvenanceLine
-│           └── screens/                      Pick · Today · Plan · Ask · Money · Record (same layouts, data from the API)
+│           ├── components/                   Clock · TabBar · ui · TierBadge · QueueCard · OfflineBadge · DataSourceRibbon · Sheet · Toast · Form · PullToRefresh
+│           ├── styles/motion.css              every keyframe in the app, and the reduced-motion block that turns them all off
+│           └── screens/                      Pick · Onboarding · Today · Plan · Ask · Money · Record
+│                                             + sheets: Profile · Holdings · LinkAccounts · Goal · Cap · Transaction
 ├── packages/
 │   ├── core/src/                             unchanged public API + asof.ts (pure as-of helpers) + goal.ts (suggestGoal)
 │   ├── contracts/src/
