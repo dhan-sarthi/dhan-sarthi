@@ -29,13 +29,10 @@ describe('the profile and holdings the app owns', () => {
   after(() => root.close())
 
   const get = (url: string) => root.app.inject({ method: 'GET', url, headers: bearer(token) })
-  const send = (method: 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown) =>
-    root.app.inject({
-      method,
-      url,
-      headers: bearer(token),
-      ...(payload === undefined ? {} : { payload }),
-    })
+  // `payload` always present: the conditional spread widens the object enough that Fastify's
+  // inject overloads stop resolving, and every response then types as `void`.
+  const send = (method: 'POST' | 'PATCH' | 'DELETE', url: string, payload: unknown = {}) =>
+    root.app.inject({ method, url, headers: bearer(token), payload: payload as object })
 
   it('reads the declared profile, and says nothing is missing when the bank has it', async () => {
     const res = await get('/api/v1/profile')
@@ -156,13 +153,10 @@ describe('the app-owned blocks over IDBI', () => {
   after(() => root.close())
 
   const get = (url: string) => root.app.inject({ method: 'GET', url, headers: bearer(token) })
-  const send = (method: 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown) =>
-    root.app.inject({
-      method,
-      url,
-      headers: bearer(token),
-      ...(payload === undefined ? {} : { payload }),
-    })
+  // `payload` always present: the conditional spread widens the object enough that Fastify's
+  // inject overloads stop resolving, and every response then types as `void`.
+  const send = (method: 'POST' | 'PATCH' | 'DELETE', url: string, payload: unknown = {}) =>
+    root.app.inject({ method, url, headers: bearer(token), payload: payload as object })
 
   it('feeds the engine: a declared income change moves the cover requirement', async () => {
     await send('PATCH', '/api/v1/profile', { declaredAnnualIncome: 1_200_000, dependents: 2 })
