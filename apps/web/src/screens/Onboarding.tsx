@@ -602,8 +602,11 @@ function Ready({
               {facts.more ? '+' : ''} statement lines
             </li>
             {facts.debt > 0 ? (
+              /* The instalment only where the bank reported one. Neha's loans come back with no
+                 monthly outgo at all, and "₹0 a month" is a claim rather than a gap. */
               <li>
-                {approx(facts.debt)} of borrowing, {inr(facts.outgo)} a month
+                {approx(facts.debt)} of borrowing
+                {facts.outgo > 0 ? `, ${inr(facts.outgo)} a month` : ''}
               </li>
             ) : null}
             {facts.holdings > 0 ? (

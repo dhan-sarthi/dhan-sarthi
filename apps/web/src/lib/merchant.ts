@@ -45,7 +45,32 @@ const RAIL: ReadonlySet<string> = new Set([
   'TRF',
   'TRANSFER',
   'MISC',
+  /*
+   * Direction and role words. Neha's statement is `NEFT OUTWARD 3188` and
+   * `UPI/CR/15903/SENDER/PQRS`, which named forty rows "Outward" and "Sender": the plumbing of
+   * a payment described where its counterparty should be.
+   */
+  'OUTWARD',
+  'INWARD',
+  'SENDER',
+  'RECEIVER',
+  'REMITTER',
+  'BENEFICIARY',
+  'PAYER',
+  'PAYEE',
 ])
+
+/**
+ * Whether a token in a slash-delimited narration is the bank rather than the merchant.
+ *
+ * The fifth field of a UPI narration is the counterparty's bank, and a bank is named by the
+ * first four characters of its IFSC: `ICIC`, `HDFC`, `SBIN`, and IDBI's own placeholder `PQRS`.
+ * In a real narration the merchant sits *before* it, so this rule never gets a say; it only
+ * matters once every earlier field has turned out to be plumbing, and at that point a
+ * four-letter code is the bank and not the shop.
+ */
+const looksLikeBankCode = (token: string, narration: string): boolean =>
+  narration.includes('/') && /^[A-Z]{4}$/.test(token)
 
 /**
  * The lines the bank writes itself, which have no counterparty at all.
@@ -93,7 +118,9 @@ export function narratedName(narration: string): string | null {
     p.trim(),
   )
 
-  const named = parts.find((p) => p.length > 2 && !RAIL.has(p) && !p.includes('@'))
+  const named = parts.find(
+    (p) => p.length > 2 && !RAIL.has(p) && !p.includes('@') && !looksLikeBankCode(p, stripped),
+  )
   return named === undefined ? null : titleCase(named)
 }
 

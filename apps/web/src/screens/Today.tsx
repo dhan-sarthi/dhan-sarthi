@@ -244,9 +244,20 @@ export function Today({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
+            {/*
+              The second tile only where there is a commitment to name.
+              "Goes out each month ₹0" is a derived zero standing in for an observation: on
+              Neha's feed nothing in the statement is recognisable as a mandate, and the screen
+              was reporting that as a customer with no outgoings, directly above ₹6.03 lakh of
+              borrowing. One tile that is true beats two where one is invented.
+            */}
+            <div
+              className={`mt-4 grid gap-2.5 ${snapshot.commitments.total > 0 ? 'grid-cols-2' : ''}`}
+            >
               <Tile label="Comes in each month" value={snapshot.income.monthly} />
-              <Tile label="Goes out each month" value={snapshot.commitments.total} />
+              {snapshot.commitments.total > 0 ? (
+                <Tile label="Goes out each month" value={snapshot.commitments.total} />
+              ) : null}
             </div>
           </Card>
         )}
