@@ -25,10 +25,12 @@ import type {
   SessionState,
   View,
 } from '@dhan/contracts'
-import { Pencil } from 'lucide-react'
-import { Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
+import { Pencil, Trash2 } from 'lucide-react'
+import { Button, Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
+import { api, isApiError } from '../api/client.ts'
+import { clearSession } from '../api/session.ts'
 import { dayMonth, inr } from '../lib/money.ts'
 import type { RecordState } from '../lib/record.ts'
 
@@ -572,6 +574,78 @@ function Consent({
           is finished.
         </p>
       </Card>
+
+      <Erase editable={editable} />
     </>
+  )
+}
+
+/**
+ * Erasure, which the DPDP Act gives a customer the right to and the API has always supported.
+ *
+ * There was no button. A right nobody can exercise is a paragraph, and this screen spends four
+ * cards telling a customer what is held about them, so ending it with no way to say "delete
+ * this" is the wrong note to finish on.
+ *
+ * Two presses, and the second one names what goes. Not a modal: a confirmation that appears in
+ * place, under the finger that asked for it, is harder to dismiss by accident than one that
+ * takes over the screen.
+ */
+function Erase({ editable }: { editable: boolean }): ReactNode {
+  const [armed, setArmed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const erase = async (): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api('eraseSession')
+      // Back to the picker with nothing held: the token was the only thing this browser kept.
+      clearSession()
+    } catch (err) {
+      setError(isApiError(err) ? err.message : 'That could not be erased.')
+      setBusy(false)
+    }
+  }
+
+  if (!editable) return null
+
+  return (
+    <Card>
+      <h2>Erase all of this</h2>
+      <p className="m-0 mt-2 text-[13.5px] leading-[1.55] text-ink-mid">
+        Deletes everything held about this session: the profile you gave us, what you told us you
+        own, the snapshots and the decisions.
+      </p>
+      <p className={`${NOTE} m-0 mt-[11px]`}>
+        The advice records stay, because an audit trail that can be deleted is not one. They are
+        unlinked from you and cannot be traced back.
+      </p>
+
+      {error ? (
+        <p role="alert" className={`${NOTE} m-0 mt-3 text-danger`}>
+          {error}
+        </p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {armed ? (
+          <>
+            <Button tone="danger" size="sm" busy={busy} onClick={() => void erase()}>
+              <Trash2 size={15} strokeWidth={2.4} />
+              Yes, erase it
+            </Button>
+            <Button tone="quiet" size="sm" disabled={busy} onClick={() => setArmed(false)}>
+              Keep it
+            </Button>
+          </>
+        ) : (
+          <Button tone="secondary" size="sm" onClick={() => setArmed(true)}>
+            Erase my data
+          </Button>
+        )}
+      </div>
+    </Card>
   )
 }

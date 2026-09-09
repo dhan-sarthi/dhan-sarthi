@@ -110,6 +110,12 @@ export function useRipple(): (event: ReactPointerEvent<HTMLElement>) => void {
   const reduced = usePrefersReducedMotion()
   return useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
+      // A single short tick, where the device has one. Android exposes it and iOS Safari does
+      // not, so this is a bonus rather than the feedback: the ripple below is what everyone
+      // gets. Reduced motion turns it off too, since a haptic is motion you feel.
+      if (!reduced && typeof navigator.vibrate === 'function' && event.pointerType === 'touch') {
+        navigator.vibrate(8)
+      }
       if (reduced) return
       const host = event.currentTarget
       const rect = host.getBoundingClientRect()
