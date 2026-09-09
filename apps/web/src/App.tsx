@@ -24,6 +24,7 @@ import type { ToastMessage, ToastTone } from './components/Toast.tsx'
 import { ProfileSheet } from './screens/ProfileSheet.tsx'
 import { HoldingsSheet } from './screens/HoldingsSheet.tsx'
 import { LinkAccountsSheet } from './screens/LinkAccountsSheet.tsx'
+import { GoalSheet } from './screens/GoalSheet.tsx'
 import { Ask } from './screens/Ask.tsx'
 import { Money } from './screens/Money.tsx'
 import { Pick } from './screens/Pick.tsx'
@@ -42,7 +43,7 @@ export function App(): ReactNode {
   const vs = useView(stored)
   const record = useRecord(stored, vs.tier)
   const [tab, setTab] = useState<TabId>('today')
-  const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | null>(null)
+  const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | 'goal' | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
 
   /*
@@ -165,7 +166,12 @@ export function App(): ReactNode {
       ) : null}
 
       {tab === 'plan' ? (
-        <Plan snapshot={view.snapshot} roadmap={view.roadmap} asOf={view.meta.asOf} />
+        <Plan
+          snapshot={view.snapshot}
+          roadmap={view.roadmap}
+          asOf={view.meta.asOf}
+          onEditGoal={() => setSheet('goal')}
+        />
       ) : null}
       {tab === 'money' ? (
         <Money
@@ -208,6 +214,14 @@ export function App(): ReactNode {
         open={sheet === 'link'}
         onClose={() => setSheet(null)}
         onLinked={afterEdit}
+      />
+      <GoalSheet
+        open={sheet === 'goal'}
+        onClose={() => setSheet(null)}
+        onSaved={afterEdit}
+        roadmap={view.roadmap}
+        asOf={view.meta.asOf}
+        deployable={view.snapshot.surplus.deployable}
       />
       <Toast key={toast?.id ?? 'none'} message={toast} onDone={() => setToast(null)} />
     </div>

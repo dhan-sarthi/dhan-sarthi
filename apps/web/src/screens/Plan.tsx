@@ -13,7 +13,8 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Roadmap, Snapshot, Stage } from '@dhan/contracts'
-import { Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
+import { SlidersHorizontal } from 'lucide-react'
+import { Button, Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
 import { band } from '../lib/projection.ts'
 
@@ -29,10 +30,13 @@ export function Plan({
   snapshot,
   roadmap,
   asOf,
+  onEditGoal,
 }: {
   snapshot: Snapshot
   roadmap: Roadmap
   asOf: string
+  /** The plan offers to move the target in words; this is where it actually happens. */
+  onEditGoal: () => void
 }): ReactNode {
   const [rate, setRate] = useState(DEFAULT_RATE)
   const growth = roadmap.stages.find((s) => s.kind === 'grow')
@@ -89,6 +93,15 @@ export function Plan({
                 is usually the least painful.
               </p>
             ) : null}
+
+            {/* The sentence above has always offered this. Until there was a button it was a
+                shrug rather than an offer. */}
+            <div className="mt-4">
+              <Button tone="secondary" size="sm" onClick={onEditGoal}>
+                <SlidersHorizontal size={15} strokeWidth={2.5} />
+                Change the target
+              </Button>
+            </div>
           </Card>
         </div>
 
