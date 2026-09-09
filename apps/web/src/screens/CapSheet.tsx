@@ -10,7 +10,7 @@
  * useful next to the thing it is limiting. Somebody who spends ₹8,400 a month on eating out is
  * choosing between ₹8,400 and a number they pick, and the app should not pretend to know which.
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Sheet } from '../components/Sheet.tsx'
 import { Button } from '../components/ui.tsx'
@@ -39,20 +39,19 @@ export function CapSheet({
   onSave: (category: string, monthlyLimit: number | null) => void
 }): ReactNode {
   const [amount, setAmount] = useState(0)
-
   /*
-   * Reset when the sheet opens on a different category.
+   * The figure resets when the sheet opens on a different category.
    *
-   * Keyed on the category rather than on `target !== null`, so re-opening the same row keeps
-   * nothing stale and opening a different row never starts from the last one's figure.
+   * Adjusted during render rather than in an effect, which is what React asks for when state
+   * has to follow a prop: an effect would paint the previous category's number for a frame
+   * first, and this component's whole job is to open with the right one. Guarded on the
+   * category, so typing into the field is never overwritten.
    */
-  const key = target?.category ?? ''
-  useEffect(() => {
-    if (target === null) return
-    queueMicrotask(() => setAmount(target.current ?? Math.round(target.spend)))
-    // The target object is rebuilt on every render of the list; the category is its identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
+  const [seeded, setSeeded] = useState<string | null>(null)
+  if (target !== null && seeded !== target.category) {
+    setSeeded(target.category)
+    setAmount(target.current ?? Math.round(target.spend))
+  }
 
   return (
     <Sheet
