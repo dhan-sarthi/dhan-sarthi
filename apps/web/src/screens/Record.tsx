@@ -186,7 +186,14 @@ function Decisions({
         ) : (
           <Pill tone="warn">Chain not checked</Pill>
         )}
-        {rec.provenance ? <Pill>Seed {rec.provenance.seedRunId.slice(0, 8)}</Pill> : null}
+        {/* The seed run identifies the generated ledger, so it means something under the
+            fixtures and the seeded database and nothing at all over a bank feed — where it was
+            still being printed as "Seed memory-f", eight characters of an id describing data
+            that is not on this screen. */}
+        {rec.provenance && view.meta.source !== 'idbi-sandbox' ? (
+          <Pill>Seed {rec.provenance.seedRunId.slice(0, 8)}</Pill>
+        ) : null}
+        {view.meta.source === 'idbi-sandbox' ? <Pill>Read from IDBI</Pill> : null}
       </div>
 
       {rec.decisions.length === 0 ? (

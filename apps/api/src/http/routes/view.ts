@@ -9,6 +9,7 @@ import type { AppServices } from './services.ts'
 export function toWireView(v: ServerView): View {
   return {
     snapshot: v.snapshot,
+    accounts: v.accounts,
     goal: v.goal,
     roadmap: v.roadmap,
     plan: v.plan,

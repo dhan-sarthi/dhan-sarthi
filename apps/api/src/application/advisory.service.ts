@@ -311,6 +311,7 @@ export class AdvisoryService {
 
     return {
       snapshot: d.snapshot,
+      accounts: d.file.accounts,
       goal: d.goal,
       roadmap,
       plan,

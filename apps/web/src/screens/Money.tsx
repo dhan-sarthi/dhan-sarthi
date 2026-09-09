@@ -16,7 +16,7 @@
  */
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { SpendCategory, Snapshot } from '@dhan/contracts'
+import type { Account as AccountRow, SpendCategory, Snapshot } from '@dhan/contracts'
 import { Link2, Pencil, Plus } from 'lucide-react'
 import {
   Amount,
@@ -46,6 +46,7 @@ const NOTE = 'm-0 text-xs leading-[1.5] text-ink-soft'
 
 export function Money({
   snapshot,
+  accounts,
   source,
   asOf,
   onEditHoldings,
@@ -53,6 +54,8 @@ export function Money({
   onRefresh,
 }: {
   snapshot: Snapshot
+  /** One row per account, rather than the snapshot's two totals. */
+  accounts: readonly AccountRow[]
   /** Pages of the statement, from the API or the offline ledger. */
   source: TransactionSource
   asOf: string
@@ -82,6 +85,7 @@ export function Money({
         {tab === 'accounts' ? (
           <Accounts
             snapshot={snapshot}
+            accounts={accounts}
             onEditHoldings={onEditHoldings}
             onLinkAccounts={onLinkAccounts}
           />
@@ -97,10 +101,13 @@ export function Money({
 
 function Accounts({
   snapshot,
+  accounts,
   onEditHoldings,
   onLinkAccounts,
 }: {
   snapshot: Snapshot
+  /** The accounts themselves. Empty where the customer has withdrawn the block. */
+  accounts: readonly AccountRow[]
   onEditHoldings: () => void
   onLinkAccounts: () => void
 }): ReactNode {
@@ -108,35 +115,46 @@ function Accounts({
 
   return (
     <>
-      <Card>
-        <div className="flex items-start justify-between">
-          <p className={META}>Savings account</p>
-          <Pill>Savings</Pill>
-        </div>
-        <div className="mt-2">
-          <Amount value={balances.savings} size="lg" paise />
-        </div>
-        {/* The claim needs whole months behind it. With `idleMonths` at 0 it read "never fell
-            below ₹56,780 in 0 months", which asserts a floor over no period at all. */}
-        {balances.idleFloor > 0 && balances.idleMonths > 0 ? (
-          <p className={`${NOTE} mt-2`}>
-            Never fell below {inr(balances.idleFloor)} in{' '}
-            {balances.idleMonths === 1 ? 'a month' : `${balances.idleMonths} months`} — that part
-            has not been needed once.
-          </p>
-        ) : null}
-      </Card>
+      {/* One row per account, which is what somebody opening a banking app came to see. The
+          screen used to show two totals, and a customer with four accounts got two numbers
+          neither of which was any of their balances. */}
+      {accounts.map((a, i) => (
+        <AccountCard key={a.accountNumberMasked} account={a} index={i} />
+      ))}
 
-      {balances.deposits > 0 ? (
-        <Card>
-          <div className="flex items-start justify-between">
-            <p className={META}>Deposits</p>
-            <Pill>FD · RD</Pill>
-          </div>
-          <div className="mt-2">
-            <Amount value={balances.deposits} size="lg" />
-          </div>
-        </Card>
+      {accounts.length === 0 ? (
+        <>
+          <Card>
+            <div className="flex items-start justify-between">
+              <p className={META}>Savings account</p>
+              <Pill>Savings</Pill>
+            </div>
+            <div className="mt-2">
+              <Amount value={balances.savings} size="lg" paise />
+            </div>
+            {/* The claim needs whole months behind it. With `idleMonths` at 0 it read "never fell
+            below ₹56,780 in 0 months", which asserts a floor over no period at all. */}
+            {balances.idleFloor > 0 && balances.idleMonths > 0 ? (
+              <p className={`${NOTE} mt-2`}>
+                Never fell below {inr(balances.idleFloor)} in{' '}
+                {balances.idleMonths === 1 ? 'a month' : `${balances.idleMonths} months`} — that
+                part has not been needed once.
+              </p>
+            ) : null}
+          </Card>
+
+          {balances.deposits > 0 ? (
+            <Card>
+              <div className="flex items-start justify-between">
+                <p className={META}>Deposits</p>
+                <Pill>FD · RD</Pill>
+              </div>
+              <div className="mt-2">
+                <Amount value={balances.deposits} size="lg" />
+              </div>
+            </Card>
+          ) : null}
+        </>
       ) : null}
 
       {/* The whole block is the app's own record, so it is editable from where it is shown
@@ -559,5 +577,81 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
         </Card>
       ))}
     </>
+  )
+}
+
+/* ---------------------------------------------------------------- One account */
+
+const ACCOUNT_PILL: Record<AccountRow['accountType'], string> = {
+  Savings: 'Savings',
+  Current: 'Current',
+  FD: 'Fixed deposit',
+  RD: 'Recurring deposit',
+  PPF: 'PPF',
+  NPS: 'NPS',
+}
+
+/**
+ * One account, with the detail the aggregate threw away.
+ *
+ * The spendable figure is the bank's own `EFFAVL`, not the balance less the lien: on a current
+ * account IDBI withholds a minimum balance on top of the lien, so the two are different numbers
+ * and the smaller one is the true one. Shown only when it differs from the balance, because
+ * "₹56,780 · ₹56,780 available" is noise.
+ */
+function AccountCard({ account, index }: { account: AccountRow; index: number }): ReactNode {
+  const held =
+    account.effectiveAvailableBalance !== undefined &&
+    account.effectiveAvailableBalance < account.currentBalance
+      ? account.currentBalance - account.effectiveAvailableBalance
+      : 0
+  // Never more than what is actually withheld: a lien larger than the gap would mean the two
+  // figures disagree, and the smaller one is the one the customer can go and verify.
+  const lien = Math.min(held, account.lienAmount ?? 0)
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-2">
+        <p className={META}>
+          {account.accountNumberMasked.slice(-8)}
+          {account.branchIfsc ? ` · ${account.branchIfsc}` : ''}
+        </p>
+        <Pill>{ACCOUNT_PILL[account.accountType]}</Pill>
+      </div>
+      <div className="mt-2">
+        <Amount value={account.currentBalance} size="lg" paise />
+      </div>
+
+      {held > 0 ? (
+        <div className="mt-2.5">
+          <Leader
+            label="Yours to spend"
+            value={inr(account.effectiveAvailableBalance ?? 0)}
+            filled
+          />
+          {/* The lien is only part of it. On the current account IDBI withholds ₹2,000 of lien
+              and a further ₹3,000 of minimum balance, so calling the whole ₹5,000 a lien would
+              be wrong about a figure the customer could go and check. */}
+          {lien > 0 ? <Leader label="Held by a lien" value={`−${inr(lien)}`} /> : null}
+          {held - lien > 0.005 ? (
+            <Leader
+              label={lien > 0 ? 'Also held back' : 'Held back'}
+              value={`−${inr(held - lien)}`}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      <p className={`${NOTE} mt-2.5`}>
+        {account.maturityDate !== undefined
+          ? `Matures ${dayMonth(account.maturityDate)} ${account.maturityDate.slice(0, 4)}`
+          : account.accountOpeningDate > '1970-01-01'
+            ? `Open since ${monthYear(account.accountOpeningDate)}`
+            : 'The bank sends no opening date for this one'}
+        {account.interestRate !== undefined ? ` · ${account.interestRate}%` : ''}
+      </p>
+      {/* Index is only here so the stagger has something to key on when the list is long. */}
+      <span hidden>{index}</span>
+    </Card>
   )
 }

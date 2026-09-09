@@ -186,6 +186,7 @@ export function App(): ReactNode {
       {tab === 'money' ? (
         <Money
           snapshot={view.snapshot}
+          accounts={view.accounts}
           source={source}
           asOf={view.meta.asOf}
           onEditHoldings={() => setSheet('holdings')}

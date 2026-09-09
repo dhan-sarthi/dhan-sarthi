@@ -196,6 +196,7 @@ function build(state: OfflineState): Built {
 
   const view: View = {
     snapshot,
+    accounts: file.accounts,
     goal,
     roadmap,
     plan,

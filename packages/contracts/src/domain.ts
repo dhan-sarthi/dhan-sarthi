@@ -782,6 +782,19 @@ export type ViewMeta = z.infer<typeof ViewMetaSchema>
 /** The one object every screen reads. */
 export const ViewSchema = z.object({
   snapshot: SnapshotSchema,
+  /**
+   * The accounts themselves, not just the totals the snapshot carries.
+   *
+   * The snapshot has `balances.savings` and `balances.deposits`, which is what the engine
+   * needs and not what a customer opening a banking app expects to see: they have four
+   * accounts and want four rows. It also strips the per-account detail we went to some trouble
+   * to read off IDBI — the spendable floor, the lien behind it, the branch and the vintage —
+   * none of which survives being summed.
+   *
+   * Scoped like everything else here: an account block the customer has withdrawn arrives
+   * empty, because this is built from the scoped file.
+   */
+  accounts: z.array(AccountSchema),
   goal: GoalSchema,
   roadmap: RoadmapSchema,
   plan: DailyPlanSchema,
