@@ -287,9 +287,12 @@ function Accounts({
                     of five. "₹0/month at up to 0%" on a ₹6 lakh balance is not a fact about the
                     loan, it is the absence of one. */}
                 <p className={`${META} mt-[3px]`}>
-                  {debt.monthlyOutgo > 0 || debt.highestRate > 0
-                    ? `${inr(debt.monthlyOutgo)}/month at up to ${debt.highestRate}%`
-                    : 'The bank sends no rate or instalment for these'}
+                  {[
+                    debt.monthlyOutgo > 0 ? `${inr(debt.monthlyOutgo)}/month` : null,
+                    debt.highestRate > 0 ? `up to ${debt.highestRate}%` : null,
+                  ]
+                    .filter((part) => part !== null)
+                    .join(' at ') || 'The bank sends no rate or instalment for these'}
                 </p>
               </div>
               <Amount value={debt.total} size="md" />
@@ -656,9 +659,10 @@ function Recent({
 
       {mostlyNameless ? (
         <p className={`${NOTE} mb-2 rounded-sm bg-tint-clay px-3 py-2.5`}>
-          {nameless} of these {txns.items.length} lines carry no description. The bank sends{' '}
-          <span className="font-mono text-[11.5px]">{sample}</span> and nothing else, so there is no
-          merchant to name them by. The dates and amounts are exactly what it sent.
+          {nameless} of these {txns.items.length} lines name nobody. The bank writes them like{' '}
+          <span className="font-mono text-[11.5px]">{sample}</span>, which is the rail and a
+          reference, so there is no merchant to show. The dates and the amounts are exactly what it
+          sent.
         </p>
       ) : null}
 
@@ -692,12 +696,16 @@ function Recent({
             <span className="min-w-0 flex-1">
               <b className="block truncate text-[14.5px] font-bold text-ink">{merchantOf(t)}</b>
               <span className="block truncate text-xs text-ink-soft">
-                {/* The mode is UNKNOWN on every row of IDBI's own statement, which sends none.
-                    Printing the word is worse than leaving the gap. The narration takes the
-                    category's place on a nameless row: it is the only thing that tells two
-                    otherwise identical rows apart, and it is what the bank actually sent. */}
-                {dayMonth(t.txnDate)} · {isNamed(t) ? t.spendCategory : t.narration}
-                {t.txnMode === 'UNKNOWN' ? '' : ` · ${t.txnMode}`}
+                {/* The mode is UNKNOWN on every row of Priya's statement, which sends none, and
+                    printing the word is worse than leaving the gap. On Neha's it is sent and
+                    contradicts the narration: `NEFT OUTWARD 3188` arrives with mode CHQ, then
+                    NEFT, then IMPS, then CARD, in sequence. So a nameless row shows the raw line
+                    in place of the category and leaves the mode out of it. The line is the thing
+                    that tells two otherwise identical rows apart. */}
+                {dayMonth(t.txnDate)} ·{' '}
+                {isNamed(t)
+                  ? `${t.spendCategory}${t.txnMode === 'UNKNOWN' ? '' : ` · ${t.txnMode}`}`
+                  : t.narration}
               </span>
             </span>
             <span

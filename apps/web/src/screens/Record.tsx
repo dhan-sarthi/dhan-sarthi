@@ -486,7 +486,14 @@ function Consent({
       scope: 'LIABILITIES',
       what: 'Loans',
       why: 'Because debt above 24% outranks every product we could sell you.',
-      detail: `${inr(snapshot.debt.total)} outstanding at up to ${snapshot.debt.highestRate}%.`,
+      /* The rate only where the bank sends one. IDBI returns no interest rate on Neha's loans,
+         and "outstanding at up to 0%" contradicts the Money tab, which says so plainly. */
+      detail:
+        snapshot.debt.total === 0
+          ? 'Nothing owed.'
+          : snapshot.debt.highestRate > 0
+            ? `${inr(snapshot.debt.total)} outstanding at up to ${snapshot.debt.highestRate}%.`
+            : `${inr(snapshot.debt.total)} outstanding. The bank sends no rate for it.`,
     },
     {
       scope: 'HOLDINGS',
