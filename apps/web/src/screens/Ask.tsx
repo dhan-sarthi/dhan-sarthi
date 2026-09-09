@@ -313,6 +313,13 @@ function TextTier({
   const [product, setProduct] = useState(shelf[0]?.productId ?? '')
   const [thinking, setThinking] = useState(false)
   const [checking, setChecking] = useState(false)
+  /*
+   * The opening line is a round trip to the bank and takes a few seconds, and until it landed
+   * the conversation was simply empty: the centre tab of the app opened on nothing at all.
+   * Starts true, because the effect below fires on mount and there is never a moment where
+   * this screen is not waiting for it.
+   */
+  const [opening, setOpening] = useState(true)
   const listRef = useRef<HTMLDivElement | null>(null)
   const ripple = useRipple()
   // Turn ids, so React keys survive a bubble being appended while an answer is in flight.
@@ -339,6 +346,7 @@ function TextTier({
           { id: nextId(), who: 'uday', text: s.opening.text, evidence: s.opening.evidence },
         ])
         setQuestions(s.questions)
+        setOpening(false)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -349,6 +357,7 @@ function TextTier({
             text: isApiError(err) ? err.message : 'I could not read your statements just now.',
           },
         ])
+        setOpening(false)
       })
     return () => {
       cancelled = true
@@ -454,7 +463,7 @@ function TextTier({
             <Bubble turn={t} />
           </div>
         ))}
-        {thinking || checking ? (
+        {thinking || checking || opening ? (
           /* Three dots rather than a sentence. "Reading your statements…" is a claim about what
              is happening; the dots are the universal sign for "still here", and the reason a
              chat needs one at all is that this is the only place in the app where the wait is
