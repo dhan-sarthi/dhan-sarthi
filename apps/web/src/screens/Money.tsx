@@ -520,6 +520,37 @@ function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): 
 function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
   const c = snapshot.commitments
 
+  /*
+   * Nothing recognised is not the same as nothing committed.
+   *
+   * The card is built to break a total into rent, loans, bills and the rest, and over a
+   * statement whose narrations carry no merchant every one of those is zero — so it read
+   * "₹0 a month, ₹0 a year" over six rows of ₹0, which looks like a customer with no
+   * obligations rather than a statement we could not read. IDBI's own feed makes that the
+   * normal case.
+   */
+  if (c.total <= 0) {
+    return (
+      <div className="mt-3">
+        <Card tint="clay">
+          <h2>Nothing recognisable as a commitment</h2>
+          <p className={`${META} mt-1.5`}>
+            Rent, loan repayments, bills and standing instructions are found by reading the
+            narration on each line. Nothing in this statement carries one, so there is no breakdown
+            to show — not because there is nothing going out, but because the bank does not say what
+            it was for.
+          </p>
+          {snapshot.debt.monthlyOutgo > 0 ? (
+            <p className={`${NOTE} mt-3`}>
+              The one exception is {inr(snapshot.debt.monthlyOutgo)} a month of loan repayment,
+              which comes from the loan record rather than from the statement.
+            </p>
+          ) : null}
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="mt-3">
