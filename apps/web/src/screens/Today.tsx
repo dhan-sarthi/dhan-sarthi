@@ -361,8 +361,12 @@ export function Today({
           Every figure on this screen is computed from {snapshot.quality.transactions}{' '}
           {snapshot.quality.transactions === 1 ? 'transaction' : 'transactions'}{' '}
           {historySpan(snapshot.quality.monthsOfHistory)}.{' '}
-          {Math.round(snapshot.quality.categorisedShare * 100)}% of them could be matched to a
-          merchant or a mandate.
+          {/* "matched to a merchant or a mandate" overstated what the number measures: it also
+              counts a keyword like SALARY or CHGS, which names a purpose rather than a
+              counterparty. On IDBI's feed that read as 50% matched to merchants beside forty
+              rows that name nobody at all. */}
+          {Math.round(snapshot.quality.categorisedShare * 100)}% of them carry enough for me to
+          recognise what they were; the rest are filed as the bank filed them.
         </p>
       </PullToRefresh>
     </>

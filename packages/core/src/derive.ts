@@ -148,7 +148,11 @@ export interface ProtectionFacts {
 export interface QualityFacts {
   transactions: number
   monthsOfHistory: number
-  /** Share of transactions we could name a merchant or a mandate for. */
+  /**
+   * Share of transactions the categoriser recognised on its own: a merchant, a standing
+   * instruction, or a keyword that names a purpose. The rest keep whatever the bank filed them
+   * as. Not the same as "we know who was paid" — SALARY and CHGS name neither.
+   */
   categorisedShare: number
   /** Share of rupees we could not explain. Reported, never hidden. */
   unexplainedShare: number
