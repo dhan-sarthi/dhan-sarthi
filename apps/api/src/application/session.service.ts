@@ -145,6 +145,24 @@ export class SessionService {
     return this.patch(session, { goalTarget: targetAmount })
   }
 
+  /**
+   * A monthly limit the customer set on a category, or the removal of one.
+   *
+   * Kept on the session rather than the file because it is a decision about the future, not an
+   * observation about the past: nothing in a bank statement says what somebody meant to spend.
+   * `dailyplan` reads these, so the next view either says the cap is breached or does not.
+   */
+  async setCategoryCap(
+    session: Session,
+    category: string,
+    monthlyLimit: number | null,
+  ): Promise<Session> {
+    const rest = session.caps.filter((c) => c.category !== category)
+    return this.patch(session, {
+      caps: monthlyLimit === null ? rest : [...rest, { category, monthlyLimit }],
+    })
+  }
+
   async setConsent(session: Session, scope: ConsentScope, granted: boolean): Promise<Session> {
     const withdrawn = new Set(session.scopeOverrides)
     if (granted) withdrawn.delete(scope)

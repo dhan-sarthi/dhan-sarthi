@@ -226,6 +226,9 @@ export function App(): ReactNode {
           onEditHoldings={() => setSheet('holdings')}
           onLinkAccounts={() => setSheet('link')}
           onRefresh={refreshView}
+          caps={vs.session?.caps ?? []}
+          onSetCap={m.setCap}
+          capsEnabled={vs.tier === 'server'}
         />
       ) : null}
       {tab === 'record' ? (

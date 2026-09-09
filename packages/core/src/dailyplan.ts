@@ -95,11 +95,29 @@ export function buildDailyPlan(
   )
   const spentSince = since.reduce((s, t) => s + t.txnAmount, 0)
 
+  // The calendar month, which is what the safe-to-spend envelope below is measured against: an
+  // envelope genuinely does reset when the month does.
   const thisMonth = transactions.filter(
     (t) => monthKey(t.txnDate) === monthKey(asOf) && t.txnType === 'DEBIT',
   )
+
+  /*
+   * A cap, though, is measured over a month of spending ending today.
+   *
+   * The calendar month was the obvious reading of "monthly limit" and it made the whole feature
+   * silently dead at the start of one: on the 1st, month-to-date is empty, so a cap of one rupee
+   * against a customer who had spent a lakh the previous week reported nothing wrong. A limit
+   * that only starts working around the 10th is a limit somebody will conclude is broken.
+   *
+   * A trailing window is also the truer measure. The question a cap answers is "am I spending
+   * more than I meant to", and that does not reset because a month did.
+   */
+  const capWindowFrom = addDays(asOf, -30)
+  const capWindow = transactions.filter(
+    (t) => t.txnDate > capWindowFrom && t.txnDate <= asOf && t.txnType === 'DEBIT',
+  )
   const capBreached = caps.some((cap) => {
-    const spent = thisMonth
+    const spent = capWindow
       .filter((t) => t.spendCategory === cap.category)
       .reduce((s, t) => s + t.txnAmount, 0)
     return spent > cap.monthlyLimit
@@ -174,10 +192,16 @@ export function buildDailyPlan(
    * asks for the missing piece.
    */
   const incomeKnown = snapshot.income.monthly > 0
+  /*
+   * A cap is the customer's own limit, so it is worth saying whether or not there is an income
+   * to build an allowance from. Without this the branch below swallowed it: a customer with no
+   * recognisable salary could set a limit, go past it, and be told nothing.
+   */
+  const capNote = capBreached ? ` You are also over a limit you set.` : ''
   const routeNote = !incomeKnown
     ? `I have not found a salary in this statement, so I am not counting down to one. ` +
       `${inr(snapshot.balances.total)} is what I can see in your accounts. Tell me what comes ` +
-      `in each month and I can tell you what is safe to spend.`
+      `in each month and I can tell you what is safe to spend.${capNote}`
     : !roadmap
       ? `${inr(pot)} to last ${daysToSalary} days — about ${inr(safeToSpend.perDay)} a day.`
       : pot <= 0

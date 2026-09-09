@@ -70,14 +70,16 @@ describe('the route registry', () => {
     assert.throws(() => routeById('nope' as never), /no route/)
   })
 
-  it('has the 41 routes of the API surface', () => {
+  it('has the 42 routes of the API surface', () => {
     // 28 before the IDBI integration; six for the two blocks no bank endpoint carries, and
     // six for the Account Aggregator consent flow — four the app drives and two the bank
     // posts at us.
     // `/profile` holds the declared facts — income, employment, dependents, risk profile —
     // and `/holdings` holds what the customer already owns, because IDBI's catalogue has no
     // operation for either and advice cannot be given without them.
-    assert.equal(ROUTES.length, 41)
+    // The forty-second is the category cap, which is a decision about the future: no bank
+    // endpoint anywhere carries what somebody meant to spend.
+    assert.equal(ROUTES.length, 42)
   })
 })
 

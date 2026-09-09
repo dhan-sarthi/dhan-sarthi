@@ -15,14 +15,14 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown, Lightbulb, UserRound } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, Lightbulb, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
 import { Amount, Bar, Button, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
 import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
-import { merchantOf } from '../lib/merchant.ts'
+import { isNamed, merchantOf } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
 import type { DecisionKind } from '../lib/mutations.ts'
 
@@ -282,19 +282,42 @@ export function Today({
                   {plan.since.transactions.length === 1 ? 'payment' : 'payments'}
                 </span>
               </div>
+
+              {/* A limit the customer set themselves, and the only place on Today that reports
+                  it. The safe-to-spend panel says it too, but only when there is an income to
+                  build one from, and a cap is worth knowing about either way. */}
+              {plan.since.capBreached ? (
+                <p className="ds-rise m-0 mt-2.5 rounded-sm bg-tint-clay px-3 py-2 text-[13px] font-semibold leading-snug text-danger">
+                  You are over a limit you set. Money &rarr; Spending has the figure.
+                </p>
+              ) : null}
               <div className="mt-2 divide-y divide-solid divide-hairline-mint">
                 {plan.since.transactions
                   .slice(-6)
                   .reverse()
                   .map((t) => (
                     <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
-                      <span className="grid size-8 shrink-0 place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
-                        {t.spendCategory[0]}
+                      {/* Same rule as the full list on Money: the category's initial where
+                          there is a name to go with it, the direction where the line names
+                          nobody, and the narration in place of a category that is only a
+                          fallback. */}
+                      <span
+                        className={`grid size-8 shrink-0 place-items-center rounded-pill text-xs font-bold ${
+                          isNamed(t) ? 'bg-tint-sage text-brand' : 'bg-ground-deep text-ink-mid'
+                        }`}
+                      >
+                        {isNamed(t) ? (
+                          t.spendCategory[0]
+                        ) : (
+                          <ArrowUpRight size={15} strokeWidth={2.6} />
+                        )}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <b className="block text-[15px] font-semibold text-ink">{merchantOf(t)}</b>
-                        <span className="text-xs text-ink-soft">
-                          {dayMonth(t.txnDate)} · {t.spendCategory}
+                        <b className="block truncate text-[15px] font-semibold text-ink">
+                          {merchantOf(t)}
+                        </b>
+                        <span className="block truncate text-xs text-ink-soft">
+                          {dayMonth(t.txnDate)} · {isNamed(t) ? t.spendCategory : t.narration}
                         </span>
                       </span>
                       <span className="shrink-0 text-[15px] font-semibold tabular-nums text-ink">

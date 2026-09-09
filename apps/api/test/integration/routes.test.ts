@@ -136,6 +136,36 @@ function walk(name: string, open: () => Promise<Harness>, skip: string | false):
       assert.equal(rec.roadmapVersions[0]?.atSim, ANCHOR)
     })
 
+    it('caps a category, reports the breach on the plan, and clears it again', async () => {
+      const before = await view()
+      const category = before.view.snapshot.discretionary.byCategory[0]?.[0]
+      assert.ok(category, 'the seeded ledger should have at least one spend category')
+      assert.equal(before.view.plan.since.capBreached, false)
+
+      // A rupee, so the breach is a property of the cap rather than of the amount spent.
+      const set = await send('POST', '/api/v1/session/caps', { category, monthlyLimit: 1 })
+      assert.equal(set.statusCode, 200, set.body)
+      assert.deepEqual(set.json<SessionState>().caps, [{ category, monthlyLimit: 1 }])
+      assert.equal((await view()).view.plan.since.capBreached, true)
+
+      // Null is the removal, and it has to be distinguishable from "no cap sent".
+      const cleared = await send('POST', '/api/v1/session/caps', { category, monthlyLimit: null })
+      assert.equal(cleared.statusCode, 200, cleared.body)
+      assert.deepEqual(cleared.json<SessionState>().caps, [])
+      assert.equal((await view()).view.plan.since.capBreached, false)
+
+      // A cap is not an observation about the customer, so it cuts no new plan version.
+      assert.equal((await view()).view.meta.roadmapVersion, before.view.meta.roadmapVersion)
+    })
+
+    it('refuses a cap of zero or less rather than storing one nothing can satisfy', async () => {
+      const bad = await send('POST', '/api/v1/session/caps', {
+        category: 'Eating out',
+        monthlyLimit: 0,
+      })
+      assert.equal(bad.statusCode, 400, bad.body)
+    })
+
     it('names the scope when consent is withdrawn and when it is restored', async () => {
       const before = await view()
       const off = await send('POST', '/api/v1/session/consent', {

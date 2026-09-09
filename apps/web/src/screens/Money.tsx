@@ -16,7 +16,13 @@
  */
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { Account as AccountRow, SpendCategory, Snapshot, Transaction } from '@dhan/contracts'
+import type {
+  Account as AccountRow,
+  CategoryCap,
+  SpendCategory,
+  Snapshot,
+  Transaction,
+} from '@dhan/contracts'
 import { ArrowDownLeft, ArrowUpRight, ChevronRight, Link2, Pencil, Plus } from 'lucide-react'
 import {
   Amount,
@@ -33,6 +39,8 @@ import {
 } from '../components/ui.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import { TransactionSheet } from './TransactionSheet.tsx'
+import { CapSheet } from './CapSheet.tsx'
+import type { CapTarget } from './CapSheet.tsx'
 import { dayMonth, inr, monthYear } from '../lib/money.ts'
 import { isNamed, merchantOf, prettyMerchant } from '../lib/merchant.ts'
 import { useTransactions } from '../lib/transactions.ts'
@@ -53,6 +61,9 @@ export function Money({
   onEditHoldings,
   onLinkAccounts,
   onRefresh,
+  caps,
+  onSetCap,
+  capsEnabled,
 }: {
   snapshot: Snapshot
   /** One row per account, rather than the snapshot's two totals. */
@@ -66,6 +77,11 @@ export function Money({
   onLinkAccounts: () => void
   /** Pull down at the top to re-read the view. */
   onRefresh: () => Promise<void>
+  /** The limits already in force, from the session. */
+  caps: readonly CategoryCap[]
+  onSetCap: (category: string, monthlyLimit: number | null) => Promise<void>
+  /** False on the offline tier, which has no session row to keep a cap on. */
+  capsEnabled: boolean
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('accounts')
   /*
@@ -78,6 +94,8 @@ export function Money({
    * same reason.
    */
   const [line, setLine] = useState<Transaction | null>(null)
+  const [cap, setCap] = useState<CapTarget | null>(null)
+  const [capBusy, setCapBusy] = useState(false)
 
   return (
     <>
@@ -102,12 +120,31 @@ export function Money({
           />
         ) : null}
         {tab === 'spending' ? (
-          <Spending snapshot={snapshot} source={source} asOf={asOf} onOpenLine={setLine} />
+          <Spending
+            snapshot={snapshot}
+            source={source}
+            asOf={asOf}
+            onOpenLine={setLine}
+            caps={caps}
+            onOpenCap={capsEnabled ? setCap : null}
+          />
         ) : null}
         {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
       </PullToRefresh>
 
       <TransactionSheet txn={line} onClose={() => setLine(null)} />
+      <CapSheet
+        target={cap}
+        busy={capBusy}
+        onClose={() => setCap(null)}
+        onSave={(category, monthlyLimit) => {
+          setCapBusy(true)
+          void onSetCap(category, monthlyLimit).finally(() => {
+            setCapBusy(false)
+            setCap(null)
+          })
+        }}
+      />
     </>
   )
 }
@@ -318,13 +355,19 @@ function Spending({
   source,
   asOf,
   onOpenLine,
+  caps,
+  onOpenCap,
 }: {
   snapshot: Snapshot
   source: TransactionSource
   asOf: string
   /** Handed up to the screen, because the sheet cannot be mounted inside the scroller. */
   onOpenLine: (txn: Transaction) => void
+  caps: readonly CategoryCap[]
+  /** Null where a cap cannot be kept, which hides the control rather than disabling it. */
+  onOpenCap: ((target: CapTarget) => void) | null
 }): ReactNode {
+  const ripple = useRipple()
   const cats = snapshot.discretionary.byCategory
   const max = cats[0]?.[1] ?? 1
   const observedSpend = Math.round(cats.reduce((sum, [, amount]) => sum + amount, 0))
@@ -395,10 +438,19 @@ function Spending({
       <Card>
         {cats.map(([category, total]) => {
           const trend = snapshot.discretionary.categoryTrends.find((t) => t.category === category)
-          return (
-            <div key={category} className="py-[9px]">
-              <div className="flex justify-between text-[14.5px]">
-                <span className="font-semibold text-ink">
+          const cap = caps.find((c) => c.category === category) ?? null
+          /* Dividing by twelve is only a monthly rate when there are twelve months. Over a
+             twenty-day statement it turned ₹1,03,910 into "₹8,659/mo", which is both twelve
+             times too small and not a month. Below a year the observed total is shown as
+             what it is. */
+          const monthly = months >= 12
+          const shown = monthly ? total / 12 : total
+          const over = cap !== null && shown > cap.monthlyLimit
+
+          const body = (
+            <>
+              <div className="flex items-center justify-between gap-2 text-[14.5px]">
+                <span className="min-w-0 truncate font-semibold text-ink">
                   {category}
                   {trend ? (
                     <span
@@ -411,19 +463,54 @@ function Spending({
                     </span>
                   ) : null}
                 </span>
-                {/* Dividing by twelve is only a monthly rate when there are twelve months.
-                    Over a twenty-day statement it turned ₹1,03,910 into "₹8,659/mo", which is
-                    both twelve times too small and not a month. Below a year the observed total
-                    is shown as what it is. */}
-                <span className="font-bold tabular-nums text-ink">
-                  {months >= 12 ? inr(total / 12) : inr(total)}
-                  <span className="font-medium text-ink-soft">{months >= 12 ? '/mo' : ''}</span>
+                <span className="flex flex-none items-center gap-1.5">
+                  <span className="font-bold tabular-nums text-ink">
+                    {inr(shown)}
+                    <span className="font-medium text-ink-soft">{monthly ? '/mo' : ''}</span>
+                  </span>
+                  {onOpenCap !== null ? (
+                    <ChevronRight size={15} strokeWidth={2.4} className="text-ink-faint" />
+                  ) : null}
                 </span>
               </div>
               <div className="mt-1.5">
                 <Bar used={(total / max) * 100} />
               </div>
+              {cap !== null ? (
+                <p
+                  className={`m-0 mt-1.5 text-xs font-semibold ${over ? 'text-danger' : 'text-brand'}`}
+                >
+                  {over
+                    ? `Over your ${inr(cap.monthlyLimit)} limit`
+                    : `Limit ${inr(cap.monthlyLimit)} a month`}
+                </p>
+              ) : null}
+            </>
+          )
+
+          /* A row rather than a button where a cap cannot be kept, so the offline tier does not
+             show a control that would do nothing. */
+          return onOpenCap === null ? (
+            <div key={category} className="py-[9px]">
+              {body}
             </div>
+          ) : (
+            <button
+              key={category}
+              type="button"
+              onPointerDown={ripple}
+              onClick={() =>
+                onOpenCap({
+                  category,
+                  spend: shown,
+                  monthly,
+                  current: cap?.monthlyLimit ?? null,
+                })
+              }
+              className="ds-press block w-full border-0 bg-transparent px-0 py-[9px] text-left"
+            >
+              {body}
+            </button>
           )
         })}
       </Card>

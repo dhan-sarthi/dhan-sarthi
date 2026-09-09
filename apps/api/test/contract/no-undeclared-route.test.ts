@@ -29,8 +29,9 @@ describe('no undeclared route', () => {
     assert.deepEqual(undeclared, [], 'routes registered but not in the registry')
     assert.deepEqual(unregistered, [], 'registry rows nobody registered')
     // 28 before the IDBI integration; six more for `/profile` and `/holdings`, the two blocks
-    // no operation in IDBI's catalogue carries and the app therefore has to own.
-    assert.equal(registered.size, 41)
+    // no operation in IDBI's catalogue carries and the app therefore has to own; and one for
+    // the category cap, which is a decision about the future and so has no endpoint anywhere.
+    assert.equal(registered.size, 42)
   })
 
   it('answers an undeclared path with the declared error body', async () => {

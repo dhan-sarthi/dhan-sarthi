@@ -69,6 +69,28 @@ export const setGoalRoute = defineRoute({
   response: { 200: SessionStateSchema, 400: ErrorBodySchema, ...SESSION_ERRORS },
 })
 
+/**
+ * A monthly limit on one category, or the removal of one.
+ *
+ * `monthlyLimit` is nullable rather than optional because clearing a cap and forgetting to send
+ * one are different intentions and the wire should be able to tell them apart.
+ */
+export const CategoryCapPatchSchema = z
+  .object({ category: z.string().min(1).max(40), monthlyLimit: MoneySchema.positive().nullable() })
+  .strict()
+export type CategoryCapPatch = z.infer<typeof CategoryCapPatchSchema>
+
+export const setCategoryCapRoute = defineRoute({
+  id: 'setCategoryCap',
+  method: 'POST',
+  path: '/api/v1/session/caps',
+  summary:
+    'Set or clear a monthly limit on one spending category. The daily plan reads caps, so the next /view says so on Today.',
+  auth: 'session',
+  request: { body: CategoryCapPatchSchema },
+  response: { 200: SessionStateSchema, 400: ErrorBodySchema, ...SESSION_ERRORS },
+})
+
 export const ConsentPatchSchema = z
   .object({ scope: ConsentScopeSchema, granted: z.boolean() })
   .strict()

@@ -35,6 +35,8 @@ export interface Mutations {
   clockNotice: string | null
   decide: (action: Action, kind: DecisionKind) => Promise<void>
   setConsent: (scope: ConsentScope, granted: boolean) => Promise<void>
+  /** A monthly limit on one category, or null to remove the one that is there. */
+  setCap: (category: string, monthlyLimit: number | null) => Promise<void>
   /** Action ids decided since this page loaded, so Today moves on before the record round-trips. */
   decided: ReadonlySet<string>
   /** What the bank did with the last accepted recommendation, where one was handed over. */
@@ -178,12 +180,45 @@ export function useMutations(
     [vs, onRecorded, say],
   )
 
+  const setCap = useCallback(
+    async (category: string, monthlyLimit: number | null): Promise<void> => {
+      // The offline simulation has no session row to hold a cap, and its daily plan is computed
+      // in this browser from a ledger that never changes. A control that cannot do anything is
+      // worse than no control, so the caller hides it rather than this failing quietly.
+      if (vs.tier === 'offline') return
+      setBusy(true)
+      try {
+        const session = await api('setCategoryCap', { body: { category, monthlyLimit } })
+        vs.applySession(session)
+        // The daily plan reads caps, so the change is only real once the view is re-cut.
+        await vs.refresh()
+        say(
+          monthlyLimit === null
+            ? `Limit removed from ${category}.`
+            : `${category} capped at ${new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 0,
+              }).format(monthlyLimit)} a month.`,
+          'ok',
+        )
+      } catch (err) {
+        if (sessionEnded(err)) return
+        say(isApiError(err) ? err.message : 'The limit could not be saved.', 'bad')
+      } finally {
+        setBusy(false)
+      }
+    },
+    [vs, say],
+  )
+
   return {
     advanceClock,
     resetClock,
     clockNotice,
     decide,
     setConsent,
+    setCap,
     decided,
     lead,
     busy: busy || vs.busy,
