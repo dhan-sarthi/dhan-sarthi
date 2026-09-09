@@ -15,7 +15,7 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Lightbulb, UserRound } from 'lucide-react'
+import { ChevronDown, Lightbulb, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
 import { Amount, Bar, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
@@ -460,22 +460,36 @@ function InsightCard({ insight }: { insight: Insight }): ReactNode {
       <div className="text-[16.5px] font-semibold leading-snug text-ink">{insight.headline}</div>
       <p className="mb-0 mt-2 text-sm leading-normal text-ink-mid">{insight.detail}</p>
 
-      {open ? (
-        <div className="mt-3 border-t border-solid border-hairline-mint pt-[11px]">
-          {insight.evidence.map((e) => (
-            <div key={e} className="py-[3px] text-[13px] text-ink-mid">
-              · {e}
-            </div>
-          ))}
+      {/* `grid-template-rows` from 0fr to 1fr, which is the one way to transition to a height
+          nobody has measured. The evidence stays mounted so a screen reader can reach it and so
+          the rows do not re-animate every time it is reopened. */}
+      <div
+        className="grid transition-[grid-template-rows] duration-[260ms] ease-[cubic-bezier(0.22,0.8,0.3,1)]"
+        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="mt-3 border-t border-solid border-hairline-mint pt-[11px]">
+            {insight.evidence.map((e) => (
+              <div key={e} className="py-[3px] text-[13px] text-ink-mid">
+                · {e}
+              </div>
+            ))}
+          </div>
         </div>
-      ) : null}
+      </div>
 
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="border-0 bg-transparent p-0 pt-[11px] text-[13px] font-medium text-brand underline underline-offset-2"
+        className="ds-press inline-flex items-center gap-1 border-0 bg-transparent p-0 pt-[11px] text-[13px] font-medium text-brand underline underline-offset-2"
       >
         {open ? 'Hide the numbers' : 'Show me the numbers'}
+        <ChevronDown
+          size={14}
+          strokeWidth={2.6}
+          className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
       </button>
     </Card>
   )

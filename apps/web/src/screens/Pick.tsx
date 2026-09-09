@@ -13,8 +13,11 @@
  * customers fail to invest for thirty years and will recognise these people instantly.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { CustomerSummary } from '@dhan/contracts'
+import { Skeleton, Spinner } from '../components/ui.tsx'
+import { useRipple } from '../lib/motion.ts'
 import { api, isApiError } from '../api/client.ts'
 import { setSession } from '../api/session.ts'
 import { loadOffline } from '../lib/view.ts'
@@ -32,6 +35,7 @@ export function Pick(): ReactNode {
   const [listed, setListed] = useState<Listed | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [picking, setPicking] = useState<string | null>(null)
+  const ripple = useRipple()
   const runRef = useRef(0)
 
   const load = useCallback(async (): Promise<void> => {
@@ -141,18 +145,31 @@ export function Pick(): ReactNode {
       ) : null}
 
       {!listed && !error ? (
-        <p className="m-0 mb-4 text-sm text-ink-soft" aria-live="polite">
-          Reading the customer list…
-        </p>
+        <div aria-busy="true">
+          <span className="sr-only">Reading the customer list</span>
+          {[0, 1].map((i) => (
+            <div key={i} className={`${ROW} pointer-events-none`}>
+              <div className="flex items-center gap-3">
+                <Skeleton h={44} w={44} className="flex-none rounded-pill" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton h={17} w="46%" className="mb-2" />
+                  <Skeleton h={12} w="76%" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : null}
 
-      {listed?.customers.map((c) => (
+      {listed?.customers.map((c, i) => (
         <button
           key={c.cif}
           type="button"
+          onPointerDown={ripple}
           onClick={() => void pick(c)}
           disabled={picking !== null}
-          className={ROW}
+          className={`ds-press ds-rise ds-stagger ${ROW}`}
+          style={{ '--i': i } as CSSProperties}
         >
           <div className="flex items-center gap-3">
             <span className="grid size-11 flex-none place-items-center rounded-pill bg-tint-sage text-[16px] font-bold text-brand">
@@ -164,10 +181,16 @@ export function Pick(): ReactNode {
             <div className="min-w-0 flex-1">
               <div className="text-[18px] font-semibold leading-tight text-ink">{c.name}</div>
               <div className="mt-0.5 text-[13px] leading-snug text-ink-soft">
-                {picking === c.cif ? 'Opening your session…' : c.pitch}
+                {picking === c.cif ? 'Reading their statements…' : c.pitch}
               </div>
             </div>
-            <span className="text-[20px] leading-none text-ink-faint">›</span>
+            {/* A spinner on the row that was pressed, so the wait is attached to the thing that
+                caused it. Opening a session is four live calls to a bank and takes a moment. */}
+            {picking === c.cif ? (
+              <Spinner size={17} />
+            ) : (
+              <ChevronRight size={19} strokeWidth={2.2} className="flex-none text-ink-faint" />
+            )}
           </div>
         </button>
       ))}

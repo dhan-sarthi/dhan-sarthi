@@ -13,7 +13,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Roadmap, Snapshot, Stage } from '@dhan/contracts'
-import { SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { Button, Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
@@ -223,16 +223,29 @@ function StageCard({ stage, last }: { stage: Stage; last: boolean }): ReactNode 
             </p>
           ) : null}
 
-          {open ? (
-            <p className="mb-0 mt-[11px] text-sm leading-relaxed text-ink-mid">{stage.why}</p>
-          ) : null}
+          {/* Same grid trick as the insight cards: 0fr to 1fr transitions to a height nobody
+              measured, and the reason stays mounted for a screen reader either way. */}
+          <div
+            className="grid transition-[grid-template-rows] duration-[260ms] ease-[cubic-bezier(0.22,0.8,0.3,1)]"
+            style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
+          >
+            <div className="overflow-hidden">
+              <p className="mb-0 mt-[11px] text-sm leading-relaxed text-ink-mid">{stage.why}</p>
+            </div>
+          </div>
 
           <button
             type="button"
+            aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="-mb-1.5 mt-1 h-10 border-0 bg-transparent px-0 text-sm font-semibold text-brand underline-offset-2 hover:underline"
+            className="ds-press -mb-1.5 mt-1 inline-flex h-10 items-center gap-1 border-0 bg-transparent px-0 text-sm font-semibold text-brand underline-offset-2 hover:underline"
           >
             {open ? 'Hide' : 'Why this first?'}
+            <ChevronDown
+              size={15}
+              strokeWidth={2.6}
+              className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            />
           </button>
         </Card>
       </div>
