@@ -74,10 +74,18 @@ export function App(): ReactNode {
   const source = useMemo<TransactionSource>(
     () =>
       offline
-        ? (cursor, limit) =>
-            Promise.resolve(offline.mod.transactionsPage(offline.state, cursor, limit))
-        : (cursor, limit) =>
-            api('listTransactions', { query: { limit, ...(cursor ? { cursor } : {}) } }),
+        ? (cursor, limit, category) =>
+            Promise.resolve(
+              offline.mod.transactionsPage(offline.state, cursor, limit, category ?? undefined),
+            )
+        : (cursor, limit, category) =>
+            api('listTransactions', {
+              query: {
+                limit,
+                ...(cursor ? { cursor } : {}),
+                ...(category ? { category } : {}),
+              },
+            }),
     [offline],
   )
   const askBackend = useMemo(() => (offline ? offlineAsk(offline) : serverAsk), [offline])

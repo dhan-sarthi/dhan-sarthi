@@ -14,9 +14,9 @@
  * that is what crosses the wire. The statement itself comes from `/transactions`, a page at a
  * time, newest first, and only as far as the session's clock has reached.
  */
-import { useState } from 'react'
-import type { ReactNode } from 'react'
-import type { Snapshot } from '@dhan/contracts'
+import { useEffect, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import type { SpendCategory, Snapshot } from '@dhan/contracts'
 import { Link2, Pencil, Plus } from 'lucide-react'
 import {
   Amount,
@@ -28,12 +28,14 @@ import {
   Leader,
   Pill,
   Segments,
+  Skeleton,
   Tile,
 } from '../components/ui.tsx'
 import { PullToRefresh } from '../components/PullToRefresh.tsx'
 import { dayMonth, inr, monthYear } from '../lib/money.ts'
 import { merchantOf, prettyMerchant } from '../lib/merchant.ts'
 import { useTransactions } from '../lib/transactions.ts'
+import { useRipple } from '../lib/motion.ts'
 import type { TransactionSource } from '../lib/transactions.ts'
 
 type Tab = 'accounts' | 'spending' | 'commitments'
@@ -378,34 +380,98 @@ function Spending({
 
 /** The statement, a page at a time. Mounted only while the Spending tab is open. */
 function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): ReactNode {
-  const txns = useTransactions(source, asOf)
+  const [filter, setFilter] = useState<SpendCategory | null>(null)
+  const txns = useTransactions(source, asOf, filter)
+  const ripple = useRipple()
+  const empty = txns.items.length === 0
+
+  /*
+   * The chips are the categories actually present, learned from the unfiltered list.
+   *
+   * Not `discretionary.byCategory`, which is the obvious source and the wrong one: it excludes
+   * income and charges by design, so over this feed it offered a single chip reading
+   * "Transfers" while the statement also held Income and Fees & charges. Learned rather than
+   * derived per render because a filtered list only ever contains one category, and chips that
+   * vanish the moment you use them are not a filter.
+   */
+  const [seen, setSeen] = useState<SpendCategory[]>([])
+  useEffect(() => {
+    if (filter !== null) return
+    const next = [...new Set(txns.items.map((t) => t.spendCategory))].sort()
+    queueMicrotask(() => setSeen((prev) => (next.length > prev.length ? next : prev)))
+  }, [txns.items, filter])
 
   return (
     <Card>
+      {/* Filtering happens on the server, which is why this resets the list rather than hiding
+          rows: a cursor issued under one category means nothing under another. */}
+      {seen.length > 1 ? (
+        <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {[null, ...seen].map((c) => (
+            <button
+              key={c ?? 'all'}
+              type="button"
+              aria-pressed={filter === c}
+              onPointerDown={ripple}
+              onClick={() => setFilter(c)}
+              className={`ds-press h-9 flex-none rounded-pill px-3.5 text-[13px] font-semibold ${
+                filter === c
+                  ? 'border-0 bg-accent text-white'
+                  : 'border border-solid border-hairline bg-surface text-ink-mid'
+              }`}
+            >
+              {c ?? 'All'}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {txns.error ? (
         <p role="alert" className={`${NOTE} mb-2 text-danger`}>
           {txns.error}
         </p>
       ) : null}
-      {txns.items.length === 0 && txns.loading ? (
-        <p className={NOTE} aria-live="polite">
-          Reading the statement…
-        </p>
+
+      {empty && txns.loading ? (
+        <div aria-busy="true">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-3 py-[11px]">
+              <Skeleton h={32} w={32} className="flex-none rounded-pill" />
+              <div className="min-w-0 flex-1">
+                <Skeleton h={13} w="52%" className="mb-1.5" />
+                <Skeleton h={11} w="34%" />
+              </div>
+              <Skeleton h={13} w={62} />
+            </div>
+          ))}
+        </div>
       ) : null}
-      {txns.items.length === 0 && !txns.loading && !txns.error ? (
-        <p className={NOTE}>No statement lines up to {dayMonth(asOf)}.</p>
+
+      {empty && !txns.loading && !txns.error ? (
+        <p className={NOTE}>
+          {filter === null
+            ? `No statement lines up to ${dayMonth(asOf)}.`
+            : `Nothing under ${filter} up to ${dayMonth(asOf)}.`}
+        </p>
       ) : null}
 
       <div className="divide-y divide-solid divide-hairline-mint">
-        {txns.items.map((t) => (
-          <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
+        {txns.items.map((t, i) => (
+          <div
+            className="ds-rise ds-stagger flex items-center gap-3 py-[11px]"
+            key={t.txnId}
+            style={{ '--i': i } as CSSProperties}
+          >
             <span className="grid size-8 flex-none place-items-center rounded-pill bg-tint-sage text-[11px] font-bold text-brand">
               {t.spendCategory[0]}
             </span>
             <span className="min-w-0 flex-1">
               <b className="block text-[14.5px] font-bold text-ink">{merchantOf(t)}</b>
               <span className="block text-xs text-ink-soft">
-                {dayMonth(t.txnDate)} · {t.spendCategory} · {t.txnMode}
+                {/* The mode is UNKNOWN on every row of IDBI's own statement, which sends none.
+                    Printing the word is worse than leaving the gap. */}
+                {dayMonth(t.txnDate)} · {t.spendCategory}
+                {t.txnMode === 'UNKNOWN' ? '' : ` · ${t.txnMode}`}
               </span>
             </span>
             <span
@@ -421,14 +487,11 @@ function Recent({ source, asOf }: { source: TransactionSource; asOf: string }): 
       </div>
 
       {txns.hasMore ? (
-        <button
-          type="button"
-          onClick={() => void txns.loadMore()}
-          disabled={txns.loading}
-          className="mt-3 h-11 w-full rounded-pill border-[1.5px] border-solid border-accent bg-white px-3 text-[15px] font-semibold text-accent-text transition-transform duration-100 active:scale-[0.985] disabled:opacity-60"
-        >
-          {txns.loading ? 'Reading…' : 'Show earlier'}
-        </button>
+        <div className="mt-3">
+          <Button tone="secondary" full busy={txns.loading} onClick={() => void txns.loadMore()}>
+            Show earlier
+          </Button>
+        </div>
       ) : null}
     </Card>
   )

@@ -34,6 +34,7 @@ import type {
   CustomerSummary,
   SessionState,
   ShelfProduct,
+  SpendCategory,
   TransactionsPage,
   Verdict,
   View,
@@ -239,9 +240,13 @@ export function transactionsPage(
   state: OfflineState,
   cursor: string | null,
   limit: number,
+  /** Matches `/transactions`'s own filter, so Money's list behaves the same on both tiers. */
+  category?: SpendCategory,
 ): TransactionsPage {
   const all = build(state)
-    .file.transactions.filter((t) => t.txnDate <= state.asOf)
+    .file.transactions.filter(
+      (t) => t.txnDate <= state.asOf && (category === undefined || t.spendCategory === category),
+    )
     .reverse()
   const start = cursor ? Number(cursor) : 0
   const items = all.slice(start, start + limit)

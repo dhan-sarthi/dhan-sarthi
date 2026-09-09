@@ -6,10 +6,15 @@
  * tier can page its own ledger through the same hook.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Transaction, TransactionsPage } from '@dhan/contracts'
+import type { SpendCategory, Transaction, TransactionsPage } from '@dhan/contracts'
 import { isApiError } from '../api/client.ts'
 
-export type TransactionSource = (cursor: string | null, limit: number) => Promise<TransactionsPage>
+export type TransactionSource = (
+  cursor: string | null,
+  limit: number,
+  /** One of the fifteen categories, or null for everything. Filtered by the server. */
+  category: SpendCategory | null,
+) => Promise<TransactionsPage>
 
 const PAGE = 20
 
@@ -32,7 +37,12 @@ export interface TransactionsState {
 const describe = (err: unknown): string =>
   isApiError(err) ? err.message : 'Could not read the statement.'
 
-export function useTransactions(source: TransactionSource, resetKey: string): TransactionsState {
+export function useTransactions(
+  source: TransactionSource,
+  resetKey: string,
+  /** Changing this starts the list over, because a cursor is only valid for one filter. */
+  category: SpendCategory | null = null,
+): TransactionsState {
   const [state, setState] = useState<Loaded>({
     key: '',
     items: [],
@@ -42,14 +52,18 @@ export function useTransactions(source: TransactionSource, resetKey: string): Tr
   })
   const runRef = useRef(0)
 
+  // The filter is part of the identity of the list: a cursor issued under one category means
+  // nothing under another, so changing it has to reset rather than append.
+  const key = `${resetKey}|${category ?? 'all'}`
+
   useEffect(() => {
     runRef.current += 1
     const run = runRef.current
-    void source(null, PAGE)
+    void source(null, PAGE, category)
       .then((page) => {
         if (run !== runRef.current) return
         setState({
-          key: resetKey,
+          key,
           items: page.items,
           nextCursor: page.nextCursor,
           error: null,
@@ -58,16 +72,16 @@ export function useTransactions(source: TransactionSource, resetKey: string): Tr
       })
       .catch((err: unknown) => {
         if (run !== runRef.current) return
-        setState({ key: resetKey, items: [], nextCursor: null, error: describe(err), more: false })
+        setState({ key, items: [], nextCursor: null, error: describe(err), more: false })
       })
-  }, [source, resetKey])
+  }, [source, key, category])
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (!state.nextCursor || state.more) return
     const run = runRef.current
     setState((s) => ({ ...s, more: true }))
     try {
-      const page = await source(state.nextCursor, PAGE)
+      const page = await source(state.nextCursor, PAGE, category)
       if (run !== runRef.current) return
       setState((s) => ({
         ...s,
@@ -79,9 +93,9 @@ export function useTransactions(source: TransactionSource, resetKey: string): Tr
       if (run !== runRef.current) return
       setState((s) => ({ ...s, error: describe(err), more: false }))
     }
-  }, [source, state.nextCursor, state.more])
+  }, [source, state.nextCursor, state.more, category])
 
-  const current = state.key === resetKey
+  const current = state.key === key
   return {
     items: current ? state.items : [],
     hasMore: current && state.nextCursor !== null,
