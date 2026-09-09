@@ -460,9 +460,16 @@ export function buildRoadmap(
         `${spokenMonth(goal.targetDate)}`,
       why: feasible
         ? `${inr(needed)} a month at an assumed ${rate}% gets you there. ${DISCLAIMER}`
-        : `${inr(needed)} a month would be needed and there is ${inr(available)} spare. ` +
-          `We can extend the date, lower the target, or find the difference in your spending — ` +
-          `and I would rather show you that than pretend the number works.`,
+        : available > 0
+          ? `${inr(needed)} a month would be needed and there is ${inr(available)} spare. ` +
+            `We can extend the date, lower the target, or find the difference in your ` +
+            `spending — and I would rather show you that than pretend the number works.`
+          : // Nothing spare and nothing readable are different situations, and "there is ₹0
+            // spare" says the first while meaning the second. A statement with no recognisable
+            // income has no surplus to report either way.
+            `${inr(needed)} a month would be needed. I cannot see what you have spare, because ` +
+            `nothing in this statement is recognisable as income or as a regular outgoing. ` +
+            `Tell me what comes in and this becomes a real number.`,
       productId: vehicle?.productId ?? null,
       productName: vehicle?.name ?? null,
       monthly: affordable,
