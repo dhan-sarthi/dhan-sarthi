@@ -309,27 +309,71 @@ function Spending({
 }): ReactNode {
   const cats = snapshot.discretionary.byCategory
   const max = cats[0]?.[1] ?? 1
+  const observedSpend = Math.round(cats.reduce((sum, [, amount]) => sum + amount, 0))
+  const months = snapshot.quality.monthsOfHistory
 
   return (
     <>
+      {/*
+        A normal month needs whole months. This card is a median of twelve of them, and over a
+        statement twenty days long every figure in it is zero — which read "₹0 on everything you
+        choose, out of ₹0 coming in" directly above a category list showing ₹8,659 a month. The
+        observed window is what there is, so that is what gets shown.
+      */}
       <div className="mt-3">
-        <Card tint="sage">
-          <h2>A normal month</h2>
-          <p className={META}>Median of the last twelve, so one Diwali does not distort it</p>
-          <div className="mb-1 mt-3.5">
-            <Amount value={snapshot.discretionary.monthly} size="xl" />
-          </div>
-          <p className={META}>
-            on everything you choose, out of {inr(snapshot.income.monthly)} coming in
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <Tile label="Committed each month" value={snapshot.commitments.total} />
-            <Tile label="Left over" value={snapshot.surplus.monthly} />
-          </div>
-        </Card>
+        {snapshot.discretionary.monthly > 0 ? (
+          <Card tint="sage">
+            <h2>A normal month</h2>
+            <p className={META}>Median of the last twelve, so one Diwali does not distort it</p>
+            <div className="mb-1 mt-3.5">
+              <Amount value={snapshot.discretionary.monthly} size="xl" />
+            </div>
+            <p className={META}>
+              on everything you choose, out of {inr(snapshot.income.monthly)} coming in
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <Tile label="Committed each month" value={snapshot.commitments.total} />
+              <Tile label="Left over" value={snapshot.surplus.monthly} />
+            </div>
+          </Card>
+        ) : (
+          <Card tint="sage">
+            <h2>Not enough of a month yet</h2>
+            <p className={`${META} mt-1.5`}>
+              A normal month is the median of twelve, and this statement is{' '}
+              {snapshot.quality.monthsOfHistory <= 0
+                ? 'under a month'
+                : `${snapshot.quality.monthsOfHistory} ${snapshot.quality.monthsOfHistory === 1 ? 'month' : 'months'}`}
+              . What follows is the window itself, not a typical one.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <Tile label="Spent in the window" value={observedSpend} />
+              {/* Not a Tile: that one prints a rupee sign, and twenty statement lines are not
+                  ₹20. */}
+              <div className="min-w-0 overflow-hidden rounded-sm bg-[color:var(--tile-b,var(--tint-clay))] p-3">
+                <div className="text-[clamp(17px,6.2vw,22px)] font-bold leading-none tracking-tight tabular-nums text-ink">
+                  {snapshot.quality.transactions}
+                </div>
+                <div className="mt-1 text-xs text-ink-soft">
+                  {snapshot.quality.transactions === 1 ? 'line read' : 'lines read'}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
-      <Eyebrow>Where it goes · last twelve months</Eyebrow>
+      {/* The window is whatever the feed holds, which over IDBI's statement is twenty days. A
+          heading that says twelve months over twenty days is the sort of thing a banker checks
+          and then stops trusting the rest of the screen. */}
+      <Eyebrow>
+        Where it goes ·{' '}
+        {snapshot.quality.monthsOfHistory >= 12
+          ? 'last twelve months'
+          : snapshot.quality.monthsOfHistory >= 1
+            ? `last ${snapshot.quality.monthsOfHistory} ${snapshot.quality.monthsOfHistory === 1 ? 'month' : 'months'}`
+            : 'the window on file'}
+      </Eyebrow>
       <Card>
         {cats.map(([category, total]) => {
           const trend = snapshot.discretionary.categoryTrends.find((t) => t.category === category)
@@ -349,9 +393,13 @@ function Spending({
                     </span>
                   ) : null}
                 </span>
+                {/* Dividing by twelve is only a monthly rate when there are twelve months.
+                    Over a twenty-day statement it turned ₹1,03,910 into "₹8,659/mo", which is
+                    both twelve times too small and not a month. Below a year the observed total
+                    is shown as what it is. */}
                 <span className="font-bold tabular-nums text-ink">
-                  {inr(total / 12)}
-                  <span className="font-medium text-ink-soft">/mo</span>
+                  {months >= 12 ? inr(total / 12) : inr(total)}
+                  <span className="font-medium text-ink-soft">{months >= 12 ? '/mo' : ''}</span>
                 </span>
               </div>
               <div className="mt-1.5">
@@ -362,33 +410,40 @@ function Spending({
         })}
       </Card>
 
-      <Eyebrow>Habits · not commitments</Eyebrow>
-      <Card>
-        <p className={`${NOTE} mb-3`}>
-          Merchants you use often. These are choices, not obligations — which is exactly why they
-          are the only real lever you have.
-        </p>
-        <div className="divide-y divide-solid divide-hairline-mint">
-          {snapshot.discretionary.topHabits.map((h) => (
-            <div className="flex items-center gap-3 py-[11px]" key={h.key}>
-              <span className="grid size-[34px] flex-none place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
-                {(h.merchant ?? h.key)[0]}
-              </span>
-              <span className="min-w-0 flex-1">
-                <b className="block text-[14.5px] font-bold text-ink">
-                  {h.merchant ?? prettyMerchant(h.key)}
-                </b>
-                <span className="block text-xs text-ink-soft">
-                  {h.timesPerMonth}× a month · typically {inr(h.typicalAmount)}
-                </span>
-              </span>
-              <span className="text-[14.5px] font-bold tabular-nums text-ink">
-                {inr(h.annualTotal)}/yr
-              </span>
+      {/* A habit needs a merchant, and a merchant needs a narration that names one. Over a feed
+          that carries none the list is empty, and a heading plus an explanation over nothing
+          reads as a section that failed rather than as an answer. */}
+      {snapshot.discretionary.topHabits.length === 0 ? null : (
+        <>
+          <Eyebrow>Habits · not commitments</Eyebrow>
+          <Card>
+            <p className={`${NOTE} mb-3`}>
+              Merchants you use often. These are choices, not obligations — which is exactly why
+              they are the only real lever you have.
+            </p>
+            <div className="divide-y divide-solid divide-hairline-mint">
+              {snapshot.discretionary.topHabits.map((h) => (
+                <div className="flex items-center gap-3 py-[11px]" key={h.key}>
+                  <span className="grid size-[34px] flex-none place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
+                    {(h.merchant ?? h.key)[0]}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[14.5px] font-bold text-ink">
+                      {h.merchant ?? prettyMerchant(h.key)}
+                    </b>
+                    <span className="block text-xs text-ink-soft">
+                      {h.timesPerMonth}× a month · typically {inr(h.typicalAmount)}
+                    </span>
+                  </span>
+                  <span className="text-[14.5px] font-bold tabular-nums text-ink">
+                    {inr(h.annualTotal)}/yr
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </Card>
+          </Card>
+        </>
+      )}
 
       <Eyebrow>Recent</Eyebrow>
       <Recent source={source} asOf={asOf} />
