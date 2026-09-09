@@ -9,8 +9,13 @@
  *
  * Three behaviours on top of `fetch`, each because a reviewer on a phone will hit it:
  *
- *   timeout   6 s on every call. A hung request is indistinguishable from a dead API, and the
- *             offline tier needs a signal, not a spinner.
+ *   timeout   12 s on every call. A hung request is indistinguishable from a dead API, and the
+ *             offline tier needs a signal, not a spinner. It was 6 s, which was chosen before
+ *             anything was talking to a real bank: Neha's view is fifteen sequential pages of
+ *             IDBI's 595 and measures 3.7-5.7 s warm, so a 6 s budget was cutting off correct
+ *             answers and calling them outages. An API that is actually down refuses the
+ *             connection in milliseconds and still falls back instantly; this budget only
+ *             governs the rarer case of a socket that hangs.
  *   retry     once, GET only, on a network failure or a 5xx. Mutations are never retried here;
  *             their Idempotency-Key makes a deliberate retry safe, an automatic one a surprise.
  *   ApiError  every failure, including "no network", is one small class with the server's own
@@ -29,7 +34,7 @@ import type {
 } from '@dhan/contracts'
 import { getToken } from './session.ts'
 
-const TIMEOUT_MS = 6_000
+const TIMEOUT_MS = 12_000
 const RETRY_DELAY_MS = 250
 const BASE = import.meta.env.VITE_API_BASE ?? ''
 

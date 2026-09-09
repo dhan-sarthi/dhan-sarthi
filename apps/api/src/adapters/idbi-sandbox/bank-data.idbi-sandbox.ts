@@ -401,7 +401,7 @@ export class IdbiSandboxBankData implements BankDataPort {
     const report = newReport()
     const out: Transaction[] = []
     const seen = new Set<string>()
-    for await (const pulled of this.gateway.aaStatements(customer, report)) {
+    for (const pulled of await this.gateway.allAaStatements(customer, report)) {
       for (const txn of pulled.transactions) {
         // Each pull covers one linked account and the sandbox numbers their rows from one, so
         // the id alone collides across accounts; the link reference disambiguates them.

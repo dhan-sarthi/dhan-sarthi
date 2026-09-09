@@ -21,6 +21,7 @@ import { silentLogger } from '../../../infra/logger.ts'
 import { IdbiCallError } from './transport.ts'
 import type { IdbiResponse, IdbiTransport } from './transport.ts'
 import { operation } from './operations.ts'
+import { mapWithLimit } from './concurrency.ts'
 import { pageByRowCursor } from './paging.ts'
 import type { PagingStop, RowCursor } from './paging.ts'
 import {
@@ -787,13 +788,46 @@ export class IdbiGateway {
     customer: IdbiSandboxCustomer,
     report: MappingReport,
   ): AsyncGenerator<AaStatement> {
-    const attempts: {
-      consentId: string
-      refs: string[]
-      variant?: string | undefined
-      viaFinPro?: boolean | undefined
-    }[] = []
+    for (const attempt of await this.aaAttempts(customer, report)) {
+      const pulled = await this.pullAa(attempt)
+      if (pulled !== null) yield pulled
+    }
+  }
 
+  /**
+   * The same statements, all at once.
+   *
+   * For the caller that wants every row rather than the first holder block. Neha's consent list
+   * expands to eight attempts and each one is two round trips when the first variant refuses,
+   * which one at a time was 3.9 s of a 5.7 s view. They do not depend on each other — a
+   * consent id and a link reference are all a pull needs — so the only reason the generator
+   * walks them in order is that a generator has to.
+   *
+   * `aaStatements` stays lazy on purpose: `tryAaProfile` and the lead sink stop at the first
+   * answer that carries a holder, and firing eight pulls to throw seven away would be a worse
+   * trade than the wait.
+   */
+  async allAaStatements(
+    customer: IdbiSandboxCustomer,
+    report: MappingReport,
+  ): Promise<AaStatement[]> {
+    const attempts = await this.aaAttempts(customer, report)
+    const pulled = await mapWithLimit(attempts, AA_CONCURRENCY, (a) => this.pullAa(a))
+    return pulled.filter((p): p is AaStatement => p !== null)
+  }
+
+  /**
+   * Every consent id and link reference worth asking 595 about.
+   *
+   * 591's own answer is tried first, so a consistent environment needs nothing recorded; the
+   * pairs written down against the customer are the fallback for this sandbox, where 591 and
+   * 595 disagree about what a consent is called.
+   */
+  private async aaAttempts(
+    customer: IdbiSandboxCustomer,
+    report: MappingReport,
+  ): Promise<AaAttempt[]> {
+    const attempts: AaAttempt[] = []
     for (const consent of await this.consentList(customer, report)) {
       const consentId = optionalText(consent.consentID)
       const refs = consent.accounts
@@ -809,25 +843,32 @@ export class IdbiGateway {
         viaFinPro: pull.viaFinPro,
       })
     }
+    return attempts
+  }
 
-    for (const attempt of attempts) {
-      const variants =
-        attempt.variant === undefined
-          ? ([undefined, 'getAccountStatementtest01'] as const)
-          : ([attempt.variant] as const)
-      for (const variant of variants) {
-        try {
-          yield await this.consentedStatement(attempt.consentId, attempt.refs, {
-            ...(variant === undefined ? {} : { variant }),
-            ...(attempt.viaFinPro === true ? { viaFinPro: true } : {}),
-          })
-          break
-        } catch (err) {
-          if (err instanceof IdbiCallError) continue
-          throw err
-        }
+  /**
+   * One attempt, through whichever of its variants answers.
+   *
+   * A refusal is not a failure of the read: the sandbox holds a statement for some of a
+   * consent's accounts and not others, and null simply means this pair was one of the others.
+   */
+  private async pullAa(attempt: AaAttempt): Promise<AaStatement | null> {
+    const variants =
+      attempt.variant === undefined
+        ? ([undefined, 'getAccountStatementtest01'] as const)
+        : ([attempt.variant] as const)
+    for (const variant of variants) {
+      try {
+        return await this.consentedStatement(attempt.consentId, attempt.refs, {
+          ...(variant === undefined ? {} : { variant }),
+          ...(attempt.viaFinPro === true ? { viaFinPro: true } : {}),
+        })
+      } catch (err) {
+        if (err instanceof IdbiCallError) continue
+        throw err
       }
     }
+    return null
   }
 
   /* ---------------------------------------------------------------- *
@@ -1221,6 +1262,23 @@ export class IdbiGateway {
     return { accounts, transactions, report }
   }
 }
+
+/** One 595 pull: a consent, the links it names, and how this sandbox wants it asked for. */
+interface AaAttempt {
+  consentId: string
+  refs: string[]
+  variant?: string | undefined
+  viaFinPro?: boolean | undefined
+}
+
+/**
+ * How many consented pulls are in flight at once.
+ *
+ * Four rather than all of them: the sandbox is a shared box on an IP allow-list, and the
+ * difference between four and eight is a fifth of a second while the difference between one and
+ * four is three seconds.
+ */
+const AA_CONCURRENCY = 4
 
 /** A rupee of slack, which is more than enough for rounding and far less than a real gap. */
 const RECONCILE_TOLERANCE = 1

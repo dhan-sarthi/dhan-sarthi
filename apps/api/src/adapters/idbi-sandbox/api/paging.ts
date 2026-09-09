@@ -16,6 +16,8 @@
  * stops and says why. `hasMoreData` alone is never enough to justify another round trip.
  */
 
+import { mapWithLimit } from './concurrency.ts'
+
 /** 393's cursor, in the field names the request body uses. */
 export interface RowCursor {
   lastTxnId: string
@@ -115,25 +117,47 @@ export interface PageDetailsPagerOptions<TRow> {
 }
 
 /**
+ * How many pages of a `pageDetails` statement are in flight at once.
+ *
+ * Six because that is the point where the sandbox stops getting faster: Neha's statement is
+ * fifteen pages and one at a time it costs 3.9 s, which was most of a view. It is a page-number
+ * API against a stateless endpoint, so page 7 does not need page 6 to have been asked for — the
+ * sequential loop was only ever sequential because a row cursor has to be.
+ */
+const PAGE_CONCURRENCY = 6
+
+/**
  * Every row of a `pageDetails` statement — 595's shape, and the one place in the catalogue
  * where a page number is the right question to ask.
  *
- * The same distrust applies for the same reason: a page that does not advance
- * `currentPageNumber`, or that repeats rows, ends the loop rather than being asked again.
+ * Page one is asked for on its own because it is the one that says how many there are; the
+ * rest go out together. The same distrust applies for the same reason as the row cursor: a page
+ * that comes back as a different page than the one requested, or that repeats rows already
+ * held, ends the statement there rather than being trusted — and because the pages are merged
+ * back in request order, "ends there" still means the same prefix of the statement it meant
+ * when the loop was sequential.
  */
 export async function pageByPageDetails<TRow>(
   options: PageDetailsPagerOptions<TRow>,
 ): Promise<PagedRows<TRow>> {
   const maxPages = options.maxPages ?? MAX_PAGES
+  const first = await options.fetchPage(1)
+
+  const wanted: number[] = []
+  if (first.currentPage === 1 && first.totalPages > 1) {
+    for (let n = 2; n <= Math.min(first.totalPages, maxPages); n += 1) wanted.push(n)
+  }
+  const rest = await mapWithLimit(wanted, PAGE_CONCURRENCY, (n) => options.fetchPage(n))
+
   const rows: TRow[] = []
   const seen = new Set<string>()
-  let want = 1
   let pages = 0
 
-  for (;;) {
-    const page = await options.fetchPage(want)
+  const take = (
+    page: { rows: readonly TRow[]; currentPage: number; totalPages: number },
+    asked: number,
+  ): PagingStop | null => {
     pages += 1
-
     let repeated = false
     for (const row of page.rows) {
       const id = options.identityOf(row)
@@ -144,11 +168,25 @@ export async function pageByPageDetails<TRow>(
       seen.add(id)
       rows.push(row)
     }
+    if (repeated) return 'row-repeated'
+    // The bank answered with a page other than the one asked for. Everything after it is
+    // unanchored, so the statement stops at the last page we can vouch for.
+    if (page.currentPage !== asked) return 'cursor-stalled'
+    return null
+  }
 
-    if (repeated) return { rows, pages, stop: 'row-repeated' }
-    if (page.currentPage >= page.totalPages) return { rows, pages, stop: 'complete' }
-    if (page.currentPage < want) return { rows, pages, stop: 'cursor-stalled' }
-    if (pages >= maxPages) return { rows, pages, stop: 'max-pages' }
-    want = page.currentPage + 1
+  const firstStop = take(first, 1)
+  if (firstStop !== null) return { rows, pages, stop: firstStop }
+  if (first.totalPages <= 1) return { rows, pages, stop: 'complete' }
+
+  for (const [i, page] of rest.entries()) {
+    const stop = take(page, wanted[i] ?? -1)
+    if (stop !== null) return { rows, pages, stop }
+  }
+
+  return {
+    rows,
+    pages,
+    stop: first.totalPages > maxPages ? 'max-pages' : 'complete',
   }
 }
