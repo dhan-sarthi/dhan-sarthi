@@ -100,6 +100,18 @@ they are components once you build them, and all three are net-new here.
 ## Order
 
 `DonutChart` → `LegendRow` → segmented `Bar` → `AllocationCard` is the one hard chain, and all four
-depend on the chart ramp, which now exists. Everything else in the **Extend** column can be lifted
+depend on the chart ramp, which now exists.
+
+**That chain is built**, in `src/components/charts/` — `DonutChart`, `LegendRow`, `SegmentedBar`
+and `BarList`, `AllocationCard` (which carries `RibbonTab`, the `RibbonBadge` of the Signals
+section) and `AllocationCompare`. They all draw one model, `charts/series.ts`, and three things
+about it are worth knowing before you use them. Colour is assigned by position and "Others" is
+always the grey, so nothing picks a hue for a category. `total` is the whole: omit it and the sum
+is the whole, pass `100` for values that are already percentages, and a series that sums to 95
+draws a visible 5% hole rather than restating every figure. And the states the source never showed
+— empty, a single slice, and a long tail folded into "Others" — are all in there.
+
+`Bar` in `ui.tsx` is deliberately untouched: it is still the single-series envelope bar, and the
+categorical ones are their own components rather than a variant of it. Everything else in the **Extend** column can be lifted
 independently and should be, before any screen is built on a copy of it — there are already four
 copies of `IconButton` in the tree and that is the cost of not doing this first.

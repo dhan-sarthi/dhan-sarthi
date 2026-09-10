@@ -150,12 +150,21 @@ like the category; that is exactly how the source app ended up with sky meaning 
 screen and Debt on another. Every pair in the ramp is separated far enough that order does not
 matter, so a donut re-sorted by weight is safe.
 
-- **Donut.** SVG arcs, `stroke-chart-N` with `fill="none"`, `stroke-width` about a third of the
-  radius, and a **2° gap** between segments so the card shows through and each slice has an edge.
-  `fill-*` and `stroke-*` resolve for these tokens, which is why they are named through `--color-*`.
-- **Allocation bar.** A `flex h-2.5` (not `h-2` — at 8px the two light slices lose their hue) of
-  `bg-chart-N` spans inside `overflow-hidden rounded-pill`. Segments total 100%, so the
-  `bg-chart-idle` track is only visible on a bar that is deliberately partial.
+- **Donut** (`charts/DonutChart.tsx`). Filled annulus sectors, `fill-chart-N`, 138px outer / 68px
+  inner (the measured 0.49 ratio, held at every size), first slice starting at **3 o'clock** and
+  running clockwise, square-cut ends, a **2px gap** on each boundary — about 2° at 138px — so the
+  card shows through and each slice has an edge. `fill-*` and `stroke-*` resolve for these tokens,
+  which is why they are named through `--color-*`.
+- **Allocation bar** (`charts/Bars.tsx` → `SegmentedBar`). A `flex h-2.5` (not `h-2` — at 8px the
+  two light slices lose their hue) of `bg-chart-N` spans inside `overflow-hidden rounded-pill`.
+  Segments total 100%, so the `bg-chart-idle` track is only visible on a bar that is deliberately
+  partial. `BarList` beside it is the other shape: a stack of *independent* 12px pill bars, one
+  per row, label and bold figure above each.
+- **The whole is a decision, not the sum.** Every one of them takes `total`. Omit it for
+  quantities and the sum is the whole; pass `total={100}` when the values are already
+  percentages, and a series that sums to 95 then draws 95% of a ring with the rest in
+  `bg-chart-idle`, instead of quietly restating 60/20/10/05 as 63/21/11/5. Nothing overdraws: a
+  series summing past its total falls back to proportions of itself.
 - **Legend is not optional.** `chart-3` and `chart-5` are light on purpose, so a slice is read
   against its neighbours rather than against the page. Every chart gets a legend row — swatch,
   label, figure — and colour is never the only channel.
