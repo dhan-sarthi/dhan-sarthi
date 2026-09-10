@@ -46,7 +46,7 @@ export function TransactionSheet({
           <div className="flex items-center gap-3 pt-1">
             <span
               className={`grid size-11 flex-none place-items-center rounded-pill ${
-                credit ? 'bg-tint-sage text-good' : 'bg-ground-deep text-ink-mid'
+                credit ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
               }`}
             >
               {credit ? (

@@ -7,9 +7,19 @@
  * text ink, IDBI orange #f58220 for every action, mint and peach tints to tell kinds of card
  * apart, ten-pixel tiles, and full pills for buttons. Body text is near-black, never green.
  *
- * Two deliberate departures from the bank's own app. Small orange text uses --accent-text, which
- * passes WCAG AA; the app's raw #f58220 on white does not. And one large number leads each card,
- * because wealth advice is a different job from transacting.
+ * Three deliberate departures from the bank's own app, all of them contrast.
+ *
+ * Small orange text uses --accent-text; the app's raw #f58220 on white does not pass AA. The
+ * same check run the other way was the one this file missed for a while: white on #f58220 is
+ * 2.59:1, and that is the label on every primary button in the product. Rather than darken the
+ * fill into a brown nobody would call IDBI orange, the label became --on-accent, which is the
+ * body ink — 6.5:1 on the same orange, and a stronger-looking button for it. And the dark
+ * surfaces — the hero card, the tab bar, the advisor — moved down to --brand-deep and below,
+ * because #00836c carries white at only 4.71:1 and every dimmed line on top of it therefore
+ * failed. See the contrast note above each group.
+ *
+ * And one large number leads each card, because wealth advice is a different job from
+ * transacting.
  *
  * No web fonts. "Degrade gracefully" is a guardrail, and a demo that must survive a hotel wifi
  * should not block its first paint on fonts.googleapis.com. The system stack is also the only
@@ -18,25 +28,55 @@
  */
 
 :root {
+  /*
+   * The app is light, and says so.
+   *
+   * Without this the UA renders its own controls in the OS scheme: on a phone in dark mode the
+   * range slider on Plan drew a near-black unfilled track inside a white card — which reads as
+   * a full bar — and the date picker and the product <select> opened dark against a white app.
+   */
+  color-scheme: light;
+
   /* Ground and surfaces. GO Mobile+ runs on white; #f4f4f4 is its sunk container grey. */
   --ground: #ffffff;
   --ground-deep: #f4f4f4;
   --surface: #ffffff;
   --surface-sunk: #ececec;
 
-  /* Ink. Near-black body text; --ink-faint is placeholder grey only, it fails AA for copy. */
+  /*
+   * Ink. Near-black body text.
+   *
+   * --ink-soft is the small grey on cards, and it has to clear 4.5:1 on the *tints* as well as
+   * on white — it was #6b6f6f, which is 5.09:1 on white and 4.35:1 on sage, so every card
+   * subtitle in the app failed on the cards it was written for.
+   *
+   * --ink-faint is for chevrons and other 3:1 furniture. It is 3.11:1 on white and never
+   * carries copy.
+   */
   --ink: #1d1d1d;
   --ink-mid: #4a4a4a;
-  --ink-soft: #6b6f6f;
+  --ink-soft: #66696a;
   --ink-faint: #929292;
   --on-dark: #ffffff;
 
-  /* Brand. Green is a surface and money colour; orange is the action colour. */
+  /*
+   * Brand. Green is a surface and money colour; orange is the action colour.
+   *
+   * The greens are a ladder, and which rung a surface sits on is decided by what has to be
+   * legible on it. --brand carries white at 4.71:1, which is enough for white and nothing else,
+   * so it is a chip and an icon colour. Anything that has to hold a paragraph — the hero card,
+   * the tab bar, the advisor — is --brand-deep (9.8:1) or below, which leaves room for a
+   * second, quieter line on top.
+   */
   --brand: #00836c;
   --brand-deep: #164c3f;
+  --brand-night: #0e3329;
   --accent: #f58220;
   --accent-soft: #fdf0e8;
-  --accent-text: #b5560b;
+  /* Orange as ink. 5.5:1 on white and ≥4.7:1 on every tint in this file. */
+  --accent-text: #a94f08;
+  /* Ink on a filled orange: 6.5:1, where white was 2.59:1. */
+  --on-accent: #1d1d1d;
   --danger: #b3261e;
   --danger-soft: #fbe3e0;
   --good: #00836c;
@@ -45,13 +85,21 @@
   --tint-sage: #e0f1eb;
   --tint-sky: #dff6f3;
   --tint-clay: #fff3e7;
-  --tint-ink: #00836c;
+  --tint-ink: var(--brand-deep);
   --legend-chip: #e9fcfa;
 
-  /* Structural colours specific to the GO Mobile+ chrome. */
+  /*
+   * Structural colours specific to the GO Mobile+ chrome.
+   *
+   * The nav gradient is darker than the bank's own by about a stop. Its labels are 11px and sit
+   * at four fifths of the way down the bar, where the old #42a392 → #0c806b mixed to a green
+   * that carried them at 4.43:1 — and at 3.42:1 for the four that were dimmed. This pair puts
+   * that band at 6.0:1, so the dimming could go and the active tab is told by weight, which is
+   * what the bar was always supposed to do.
+   */
   --header-mint: #bce3db;
-  --nav-top: #42a392;
-  --nav-bottom: #0c806b;
+  --nav-top: #2f8b78;
+  --nav-bottom: #0a6a58;
   --hairline: rgb(245 130 32 / 38%);
   --hairline-mint: #bbdbd6;
   --chart-hi: #fa7401;

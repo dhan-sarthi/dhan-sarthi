@@ -116,7 +116,7 @@ export function Ask({
           : 'Text'
 
   return (
-    <div className="absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-b from-brand to-brand-deep text-white">
+    <div className="absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-b from-brand-deep to-brand-night text-white">
       {/* --------------------------------------------------- Top bar */}
       <div className="flex flex-none items-center gap-2.5 px-4 pb-1.5 pt-[max(16px,env(safe-area-inset-top))]">
         <button
@@ -198,7 +198,7 @@ export function Ask({
 
             <div className="px-1 pt-5 text-center">
               <div className="text-[22px] font-bold leading-tight text-white">Uday</div>
-              <div className="mt-1 text-sm text-white/70">
+              <div className="mt-1 text-sm text-white/80">
                 {connected
                   ? avatar.videoLive
                     ? 'He can hear you'
@@ -233,7 +233,7 @@ export function Ask({
               <button
                 type="button"
                 disabled
-                className="flex h-12 w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white disabled:bg-accent/55"
+                className="flex h-12 w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-on-accent disabled:bg-accent/55"
               >
                 <MicIcon />
                 Connecting…
@@ -433,14 +433,14 @@ function TextTier({
         />
         <div className="min-w-0 flex-1">
           <div className="text-[20px] font-bold leading-tight text-white">Uday</div>
-          <div className="mt-0.5 text-[13px] text-white/70">IDBI Bank</div>
+          <div className="mt-0.5 text-[13px] text-white/80">IDBI Bank</div>
         </div>
         {canCall ? (
           <button
             type="button"
             onPointerDown={ripple}
             onClick={onCall}
-            className="ds-press flex h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white"
+            className="ds-press flex h-11 flex-none items-center gap-2 whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-on-accent"
           >
             <MicIcon />
             Call
@@ -449,7 +449,7 @@ function TextTier({
       </div>
 
       {line ? (
-        <p className="m-0 flex-none px-4 pb-3 text-[13px] leading-normal text-white/75">{line}</p>
+        <p className="m-0 flex-none px-4 pb-3 text-[13px] leading-normal text-white/85">{line}</p>
       ) : null}
 
       {queue ? (
@@ -498,7 +498,7 @@ function TextTier({
                 onPointerDown={ripple}
                 onClick={() => void ask(q)}
                 disabled={thinking}
-                className="ds-press h-9 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3.5 text-[13px] font-semibold text-white disabled:opacity-60"
+                className="ds-press h-9 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/50 bg-transparent px-3.5 text-[13px] font-semibold text-white disabled:opacity-60"
               >
                 {q}
               </button>
@@ -514,13 +514,13 @@ function TextTier({
             placeholder="Ask about your money"
             aria-label="Your question"
             maxLength={500}
-            className="h-11 min-w-0 flex-1 rounded-pill border-0 bg-white/15 px-4 text-[15px] text-white placeholder:text-white/55 focus:outline-none focus:ring-2 focus:ring-accent"
+            className="h-11 min-w-0 flex-1 rounded-pill border-0 bg-white/15 px-4 text-[15px] text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <button
             type="submit"
             onPointerDown={ripple}
             disabled={thinking || draft.trim() === ''}
-            className="ds-press h-11 flex-none rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-white disabled:opacity-55"
+            className="ds-press h-11 flex-none rounded-pill border-0 bg-accent px-4 text-[15px] font-semibold text-on-accent disabled:opacity-55"
           >
             Ask
           </button>
@@ -545,7 +545,7 @@ function TextTier({
               onPointerDown={ripple}
               onClick={() => void check()}
               disabled={checking}
-              className="ds-press h-11 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-4 text-[14px] font-semibold text-white disabled:opacity-60"
+              className="ds-press h-11 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/50 bg-transparent px-4 text-[14px] font-semibold text-white disabled:opacity-60"
             >
               Check a product
             </button>
@@ -565,7 +565,7 @@ function Bubble({ turn }: { turn: Turn }): ReactNode {
     <div className={`mb-2.5 flex ${you ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-[14.5px] leading-normal ${
-          you ? 'rounded-br-sm bg-accent text-white' : 'rounded-bl-sm bg-white/15 text-white'
+          you ? 'rounded-br-sm bg-accent text-on-accent' : 'rounded-bl-sm bg-white/15 text-white'
         }`}
       >
         {v ? (

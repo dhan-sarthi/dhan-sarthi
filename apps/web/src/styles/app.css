@@ -26,6 +26,7 @@
   --color-on-dark: var(--on-dark);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-good: var(--good);
@@ -36,6 +37,7 @@
   --color-legend-chip: var(--legend-chip);
   --color-brand: var(--brand);
   --color-brand-deep: var(--brand-deep);
+  --color-brand-night: var(--brand-night);
   --color-accent-text: var(--accent-text);
   --color-header-mint: var(--header-mint);
   --color-nav-top: var(--nav-top);

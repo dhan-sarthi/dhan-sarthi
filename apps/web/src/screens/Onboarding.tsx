@@ -537,7 +537,7 @@ function Own({ onNext }: { onNext: () => void }): ReactNode {
       ) : null}
 
       {added > 0 ? (
-        <p className="ds-rise m-0 mb-4 rounded-sm bg-tint-sage px-3 py-2.5 text-[13px] font-semibold text-brand">
+        <p className="ds-rise m-0 mb-4 rounded-sm bg-tint-sage px-3 py-2.5 text-[13px] font-semibold text-brand-deep">
           {added} {added === 1 ? 'thing' : 'things'} recorded.
         </p>
       ) : null}

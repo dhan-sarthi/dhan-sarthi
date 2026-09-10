@@ -48,7 +48,7 @@ export function QueueCard({
         <button
           type="button"
           onClick={onCallAgain}
-          className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-white"
+          className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-on-accent"
         >
           Call again
         </button>
@@ -56,7 +56,7 @@ export function QueueCard({
           type="button"
           onClick={onLeave}
           aria-label="Dismiss"
-          className="grid size-10 flex-none place-items-center rounded-pill border-0 bg-transparent text-white/70"
+          className="grid size-10 flex-none place-items-center rounded-pill border-0 bg-transparent text-white/85"
         >
           ×
         </button>
@@ -77,7 +77,7 @@ export function QueueCard({
           <button
             type="button"
             onClick={onJoin}
-            className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-white"
+            className="h-10 flex-none whitespace-nowrap rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-on-accent"
           >
             Join now
           </button>
@@ -105,7 +105,7 @@ export function QueueCard({
       <button
         type="button"
         onClick={onLeave}
-        className="h-10 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[14px] font-semibold text-white"
+        className="h-10 flex-none whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/50 bg-transparent px-3 text-[14px] font-semibold text-white"
       >
         Leave line
       </button>

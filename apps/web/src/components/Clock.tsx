@@ -72,7 +72,7 @@ export function Clock({
         </div>
         <button
           type="button"
-          className="h-10 shrink-0 rounded-pill border-0 bg-transparent px-2 text-[15px] font-semibold text-brand underline-offset-2 hover:underline disabled:opacity-60"
+          className="h-10 shrink-0 rounded-pill border-0 bg-transparent px-2 text-[15px] font-semibold text-brand-deep underline-offset-2 hover:underline disabled:opacity-60"
           onClick={onReset}
           disabled={disabled}
         >

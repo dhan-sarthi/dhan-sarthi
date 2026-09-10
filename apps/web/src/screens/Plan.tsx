@@ -199,8 +199,8 @@ function StageCard({ stage, last }: { stage: Stage; last: boolean }): ReactNode 
       {/* The spine. Makes the order the point rather than a detail. */}
       <div className="flex flex-col items-center pt-[22px]">
         <span
-          className={`grid size-[30px] shrink-0 place-items-center rounded-pill text-[13px] font-bold text-white ${
-            stage.isGoal ? 'bg-accent' : 'bg-brand'
+          className={`grid size-[30px] shrink-0 place-items-center rounded-pill text-[13px] font-bold ${
+            stage.isGoal ? 'bg-accent text-on-accent' : 'bg-brand text-on-dark'
           }`}
         >
           {stage.index}

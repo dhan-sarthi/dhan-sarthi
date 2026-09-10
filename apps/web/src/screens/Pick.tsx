@@ -177,7 +177,7 @@ export function Pick(): ReactNode {
           style={{ '--i': i } as CSSProperties}
         >
           <div className="flex items-center gap-3">
-            <span className="grid size-11 flex-none place-items-center rounded-pill bg-tint-sage text-[16px] font-bold text-brand">
+            <span className="grid size-11 flex-none place-items-center rounded-pill bg-tint-sage text-[16px] font-bold text-brand-deep">
               {c.name
                 .split(' ')
                 .map((n) => n[0])

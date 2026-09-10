@@ -139,7 +139,7 @@ export function Segments<T extends string>({
           key={o.id}
           type="button"
           role="tab"
-          className="relative z-[1] h-10 min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent px-1 text-sm font-semibold text-ink-mid transition-colors duration-200 aria-selected:text-white"
+          className="relative z-[1] h-10 min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent px-1 text-sm font-semibold text-ink-mid transition-colors duration-200 aria-selected:text-on-accent"
           aria-selected={o.id === value}
           onClick={() => onChange(o.id)}
         >
@@ -174,7 +174,7 @@ export function Leader({
       />
       <span className={total ? 'font-semibold text-ink' : 'text-ink-mid'}>{label}</span>
       <span className="flex-1 -translate-y-1 border-b-[1.5px] border-dotted border-hairline-mint" />
-      <span className={`font-semibold tabular-nums ${total ? 'text-brand' : 'text-ink'}`}>
+      <span className={`font-semibold tabular-nums ${total ? 'text-brand-deep' : 'text-ink'}`}>
         {value}
       </span>
     </div>
@@ -183,20 +183,34 @@ export function Leader({
 
 /* ---------------------------------------------------------------- Bar */
 
+/*
+ * How much of an envelope is gone, and how much of it is already claimed.
+ *
+ * Each segment is the full width of the track and scaled down to its share, so a change animates
+ * on the compositor. Transitioning `width` instead would relayout the row on every frame of
+ * every bar, and there are a dozen of them on Money.
+ *
+ * The segments are positioned rather than laid out, and that is the whole point of this comment.
+ * They used to be flex children carrying `flex: 0 0 {u}%` *as well as* `scaleX(u/100)`, and
+ * flex-basis wins the main axis — so the transform scaled a box that was already the right size
+ * and every bar painted `u²/100` of its track. A safe-to-spend envelope that was 72.5% gone drew
+ * at 52.6%, under a card that said so in words. Absolute positioning leaves the transform as the
+ * only thing that decides width, which is the only way the two cannot disagree again.
+ */
 export function Bar({ used, pending = 0 }: { used: number; pending?: number }): ReactNode {
   const u = Math.max(0, Math.min(100, used))
   const p = Math.max(0, Math.min(100 - u, pending))
-  // Each segment is full width and scaled down, so the change animates on the compositor.
-  // Transitioning `width` instead would relayout the row on every frame of every bar.
   return (
-    <div className="flex h-2 overflow-hidden rounded-pill bg-chart-idle" role="presentation">
+    <div className="relative h-2 overflow-hidden rounded-pill bg-chart-idle" role="presentation">
       <span
-        className="ds-bar-fill h-full bg-accent"
-        style={{ width: '100%', transform: `scaleX(${u / 100})`, flex: `0 0 ${u}%` }}
+        className="ds-bar-fill absolute inset-0 bg-accent"
+        style={{ transform: `scaleX(${u / 100})` }}
       />
+      {/* Starts where the used segment ends. The translate is a percentage of this span's own
+          box, which is the full track, so `translateX(u%)` is u% of the track. */}
       <span
-        className="ds-bar-fill h-full bg-accent-soft"
-        style={{ width: '100%', transform: `scaleX(${p / 100})`, flex: `0 0 ${p}%` }}
+        className="ds-bar-fill absolute inset-0 bg-accent-soft"
+        style={{ transform: `translateX(${u}%) scaleX(${p / 100})` }}
       />
     </div>
   )
@@ -232,7 +246,7 @@ export function Skeleton({
 /* ---------------------------------------------------------------- Button */
 
 const BTN_TONE = {
-  primary: 'bg-accent text-white border-0',
+  primary: 'bg-accent text-on-accent border-0',
   secondary: 'bg-white text-accent-text border-[1.5px] border-solid border-accent',
   quiet: 'bg-ground-deep text-ink-mid border-0',
   danger: 'bg-danger-soft text-danger border-0',
@@ -340,7 +354,10 @@ export function Head({
           animated. Short: this runs on every tap of the bar. */}
       <div key={title} className="ds-screen min-w-0">
         <h1 className="m-0 text-[26px] font-semibold leading-tight text-ink">{title}</h1>
-        {sub ? <p className="mb-0 mt-1 text-sm text-ink-soft">{sub}</p> : null}
+        {/* --ink-mid, not --ink-soft. The slab fades to mint under this line, and the soft grey
+            reads 4.41:1 against it — the one place in the app where a background gradient, not a
+            flat tint, is what pushes a colour under AA. */}
+        {sub ? <p className="mb-0 mt-1 text-sm text-ink-mid">{sub}</p> : null}
       </div>
       {right}
     </header>
@@ -350,7 +367,7 @@ export function Head({
 /* ---------------------------------------------------------------- Pill */
 
 const PILL_TONE = {
-  plain: 'bg-legend-chip text-brand',
+  plain: 'bg-legend-chip text-brand-deep',
   warn: 'bg-accent-soft text-accent-text',
   bad: 'bg-danger-soft text-danger',
   ok: 'bg-brand text-on-dark',

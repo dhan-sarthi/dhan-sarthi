@@ -532,7 +532,7 @@ function Spending({
             <div className="divide-y divide-solid divide-hairline-mint">
               {snapshot.discretionary.topHabits.map((h) => (
                 <div className="flex items-center gap-3 py-[11px]" key={h.key}>
-                  <span className="grid size-[34px] flex-none place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand">
+                  <span className="grid size-[34px] flex-none place-items-center rounded-pill bg-tint-sage text-xs font-bold text-brand-deep">
                     {(h.merchant ?? h.key)[0]}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -618,7 +618,7 @@ function Recent({
               onClick={() => setFilter(c)}
               className={`ds-press h-9 flex-none rounded-pill px-3.5 text-[13px] font-semibold ${
                 filter === c
-                  ? 'border-0 bg-accent text-white'
+                  ? 'border-0 bg-accent text-on-accent'
                   : 'border border-solid border-hairline bg-surface text-ink-mid'
               }`}
             >
@@ -682,7 +682,7 @@ function Recent({
                 identical "T"s says nothing, so a nameless row gets the direction instead. */}
             <span
               className={`grid size-8 flex-none place-items-center rounded-pill text-[11px] font-bold ${
-                t.txnType === 'CREDIT' ? 'bg-tint-sage text-good' : 'bg-ground-deep text-ink-mid'
+                t.txnType === 'CREDIT' ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
               }`}
             >
               {isNamed(t) ? (

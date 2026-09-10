@@ -164,7 +164,7 @@ export function LinkAccountsSheet({
                     {live ? <Check size={12} strokeWidth={3} /> : null}
                     {copy.label}
                   </span>
-                  <span className="truncate text-[11.5px] tabular-nums text-ink-faint">
+                  <span className="truncate text-[11.5px] tabular-nums text-ink-soft">
                     {r.consentId ?? r.consentHandle.slice(0, 8)}
                   </span>
                 </div>
@@ -186,7 +186,7 @@ export function LinkAccountsSheet({
                         href={r.redirectionUrl}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="ds-press inline-flex h-10 items-center gap-1.5 rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-white no-underline"
+                        className="ds-press inline-flex h-10 items-center gap-1.5 rounded-pill border-0 bg-accent px-4 text-[14px] font-semibold text-on-accent no-underline"
                       >
                         Approve it
                         <ArrowUpRight size={15} strokeWidth={2.6} />

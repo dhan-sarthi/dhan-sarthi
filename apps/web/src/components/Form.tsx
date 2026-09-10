@@ -56,7 +56,7 @@ export function Choice<T extends string>({
           onClick={() => onChange(o.id)}
           className={`ds-press h-11 min-w-0 flex-1 shrink-0 basis-[calc(50%-4px)] truncate rounded-pill px-3 text-[14px] font-semibold ${
             o.id === value
-              ? 'border-0 bg-accent text-white'
+              ? 'border-0 bg-accent text-on-accent'
               : 'border-[1.5px] border-solid border-hairline bg-surface text-ink-mid'
           }`}
         >

@@ -86,9 +86,13 @@ export function TabBar({
                 <Glyph size={22} strokeWidth={isActive ? 2.3 : 1.75} />
               </span>
             )}
+            {/* Weight alone, which is what the bar was always described as doing. The inactive
+                labels used to carry `opacity-80` as well, and at 11px over the nav gradient that
+                is 3.42:1 — five permanently visible labels below AA, four of them for the sake
+                of a distinction the weight already makes. */}
             <span
-              className={`truncate text-[11px] leading-[14px] transition-opacity duration-200 ${
-                isActive ? 'font-bold opacity-100' : 'font-medium opacity-80'
+              className={`truncate text-[11px] leading-[14px] ${
+                isActive ? 'font-bold' : 'font-medium'
               }`}
             >
               {t.label}

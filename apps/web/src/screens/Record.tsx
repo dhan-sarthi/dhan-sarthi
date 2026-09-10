@@ -380,7 +380,7 @@ function Rules({ view }: { view: View }): ReactNode {
       {view.rules.map((r, i) => (
         <Card key={r.id}>
           <div className="flex gap-2.5">
-            <span className="grid size-[26px] flex-none place-items-center rounded-pill bg-legend-chip text-xs font-bold text-brand">
+            <span className="grid size-[26px] flex-none place-items-center rounded-pill bg-legend-chip text-xs font-bold text-brand-deep">
               {i + 1}
             </span>
             <div className="flex-1">

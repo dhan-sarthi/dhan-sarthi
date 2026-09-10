@@ -96,7 +96,7 @@ export function CapSheet({
           </Field>
 
           {amount > 0 && target.monthly && amount < target.spend ? (
-            <p className="ds-rise m-0 rounded-sm bg-tint-sage px-3 py-2.5 text-[13px] leading-snug text-brand">
+            <p className="ds-rise m-0 rounded-sm bg-tint-sage px-3 py-2.5 text-[13px] leading-snug text-brand-deep">
               {inr(target.spend - amount)} a month less than now, which is{' '}
               {inr((target.spend - amount) * 12)} over a year.
             </p>

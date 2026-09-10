@@ -31,7 +31,7 @@ import { useRipple } from '../lib/motion.ts'
 const CHIP =
   'relative grid size-10 shrink-0 place-items-center rounded-pill border border-solid border-hairline-mint bg-white text-ink'
 const CHIP_BADGE =
-  'after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-white after:content-[attr(data-count)]'
+  'after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-on-accent after:content-[attr(data-count)]'
 
 /* Card subtitle and footnote text. */
 const META = 'm-0 text-sm text-ink-soft'
@@ -39,9 +39,9 @@ const NOTE = 'text-xs leading-relaxed text-ink-soft'
 
 /* Buttons on the brand-green hero card: primary stays orange, secondary becomes a white outline. */
 const BTN_ON_INK_PRIMARY =
-  'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-white disabled:opacity-55'
+  'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-0 bg-accent px-5 text-[15px] font-semibold text-on-accent disabled:opacity-55'
 const BTN_ON_INK_SECONDARY =
-  'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/40 bg-transparent px-3 text-[15px] font-semibold text-on-dark disabled:opacity-55'
+  'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/50 bg-transparent px-3 text-[15px] font-semibold text-on-dark disabled:opacity-55'
 
 export interface ClockControls {
   /** False under a real bank feed, where today is today. */
@@ -315,7 +315,7 @@ export function Today({
                           fallback. */}
                       <span
                         className={`grid size-8 shrink-0 place-items-center rounded-pill text-xs font-bold ${
-                          isNamed(t) ? 'bg-tint-sage text-brand' : 'bg-ground-deep text-ink-mid'
+                          isNamed(t) ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
                         }`}
                       >
                         {isNamed(t) ? (
@@ -436,11 +436,11 @@ function ActionCard({
       <div className="flex justify-between gap-2.5">
         <h2>{action.label}</h2>
       </div>
-      <p className="mb-0 mt-2 text-[14.5px] leading-normal opacity-80">{action.detail}</p>
+      <p className="mb-0 mt-2 text-[14.5px] leading-normal opacity-90">{action.detail}</p>
 
       {/* Never a promise. The rate is on screen and the wording is conditional. */}
       {action.projected ? (
-        <p className="mb-0 mt-3 text-[13.5px] leading-normal opacity-70">
+        <p className="mb-0 mt-3 text-[13.5px] leading-normal opacity-80">
           Over {action.projected.years} years at an assumed {action.projected.ratePct}%, that would
           be about <b>{approx(action.projected.becomes)}</b>. An illustration, not a promise.
         </p>
@@ -448,11 +448,11 @@ function ActionCard({
 
       {showWhy ? (
         <div className="mt-3.5 border-t border-solid border-white/20 pt-3">
-          <div className="mb-[7px] text-[11px] font-semibold uppercase tracking-wide opacity-70">
+          <div className="mb-[7px] text-[11px] font-semibold uppercase tracking-wide opacity-80">
             What this is based on
           </div>
           {action.evidence.map((e) => (
-            <div key={e} className="py-[3px] text-[13px] opacity-85">
+            <div key={e} className="py-[3px] text-[13px] opacity-90">
               · {e}
             </div>
           ))}
@@ -489,14 +489,14 @@ function ActionCard({
       </div>
 
       {!enabled ? (
-        <p className="mb-0 mt-3 text-[13px] leading-normal opacity-70">
+        <p className="mb-0 mt-3 text-[13px] leading-normal opacity-80">
           Decisions are written to the record on the advisor service. Reconnect to act on this.
         </p>
       ) : null}
       <button
         type="button"
         onClick={onWhy}
-        className="border-0 bg-transparent p-0 pt-3 text-[13px] font-medium text-inherit underline underline-offset-2 opacity-60"
+        className="border-0 bg-transparent p-0 pt-3 text-[13px] font-semibold text-inherit underline underline-offset-2"
       >
         Talk to Uday about this
       </button>
