@@ -102,8 +102,56 @@
   --nav-bottom: #0a6a58;
   --hairline: rgb(245 130 32 / 38%);
   --hairline-mint: #bbdbd6;
+
+  /*
+   * Charts.
+   *
+   * The first two are GO Mobile+'s own and they chart a single series: --chart-hi is the bar
+   * you are meant to look at, --chart-idle is the track behind it. Neither means anything
+   * beside a second colour, which is the whole gap — donuts and allocation bars need five
+   * hues that are *kinds*, not degrees, and the bank's palette has no answer for that.
+   *
+   * So the ramp below is designed rather than mapped, and its two constraints pull opposite
+   * ways. It has to stay inside a green-and-orange world; and green against orange is one of
+   * the worst pairs there is for the two common colour blindnesses, because both hues
+   * collapse towards the same yellow-brown. A green slice beside an orange one is precisely
+   * the chart a deuteranope cannot read.
+   *
+   * What resolves it is treating green and orange as the ends rather than the middle. Between
+   * them the ramp goes out the cool side to a peacock rather than through olive, and comes
+   * back on the warm side through a gold — so the sequence carries a lightness ladder
+   * (L* 36 / 55 / 80 / 51 / 78) as well as a hue sweep, and lightness is what survives when
+   * hue does not.
+   *
+   * Checked, not assumed. All ten pairs were simulated for protanopia, deuteranopia and
+   * tritanopia (Machado 2009, severity 1.0, on linear sRGB) and measured with CIEDE2000. The
+   * worst pair anywhere, in any of the three or in normal vision, is ΔE 20.7 — chart-1
+   * against chart-4 under protanopia, which is the green-versus-orange problem surfacing
+   * exactly where it was expected to. SmartWealth's own five bottom out at 18.6 on the same
+   * check. Because *every* pair clears the bar and not only the neighbouring ones, the ramp
+   * is order-independent: a donut re-sorted by weight cannot land two confusable slices
+   * together.
+   *
+   * Assign by position, never by meaning. Equity / Debt / Balanced / Commodities / Others
+   * takes 1 2 3 4 5; Large / Mid / Small / Others takes 1 2 3 5. Others is always --chart-5.
+   * The rule exists because the source app has none: sky is Commodities on its rebalancing
+   * screens and Debt on its dashboard, and a hue that means two things is worse than a hue
+   * that means nothing.
+   *
+   * chart-3 and chart-5 are light — 1.68:1 and 1.79:1 on white — and that is the deliberate
+   * half of the trade. Pulling the gold down far enough to clear 3:1 puts it back on top of
+   * the orange under deuteranopia, which loses a reader for real. A slice is legible because
+   * of the slice next to it: the boundary against the page is drawn by the 2px gap between
+   * segments and by --chart-idle behind a bar, and no slice is ever the only carrier of its
+   * meaning — every one has a legend row with a label and a figure.
+   */
   --chart-hi: #fa7401;
   --chart-idle: #ececec;
+  --chart-1: #0d5f50;
+  --chart-2: #0a90b4;
+  --chart-3: #f5c04c;
+  --chart-4: #d1520f;
+  --chart-5: #bcc3c4;
 
   /* Geometry. Tiles ~10px, inputs and cards 14–20px, every button a full pill. */
   --r-sm: 10px;

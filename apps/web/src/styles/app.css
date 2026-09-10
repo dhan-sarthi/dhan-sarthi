@@ -46,6 +46,13 @@
   --color-hairline-mint: var(--hairline-mint);
   --color-chart-hi: var(--chart-hi);
   --color-chart-idle: var(--chart-idle);
+  /* The categorical ramp. Named through --color-* so `fill-chart-2` and `stroke-chart-2`
+     resolve as well as `bg-` and `text-`, which is what an SVG donut needs. */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
