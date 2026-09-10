@@ -323,6 +323,9 @@
   background: color-mix(in srgb, var(--ink) 38%, transparent);
   animation: ds-fade 180ms ease-out both;
   z-index: 40;
+  /* The scrim is not scrollable and does not stop a drag from reaching the list underneath it,
+     so a thumb moving over a covered screen still scrolled it. Nothing to pan here. */
+  touch-action: none;
 }
 
 .ds-sheet {
