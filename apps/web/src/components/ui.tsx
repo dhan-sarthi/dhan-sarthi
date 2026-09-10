@@ -8,10 +8,13 @@
  * `text-accent-text` and `rounded-md` resolve to the bank's values. See `DESIGN.md` for the
  * recipes.
  *
- * Preflight is not loaded, so every button carries an explicit `border-0` / background and every
- * border an explicit `border-solid`.
+ * Every button carries an explicit `border-0` and background and every border an explicit
+ * `border-solid`. Preflight *is* loaded — `DESIGN.md` said otherwise for a while and this file
+ * repeated it — so most of that is belt and braces; the `border-solid` half is not, and a border
+ * that silently draws as `none` is the one mistake here nobody spots in review.
  */
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { parts } from '../lib/money.ts'
 import { useChanged, useCountUp, useRipple } from '../lib/motion.ts'
 
@@ -107,20 +110,56 @@ export function Card({
 
 /* ---------------------------------------------------------------- Segments */
 
-/* A two- or three-cell rectangle; the active cell is orange. Sits as a flex sibling under Head. */
+/*
+ * A two- or three-cell rectangle; the active cell is orange. Sits as a flex sibling under Head.
+ *
+ * `variant="underline"` is SmartWealth's screen-level tab row: left-anchored labels on white, an
+ * orange bar under the active one, a hairline running the full width as its track. Four labels do
+ * not fit a 375px phone as equal thirds, so the underline row scrolls horizontally and the cells
+ * size to their text — which is also why the indicator is a border on each cell rather than one
+ * span that slides. A sliding span has to be measured, and there is nothing to measure against
+ * once the row can be scrolled out from under it.
+ *
+ * The pill stays for switches *inside* a card, where three short words do fit.
+ */
 export function Segments<T extends string>({
   options,
   value,
   onChange,
+  variant = 'pill',
 }: {
   options: readonly { id: T; label: string }[]
   value: T
   onChange: (id: T) => void
+  variant?: 'pill' | 'underline'
 }): ReactNode {
   const index = Math.max(
     0,
     options.findIndex((o) => o.id === value),
   )
+  if (variant === 'underline') {
+    return (
+      <div
+        className="flex flex-none overflow-x-auto border-0 border-b-[1.5px] border-solid border-hairline-mint bg-surface px-4"
+        role="tablist"
+      >
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="tab"
+            aria-selected={o.id === value}
+            onClick={() => onChange(o.id)}
+            /* -mb-[1.5px] so the active cell's 3px bar sits on the hairline rather than above
+               it. text-accent-text, not text-accent: raw #f58220 is 2.6:1 on white. */
+            className="ds-press -mb-[1.5px] h-11 flex-none whitespace-nowrap border-0 border-b-[3px] border-solid border-transparent bg-transparent px-3 text-[15px] font-semibold text-ink-mid transition-colors duration-200 first:pl-0 last:pr-0 aria-selected:border-accent aria-selected:font-bold aria-selected:text-accent-text"
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
   return (
     <div className="relative mx-4 my-3 flex flex-none rounded-md bg-ground-deep p-1" role="tablist">
       {/* One pill that slides, rather than a background appearing on the newly selected cell.
@@ -305,6 +344,128 @@ export function Spinner({ size = 15 }: { size?: number }): ReactNode {
   )
 }
 
+/* ---------------------------------------------------------------- IconButton */
+
+/*
+ * A square tap target with a glyph in it and no label on screen.
+ *
+ * This existed five times before it existed once: the sheet's close, the stepper's plus and
+ * minus, the queue card's dismiss, the header chips that were on Today, and the holdings sheet's
+ * delete. All five were `grid place-items-center rounded-pill` at a different size with a
+ * different fill, and the differences between them were accidents rather than decisions. Three
+ * sizes and four tones cover every one.
+ *
+ * `label` is required, because a button whose only content is an icon has no accessible name
+ * without one, and that is the entire reason these were worth collapsing.
+ */
+const ICON_BTN_SIZE = { sm: 'size-9', md: 'size-10', lg: 'size-11' } as const
+
+const ICON_BTN_TONE = {
+  /** The default: a grey disc on white. Sheet close, stepper. */
+  grey: 'border-0 bg-ground-deep text-ink-mid',
+  /** A white pill with a mint hairline. The header chips. */
+  bordered: 'border border-solid border-hairline-mint bg-white text-ink',
+  /** No fill at all; inherits its ink, so it works on the dark surfaces too. */
+  ghost: 'border-0 bg-transparent text-inherit',
+  /** Destructive, and quiet about it: soft fill, red glyph. */
+  danger: 'border-0 bg-danger-soft text-danger',
+} as const
+
+export function IconButton({
+  label,
+  size = 'md',
+  tone = 'grey',
+  count,
+  disabled,
+  onClick,
+  ariaExpanded,
+  children,
+}: {
+  /** The accessible name. Not optional: the glyph is decoration. */
+  label: string
+  size?: 'sm' | 'md' | 'lg'
+  tone?: keyof typeof ICON_BTN_TONE
+  /** A small orange disc on the top-right corner. Left out or zero, no badge. */
+  count?: number
+  disabled?: boolean
+  onClick?: () => void
+  ariaExpanded?: boolean
+  children: ReactNode
+}): ReactNode {
+  const ripple = useRipple()
+  const button = (
+    <button
+      type="button"
+      aria-label={label}
+      aria-expanded={ariaExpanded}
+      disabled={disabled === true}
+      onPointerDown={(e: ReactPointerEvent<HTMLElement>) => ripple(e)}
+      onClick={onClick}
+      className={`ds-press grid flex-none place-items-center rounded-pill disabled:opacity-40 ${ICON_BTN_SIZE[size]} ${ICON_BTN_TONE[tone]}`}
+    >
+      {children}
+    </button>
+  )
+  if (count === undefined || count <= 0) return button
+  /*
+   * The badge sits on a wrapper rather than on the button, and it has to. `.ds-press` sets
+   * `overflow: hidden` so the ripple stays inside the pill, which also clips anything hanging
+   * off a corner — the count used to lose its top-right two pixels to it.
+   */
+  return (
+    <span className="relative inline-flex flex-none">
+      {button}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-0.5 -top-0.5 grid h-[17px] min-w-[17px] place-items-center rounded-pill bg-accent px-1 text-[10.5px] font-bold text-on-accent"
+      >
+        {count}
+      </span>
+    </span>
+  )
+}
+
+/* ---------------------------------------------------------------- TextLink */
+
+/*
+ * A word you can press, with nothing drawn around it.
+ *
+ * `Button`'s `quiet` tone is the filled grey pill, so the actual text link had no home and got
+ * hand-rolled twice with near-identical strings. Green, not orange: in GO Mobile+ orange means
+ * "this is the action" and a link beside a primary button must not compete with it. `brand-deep`
+ * rather than `brand` — 9.8:1 against 4.71:1, and the copies disagreed about which to use.
+ */
+export function TextLink({
+  onClick,
+  size = 'md',
+  flush = false,
+  disabled,
+  ariaExpanded,
+  children,
+}: {
+  onClick?: () => void
+  size?: 'md' | 'sm'
+  /** Drop the side padding so the words line up with the paragraph above them. */
+  flush?: boolean
+  disabled?: boolean
+  ariaExpanded?: boolean
+  children: ReactNode
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled === true}
+      aria-expanded={ariaExpanded}
+      className={`ds-press inline-flex h-10 shrink-0 items-center gap-1 rounded-pill border-0 bg-transparent font-semibold text-brand-deep underline-offset-2 hover:underline disabled:opacity-60 ${
+        flush ? 'px-0' : 'px-2'
+      } ${size === 'sm' ? 'text-sm' : 'text-[15px]'}`}
+    >
+      {children}
+    </button>
+  )
+}
+
 /* ---------------------------------------------------------------- Tiles */
 
 const TILE_TONE = {
@@ -334,20 +495,150 @@ export function Tile({
   )
 }
 
+/* ---------------------------------------------------------------- ListRow */
+
+/*
+ * One row of a list: a glyph, a title, a second line, and something on the right.
+ *
+ * SmartWealth builds three whole screens out of this and holds it at 68pt; this app had the same
+ * skeleton twice already, at ~54, in the statement list and in the onboarding probe rows. 68 is
+ * the one to hold for a list screen — those two still need lifting onto this, and did not get
+ * lifted here because the shell is not the place to restyle the statement.
+ *
+ * The leading tile is `legend-chip` with `brand-deep` ink, which is where `03-PALETTE-MAP.md`
+ * sends SmartWealth's `#F1F4FA` icon tile. The chevron is `ink-faint`, the one colour in the
+ * palette that is furniture rather than copy, and it appears only when the row does something.
+ */
+export function ListRow({
+  icon,
+  title,
+  sub,
+  value,
+  badge,
+  onClick,
+}: {
+  /** A 22px lucide glyph. Sits in a 40px tile; leave it out and the text starts at the gutter. */
+  icon?: ReactNode
+  title: string
+  sub?: string
+  /** The right-hand block: an amount, a pill, a count. */
+  value?: ReactNode
+  /** A count pill before the chevron, in the neutral chip colours. */
+  badge?: number
+  onClick?: () => void
+}): ReactNode {
+  const ripple = useRipple()
+  const body = (
+    <>
+      {icon ? (
+        <span
+          aria-hidden="true"
+          className="grid size-10 flex-none place-items-center rounded-sm bg-legend-chip text-brand-deep"
+        >
+          {icon}
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold text-ink">{title}</span>
+        {sub ? (
+          <span className="mt-0.5 block text-[13px] leading-snug text-ink-soft">{sub}</span>
+        ) : null}
+      </span>
+      {value ? <span className="flex-none text-right">{value}</span> : null}
+      {badge !== undefined && badge > 0 ? (
+        <span className="flex-none rounded-pill bg-legend-chip px-2.5 py-1 text-xs font-bold tabular-nums text-brand-deep">
+          {badge}
+        </span>
+      ) : null}
+      {onClick ? (
+        <ChevronRight size={18} strokeWidth={2.2} className="flex-none text-ink-faint" />
+      ) : null}
+    </>
+  )
+  const cls = 'flex min-h-[68px] w-full items-center gap-3 border-0 bg-transparent py-3 text-left'
+  if (!onClick) return <div className={cls}>{body}</div>
+  return (
+    <button type="button" className={`ds-press ${cls}`} onPointerDown={ripple} onClick={onClick}>
+      {body}
+    </button>
+  )
+}
+
 /* ---------------------------------------------------------------- Header */
 
-/* The GO Mobile+ header slab: white fading to mint, rounded bottom corners, one soft shadow. */
+/*
+ * The GO Mobile+ header slab: white fading to mint, rounded bottom corners, one soft shadow.
+ *
+ * Three shapes, which is what SmartWealth's app bar turned out to be once the fourteen readings
+ * were reconciled, and all three keep the same slab:
+ *
+ *   default   a 26px page title with an optional second line. What every screen shipped with.
+ *   back      a back arrow, the title beside it at 20px, and up to two trailing actions. The
+ *             shape a pushed screen needs, and the app had no affordance for it at all.
+ *   greeting  an initials disc, "Hi, <name>", trailing actions. SmartWealth's home bar.
+ *
+ * `overlap` is the fourth thing the reference does with its bar and the only one that is a
+ * layout affordance rather than a variant: the slab grows a chunk of empty bottom padding and
+ * the first card of the screen is pulled up into it, so the header reads as a backdrop the
+ * content sits on rather than a band above it. It only works when the header scrolls with the
+ * content — see the note in `Screen` — which is why the prop is here and the mechanics are not.
+ */
 export function Head({
   title,
   sub,
   right,
+  onBack,
+  backLabel = 'Back',
+  greeting,
+  overlap = false,
 }: {
   title: string
   sub?: string
+  /** Trailing actions. Zero, one or two `IconButton`s; Head lays them out. */
   right?: ReactNode
+  /** Present: the back variant. The title moves down to 20px and on to the arrow's baseline. */
+  onBack?: () => void
+  backLabel?: string
+  /** Present: the greeting variant. `title` becomes the name after "Hi,". */
+  greeting?: boolean
+  /** Grow the slab so the screen's first card can be pulled up into it. */
+  overlap?: boolean
 }): ReactNode {
+  const slab = `flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint px-4 pt-4 shadow-card ${
+    overlap ? 'pb-[68px]' : 'pb-4'
+  }`
+  const actions = right ? <div className="flex flex-none items-center gap-2">{right}</div> : null
+
+  if (onBack || greeting) {
+    return (
+      <header className={`${slab} items-center`}>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {onBack ? (
+            <IconButton label={backLabel} tone="bordered" onClick={onBack}>
+              <ArrowLeft size={18} strokeWidth={2.3} />
+            </IconButton>
+          ) : (
+            <span
+              aria-hidden="true"
+              className="grid size-10 flex-none place-items-center rounded-pill bg-tint-sage text-[15px] font-bold text-brand-deep"
+            >
+              {initials(title)}
+            </span>
+          )}
+          <div key={title} className="ds-screen min-w-0">
+            <h1 className="m-0 truncate text-[20px] font-semibold leading-tight text-ink">
+              {greeting ? `Hi, ${title}` : title}
+            </h1>
+            {sub ? <p className="mb-0 mt-0.5 truncate text-[13px] text-ink-mid">{sub}</p> : null}
+          </div>
+        </div>
+        {actions}
+      </header>
+    )
+  }
+
   return (
-    <header className="flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint p-4 shadow-card">
+    <header className={slab}>
       {/* Keyed on the title so the words change with a fade rather than a jump. The header is
           the one part of a screen that does not unmount into the entrance stagger, so without
           this a tab change swapped "Today" for "Money" mid-frame while everything under it
@@ -359,9 +650,19 @@ export function Head({
             flat tint, is what pushes a colour under AA. */}
         {sub ? <p className="mb-0 mt-1 text-sm text-ink-mid">{sub}</p> : null}
       </div>
-      {right}
+      {actions}
     </header>
   )
+}
+
+/** First letters of the first two words. `Meera Iyer` → `MI`, and never more than two. */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('')
 }
 
 /* ---------------------------------------------------------------- Pill */

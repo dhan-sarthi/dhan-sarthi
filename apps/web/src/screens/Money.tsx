@@ -30,14 +30,13 @@ import {
   Button,
   Card,
   Eyebrow,
-  Head,
   Leader,
   Pill,
-  Segments,
   Skeleton,
   Tile,
 } from '../components/ui.tsx'
-import { PullToRefresh } from '../components/PullToRefresh.tsx'
+import { Screen } from '../components/Screen.tsx'
+import type { ScreenChrome } from '../components/Screen.tsx'
 import { TransactionSheet } from './TransactionSheet.tsx'
 import { CapSheet } from './CapSheet.tsx'
 import type { CapTarget } from './CapSheet.tsx'
@@ -47,13 +46,16 @@ import { useTransactions } from '../lib/transactions.ts'
 import { useRipple } from '../lib/motion.ts'
 import type { TransactionSource } from '../lib/transactions.ts'
 
-type Tab = 'accounts' | 'spending' | 'commitments'
+/** The three of Dashboard's four panes this file draws. `today` is `Today.tsx`. */
+export type MoneyTab = 'accounts' | 'spending' | 'commitments'
 
 /* Shared strings for the small text on this screen (the retired `.meta` / `.note` classes). */
 const META = 'm-0 text-[13px] text-ink-soft'
 const NOTE = 'm-0 text-xs leading-[1.5] text-ink-soft'
 
 export function Money({
+  tab,
+  chrome,
   snapshot,
   accounts,
   source,
@@ -65,6 +67,10 @@ export function Money({
   onSetCap,
   capsEnabled,
 }: {
+  /** Which pane. Controlled by `Dashboard`, which draws the tab row that changes it. */
+  tab: MoneyTab
+  /* The app bar, the ribbon and the sub-tab row, drawn once by `Dashboard` for all four panes. */
+  chrome: ScreenChrome
   snapshot: Snapshot
   /** One row per account, rather than the snapshot's two totals. */
   accounts: readonly AccountRow[]
@@ -83,7 +89,6 @@ export function Money({
   /** False on the offline tier, which has no session row to keep a cap on. */
   capsEnabled: boolean
 }): ReactNode {
-  const [tab, setTab] = useState<Tab>('accounts')
   /*
    * The open statement line lives up here rather than beside the list, and it has to.
    *
@@ -98,54 +103,47 @@ export function Money({
   const [capBusy, setCapBusy] = useState(false)
 
   return (
-    <>
-      <Head title="Money" sub="Everything, in one place" />
-      <Segments
-        value={tab}
-        onChange={setTab}
-        options={[
-          { id: 'accounts', label: 'Accounts' },
-          { id: 'spending', label: 'Spending' },
-          { id: 'commitments', label: 'Commitments' },
-        ]}
-      />
-
-      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
-        {tab === 'accounts' ? (
-          <Accounts
-            snapshot={snapshot}
-            accounts={accounts}
-            onEditHoldings={onEditHoldings}
-            onLinkAccounts={onLinkAccounts}
+    <Screen
+      {...chrome}
+      onRefresh={onRefresh}
+      after={
+        <>
+          <TransactionSheet txn={line} onClose={() => setLine(null)} />
+          <CapSheet
+            target={cap}
+            busy={capBusy}
+            onClose={() => setCap(null)}
+            onSave={(category, monthlyLimit) => {
+              setCapBusy(true)
+              void onSetCap(category, monthlyLimit).finally(() => {
+                setCapBusy(false)
+                setCap(null)
+              })
+            }}
           />
-        ) : null}
-        {tab === 'spending' ? (
-          <Spending
-            snapshot={snapshot}
-            source={source}
-            asOf={asOf}
-            onOpenLine={setLine}
-            caps={caps}
-            onOpenCap={capsEnabled ? setCap : null}
-          />
-        ) : null}
-        {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
-      </PullToRefresh>
-
-      <TransactionSheet txn={line} onClose={() => setLine(null)} />
-      <CapSheet
-        target={cap}
-        busy={capBusy}
-        onClose={() => setCap(null)}
-        onSave={(category, monthlyLimit) => {
-          setCapBusy(true)
-          void onSetCap(category, monthlyLimit).finally(() => {
-            setCapBusy(false)
-            setCap(null)
-          })
-        }}
-      />
-    </>
+        </>
+      }
+    >
+      {tab === 'accounts' ? (
+        <Accounts
+          snapshot={snapshot}
+          accounts={accounts}
+          onEditHoldings={onEditHoldings}
+          onLinkAccounts={onLinkAccounts}
+        />
+      ) : null}
+      {tab === 'spending' ? (
+        <Spending
+          snapshot={snapshot}
+          source={source}
+          asOf={asOf}
+          onOpenLine={setLine}
+          caps={caps}
+          onOpenCap={capsEnabled ? setCap : null}
+        />
+      ) : null}
+      {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
+    </Screen>
   )
 }
 
@@ -682,7 +680,9 @@ function Recent({
                 identical "T"s says nothing, so a nameless row gets the direction instead. */}
             <span
               className={`grid size-8 flex-none place-items-center rounded-pill text-[11px] font-bold ${
-                t.txnType === 'CREDIT' ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
+                t.txnType === 'CREDIT'
+                  ? 'bg-tint-sage text-brand-deep'
+                  : 'bg-ground-deep text-ink-mid'
               }`}
             >
               {isNamed(t) ? (

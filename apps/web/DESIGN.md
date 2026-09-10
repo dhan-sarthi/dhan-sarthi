@@ -12,15 +12,22 @@ sit on `brand-deep` or below, because #00836c carries white at only 4.71:1. Plus
 one large number leads each card. `tokens.css` states each of them at the group it applies to —
 where this file and that one disagree, `tokens.css` is the value that ships.
 
-## Two gotchas before you write a class
+## Three gotchas before you write a class
 
 1. **`tokens.css` is imported unlayered**, so any legacy class (`.card`, `.btn`, `.pill`, ...)
    beats a Tailwind utility on the same element. Never mix a legacy class with utilities —
    drop the legacy class entirely. The legacy classes are being retired.
-2. **Preflight is not loaded.** Buttons keep the browser's outset border and grey fill; `h1`/`p`
-   keep their margins; borders default to `none`. So: every button gets `border-0` (or an
-   explicit `border-[..] border-solid border-<color>`) and an explicit background; every border
-   utility is paired with `border-solid` / `border-dotted`; headings and paragraphs get `m-0`.
+2. **Preflight *is* loaded**, whatever this file used to say. `app.css` imports
+   `tailwindcss/preflight.css` into `layer(base)` and `tokens.css` says so above its own base
+   rules; checked in the browser, a bare `<button>` has no border and no fill and an `h1` has no
+   margin. Much of the tree therefore carries a defensive `border-0` / `m-0` that nothing needs.
+   Leave those — they are correct, just belt and braces — and keep writing an explicit
+   `border-solid` beside a width, because a border that silently draws as `none` is the one
+   mistake here nobody spots in review.
+3. **`.ds-press` sets `overflow: hidden`.** It has to, to keep the ripple inside the pill, and it
+   clips anything reaching past the control's edge just as happily. A count badge on a corner, a
+   raised card, the advisor disc: none of them can be a *child* of the pressable element. Make
+   them a sibling and give the pressable one `relative z-[1]`.
 
 ## Tokens
 
@@ -66,6 +73,17 @@ where this file and that one disagree, `tokens.css` is the value that ships.
   max 430px, white, `shadow-lift` at ≥480px. `.scroll` is the one scrolling region
   (`flex: 1 1 auto; min-height: 0`). Header, Segments and TabBar are `flex-none` siblings of
   `.scroll`, never absolutely positioned.
+- **Do not assemble that by hand — use `Screen` (`src/components/Screen.tsx`).** It is the
+  invariant above, made the only way the pieces fit together:
+  `header · notice · tabs · .scroll · footer · after`. `onRefresh` wraps the scroller in
+  `PullToRefresh`; `footer` is the sticky bar (`Sheet`'s footer recipe, pinned to a screen);
+  `after` is where sheets go, and they must, because a `position: fixed` panel inside the
+  scroller's entrance transform positions against the transform instead of the viewport.
+- **The card that overlaps the header** is `Screen`'s `scrollHeader` + `overlap`, with
+  `Head overlap`. It cannot be done with a `flex-none` header — the card would have to hang out
+  of `.scroll`, and `overflow-y: auto` clips at the padding box — so the bar moves inside the
+  scroller and scrolls away with the content, which is what the reference does too. Opt in; the
+  four re-homed screens do not.
 - Gutters `px-4` (16px), cards `p-4`, 12px between cards (Card carries its own `mb-3`; do not also
   wrap Card lists in `space-y-3`).
 - Body 15px / 1.45. `h2` inside a Card is 18px/600 `text-ink` (Card styles it for you via
@@ -73,13 +91,52 @@ where this file and that one disagree, `tokens.css` is the value that ships.
 
 ## Component recipes (the exact strings in `src/components/ui.tsx`)
 
-### Head — the header slab
+### Head — the app bar. Three variants, one slab
 ```
-header: flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint p-4 shadow-card
-h1:     m-0 text-[26px] font-semibold leading-tight text-ink
-sub:    mb-0 mt-1 text-sm text-ink-mid          (not ink-soft: the slab fades to mint under it)
+slab:    flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint px-4 pt-4 pb-4 shadow-card
+default: h1 m-0 text-[26px] font-semibold leading-tight text-ink
+         sub mb-0 mt-1 text-sm text-ink-mid    (not ink-soft: the slab fades to mint under it)
+back:    items-center · IconButton tone="bordered" with ArrowLeft 18/2.3 · h1 truncate text-[20px]
+         font-semibold · sub mt-0.5 text-[13px] text-ink-mid
+greeting: items-center · size-10 rounded-pill bg-tint-sage text-[15px] font-bold text-brand-deep
+         initials disc · h1 "Hi, <name>" at 20px
+overlap: pb-[68px] instead of pb-4, for the card that starts up inside the slab
 ```
-Header chips (the `right` slot): white pills, `size-10 rounded-pill border border-solid border-hairline-mint bg-white grid place-items-center`, count badge `bg-accent text-white text-[10.5px] font-bold`.
+Trailing actions (`right`) are 0–2 `IconButton`s; `Head` lays them out in a
+`flex flex-none items-center gap-2`. Do not wrap them yourself.
+
+### IconButton — a glyph with a tap target
+```
+base:     ds-press grid flex-none place-items-center rounded-pill disabled:opacity-40
+sizes:    sm size-9 · md size-10 · lg size-11
+grey:     border-0 bg-ground-deep text-ink-mid            (sheet close, stepper)
+bordered: border border-solid border-hairline-mint bg-white text-ink   (header chips)
+ghost:    border-0 bg-transparent text-inherit            (on a dark surface)
+danger:   border-0 bg-danger-soft text-danger
+count:    a sibling span, -right-0.5 -top-0.5, h-[17px] min-w-[17px] rounded-pill bg-accent
+          px-1 text-[10.5px] font-bold text-on-accent     (sibling, not child — gotcha 3)
+```
+`label` is required and becomes `aria-label`. There is no other accessible name.
+
+### TextLink — a word you can press
+```
+ds-press inline-flex h-10 shrink-0 items-center gap-1 rounded-pill border-0 bg-transparent
+px-2 font-semibold text-brand-deep underline-offset-2 hover:underline disabled:opacity-60
+md text-[15px] · sm text-sm · flush px-0 (aligns with the paragraph above it)
+```
+Green, not orange: orange means "this is the action" and a link must not compete with a primary
+button. `brand-deep`, not `brand` — 9.8:1 against 4.71:1.
+
+### ListRow — one row of a list
+```
+row:   flex min-h-[68px] w-full items-center gap-3 border-0 bg-transparent py-3 text-left
+tile:  size-10 rounded-sm bg-legend-chip text-brand-deep grid place-items-center   (22px glyph)
+title: text-[15px] font-semibold text-ink      sub: mt-0.5 text-[13px] text-ink-soft
+badge: rounded-pill bg-legend-chip px-2.5 py-1 text-xs font-bold text-brand-deep
+```
+68px, which is SmartWealth's list height and the one to hold. Pressable rows get `ds-press` and a
+`ChevronRight 18/2.2 text-ink-faint`; a row with no `onClick` gets neither. Group rows under a
+full-bleed band: `-mx-4 bg-ground-deep px-4 py-2.5` carrying the eyebrow type.
 
 ### Card
 ```
@@ -105,12 +162,21 @@ cur:     mr-[0.06em] text-[0.55em] opacity-70              frac: text-[0.55em] o
 Colour is inherited (ink by default, white on an ink card). Positive / "good" values may sit in
 a `text-brand` wrapper.
 
-### Segments — tabs inside a screen
+### Segments — tabs inside a screen. Two variants
 ```
+pill (default, 2–3 cells, an in-screen switch)
 track: mx-4 my-3 flex flex-none rounded-md bg-ground-deep p-1        role=tablist
 pill:  absolute bottom-1 top-1 rounded-sm bg-accent, one span that slides on transform
 cell:  relative z-[1] h-10 min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent px-1 text-sm font-semibold text-ink-mid transition-colors duration-200 aria-selected:text-on-accent
+
+underline (4 cells, SmartWealth's screen-level tab row)
+row:   flex flex-none overflow-x-auto border-0 border-b-[1.5px] border-solid border-hairline-mint bg-surface px-4
+cell:  ds-press -mb-[1.5px] h-11 flex-none whitespace-nowrap border-0 border-b-[3px] border-solid border-transparent bg-transparent px-3 text-[15px] font-semibold text-ink-mid first:pl-0 last:pr-0 aria-selected:border-accent aria-selected:font-bold aria-selected:text-accent-text
 ```
+The underline row scrolls and its cells size to their text, because four labels do not fit a
+375px phone as equal quarters. That is also why the indicator is a border on each cell rather
+than one span that slides: a sliding span has to be measured, and there is nothing to measure
+against once the row can be scrolled out from under it.
 
 ### Leader — label ··· value
 ```
@@ -215,14 +281,23 @@ Reset:   quiet button (text-brand-deep)         +1 day / +1 week / +1 month: thr
 note:    mb-0 mt-3 text-xs leading-relaxed text-ink-soft
 ```
 
-### TabBar (`src/components/TabBar.tsx`)
+### TabBar (`src/components/TabBar.tsx`) — Discover · Dashboard · (Ask) · Plan · More
 ```
-nav:    grid min-h-16 flex-none grid-cols-5 rounded-t-lg bg-gradient-to-b from-nav-top to-nav-bottom pb-[env(safe-area-inset-bottom,0px)] text-white
-item:   flex min-w-0 flex-col items-center justify-end gap-1 border-0 bg-transparent px-1 pb-1.5 pt-2 text-white
-icon:   lucide-react, size 22, strokeWidth 1.75 (Home, Route, IndianRupee, ScrollText)
-label:  truncate text-[11px] leading-[14px]   active: font-bold, inactive: font-medium  (weight only, no colour change)
-disc:   grid size-[60px] -translate-y-4 -mb-[22px] place-items-center rounded-pill border-4 border-solid border-white bg-brand-deep shadow-lift ring-2 ring-accent   (Video icon, size 26)
+nav:    grid min-h-[68px] flex-none grid-cols-5 rounded-t-lg bg-gradient-to-b from-nav-top to-nav-bottom pb-[env(safe-area-inset-bottom,0px)] text-white
+cell:   relative flex min-w-0                                    (a wrapper, not the button)
+item:   ds-press relative z-[1] flex min-w-0 flex-1 flex-col items-center justify-end gap-1 rounded-lg border-0 bg-transparent px-1 pb-1.5 pt-2
+card:   pointer-events-none absolute inset-x-1 -top-2 bottom-1 rounded-lg bg-surface shadow-lift
+        active scale-100 opacity-100 · inactive scale-90 opacity-0, 200ms
+icon:   lucide-react, size 22, strokeWidth 1.75 → 2.3 when active (Compass, LayoutGrid, Route, Menu)
+label:  truncate text-[11px] leading-[14px]   active: font-bold, inactive: font-medium
+ink:    active text-accent-text (on the white card) · inactive text-white (on the gradient)
+disc:   ds-press grid size-[60px] -translate-y-4 -mb-[22px] place-items-center rounded-pill border-4 border-solid border-white bg-brand-deep shadow-lift ring-2 ring-accent   (Video icon, size 26)
 ```
+Two lifted shapes and they mean different things: the disc is a destination that is always there,
+the card is *where you are*. Both are siblings or self-pressable rather than children of a
+`.ds-press` button — see gotcha 3. The active item used to be told by weight alone, which was
+right while both states were white on green; once it moves onto a white card it needs an ink that
+survives there, and `text-accent` is 2.6:1 on white where `accent-text` is 5.5:1.
 
 ### Ask Uday (call screen)
 Full bleed `bg-gradient-to-b from-brand-deep to-brand-night`; portrait card `rounded-lg shadow-lift`;
@@ -253,4 +328,5 @@ note `text-sm text-ink-soft`.
 - Don't add a legacy class from tokens.css to a component that uses utilities — it wins.
 - Don't letter-space or uppercase anything except eyebrows and CTA labels.
 - Don't load a web font. The system stack is the only one that renders ₹ everywhere.
-- Don't position the TabBar absolutely; it is a flex sibling of `.scroll`.
+- Don't position the TabBar absolutely; it is a flex sibling of `.scroll`. Don't hand-assemble a
+  screen either — `Screen` exists so that ordering cannot be got wrong twice.

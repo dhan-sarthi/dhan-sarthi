@@ -27,7 +27,7 @@ import type {
 } from '@dhan/contracts'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Button, Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
-import { PullToRefresh } from '../components/PullToRefresh.tsx'
+import { Screen } from '../components/Screen.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
 import { api, isApiError } from '../api/client.ts'
 import { clearSession } from '../api/session.ts'
@@ -50,6 +50,7 @@ export function Record({
   busy,
   onConsent,
   onEditProfile,
+  onBack,
   onRefresh,
 }: {
   view: View
@@ -60,40 +61,43 @@ export function Record({
   onConsent: (scope: ConsentScope, granted: boolean) => void
   /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
   onEditProfile: () => void
+  /** Back to the More menu. Record is pushed from there rather than being a tab of its own. */
+  onBack: () => void
   /** Pull down at the top to re-read the view. */
   onRefresh: () => Promise<void>
 }): ReactNode {
   const [tab, setTab] = useState<Tab>('decisions')
 
   return (
-    <>
-      <Head title="Record" sub="Every recommendation, and why" />
-      <Segments
-        value={tab}
-        onChange={setTab}
-        options={[
-          { id: 'decisions', label: 'Decisions' },
-          { id: 'rules', label: 'The rules' },
-          { id: 'consent', label: 'Your data' },
-        ]}
-      />
-
-      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
-        {tab === 'decisions' ? <Decisions record={record} view={view} tier={tier} /> : null}
-        {tab === 'rules' ? <Rules view={view} /> : null}
-        {tab === 'consent' ? (
-          <Consent
-            view={view}
-            record={record.record}
-            session={session}
-            tier={tier}
-            busy={busy}
-            onConsent={onConsent}
-            onEditProfile={onEditProfile}
-          />
-        ) : null}
-      </PullToRefresh>
-    </>
+    <Screen
+      header={<Head title="Record" sub="Every recommendation, and why" onBack={onBack} />}
+      tabs={
+        <Segments
+          value={tab}
+          onChange={setTab}
+          options={[
+            { id: 'decisions', label: 'Decisions' },
+            { id: 'rules', label: 'The rules' },
+            { id: 'consent', label: 'Your data' },
+          ]}
+        />
+      }
+      onRefresh={onRefresh}
+    >
+      {tab === 'decisions' ? <Decisions record={record} view={view} tier={tier} /> : null}
+      {tab === 'rules' ? <Rules view={view} /> : null}
+      {tab === 'consent' ? (
+        <Consent
+          view={view}
+          record={record.record}
+          session={session}
+          tier={tier}
+          busy={busy}
+          onConsent={onConsent}
+          onEditProfile={onEditProfile}
+        />
+      ) : null}
+    </Screen>
   )
 }
 

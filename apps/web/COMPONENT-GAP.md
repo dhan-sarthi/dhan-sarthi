@@ -10,6 +10,9 @@ is nearly it; `Tile` sounds like `IconTile` and is not it at all.
 
 **9 exist. 13 have something close that needs extending. 11 are net-new.**
 
+Rows marked **Built** were closed by a later step and say which. Everything else still reads as
+step 1 left it.
+
 Verdicts mean:
 
 - **Exists** — usable as it stands, or with a prop. Do not rebuild it.
@@ -22,26 +25,26 @@ screen, which is exactly why it needs extracting.
 
 ---
 
-## Chrome — 0 exist · 5 extend · 1 new
+## Chrome — 0 exist · 5 extend · 1 new  ·  *4 built by step 2 (the shell)*
 
 | SmartWealth | Verdict | What we have | What it needs |
 | --- | --- | --- | --- |
-| `AppBar` | **Extend** | `Head` in `src/components/ui.tsx` — white→mint slab, title, optional sub, a `right` slot | No back affordance and no compact variant. Palette-map conflict 2 is here: SmartWealth's navy bar is load-bearing because cards overlap up into it. That trick has to be rebuilt against `brand-deep`, not recoloured. |
-| `BottomNav` | **Extend** | `src/components/TabBar.tsx` — five tabs, gradient bar, raised centre disc, dot indicator, ripple | SmartWealth is three tabs and the *active* one sits in a raised white card. Ours raises a fixed centre item instead. The bar, the gradient and the flex-sibling rule all stay; the raise moves. |
+| `AppBar` | **Built** (step 2) | `Head` in `src/components/ui.tsx` | Three variants on the one slab: default, `onBack` (arrow + 20px title + 0–2 trailing actions) and `greeting` (initials disc + "Hi, <name>"). The overlap trick is `Screen`'s `scrollHeader`+`overlap` with `Head overlap` — see below; it needed the bar to scroll, not a recolour. |
+| `BottomNav` | **Built** (step 2) | `src/components/TabBar.tsx` — Discover · Dashboard · (Ask) · Plan · More | Both raises, merged rather than swapped: the centre disc stays the advisor and the other four get the reference's lifted white card. The dot indicator is gone — the card replaces it. Active ink is `accent-text`, because weight alone stops working once the item is on white. |
 | `StatusBar` | **New** | nothing | The 34pt OS band. On web this is `env(safe-area-inset-top)` padding on the shell, not a component with content. `TabBar` and `Sheet` already handle the bottom inset; the top is unhandled. |
-| `SegmentedTabs` | **Extend** | `Segments` in `ui.tsx` — sliding orange pill, `role=tablist`, `aria-selected` | Two or three cells today, four in SmartWealth, and theirs is an underline tab row rather than a filled pill. Add the underline variant; keep the sliding pill for in-card switches. |
+| `SegmentedTabs` | **Built** (step 2) | `Segments` in `ui.tsx`, `variant="pill" \| "underline"` | The underline row scrolls and sizes cells to their text, so four labels fit a 375px phone; its indicator is a border per cell rather than a sliding span, which cannot be measured in a scroller. Dashboard uses it; Record keeps the pill. |
 | `FilterChipRow` | **Extend** | the category filter in `Recent` (`src/screens/Money.tsx`) — horizontally scrolling `aria-pressed` pills, orange when on | Working code, never extracted. Lift it verbatim; it is already the right shape. |
-| `StickyFooterBar` | **Extend** | `Sheet`'s `footer` prop (`src/components/Sheet.tsx`) — `flex-none`, hairline top, `pb-[max(16px,env(safe-area-inset-bottom))]` | Exists only inside a sheet. The transaction spine needs the same bar pinned to a *screen*, as a flex sibling of `.scroll`. Same recipe, different parent. |
+| `StickyFooterBar` | **Built** (step 2) | `Screen`'s `footer` prop (`src/components/Screen.tsx`), same recipe as `Sheet`'s | Nothing. Unused until the transaction spine, which is what it was lifted for. |
 
-## Actions — 3 exist · 2 extend · 0 new
+## Actions — 3 exist · 2 extend · 0 new  ·  *both extends built by step 2*
 
 | SmartWealth | Verdict | What we have | What it needs |
 | --- | --- | --- | --- |
 | `PrimaryButton` | **Exists** | `Button tone="primary"` in `ui.tsx` — orange pill, `text-on-accent`, ripple, `busy` spinner | Nothing. Note it is a full pill, not SmartWealth's 8px rectangle — conflict 1, already decided. |
 | `OutlinedButton` | **Exists** | `Button tone="secondary"` — white fill, 1.5px `border-accent`, `text-accent-text` | Nothing. |
 | `SecondaryButton` | **Exists** | `Button tone="quiet"` — filled `bg-ground-deep`, `text-ink-mid` | Nothing. This is the filled-tonal button; `tone="secondary"` is the outlined one. |
-| `IconButton` | **Extend** | hand-rolled four times: `Sheet`'s close (h-9), `Stepper`'s ± (h-11, `src/components/Form.tsx`), `QueueCard`'s dismiss, `CHIP` in `src/screens/Today.tsx` (size-10 with a count badge) | One component, sizes 9/10/11, tones grey / bordered / transparent, optional count badge. Four copies of `grid place-items-center rounded-pill` is the tell. |
-| `TextLink` | **Extend** | two hand-rolled copies with near-identical strings: `StageCard`'s "Why this first?" (`src/screens/Plan.tsx`) and Reset in `src/components/Clock.tsx` — `border-0 bg-transparent text-brand-deep underline-offset-2 hover:underline` | `Button`'s `quiet` tone was taken by the filled grey pill, so the actual text link has no home. Add a `link` tone or extract the copies. |
+| `IconButton` | **Built** (step 2) | `IconButton` in `ui.tsx`; all five copies replaced — `Sheet`, `Stepper`, `QueueCard`, the header chips (now Dashboard's) and `HoldingsSheet`'s delete | Nothing. Sizes sm/md/lg = 9/10/11, tones grey / bordered / ghost / danger, optional count. `label` is required, which is the half of it that was actually broken. |
+| `TextLink` | **Built** (step 2) | `TextLink` in `ui.tsx`; the two named copies plus a third in `App.tsx`'s gate | Nothing. `brand-deep` everywhere — two of the three were `brand`, which is 4.71:1 against 9.8:1. `flush` drops the side padding where the link has to line up with a paragraph. |
 
 ## Input — 2 exist · 1 extend · 2 new
 
@@ -57,7 +60,7 @@ screen, which is exactly why it needs extracting.
 
 | SmartWealth | Verdict | What we have | What it needs |
 | --- | --- | --- | --- |
-| `ListRow` | **Extend** | the same skeleton twice: statement rows in `Recent` (`src/screens/Money.tsx`) — 32px disc, name/sub, right-aligned figure, `divide-y` — and `ProbeRow` in `src/screens/Onboarding.tsx` | One row: leading disc or icon, title, subtitle, trailing value or chevron, optional press. SmartWealth's is 68pt; ours is ~54. Pick 68 for list screens and hold it. |
+| `ListRow` | **Extend** — canonical one exists | `ListRow` in `ui.tsx` (step 2, at 68px, built for the More menu) | The component is there; the two copies are **not** collapsed onto it yet. Statement rows in `Recent` (`src/screens/Money.tsx`) and `ProbeRow` in `src/screens/Onboarding.tsx` still hand-roll it at ~54px. Lift them when the screen they are on is next touched. |
 | `StatCard` | **Exists** | `Tile` in `ui.tsx` — `Amount size="md" fit`, label under, alternates sage/clay, turns white inside a tinted card | Nothing. This is StatCard with a better name. |
 | `FundRow` | **New** | nothing — `AccountCard` (`src/screens/Money.tsx`) is a card, not a row | Fund logo, name, category chip, NAV, return %, chevron. Build it on the extracted `ListRow`; it is the row every fund list in Discover is made of. |
 | `GoalCard` | **Extend** | `StageCard` in `src/screens/Plan.tsx` (pills, title, expand-for-why) and the goal summary block in `src/screens/GoalSheet.tsx` (target, by-year, monthly, reachable) | Neither has a progress ring or the status footer band. Merge the two and add both. |
@@ -94,8 +97,11 @@ they are components once you build them, and all three are net-new here.
   `Rupees Two Thousand Four Hundred Sixteen Only` under it. `src/lib/money.ts` has `inr`, `parts`
   and `approx` but no number-to-words, so this is a lib function plus a line of markup.
 - **The card that overlaps the header** — a layout affordance rather than a component, but it is
-  what makes SmartWealth's chrome read as a backdrop. It has to be rebuilt against the IDBI
-  header slab; there is nothing to extend.
+  what makes SmartWealth's chrome read as a backdrop. **Built by step 2** as `Screen`'s
+  `scrollHeader` + `overlap`, against the IDBI header slab. It could not be done with a
+  `flex-none` header at all — the card has to hang out of `.scroll`, which clips it — so the bar
+  moves inside the scroller and scrolls away, which is what the reference does. `Discover` is the
+  only screen taking it today.
 
 ## Order
 
@@ -113,5 +119,9 @@ draws a visible 5% hole rather than restating every figure. And the states the s
 
 `Bar` in `ui.tsx` is deliberately untouched: it is still the single-series envelope bar, and the
 categorical ones are their own components rather than a variant of it. Everything else in the **Extend** column can be lifted
-independently and should be, before any screen is built on a copy of it — there are already four
-copies of `IconButton` in the tree and that is the cost of not doing this first.
+independently and should be, before any screen is built on a copy of it.
+
+Step 2 took the chrome half of that column — `AppBar`, `BottomNav`, `SegmentedTabs`,
+`StickyFooterBar` — plus `IconButton` and `TextLink`, whose five and three copies are now one
+each. What is still open in **Extend**: `FilterChipRow`, `RiskSlider`, `GoalCard`, `ProfileCard`,
+`InfoBanner`, and the two `ListRow` copies that a canonical `ListRow` now exists to absorb.

@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { useRipple } from '../lib/motion.ts'
+import { IconButton } from './ui.tsx'
 
 /** Everything a Tab can land on. Disabled controls are out; `tabIndex` is checked separately. */
 const FOCUSABLE =
@@ -57,7 +57,6 @@ export function Sheet({
   const mounted = open || lingering
   const closing = !open && lingering
   const panel = useRef<HTMLDivElement>(null)
-  const ripple = useRipple()
 
   /** Where focus came from, so it can go back there. */
   const returnTo = useRef<HTMLElement | null>(null)
@@ -176,16 +175,9 @@ export function Sheet({
             <h2 className="m-0 text-[20px] font-semibold leading-tight text-ink">{title}</h2>
             {sub ? <p className="mb-0 mt-1 text-[13px] leading-snug text-ink-soft">{sub}</p> : null}
           </div>
-          <button
-            type="button"
-            data-close
-            aria-label="Close"
-            onPointerDown={ripple}
-            onClick={dismiss}
-            className="ds-press grid h-9 w-9 flex-none place-items-center rounded-pill border-0 bg-ground-deep text-ink-mid"
-          >
+          <IconButton label="Close" size="sm" onClick={dismiss}>
             <X size={17} strokeWidth={2.4} />
-          </button>
+          </IconButton>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">

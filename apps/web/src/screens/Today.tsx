@@ -15,23 +15,16 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowUpRight, ChevronDown, Lightbulb, UserRound } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
-import { Amount, Bar, Button, Card, Eyebrow, Head, Leader, Pill, Tile } from '../components/ui.tsx'
+import { Amount, Bar, Button, Card, Eyebrow, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Clock } from '../components/Clock.tsx'
-import { DataSourceRibbon } from '../components/DataSourceRibbon.tsx'
-import { PullToRefresh } from '../components/PullToRefresh.tsx'
-import type { Tier } from '../components/TierBadge.tsx'
+import { Screen } from '../components/Screen.tsx'
+import type { ScreenChrome } from '../components/Screen.tsx'
 import { isNamed, merchantOf } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
 import type { DecisionKind } from '../lib/mutations.ts'
 import { useRipple } from '../lib/motion.ts'
-
-/* Header chips: white pills with a mint hairline. The count badge is a small orange disc. */
-const CHIP =
-  'relative grid size-10 shrink-0 place-items-center rounded-pill border border-solid border-hairline-mint bg-white text-ink'
-const CHIP_BADGE =
-  'after:absolute after:-right-0.5 after:-top-0.5 after:grid after:h-[17px] after:min-w-[17px] after:place-items-center after:rounded-pill after:bg-accent after:px-1 after:text-[10.5px] after:font-bold after:text-on-accent after:content-[attr(data-count)]'
 
 /* Card subtitle and footnote text. */
 const META = 'm-0 text-sm text-ink-soft'
@@ -56,7 +49,7 @@ export interface ClockControls {
 
 export function Today({
   view,
-  tier,
+  chrome,
   clock,
   decided,
   decisionsEnabled,
@@ -68,7 +61,9 @@ export function Today({
   onRefresh,
 }: {
   view: View
-  tier: Tier
+  /* The app bar, the ribbon and the sub-tab row come from `Dashboard`, which owns them for all
+     four of its panes: they must not change as you move between them. */
+  chrome: ScreenChrome
   clock: ClockControls
   /** Action ids decided since the page loaded, so the card moves on before the server re-cuts. */
   decided: ReadonlySet<string>
@@ -79,7 +74,7 @@ export function Today({
   lead: LeadOutcomeResponse | null
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
-  /** The header's avatar. It said "Profile" and opened the advisor; now it opens the profile. */
+  /** Opens the declared profile. Also reachable from the app bar, which Dashboard draws. */
   onOpenProfile: () => void
   /** Pull down at the top to re-read the view. */
   onRefresh: () => Promise<void>
@@ -97,68 +92,30 @@ export function Today({
       : (plan.secondary.find((a) => !decided.has(a.id)) ?? null)
 
   return (
-    <>
-      <Head
-        title="Today"
-        sub={`${dayMonth(asOf)} · ${snapshot.customer.name.split(' ')[0]}`}
-        right={
-          <div className="flex gap-2">
-            {/* Both of these were decoration. The first counted insights and did nothing when
-                pressed; the second was labelled Profile and opened the advisor. */}
-            <button
-              type="button"
-              className={`ds-press ${plan.insights.length > 0 ? `${CHIP} ${CHIP_BADGE}` : CHIP}`}
-              data-count={plan.insights.length > 0 ? String(plan.insights.length) : undefined}
-              aria-label={
-                plan.insights.length > 0
-                  ? `${plan.insights.length} ${plan.insights.length === 1 ? 'thing' : 'things'} I noticed`
-                  : 'Nothing I noticed'
-              }
-              onClick={() => {
-                document
-                  .getElementById('what-i-noticed')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }}
-            >
-              <Lightbulb size={17} strokeWidth={2.3} />
-            </button>
-            <button
-              type="button"
-              className={`ds-press ${CHIP}`}
-              aria-label="About you"
-              onClick={onOpenProfile}
-            >
-              <UserRound size={17} strokeWidth={2.3} />
-            </button>
-          </div>
-        }
-      />
-      <DataSourceRibbon meta={view.meta} tier={tier} />
-
-      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
-        {/*
+    <Screen {...chrome} onRefresh={onRefresh}>
+      {/*
           Hidden, not disabled, when the ledger ends where the session opens.
           A control that can never do anything is worse than no control: it reads as broken, and
           on IDBI's feed that is its permanent state. It comes back the moment a source has
           headroom, which the generator and the seeded database both do.
         */}
-        {clock.show && clock.horizonTo > asOf ? (
-          <div className="mt-3">
-            <Clock
-              asOf={asOf}
-              horizonTo={clock.horizonTo}
-              notice={clock.notice}
-              disabled={clock.disabled}
-              onAdvance={clock.onAdvance}
-              onReset={clock.onReset}
-            />
-          </div>
-        ) : (
-          <div className="mt-3" />
-        )}
+      {clock.show && clock.horizonTo > asOf ? (
+        <div className="mt-3">
+          <Clock
+            asOf={asOf}
+            horizonTo={clock.horizonTo}
+            notice={clock.notice}
+            disabled={clock.disabled}
+            onAdvance={clock.onAdvance}
+            onReset={clock.onReset}
+          />
+        </div>
+      ) : (
+        <div className="mt-3" />
+      )}
 
-        {/* ------------------------------------------------ Safe to spend */}
-        {/*
+      {/* ------------------------------------------------ Safe to spend */}
+      {/*
           With no recognisable salary there is no allowance to give, and the panel used to
           invent one anyway: it printed "13 days until your salary on 2 June" for a customer
           whose statement contains no salary at all, then "₹0 · about ₹0 a day" under a
@@ -167,209 +124,208 @@ export function Today({
           on every row and no narration carries a payroll marker — so it needs a state of its
           own rather than a graceful-looking zero.
         */}
-        {snapshot.income.monthly <= 0 ? (
-          <Card tint="clay">
-            {/*
+      {snapshot.income.monthly <= 0 ? (
+        <Card tint="clay">
+          {/*
               Two versions of the same state, because "I cannot see your income" is the wrong
               sentence to show somebody who has just typed their income in. A declared figure is
               used by the plan and the goal — `goal.ts` falls back to it, `insights.ts` labels it
               — it simply does not become a daily allowance, and the difference between those two
               is worth one sentence rather than a headline that reads as amnesia.
             */}
-            <h2>
-              {snapshot.customer.declaredMonthlyIncome > 0
-                ? 'No salary in this statement'
-                : 'I cannot see your income yet'}
-            </h2>
-            {snapshot.customer.declaredMonthlyIncome > 0 ? (
-              <p className={`${META} mt-1.5`}>
-                You told me {inr(snapshot.customer.declaredMonthlyIncome)} a month comes in, and the
-                plan is built on it. Nothing in this statement looks like it, though, so I am not
-                going to turn it into a daily allowance I cannot check against the ledger.
-              </p>
-            ) : (
-              <p className={`${META} mt-1.5`}>
-                Nothing in this statement looks like a salary or a regular credit, so there is no
-                daily allowance I can stand behind. What I can see is below, and everything else on
-                this screen is built only from what is actually in the ledger.
-              </p>
-            )}
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <Tile label="In your accounts" value={snapshot.balances.total} />
-              {/* The observed total, not `discretionary.monthly`. That field is a normal
+          <h2>
+            {snapshot.customer.declaredMonthlyIncome > 0
+              ? 'No salary in this statement'
+              : 'I cannot see your income yet'}
+          </h2>
+          {snapshot.customer.declaredMonthlyIncome > 0 ? (
+            <p className={`${META} mt-1.5`}>
+              You told me {inr(snapshot.customer.declaredMonthlyIncome)} a month comes in, and the
+              plan is built on it. Nothing in this statement looks like it, though, so I am not
+              going to turn it into a daily allowance I cannot check against the ledger.
+            </p>
+          ) : (
+            <p className={`${META} mt-1.5`}>
+              Nothing in this statement looks like a salary or a regular credit, so there is no
+              daily allowance I can stand behind. What I can see is below, and everything else on
+              this screen is built only from what is actually in the ledger.
+            </p>
+          )}
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <Tile label="In your accounts" value={snapshot.balances.total} />
+            {/* The observed total, not `discretionary.monthly`. That field is a normal
                   month's rate and needs whole months to mean anything, so over a twenty-day
                   statement it is zero — which printed "Spent in this window ₹0" directly above
                   a list of four payments totalling ₹29,293. */}
-              <Tile label="Spent in this window" value={observedSpend(snapshot)} />
-            </div>
-            <div className="mt-4">
-              <Button tone="secondary" size="sm" onClick={onOpenProfile}>
-                <UserRound size={15} strokeWidth={2.5} />
-                {snapshot.customer.declaredMonthlyIncome > 0
-                  ? 'Change what you told me'
-                  : 'Tell me your income'}
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <Card tint="sage">
-            <h2>Safe to spend</h2>
-            <p className={META}>
-              {s.daysToSalary} {s.daysToSalary === 1 ? 'day' : 'days'}{' '}
-              {s.incomeStability === 'regular'
-                ? `until your salary on ${dayMonth(s.nextSalaryDate)}`
-                : `left in this month`}
-            </p>
+            <Tile label="Spent in this window" value={observedSpend(snapshot)} />
+          </div>
+          <div className="mt-4">
+            <Button tone="secondary" size="sm" onClick={onOpenProfile}>
+              <UserRound size={15} strokeWidth={2.5} />
+              {snapshot.customer.declaredMonthlyIncome > 0
+                ? 'Change what you told me'
+                : 'Tell me your income'}
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <Card tint="sage">
+          <h2>Safe to spend</h2>
+          <p className={META}>
+            {s.daysToSalary} {s.daysToSalary === 1 ? 'day' : 'days'}{' '}
+            {s.incomeStability === 'regular'
+              ? `until your salary on ${dayMonth(s.nextSalaryDate)}`
+              : `left in this month`}
+          </p>
 
-            <div className="mb-1 mt-3.5">
-              <Amount value={s.pot} size="xl" />
-            </div>
-            <p className={`${META} mb-3.5`}>
-              Left of <b className="text-ink">{inr(envelope)}</b> · about{' '}
-              <b className="text-ink">{inr(s.perDay)}</b> a day
-            </p>
+          <div className="mb-1 mt-3.5">
+            <Amount value={s.pot} size="xl" />
+          </div>
+          <p className={`${META} mb-3.5`}>
+            Left of <b className="text-ink">{inr(envelope)}</b> · about{' '}
+            <b className="text-ink">{inr(s.perDay)}</b> a day
+          </p>
 
-            <Bar used={usedPct} />
+          <Bar used={usedPct} />
 
-            {/* A waterfall, with signs, that visibly sums. Listing the reserved amounts without
+          {/* A waterfall, with signs, that visibly sums. Listing the reserved amounts without
               them read as though ₹52,488 of bills came out of a ₹20,266 envelope — the figures
               were all correct and the panel still looked like it did not add up. */}
-            <div className="mt-3">
-              <Leader label="Comes in" value={inr(snapshot.income.monthly)} filled />
-              {s.reserved.map((r) => (
-                <Leader key={r.label} label={r.label} value={`−${inr(r.amount)}`} />
-              ))}
-              <div className="mt-1.5 border-t-[1.5px] border-solid border-hairline-mint pt-0.5">
-                <Leader label="Still yours to spend" value={inr(s.pot)} filled />
-              </div>
+          <div className="mt-3">
+            <Leader label="Comes in" value={inr(snapshot.income.monthly)} filled />
+            {s.reserved.map((r) => (
+              <Leader key={r.label} label={r.label} value={`−${inr(r.amount)}`} />
+            ))}
+            <div className="mt-1.5 border-t-[1.5px] border-solid border-hairline-mint pt-0.5">
+              <Leader label="Still yours to spend" value={inr(s.pot)} filled />
             </div>
+          </div>
 
-            {/*
+          {/*
               The second tile only where there is a commitment to name.
               "Goes out each month ₹0" is a derived zero standing in for an observation: on
               Neha's feed nothing in the statement is recognisable as a mandate, and the screen
               was reporting that as a customer with no outgoings, directly above ₹6.03 lakh of
               borrowing. One tile that is true beats two where one is invented.
             */}
-            <div
-              className={`mt-4 grid gap-2.5 ${snapshot.commitments.total > 0 ? 'grid-cols-2' : ''}`}
-            >
-              <Tile label="Comes in each month" value={snapshot.income.monthly} />
-              {snapshot.commitments.total > 0 ? (
-                <Tile label="Goes out each month" value={snapshot.commitments.total} />
-              ) : null}
-            </div>
-          </Card>
-        )}
+          <div
+            className={`mt-4 grid gap-2.5 ${snapshot.commitments.total > 0 ? 'grid-cols-2' : ''}`}
+          >
+            <Tile label="Comes in each month" value={snapshot.income.monthly} />
+            {snapshot.commitments.total > 0 ? (
+              <Tile label="Goes out each month" value={snapshot.commitments.total} />
+            ) : null}
+          </div>
+        </Card>
+      )}
 
-        {/* ------------------------------------------------ The one action */}
-        {primary ? (
-          <ActionCard
-            action={primary}
-            enabled={decisionsEnabled}
-            busy={busy}
-            onDecide={onDecide}
-            onWhy={onAsk}
-          />
-        ) : (
-          <Card tint="sky">
-            <h2>Nothing needs you today</h2>
-            <p className={`${META} mt-1.5`}>{plan.routeNote}</p>
-            {/* What the bank did with the last acceptance. A customer who presses "Do it" has a
+      {/* ------------------------------------------------ The one action */}
+      {primary ? (
+        <ActionCard
+          action={primary}
+          enabled={decisionsEnabled}
+          busy={busy}
+          onDecide={onDecide}
+          onWhy={onAsk}
+        />
+      ) : (
+        <Card tint="sky">
+          <h2>Nothing needs you today</h2>
+          <p className={`${META} mt-1.5`}>{plan.routeNote}</p>
+          {/* What the bank did with the last acceptance. A customer who presses "Do it" has a
                 right to know whether it reached anybody — and this is the only place in the app
                 where something is handed *to* IDBI rather than read from it. */}
-            {lead ? <p className={`${META} mt-2.5`}>{leadSentence(lead)}</p> : null}
-          </Card>
-        )}
+          {lead ? <p className={`${META} mt-2.5`}>{leadSentence(lead)}</p> : null}
+        </Card>
+      )}
 
-        {/* ------------------------------------------------ Since you were away */}
-        {plan.since.transactions.length > 0 ? (
-          <>
-            <Eyebrow>Since {dayMonth(plan.since.from)}</Eyebrow>
-            <Card>
-              <div className="flex items-baseline gap-2">
-                <Amount value={plan.since.spent} size="md" />
-                <span className={META}>
-                  across {plan.since.transactions.length}{' '}
-                  {plan.since.transactions.length === 1 ? 'payment' : 'payments'}
-                </span>
-              </div>
+      {/* ------------------------------------------------ Since you were away */}
+      {plan.since.transactions.length > 0 ? (
+        <>
+          <Eyebrow>Since {dayMonth(plan.since.from)}</Eyebrow>
+          <Card>
+            <div className="flex items-baseline gap-2">
+              <Amount value={plan.since.spent} size="md" />
+              <span className={META}>
+                across {plan.since.transactions.length}{' '}
+                {plan.since.transactions.length === 1 ? 'payment' : 'payments'}
+              </span>
+            </div>
 
-              {/* A limit the customer set themselves, and the only place on Today that reports
+            {/* A limit the customer set themselves, and the only place on Today that reports
                   it. The safe-to-spend panel says it too, but only when there is an income to
                   build one from, and a cap is worth knowing about either way. */}
-              {plan.since.capBreached ? (
-                <p className="ds-rise m-0 mt-2.5 rounded-sm bg-tint-clay px-3 py-2 text-[13px] font-semibold leading-snug text-danger">
-                  You are over a limit you set. Money &rarr; Spending has the figure.
-                </p>
-              ) : null}
-              <div className="mt-2 divide-y divide-solid divide-hairline-mint">
-                {plan.since.transactions
-                  .slice(-6)
-                  .reverse()
-                  .map((t) => (
-                    <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
-                      {/* Same rule as the full list on Money: the category's initial where
+            {plan.since.capBreached ? (
+              <p className="ds-rise m-0 mt-2.5 rounded-sm bg-tint-clay px-3 py-2 text-[13px] font-semibold leading-snug text-danger">
+                You are over a limit you set. Money &rarr; Spending has the figure.
+              </p>
+            ) : null}
+            <div className="mt-2 divide-y divide-solid divide-hairline-mint">
+              {plan.since.transactions
+                .slice(-6)
+                .reverse()
+                .map((t) => (
+                  <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
+                    {/* Same rule as the full list on Money: the category's initial where
                           there is a name to go with it, the direction where the line names
                           nobody, and the narration in place of a category that is only a
                           fallback. */}
-                      <span
-                        className={`grid size-8 shrink-0 place-items-center rounded-pill text-xs font-bold ${
-                          isNamed(t) ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
-                        }`}
-                      >
-                        {isNamed(t) ? (
-                          t.spendCategory[0]
-                        ) : (
-                          <ArrowUpRight size={15} strokeWidth={2.6} />
-                        )}
+                    <span
+                      className={`grid size-8 shrink-0 place-items-center rounded-pill text-xs font-bold ${
+                        isNamed(t) ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
+                      }`}
+                    >
+                      {isNamed(t) ? (
+                        t.spendCategory[0]
+                      ) : (
+                        <ArrowUpRight size={15} strokeWidth={2.6} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-[15px] font-semibold text-ink">
+                        {merchantOf(t)}
+                      </b>
+                      <span className="block truncate text-xs text-ink-soft">
+                        {dayMonth(t.txnDate)} · {isNamed(t) ? t.spendCategory : t.narration}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <b className="block truncate text-[15px] font-semibold text-ink">
-                          {merchantOf(t)}
-                        </b>
-                        <span className="block truncate text-xs text-ink-soft">
-                          {dayMonth(t.txnDate)} · {isNamed(t) ? t.spendCategory : t.narration}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[15px] font-semibold tabular-nums text-ink">
-                        −{inr(t.txnAmount)}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </Card>
-          </>
-        ) : null}
+                    </span>
+                    <span className="shrink-0 text-[15px] font-semibold tabular-nums text-ink">
+                      −{inr(t.txnAmount)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </Card>
+        </>
+      ) : null}
 
-        {/* ------------------------------------------------ The rest */}
-        {/* No heading without something under it. An insight list can legitimately be empty —
+      {/* ------------------------------------------------ The rest */}
+      {/* No heading without something under it. An insight list can legitimately be empty —
             it is over a statement whose narrations carry no habit and no mandate — and
             "What I noticed" over nothing reads as a section that failed to load. */}
-        {plan.insights.length > 0 ? (
-          <>
-            <div id="what-i-noticed" className="scroll-mt-3">
-              <Eyebrow>What I noticed</Eyebrow>
-            </div>
-            {plan.insights.map((i) => (
-              <InsightCard key={i.kind} insight={i} />
-            ))}
-          </>
-        ) : null}
+      {plan.insights.length > 0 ? (
+        <>
+          <div id="what-i-noticed" className="scroll-mt-3">
+            <Eyebrow>What I noticed</Eyebrow>
+          </div>
+          {plan.insights.map((i) => (
+            <InsightCard key={i.kind} insight={i} />
+          ))}
+        </>
+      ) : null}
 
-        <p className={`${NOTE} mb-0 mt-5`}>
-          Every figure on this screen is computed from {snapshot.quality.transactions}{' '}
-          {snapshot.quality.transactions === 1 ? 'transaction' : 'transactions'}{' '}
-          {historySpan(snapshot.quality.monthsOfHistory)}.{' '}
-          {/* "matched to a merchant or a mandate" overstated what the number measures: it also
+      <p className={`${NOTE} mb-0 mt-5`}>
+        Every figure on this screen is computed from {snapshot.quality.transactions}{' '}
+        {snapshot.quality.transactions === 1 ? 'transaction' : 'transactions'}{' '}
+        {historySpan(snapshot.quality.monthsOfHistory)}.{' '}
+        {/* "matched to a merchant or a mandate" overstated what the number measures: it also
               counts a keyword like SALARY or CHGS, which names a purpose rather than a
               counterparty. On IDBI's feed that read as 50% matched to merchants beside forty
               rows that name nobody at all. */}
-          {Math.round(snapshot.quality.categorisedShare * 100)}% of them carry enough for me to
-          recognise what they were; the rest are filed as the bank filed them.
-        </p>
-      </PullToRefresh>
-    </>
+        {Math.round(snapshot.quality.categorisedShare * 100)}% of them carry enough for me to
+        recognise what they were; the rest are filed as the bank filed them.
+      </p>
+    </Screen>
   )
 }
 

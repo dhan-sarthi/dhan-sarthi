@@ -14,8 +14,8 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Roadmap, Snapshot, Stage } from '@dhan/contracts'
 import { ChevronDown, SlidersHorizontal } from 'lucide-react'
-import { Button, Card, Eyebrow, Head, Leader, Pill } from '../components/ui.tsx'
-import { PullToRefresh } from '../components/PullToRefresh.tsx'
+import { Button, Card, Eyebrow, Head, Leader, Pill, TextLink } from '../components/ui.tsx'
+import { Screen } from '../components/Screen.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
 import { band } from '../lib/projection.ts'
 
@@ -64,120 +64,121 @@ export function Plan({
   const mid = scenarios[1]
 
   return (
-    <>
-      <Head
-        title="Plan"
-        sub={`${roadmap.goal.purpose ?? 'Your goal'} · version ${roadmap.version}`}
-      />
-
-      <PullToRefresh className="scroll" contentClassName="ds-enter" onRefresh={onRefresh}>
-        {/* ------------------------------------------------ Destination */}
-        <div className="mt-3">
-          <Card tint="sky">
-            <h2>Where you are going</h2>
-            <p className={META}>
-              {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)}
-            </p>
-            {/* "₹2.18 crore" is a number somebody can hold in their head; ₹2,18,00,000 is a
+    <Screen
+      header={
+        <Head
+          title="Plan"
+          sub={`${roadmap.goal.purpose ?? 'Your goal'} · version ${roadmap.version}`}
+        />
+      }
+      onRefresh={onRefresh}
+    >
+      {/* ------------------------------------------------ Destination */}
+      <div className="mt-3">
+        <Card tint="sky">
+          <h2>Where you are going</h2>
+          <p className={META}>
+            {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)}
+          </p>
+          {/* "₹2.18 crore" is a number somebody can hold in their head; ₹2,18,00,000 is a
               number they have to count the digits of — and at eleven digits it ran off the card. */}
-            <div className="mb-1 mt-3.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink">
-              {approx(roadmap.goal.targetAmount)}
-            </div>
-            <p className={`${META} mb-1.5`}>in today&rsquo;s money</p>
-            <p className={META}>
-              {roadmap.feasible
-                ? `${inr(roadmap.monthlyCommitment)} a month, starting now.`
-                : `${inr(roadmap.shortfallMonthly)} a month short at your present pace.`}
+          <div className="mb-1 mt-3.5 text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink">
+            {approx(roadmap.goal.targetAmount)}
+          </div>
+          <p className={`${META} mb-1.5`}>in today&rsquo;s money</p>
+          <p className={META}>
+            {roadmap.feasible
+              ? `${inr(roadmap.monthlyCommitment)} a month, starting now.`
+              : `${inr(roadmap.shortfallMonthly)} a month short at your present pace.`}
+          </p>
+
+          {!roadmap.feasible ? (
+            <p className="mb-0 mt-3 text-[13.5px] leading-normal text-ink-mid">
+              I would rather show you that than move the number until it fits. We can push the date,
+              lower the target, or find the difference in your spending — and the last one is
+              usually the least painful.
             </p>
+          ) : null}
 
-            {!roadmap.feasible ? (
-              <p className="mb-0 mt-3 text-[13.5px] leading-normal text-ink-mid">
-                I would rather show you that than move the number until it fits. We can push the
-                date, lower the target, or find the difference in your spending — and the last one
-                is usually the least painful.
-              </p>
-            ) : null}
-
-            {/* The sentence above has always offered this. Until there was a button it was a
+          {/* The sentence above has always offered this. Until there was a button it was a
                 shrug rather than an offer. */}
-            <div className="mt-4">
-              <Button tone="secondary" size="sm" onClick={onEditGoal}>
-                <SlidersHorizontal size={15} strokeWidth={2.5} />
-                Change the target
-              </Button>
-            </div>
-          </Card>
-        </div>
+          <div className="mt-4">
+            <Button tone="secondary" size="sm" onClick={onEditGoal}>
+              <SlidersHorizontal size={15} strokeWidth={2.5} />
+              Change the target
+            </Button>
+          </div>
+        </Card>
+      </div>
 
-        {/* ------------------------------------------------ The route */}
-        <Eyebrow>
-          The route · {roadmap.stages.length} {roadmap.stages.length === 1 ? 'stage' : 'stages'}
-        </Eyebrow>
-        {roadmap.stages.map((stage, i) => (
-          <StageCard key={stage.index} stage={stage} last={i === roadmap.stages.length - 1} />
-        ))}
+      {/* ------------------------------------------------ The route */}
+      <Eyebrow>
+        The route · {roadmap.stages.length} {roadmap.stages.length === 1 ? 'stage' : 'stages'}
+      </Eyebrow>
+      {roadmap.stages.map((stage, i) => (
+        <StageCard key={stage.index} stage={stage} last={i === roadmap.stages.length - 1} />
+      ))}
 
-        {/* ------------------------------------------------ Projection */}
-        {contribution > 0 ? (
-          <>
-            <Eyebrow>If you keep it up</Eyebrow>
-            <Card>
-              {/* Today's money leads, because the goal above is stated in today's money and the
+      {/* ------------------------------------------------ Projection */}
+      {contribution > 0 ? (
+        <>
+          <Eyebrow>If you keep it up</Eyebrow>
+          <Card>
+            {/* Today's money leads, because the goal above is stated in today's money and the
                   two have to be comparable. Quoting the nominal figure first invites someone to
                   read ₹3.15 crore against a ₹2.18 crore target and conclude they are ahead. */}
-              <h2>{approx(mid?.realCorpus ?? 0)}</h2>
-              <p className={META}>
-                in today&rsquo;s money, after {years} years at an assumed {rate}% — which is{' '}
-                {approx(mid?.corpus ?? 0)} in {Number(asOf.slice(0, 4)) + years} rupees
-              </p>
+            <h2>{approx(mid?.realCorpus ?? 0)}</h2>
+            <p className={META}>
+              in today&rsquo;s money, after {years} years at an assumed {rate}% — which is{' '}
+              {approx(mid?.corpus ?? 0)} in {Number(asOf.slice(0, 4)) + years} rupees
+            </p>
 
-              <div className="mb-1.5 mt-[18px]">
-                {scenarios.map((sc) => (
-                  <Leader
-                    key={sc.label}
-                    label={`${sc.label} · ${sc.ratePct}%`}
-                    value={approx(sc.realCorpus)}
-                    filled={sc.ratePct === rate}
-                  />
-                ))}
-                <Leader label="Of which you put in" value={approx(mid?.contributed ?? 0)} />
-                <Leader label={`Your target`} value={approx(roadmap.goal.targetAmount)} />
-              </div>
-
-              <label className="mt-4 block text-[12.5px] text-ink-soft">
-                Assumed annual return — change it and see
-                <input
-                  type="range"
-                  min={4}
-                  max={14}
-                  step={0.5}
-                  value={rate}
-                  onChange={(e) => setRate(Number(e.target.value))}
-                  className="mt-2 block w-full accent-accent"
+            <div className="mb-1.5 mt-[18px]">
+              {scenarios.map((sc) => (
+                <Leader
+                  key={sc.label}
+                  label={`${sc.label} · ${sc.ratePct}%`}
+                  value={approx(sc.realCorpus)}
+                  filled={sc.ratePct === rate}
                 />
-              </label>
+              ))}
+              <Leader label="Of which you put in" value={approx(mid?.contributed ?? 0)} />
+              <Leader label={`Your target`} value={approx(roadmap.goal.targetAmount)} />
+            </div>
 
-              <p className={`${NOTE} mb-0 mt-1.5`}>{roadmap.disclaimer}</p>
-            </Card>
-          </>
-        ) : null}
+            <label className="mt-4 block text-[12.5px] text-ink-soft">
+              Assumed annual return — change it and see
+              <input
+                type="range"
+                min={4}
+                max={14}
+                step={0.5}
+                value={rate}
+                onChange={(e) => setRate(Number(e.target.value))}
+                className="mt-2 block w-full accent-accent"
+              />
+            </label>
 
-        {/* ------------------------------------------------ Recalculation */}
-        <Eyebrow>Why this version</Eyebrow>
-        <Card>
-          <div className="mb-2.5 flex gap-2">
-            <Pill>Version {roadmap.version}</Pill>
-            <Pill>{dayMonth(roadmap.createdAt)}</Pill>
-          </div>
-          <p className="m-0 text-[15px] leading-normal text-ink">{roadmap.reasonForChange}</p>
-          <p className={`${NOTE} mb-0 mt-3`}>
-            Every version of this plan is kept, with the reason it changed and the figures it was
-            built on. That record is what makes the advice auditable five years from now — and it is
-            the same record that lets the plan learn what you actually do.
-          </p>
-        </Card>
-      </PullToRefresh>
-    </>
+            <p className={`${NOTE} mb-0 mt-1.5`}>{roadmap.disclaimer}</p>
+          </Card>
+        </>
+      ) : null}
+
+      {/* ------------------------------------------------ Recalculation */}
+      <Eyebrow>Why this version</Eyebrow>
+      <Card>
+        <div className="mb-2.5 flex gap-2">
+          <Pill>Version {roadmap.version}</Pill>
+          <Pill>{dayMonth(roadmap.createdAt)}</Pill>
+        </div>
+        <p className="m-0 text-[15px] leading-normal text-ink">{roadmap.reasonForChange}</p>
+        <p className={`${NOTE} mb-0 mt-3`}>
+          Every version of this plan is kept, with the reason it changed and the figures it was
+          built on. That record is what makes the advice auditable five years from now — and it is
+          the same record that lets the plan learn what you actually do.
+        </p>
+      </Card>
+    </Screen>
   )
 }
 
@@ -236,19 +237,16 @@ function StageCard({ stage, last }: { stage: Stage; last: boolean }): ReactNode 
             </div>
           </div>
 
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            className="ds-press -mb-1.5 mt-1 inline-flex h-10 items-center gap-1 border-0 bg-transparent px-0 text-sm font-semibold text-brand underline-offset-2 hover:underline"
-          >
-            {open ? 'Hide' : 'Why this first?'}
-            <ChevronDown
-              size={15}
-              strokeWidth={2.6}
-              className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-            />
-          </button>
+          <div className="-mb-1.5 mt-1">
+            <TextLink size="sm" flush ariaExpanded={open} onClick={() => setOpen((v) => !v)}>
+              {open ? 'Hide' : 'Why this first?'}
+              <ChevronDown
+                size={15}
+                strokeWidth={2.6}
+                className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+              />
+            </TextLink>
+          </div>
         </Card>
       </div>
     </div>

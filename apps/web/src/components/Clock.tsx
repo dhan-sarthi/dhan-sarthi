@@ -19,6 +19,7 @@
  */
 import type { ReactNode } from 'react'
 import { dayMonth } from '../lib/money.ts'
+import { TextLink } from './ui.tsx'
 import { useRipple } from '../lib/motion.ts'
 
 /** `YYYY-MM-DD` plus n days, via UTC so no local timezone can move the date. */
@@ -70,14 +71,9 @@ export function Clock({
             {dayMonth(asOf)} {asOf.slice(0, 4)}
           </div>
         </div>
-        <button
-          type="button"
-          className="h-10 shrink-0 rounded-pill border-0 bg-transparent px-2 text-[15px] font-semibold text-brand-deep underline-offset-2 hover:underline disabled:opacity-60"
-          onClick={onReset}
-          disabled={disabled}
-        >
+        <TextLink onClick={onReset} disabled={disabled}>
           Reset
-        </button>
+        </TextLink>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">

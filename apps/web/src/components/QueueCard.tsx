@@ -9,7 +9,9 @@
  */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import { X } from 'lucide-react'
 import type { QueuePlace } from '../lib/avatar.ts'
+import { IconButton } from './ui.tsx'
 
 const minutes = (seconds: number | null): string | null =>
   seconds === null ? null : `about ${Math.max(1, Math.round(seconds / 60))} min`
@@ -52,14 +54,9 @@ export function QueueCard({
         >
           Call again
         </button>
-        <button
-          type="button"
-          onClick={onLeave}
-          aria-label="Dismiss"
-          className="grid size-10 flex-none place-items-center rounded-pill border-0 bg-transparent text-white/85"
-        >
-          ×
-        </button>
+        <IconButton label="Dismiss" tone="ghost" onClick={onLeave}>
+          <X size={18} strokeWidth={2.4} />
+        </IconButton>
       </div>
     )
   }

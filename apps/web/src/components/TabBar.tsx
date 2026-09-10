@@ -1,37 +1,58 @@
 /**
- * The five tabs, with the advisor in the middle.
+ * Five tabs, with the advisor raised in the middle.
  *
- * The arrangement is Cleo's and it is right: putting the assistant in the centre of the bar makes
- * it the thing you reach for rather than a feature you have to go and find. Ours differs in what
- * the tabs are, and the differences are the product:
+ *   Discover   the shelf, and the route into a purchase. Net-new; the app has no buy route yet
+ *   Dashboard  what you are worth and what you are doing about it today. Absorbs Money
+ *   Ask        Uday, full screen. Voice for the decisions, text for the check-ins
+ *   Plan       the sequenced route, and the recalculation history
+ *   More       the record, your details, and the demo's own controls
  *
- *   Today   the daily plan — one number, one action
- *   Plan    the route, and the recalculation history. Replaces the cut Future Self screen
- *   Ask     Uday, full screen. Voice for the decisions, text for the check-ins
- *   Money   the 360 view. Boring on purpose; it is the "you know everything about me" proof
- *   Record  the audit trail and the consent centre. The compliance artefact, made visible
+ * ## Two raised things, and why they are different shapes
  *
- * `Record` exists as much for the judge as the customer. A remote banker cannot feel a
- * conversation, but recognises a paper trail.
+ * SmartWealth's signature piece of chrome is that the *active* tab sits in a white card lifted
+ * out of the bar. This app already lifted something out of the bar: a dark green disc in the
+ * centre, permanently, for the advisor. `07-DECISIONS.md` settles the merge rather than picking
+ * one — the centre stays the advisor and stays raised, and the other four get the reference's
+ * active treatment. So the bar has two lifted shapes and they read as two different things,
+ * which is correct: the disc is a destination that is always there, the card is *where you are*.
  *
- * The chrome is GO Mobile+'s: a green gradient bar with white monoline icons, the active item
- * told by weight alone, and the centre item raised out of the bar as a dark green disc with a
- * white border and an orange ring. The bar is a flex sibling of the scroll region, never
- * absolutely positioned, so it is structurally impossible for it to leave the screen.
+ * The count is five, not the reference's three, and that is deliberate. The raised centre needs
+ * an odd count to sit centred with equal halves either side, and the advisor is the one thing in
+ * this product that SmartWealth has no answer for at all — demoting it to a menu row to match a
+ * tab count observed in a marketing video would copy the reference's priorities, not its craft.
+ *
+ * ## What the card costs, and what it changes
+ *
+ * The reference's card is 216pt wide on a three-tab bar — 1.6× its own column. Five columns on a
+ * 375px phone are 75px each, so ours is the column less a 4px inset either side. It is the same
+ * mechanic at the width this bar has.
+ *
+ * The active tab used to be told by weight alone, because both states were white on the green
+ * gradient and a colour change would have been decoration. Once the active item moves onto a
+ * white card that stops being true: it needs an ink that survives on white, which is
+ * `accent-text` — IDBI's action colour used as text, 5.5:1, where the raw orange is 2.6:1 and
+ * would fail even the 3:1 a 22px monoline glyph needs.
+ *
+ * ## The bar is a flex sibling
+ *
+ * Never absolutely positioned, so it is structurally impossible for it to leave the screen. The
+ * lifted card and the disc escape it by being siblings of their button rather than children of
+ * one: `.ds-press` sets `overflow: hidden` to keep the ripple inside the pill, and it clips
+ * anything reaching past the button's edge just as happily.
  */
 import type { ReactNode } from 'react'
-import { Home, IndianRupee, Route, ScrollText, Video } from 'lucide-react'
+import { Compass, LayoutGrid, Menu, Route, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useRipple } from '../lib/motion.ts'
 
-export type TabId = 'today' | 'plan' | 'ask' | 'money' | 'record'
+export type TabId = 'discover' | 'dashboard' | 'ask' | 'plan' | 'more'
 
 const TABS: readonly { id: TabId; label: string; glyph: LucideIcon; centre?: boolean }[] = [
-  { id: 'today', label: 'Today', glyph: Home },
-  { id: 'plan', label: 'Plan', glyph: Route },
+  { id: 'discover', label: 'Discover', glyph: Compass },
+  { id: 'dashboard', label: 'Dashboard', glyph: LayoutGrid },
   { id: 'ask', label: 'Ask Uday', glyph: Video, centre: true },
-  { id: 'money', label: 'Money', glyph: IndianRupee },
-  { id: 'record', label: 'Record', glyph: ScrollText },
+  { id: 'plan', label: 'Plan', glyph: Route },
+  { id: 'more', label: 'More', glyph: Menu },
 ]
 
 export function TabBar({
@@ -44,39 +65,62 @@ export function TabBar({
   const ripple = useRipple()
   return (
     <nav
-      className="grid min-h-16 flex-none grid-cols-5 rounded-t-lg bg-gradient-to-b from-nav-top to-nav-bottom pb-[env(safe-area-inset-bottom,0px)] text-white"
+      className="grid min-h-[68px] flex-none grid-cols-5 rounded-t-lg bg-gradient-to-b from-nav-top to-nav-bottom pb-[env(safe-area-inset-bottom,0px)] text-white"
       aria-label="Sections"
     >
       {TABS.map((t) => {
         const Glyph = t.glyph
         const isActive = t.id === active
-        return (
-          <button
-            key={t.id}
-            type="button"
-            className="ds-press relative flex min-w-0 flex-col items-center justify-end gap-1 border-0 bg-transparent px-1 pb-1.5 pt-2 text-white"
-            aria-current={isActive ? 'page' : undefined}
-            onPointerDown={ripple}
-            onClick={() => onChange(t.id)}
-          >
-            {/* The dot, not a moving underline. Five items on a 375px bar are 75px apart and a
-                bar sliding that far every tap is more movement than the change deserves. */}
-            {!t.centre ? (
-              <span
-                aria-hidden="true"
-                className={`absolute top-1 h-1 w-1 rounded-pill bg-white transition-all duration-200 ${
-                  isActive ? 'opacity-100' : 'scale-50 opacity-0'
-                }`}
-              />
-            ) : null}
-            {t.centre ? (
-              <span
-                className="ds-press grid size-[60px] -translate-y-4 -mb-[22px] place-items-center rounded-pill border-4 border-solid border-white bg-brand-deep shadow-lift ring-2 ring-accent"
-                aria-hidden="true"
+
+        if (t.centre) {
+          return (
+            <div key={t.id} className="relative flex min-w-0">
+              {/* No `ds-press` on the button: it would clip the disc it is lifting. The disc
+                  carries it instead, so the press scales the disc and the ripple stays in it. */}
+              <button
+                type="button"
+                className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 border-0 bg-transparent px-1 pb-1.5 pt-2 text-white"
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => onChange(t.id)}
               >
-                <Glyph size={26} strokeWidth={1.75} />
-              </span>
-            ) : (
+                <span
+                  aria-hidden="true"
+                  onPointerDown={ripple}
+                  className="ds-press grid size-[60px] -translate-y-4 -mb-[22px] place-items-center rounded-pill border-4 border-solid border-white bg-brand-deep shadow-lift ring-2 ring-accent"
+                >
+                  <Glyph size={26} strokeWidth={1.75} />
+                </span>
+                <span
+                  className={`truncate text-[11px] leading-[14px] ${
+                    isActive ? 'font-bold' : 'font-medium'
+                  }`}
+                >
+                  {t.label}
+                </span>
+              </button>
+            </div>
+          )
+        }
+
+        return (
+          <div key={t.id} className="relative flex min-w-0">
+            {/* The lifted card. A sibling of the button so it can reach 8px above the bar, and
+                `pointer-events-none` so the press still lands on the button underneath it. */}
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-x-1 -top-2 bottom-1 rounded-lg bg-surface shadow-lift transition-all duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)] ${
+                isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
+              }`}
+            />
+            <button
+              type="button"
+              className={`ds-press relative z-[1] flex min-w-0 flex-1 flex-col items-center justify-end gap-1 rounded-lg border-0 bg-transparent px-1 pb-1.5 pt-2 transition-colors duration-200 ${
+                isActive ? 'text-accent-text' : 'text-white'
+              }`}
+              aria-current={isActive ? 'page' : undefined}
+              onPointerDown={ripple}
+              onClick={() => onChange(t.id)}
+            >
               <span
                 className={`grid size-6 place-items-center transition-transform duration-200 ${
                   isActive ? '-translate-y-0.5 scale-110' : ''
@@ -85,19 +129,15 @@ export function TabBar({
               >
                 <Glyph size={22} strokeWidth={isActive ? 2.3 : 1.75} />
               </span>
-            )}
-            {/* Weight alone, which is what the bar was always described as doing. The inactive
-                labels used to carry `opacity-80` as well, and at 11px over the nav gradient that
-                is 3.42:1 — five permanently visible labels below AA, four of them for the sake
-                of a distinction the weight already makes. */}
-            <span
-              className={`truncate text-[11px] leading-[14px] ${
-                isActive ? 'font-bold' : 'font-medium'
-              }`}
-            >
-              {t.label}
-            </span>
-          </button>
+              <span
+                className={`truncate text-[11px] leading-[14px] ${
+                  isActive ? 'font-bold' : 'font-medium'
+                }`}
+              >
+                {t.label}
+              </span>
+            </button>
+          </div>
         )
       })}
     </nav>

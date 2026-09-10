@@ -15,11 +15,10 @@ import type { ReactNode } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { HoldingsResponse } from '@dhan/contracts'
 import { Sheet } from '../components/Sheet.tsx'
-import { Button, Skeleton } from '../components/ui.tsx'
+import { Button, IconButton, Skeleton } from '../components/ui.tsx'
 import { Choice, Field, MoneyInput, TextInput } from '../components/Form.tsx'
 import { api, isApiError } from '../api/client.ts'
 import { inr } from '../lib/money.ts'
-import { useRipple } from '../lib/motion.ts'
 
 /**
  * The five things a customer can name, and what each one implies.
@@ -74,7 +73,6 @@ export function HoldingsSheet({
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const ripple = useRipple()
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -268,16 +266,14 @@ export function HoldingsSheet({
                 </div>
               </div>
               {readOnly ? null : (
-                <button
-                  type="button"
-                  aria-label={`Remove ${h.name}`}
+                <IconButton
+                  label={`Remove ${h.name}`}
+                  tone="danger"
                   disabled={busy}
-                  onPointerDown={ripple}
                   onClick={() => void remove(h.holdingId, h.name)}
-                  className="ds-press grid h-10 w-10 flex-none place-items-center rounded-pill border-0 bg-danger-soft text-danger disabled:opacity-50"
                 >
                   <Trash2 size={16} strokeWidth={2.3} />
-                </button>
+                </IconButton>
               )}
             </li>
           ))}

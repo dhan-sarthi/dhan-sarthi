@@ -12,6 +12,7 @@ import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { useRipple } from '../lib/motion.ts'
+import { IconButton } from './ui.tsx'
 
 export function Field({
   label,
@@ -81,37 +82,30 @@ export function Stepper({
   onChange: (n: number) => void
   suffix?: string | undefined
 }): ReactNode {
-  const ripple = useRipple()
-  const btn =
-    'ds-press grid h-11 w-11 flex-none place-items-center rounded-pill border-0 bg-ground-deep text-ink disabled:opacity-40'
   return (
     <div className="flex items-center gap-3">
-      <button
-        type="button"
-        className={btn}
-        aria-label="Fewer"
+      <IconButton
+        label="Fewer"
+        size="lg"
         disabled={value <= min}
-        onPointerDown={ripple}
         onClick={() => onChange(Math.max(min, value - 1))}
       >
         <Minus size={17} strokeWidth={2.6} />
-      </button>
+      </IconButton>
       <span className="min-w-[3ch] text-center text-[19px] font-bold tabular-nums text-ink">
         {value}
         {suffix ? (
           <span className="ml-1 text-[13px] font-semibold text-ink-soft">{suffix}</span>
         ) : null}
       </span>
-      <button
-        type="button"
-        className={btn}
-        aria-label="More"
+      <IconButton
+        label="More"
+        size="lg"
         disabled={value >= max}
-        onPointerDown={ripple}
         onClick={() => onChange(Math.min(max, value + 1))}
       >
         <Plus size={17} strokeWidth={2.6} />
-      </button>
+      </IconButton>
     </div>
   )
 }
