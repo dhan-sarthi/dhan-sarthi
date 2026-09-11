@@ -277,6 +277,81 @@ matter, so a donut re-sorted by weight is safe.
 - Never use a ramp colour for a control, and never use `bg-accent` for a slice. The action green means
   "press this" everywhere else in the app; `chart-4` is deep enough not to be mistaken for it.
 
+### Charts of change — one series, along an axis
+
+The ramp above cuts a whole into slices. These four cut nothing: each draws **one** series moving
+along months or years, and the ramp has nothing to say about a single line. They separate their
+marks the way `DESIGN.md` says a one-hue palette has to — **weight, dash, fill and form** — and the
+test each of them passes is that the picture still reads printed in grey.
+
+The geometry is in `charts/plot.ts` (scales, paths, columns) and the feeds are in `charts/months.ts`
+(statement lines folded into months), `charts/pace.ts` (dates against a target) and
+`charts/growth.ts` (the projection between its endpoints). All four are unit-tested; nothing in a
+`.tsx` here does arithmetic.
+
+**Four rules that apply to all of them.**
+
+- **A magnitude is drawn from zero.** `bounds(values)` pins the floor at 0. Cropping a series to
+  its own range turns a 4% wobble into a mountain, and `baseline: 'range'` is a decision a caller
+  has to type, for a series whose zero is not a floor.
+- **The viewBox is `0 0 100 100` with `preserveAspectRatio="none"`**, stretched by CSS to the width
+  it lands in — no `ResizeObserver` in a component that renders twelve times down a list. Every
+  stroke carries `vectorEffect="non-scaling-stroke"` so it stays its own width, and anything round
+  (an end disc) is an HTML sibling positioned in per cent, because a circle in a stretched box is
+  an ellipse.
+- **No tooltip.** Nothing here may need a touch to be read. The reading is the shape and the rule
+  it crosses, and the figure is printed beside it at full size.
+- **A rule that crosses the series carries a white halo** — `stroke-surface` at 3.5 under
+  `stroke-chart-2` dashed at 1.25. There is no second hue to make a dash visible over a column, so
+  the halo is the mechanism.
+
+- **Sparkline** (`charts/Sparkline.tsx`, with `SparkRow`). Twelve months of one thing.
+  `mark="column"` for money that went out — one rect a month, `fill-chart-3`, the latest month
+  `fill-chart-1`, a running month `fill-chart-4`; `mark="line"` for a *level* that persists between
+  the months (a balance, a corpus): `stroke-chart-1` at 2 over a `fill-chart-5` wash, with a
+  2.5px disc on the last point. **Which mark is not a style choice.** A run of monthly totals drawn
+  as a line from a zero baseline is a flat trace pinned to the top of a slab — that is what the
+  first render of this looked like — and the same numbers as columns are one glance. The rule is
+  the median, and it has to be the same statistic as the figure printed beside it. Axis is two
+  labels, first month and last; twelve do not fit at 430px, and a sparkline whose x axis needs
+  reading is not a sparkline.
+- **PaceBar** (`charts/PaceBar.tsx`, with `PaceRow`). A progress bar that knows what day it is.
+  Solid `bg-chart-1` for what is reached, `bg-accent-soft` for the gap between that and what today
+  asks for, `bg-chart-idle` for the rest, and a `bg-brand-deep` hairline notch at the pace mark —
+  **a sibling of the rail, never a child**, because the rail clips and a notch that disappears once
+  the bar reaches it only works when it does not matter. Ahead of pace draws no soft region at all.
+  `paceOf` takes `startsOn`/`completesOn`/`asOf` off the stage the server already sent. The pace
+  line is straight, so it is for *contribution* progress; a compound corpus gets the curve below.
+- **StageTrack** (`charts/StageTrack.tsx`). The roadmap's stages on one shared axis, oldest start to
+  latest end, so a ninety-six-month stage draws sixteen times the four-month one. Done is solid
+  `bg-chart-1`; the stage under way is solid to today and `bg-accent-soft` beyond, ringed in
+  `border-chart-1` **and** labelled with a `Now` chip; later stages are `bg-chart-5` inside a
+  `border-chart-4` hairline. The first build had the current stage soft and unringed and it came
+  out fainter than stages that have not started — a ring on a 10px lane is a fine second channel
+  and a poor only one. Today is a caret on the axis strip, not a rule down through the rows.
+  `lanesOf` floors every lane at 4% of the axis, the same trade `MIN_ARC` makes in `series.ts`.
+- **GrowthCurve** (`charts/GrowthCurve.tsx`, with `GrowthCard`). The projection as a band:
+  `fill-chart-5` between the cautious and optimistic rates, the expected line `stroke-chart-1` at
+  2.5, money-in `stroke-chart-3` dashed — dashed because it is the one line that is not a
+  projection — and the target a `stroke-brand-deep` dotted rule. The key is not `LegendRow`: the
+  swatch is 16px of the mark itself, at its own weight and dash, because the dash *is* the
+  difference between two of these lines and a dot throws it away. `growthOf` evaluates
+  `lib/projection.ts`'s own `futureValue` between the endpoints the server sent and pins the last
+  point to the scenario's `corpus`, so the curve cannot end anywhere but on the figure beside it.
+  **The disclaimer belongs to the card, not to the chart** — `projection.disclaimer` has to appear
+  wherever any of this is shown, in the screen's copy voice, not at 11px under a picture.
+
+**Two of these were rebuilt after looking at the screenshot, and both failures are the same
+failure.** A twelve-month spending series drawn as a line shipped first and was replaced by columns
+— the numbers were right, the reading was not. The current roadmap stage shipped soft and unringed
+and came out quieter than the stages that had not started. In one hue there is no colour to reach
+for when a mark is not carrying, so the only fixes available are a different *mark* and more
+*weight*; both times that was also the better chart. Two things were not built for the same reason:
+a second line on a sparkline (two strokes of one ramp at 44px read as one thick line — the rule and
+a printed figure carry the comparison instead) and a hatched shortfall on `PaceBar` (a
+`repeating-linear-gradient` of the same green is mud at 10px; soft against solid is already the
+documented answer).
+
 ### Tiles — 2-column grid
 ```
 grid:  grid grid-cols-2 gap-2.5 mt-4
