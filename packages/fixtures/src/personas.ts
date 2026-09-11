@@ -16,7 +16,13 @@
  * are; all of it is what makes the statement they generate look like one.
  */
 import type { Account, Customer, Holding, SpendCategory } from '@dhan/core'
-import { CARD_FINANCE_RATE_PA, GOVT_COVER, NETFLIX_TIERS, cityProfile } from './calibration.ts'
+import {
+  CARD_FINANCE_RATE_PA,
+  GOVT_COVER,
+  NETFLIX_TIERS,
+  PPF_RATE_PA,
+  cityProfile,
+} from './calibration.ts'
 
 /** A subscription: same merchant, same amount, same day. Detectable precisely because of that. */
 export interface SubscriptionSpec {
@@ -374,9 +380,39 @@ export const ROHAN: PersonaSpec = {
       branchIfsc: 'IBKL0000155',
     },
   ],
-  // Nothing declared. The Axis flexi-cap SIP is a holding too, but the generator rolls that one
-  // forward from `sips` rather than declaring it, so listing it here would double it as well.
-  holdings: [],
+  /*
+   * What he owns beyond the flexi-cap — which is *not* listed here, because the generator rolls
+   * that one forward from `sips` and declaring it would double it, exactly as the FD would be
+   * doubled if it were moved out of `extraAccounts`.
+   *
+   * Neither of these is an IDBI account and neither shows in the statement, which is the point
+   * of the declared block: the employer's NPS contribution never touches this savings account,
+   * and a gold fund bought through another distributor is invisible to the feed. Both are also
+   * deliberately *not* equity. `roadmap.ts` funds a retirement goal against `holdings.equity`
+   * alone, so a Hybrid pension pot and a gold fund deepen the picture on Analytics without
+   * quietly making his target reachable — the shortfall the whole Plan screen is built around
+   * has to survive him owning things.
+   */
+  holdings: [
+    {
+      // 80CCD(2) only: he is on the new regime, where the employer's contribution is the one
+      // NPS deduction still available, so a voluntary Tier-I for the tax break would be wrong.
+      holdingType: 'NPS',
+      name: 'NPS Tier-I — Acme corporate scheme',
+      assetClass: 'Hybrid',
+      investedAmount: 118_800,
+      currentValue: 142_640,
+      sipActive: false,
+    },
+    {
+      holdingType: 'MUTUAL_FUND',
+      name: 'Nippon India Gold Savings Fund',
+      assetClass: 'Gold',
+      investedAmount: 60_000,
+      currentValue: 78_420,
+      sipActive: false,
+    },
+  ],
   // Two dependents and nothing in force. This is what BUNDLED_PROTECTION needs in order to
   // be the rule that fires when the ULIP is proposed.
   policies: [],
@@ -512,7 +548,41 @@ export const PRIYA: PersonaSpec = {
   // not sinking, she is simply never getting anywhere.
   openingBalance: 55_000,
   extraAccounts: [],
-  holdings: [],
+  /*
+   * Everything she owns is locked, and that is the enrichment rather than a softening of it.
+   *
+   * Seven years of salaried consulting produces a pension pot whether or not the person is any
+   * good with money — the employer routes it before the salary is paid, which is why none of it
+   * appears in this ledger. The PPF is from 2019, when she was on the old regime and 80C was
+   * worth something; contributions stopped when she moved to the new one, and the account still
+   * runs to its fifteen-year term.
+   *
+   * Nothing here is redeemable against the card. NPS Tier-I is shut until 60 and PPF until 2034,
+   * so ₹4.5 lakh sits on the Holdings tab that cannot pay down ₹5.83 lakh at 34.8% — which is a
+   * sharper version of HIGH_INTEREST_DEBT than an empty portfolio was, not a weaker one. A
+   * redeemable fund would have been the wrong choice: it would raise "why not just sell it",
+   * which is a good question the app does not currently answer.
+   */
+  holdings: [
+    {
+      holdingType: 'NPS',
+      name: 'NPS Tier-I — Zeta corporate scheme',
+      assetClass: 'Hybrid',
+      investedAmount: 285_600,
+      currentValue: 331_100,
+      sipActive: false,
+    },
+    {
+      holdingType: 'PPF',
+      name: 'Public Provident Fund — opened 2019',
+      assetClass: 'Debt',
+      investedAmount: 105_000,
+      currentValue: 118_260,
+      sipActive: false,
+      interestRate: PPF_RATE_PA,
+      maturityDate: '2034-04-01',
+    },
+  ],
   policies: [],
   pitch: '34, Kochi. ₹1.4 lakh a month — and a credit card at 34.8%.',
   demonstrates: 'HIGH_INTEREST_DEBT — the advisor refuses to invest anything at all',
@@ -643,7 +713,41 @@ export const SUNIL: PersonaSpec = {
   // that lives in the ledger rather than in a sentence somebody wrote.
   openingBalance: 68_000,
   extraAccounts: [],
-  holdings: [],
+  /*
+   * The classic small-business balance sheet: assets, and no liquidity.
+   *
+   * He is on the old regime, so 80C is worth something to him and the PPF is where it went —
+   * the persona's tax note above is only true of somebody who actually used it. The gold fund
+   * is the other half of how a Nagpur trader stores value, and neither of them is equity, which
+   * is what makes the Analytics tab argue his case rather than contradict it: a Conservative
+   * profile whose whole portfolio is debt and gold is a picture, not a label.
+   *
+   * None of it touches the buffer. `buffer` is computed from `balances`, and PPF at a post
+   * office is not reachable on a bad month — so "2.5 months of outgoings and four dependents"
+   * survives intact while "you are not poor, you are illiquid" becomes visible beside it.
+   */
+  holdings: [
+    {
+      holdingType: 'PPF',
+      name: 'Public Provident Fund — Nagpur GPO',
+      assetClass: 'Debt',
+      investedAmount: 216_000,
+      currentValue: 284_300,
+      sipActive: false,
+      interestRate: PPF_RATE_PA,
+      // Opened 2014, run to term and extended once in five-year blocks, as the scheme allows.
+      maturityDate: '2029-04-01',
+    },
+    {
+      holdingType: 'MUTUAL_FUND',
+      name: 'Nippon India Gold Savings Fund',
+      assetClass: 'Gold',
+      investedAmount: 74_000,
+      currentValue: 112_450,
+      sipActive: false,
+      heldOutsideIdbi: true,
+    },
+  ],
   // ₹2 lakh of life cover and ₹2 lakh of accident cover, which the May debits pay for. It does
   // not close a gap of several crore and the roadmap says so — but a statement that debits a
   // premium against an empty protection register is a contradiction that costs more credibility

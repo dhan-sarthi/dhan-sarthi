@@ -95,8 +95,13 @@ export function Overview({
           {held.error} The rest of this screen is computed from your statements and is unaffected.
         </Empty>
       ) : p === null || p.total <= 0 ? (
+        /* `total` is capital, and cover is not capital — so a customer holding two policies and
+           nothing else lands here while the Holdings tab draws their Insurance group. Telling
+           them "no insurance" in that state contradicts the tab beside it. */
         <Empty
-          title="Nothing recorded yet"
+          title={
+            p !== null && p.coverInForce > 0 ? 'Cover, and nothing else' : 'Nothing recorded yet'
+          }
           action={
             <Button size="sm" onClick={onEditHoldings}>
               <Plus size={16} strokeWidth={2.6} />
@@ -104,9 +109,19 @@ export function Overview({
             </Button>
           }
         >
-          IDBI publishes no holdings feed — no funds, no deposit book, no NPS, no insurance — so
-          this block is yours to fill in. Until it has something in it we are advising into a
-          vacuum: suggesting an equity fund to somebody who already holds three.
+          {p !== null && p.coverInForce > 0 ? (
+            <>
+              {inr(p.coverInForce)} of cover is on your record and it is under Protection on
+              Holdings — but cover is not capital, so there is nothing here to value. IDBI publishes
+              no holdings feed either: funds, deposits elsewhere, NPS and PPF are yours to fill in.
+            </>
+          ) : (
+            <>
+              IDBI publishes no holdings feed — no funds, no deposit book, no NPS, no insurance — so
+              this block is yours to fill in. Until it has something in it we are advising into a
+              vacuum: suggesting an equity fund to somebody who already holds three.
+            </>
+          )}
         </Empty>
       ) : (
         <Hero portfolio={p} />

@@ -102,6 +102,19 @@ export const NETFLIX_TIERS = { mobile: 149, basic: 199, standard: 499, premium: 
  */
 export const TERM_PREMIUM_MONTHLY_AGE_29 = 985
 
+/**
+ * The Public Provident Fund rate, on the account a persona declares rather than on anything
+ * the bank pays.
+ *
+ * The Ministry of Finance notifies small-savings rates every quarter and has held PPF at 7.1%
+ * in every notification since Q1 FY 2020-21. It matters here because a declared holding is the
+ * one place in this data where a customer types a rate: the Holdings tab prints it beside the
+ * maturity, and a rate a banker cannot look up makes the rest of the position suspect. The
+ * fifteen-year term and the five-year extension blocks are the same notification's rules,
+ * which is what puts the two maturity dates in `personas.ts` where they are.
+ */
+export const PPF_RATE_PA = 7.1
+
 /* ------------------------------------------------------------------ *
  * How Indians actually pay
  * ------------------------------------------------------------------ */

@@ -86,19 +86,40 @@ export function Analytics({
     )
   }
 
+  /*
+   * Two different empties, because "you have recorded nothing" and "what you have recorded is
+   * cover" are different facts and the customer can tell.
+   *
+   * `total` is capital only — a sum assured is not a value you can take a share of — so a
+   * customer holding two policies and nothing else has `total === 0` while the Holdings tab
+   * beside this one draws their Insurance group. Saying "record a policy and the breakdown
+   * appears" to somebody who has recorded two is the kind of thing that makes a reviewer stop
+   * believing the rest of the screen.
+   */
   if (p === null || p.total <= 0) {
+    const coverOnly = p !== null && p.coverInForce > 0
     return (
       <div className="mt-3">
         <Empty
-          title="Nothing to analyse yet"
+          title={coverOnly ? 'Cover is not a share of anything' : 'Nothing to analyse yet'}
           action={
             <Button size="sm" onClick={onEditHoldings}>
               Add what you own
             </Button>
           }
         >
-          Every chart on this tab is a share of what you hold, and IDBI publishes no holdings feed.
-          Record a fund, a deposit or a policy and the breakdown appears.
+          {coverOnly ? (
+            <>
+              Every chart on this tab is a share of what you hold, and {inr(p.coverInForce)} of
+              cover is not capital — there is no portfolio to divide it into. It is on Holdings,
+              under Protection. Record a fund or a deposit and the breakdown appears.
+            </>
+          ) : (
+            <>
+              Every chart on this tab is a share of what you hold, and IDBI publishes no holdings
+              feed. Record a fund, a deposit or a policy and the breakdown appears.
+            </>
+          )}
         </Empty>
       </div>
     )

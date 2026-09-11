@@ -1158,14 +1158,23 @@ function ChangeRow({
   decisions?: RebalanceDecisions | undefined
 }): ReactNode {
   /*
-   * The self-report, where the daily plan already carries a real action for this change. Matched
-   * on the product rather than on the label: an action's id is `${insight.kind}:${suggests}` and
-   * nothing about it is derivable from a roadmap stage, so the only honest join is the product
-   * the two name. A behavioural change with no matching action still shows — it simply has
-   * nothing to press, and the row says where the decision is recorded instead.
+   * The self-report, where the daily plan already carries a real action for this change. An
+   * action's id is `${insight.kind}:${suggests}` and nothing about it is derivable from a roadmap
+   * stage, so the join has to be something both sides genuinely name.
+   *
+   * The product, where there is one. Where there is not — and every `self_report` row is
+   * behavioural, so there never is — the action's *kind*: "put ₹5,992 a month against the card"
+   * and `pay_down_card` are the same decision however it was reached. Matching on the product
+   * alone meant the match never fired on exactly the rows built to use it, and "I did it" / "Not
+   * now" / "Recorded" were unreachable on all of them.
+   *
+   * A behavioural change the plan carries no action for still shows — it simply has nothing to
+   * press, and the row says where the decision is recorded instead.
    */
-  const action = decisions?.actions.find(
-    (a) => change.productId !== null && a.productId === change.productId,
+  const action = decisions?.actions.find((a) =>
+    change.productId !== null
+      ? a.productId === change.productId
+      : change.actionKind !== null && a.kind === change.actionKind,
   )
   const decided = action ? decisions?.decided.has(action.id) === true : false
 

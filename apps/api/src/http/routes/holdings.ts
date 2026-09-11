@@ -35,7 +35,10 @@ function draftOf(body: object): HoldingDraft {
 
 export function holdingsRoutes(r: Registrar, s: AppServices): void {
   r(routeById('getHoldings'), async ({ session }): Promise<HoldingsResponse> => {
-    const held = await s.holdings.get(session.cif)
+    // The session's simulated today, not the bank's freshness date: under the fixtures source
+    // those are eighteen months apart, and the Dashboard reads this beside figures the view
+    // computes at `session.asOf`.
+    const held = await s.holdings.get(session.cif, session.asOf)
     return {
       holdings: held.holdings,
       policies: held.policies,

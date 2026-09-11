@@ -35,7 +35,7 @@
  * full list is in the build report; the short version is that a percentage this app cannot
  * source is a percentage it does not print.
  */
-import type { Roadmap, Snapshot, Stage } from '@dhan/contracts'
+import type { ActionKind, Roadmap, Snapshot, Stage } from '@dhan/contracts'
 import type { Slice } from '../../components/charts/index.ts'
 
 /* ---------------------------------------------------------------- The month */
@@ -540,6 +540,19 @@ export interface Change {
   terminus: Terminus
   /** Why it ends where it ends. Printed, because a handoff nobody explained looks like a dodge. */
   terminusNote: string
+  /**
+   * The daily plan's action this change *is*, where the plan already carries one.
+   *
+   * The join used to be the product, which cannot work for the rows that need it: every
+   * `self_report` change is behavioural — a card repayment, a spending cap — and behavioural
+   * changes carry `productId: null` by construction. So the match never fired, and "I did it" /
+   * "Not now" / "Recorded" were unreachable on every row that was supposed to have them.
+   *
+   * A kind is the honest key. An action's id is `${insight.kind}:${suggests}` and nothing about
+   * it is derivable from a roadmap stage, but "put money against the card" and `pay_down_card`
+   * are the same decision whoever asks, and so are "cap this habit" and `set_category_cap`.
+   */
+  actionKind: ActionKind | null
 }
 
 export interface ChangeInputs {
@@ -639,10 +652,14 @@ export function changesFor(
       detail: line.detail,
       monthly: line.monthly + extras.monthly,
       oneOff: (line.oneOff ?? 0) + extras.oneOff,
-      productId: line.productId ?? stage?.productId ?? null,
-      productName: line.productName ?? stage?.productName ?? null,
+      /* `??` would swallow a deliberate null. A card repayment sets `productId: null` because it
+         is never a purchase, and the stage's own product must not be allowed to overwrite that
+         — harmless today only because `roadmap.ts` happens to leave `clear_debt` productless. */
+      productId: line.productId !== undefined ? line.productId : (stage?.productId ?? null),
+      productName: line.productName !== undefined ? line.productName : (stage?.productName ?? null),
       terminus,
       terminusNote,
+      actionKind: line.actionKind ?? null,
     })
   }
 
@@ -681,6 +698,7 @@ export function changesFor(
       productName: null,
       terminus: 'self_report',
       terminusNote: 'Nothing to place. Tell the plan what you did and the next version reads it.',
+      actionKind: 'pay_down_card',
     })
   }
 
@@ -741,6 +759,8 @@ export function changesFor(
       productName: funding.kind === 'clear_debt' ? null : funding.productName,
       terminus,
       terminusNote,
+      // Extra money against a card is the same decision the daily plan calls `pay_down_card`.
+      actionKind: funding.kind === 'clear_debt' ? 'pay_down_card' : null,
     })
   }
 
@@ -760,6 +780,7 @@ export function changesFor(
         productName: null,
         terminus: 'self_report',
         terminusNote: 'A cap you set and keep. The app records the decision, not the money.',
+        actionKind: 'set_category_cap',
       })
     }
   }

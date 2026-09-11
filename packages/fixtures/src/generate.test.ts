@@ -281,18 +281,35 @@ describe('the customer file', () => {
   })
 
   it('leaves ROHAN a net worth that counts his deposit once', () => {
-    const s = derive(generateCustomerFile(ROHAN, OPTS), ASOF)
+    const file = generateCustomerFile(ROHAN, OPTS)
+    const s = derive(file, ASOF)
 
     // The FD is an account, and it is the reason his buffer covers six months.
     assert.equal(s.balances.deposits, 200_000)
-    // And it is not also a holding, so the two blocks can be added without doubling it. What he
-    // owns beyond the accounts is the flexi-cap fund the generator rolls forward from his SIP.
+
+    /*
+     * And it is not also a holding, so the two blocks can be added without doubling it.
+     *
+     * This used to be spelled `holdings.debt === 0 && holdings.total === holdings.equity`, which
+     * was only true while the flexi-cap was the only thing he owned — it asserted "he holds one
+     * fund" and got "the FD is not in here" for free. Now that he also holds a pension pot and a
+     * gold fund, the invariant is stated directly: nothing in the declared block carries the
+     * deposit's money or its maturity, and no declared holding is a term deposit at all.
+     */
+    for (const h of file.holdings) {
+      assert.notEqual(h.currentValue, 200_000, `"${h.name}" restates the FD's balance`)
+      assert.notEqual(h.maturityDate, '2026-09-11', `"${h.name}" restates the FD's maturity`)
+      assert.ok(h.holdingType !== 'FD' && h.holdingType !== 'RD', `"${h.name}" is a deposit`)
+    }
+    // Still nothing in the debt class, because an IDBI term deposit is what would land there.
     assert.equal(s.holdings.debt, 0)
-    assert.equal(s.holdings.total, s.holdings.equity)
+    // The flexi-cap the generator rolls forward from his SIP, the NPS and the gold fund.
+    assert.equal(s.holdings.equity, 124_950)
+    assert.equal(s.holdings.total, 346_010)
 
     // The figure Overview puts on the card. It read ₹7,67,628 while the FD was counted twice.
     const netWorth = s.balances.total + s.holdings.total - s.debt.total
-    assert.equal(Math.round(netWorth), 567_628)
+    assert.equal(Math.round(netWorth), 788_688)
   })
 })
 

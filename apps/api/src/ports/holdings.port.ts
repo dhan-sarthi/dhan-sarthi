@@ -19,6 +19,7 @@
  * as well, or a net-worth figure counts it twice.
  */
 import type { Holding } from '@dhan/core'
+import type { IsoDate } from '@dhan/contracts'
 
 /** One stored investment, with the id the API addresses it by. */
 export interface HoldingRecord extends Holding {
@@ -45,8 +46,17 @@ export interface HoldingsStore {
    * route does not have to know which sources own what.
    */
   editable(): boolean
-  /** Empty rather than a throw: a customer who owns nothing is a real customer. */
-  get(cif: string): Promise<CustomerHoldings>
+  /**
+   * Empty rather than a throw: a customer who owns nothing is a real customer.
+   *
+   * `asOf` is the caller's simulated today, and a source that rolls a SIP forward has to be
+   * told it. A store the app owns ignores the argument — a value the customer typed is true on
+   * the day they typed it and on no other basis — but the bank-backed one was reading the
+   * *ledger horizon* instead, so Rohan's portfolio was quoted eighteen months into the future:
+   * ₹2,32,050 on the Holdings tab beside ₹1,24,950 in the same screen's net position, and the
+   * figure never moved when the clock did.
+   */
+  get(cif: string, asOf?: IsoDate): Promise<CustomerHoldings>
   add(cif: string, draft: HoldingDraft): Promise<HoldingRecord>
   /** Throws NotFound where the customer does not hold that record. */
   remove(cif: string, holdingId: string): Promise<void>

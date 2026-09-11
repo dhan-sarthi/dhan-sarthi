@@ -43,7 +43,7 @@ import {
   Tile,
 } from '../../components/ui.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
-import { dayMonth, inr, monthYear } from '../../lib/money.ts'
+import { inr, longDate, monthYear } from '../../lib/money.ts'
 import { CardHead, Columns, Empty } from './parts.tsx'
 import type { Group, GroupId, Position } from './portfolio.ts'
 import type { PortfolioState } from './usePortfolio.ts'
@@ -397,7 +397,10 @@ function PositionRow({ position, cover }: { position: Position; cover: boolean }
             position.sipMonthly > 0
               ? `${inr(position.sipMonthly)} a month${position.sipDay !== null ? ` on day ${position.sipDay}` : ''}`
               : null,
-            position.maturity !== null ? `matures ${dayMonth(position.maturity)}` : null,
+            /* With the year. `dayMonth` is for a charge inside the month you are reading, and a
+               maturity is years out — "matures 1 April" is a date nobody can act on, and the
+               account card twelve rows below prints the year for exactly the same fact. */
+            position.maturity !== null ? `matures ${longDate(position.maturity)}` : null,
             position.rate !== null ? `${position.rate}%` : null,
             position.external ? 'held elsewhere' : null,
           ]
@@ -493,7 +496,7 @@ function AccountCard({ account }: { account: Account }): ReactNode {
 
       <p className={`${NOTE} mt-2.5`}>
         {account.maturityDate !== undefined
-          ? `Matures ${dayMonth(account.maturityDate)} ${account.maturityDate.slice(0, 4)}`
+          ? `Matures ${longDate(account.maturityDate)}`
           : account.accountOpeningDate > '1970-01-01'
             ? `Open since ${monthYear(account.accountOpeningDate)}`
             : 'The bank sends no opening date for this one'}

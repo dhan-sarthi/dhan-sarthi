@@ -52,6 +52,7 @@ export class InMemoryHoldings implements HoldingsStore {
     return true
   }
 
+  /** `asOf` is ignored: a figure the customer typed does not accrue. */
   async get(cif: string): Promise<CustomerHoldings> {
     const row = this.rows.get(cif)
     if (row === undefined) {
@@ -132,9 +133,18 @@ export class BankBackedHoldings implements HoldingsStore {
     return false
   }
 
-  async get(cif: string): Promise<CustomerHoldings> {
-    const asOf = this.bank.describe().dataFreshnessDate
-    const held = await this.bank.getHoldings(cif, asOf)
+  /**
+   * `asOf` is the caller's simulated today, and it matters here in a way it does not for a
+   * store the app owns: this source rolls a SIP forward instalment by instalment, so the date
+   * decides the answer. It used to read `describe().dataFreshnessDate`, which under the
+   * fixtures source is the *end of the seeded ledger* — eighteen months past the clock. Rohan's
+   * Holdings tab said ₹2,32,050 while the net position on the same screen said ₹1,24,950, and
+   * advancing the clock moved one figure and not the other. The freshness date stays as the
+   * fallback for a caller with no clock of its own.
+   */
+  async get(cif: string, asOf?: string): Promise<CustomerHoldings> {
+    const at = asOf ?? this.bank.describe().dataFreshnessDate
+    const held = await this.bank.getHoldings(cif, at)
     // Ids are derived from position so a GET is stable between calls; nothing addresses them
     // for a write on this source anyway.
     return {
