@@ -363,10 +363,14 @@ Rules:
 - Files are quantised to a 48-colour palette — flat art, so it is lossless in practice: 4.2 MB of
   source became 46 KB shipped.
 
-## Category icons (`public/icons`, used by `screens/invest/CategoryGrid.tsx`)
+## Illustrated icons (`public/icons`)
 
-Fourteen illustrated product-category icons, one per category the shelf carries, rendered at 56px
-in the Discover grid.
+Two sets in one folder and one style. **Fourteen product-category icons**, one per category the
+shelf carries, rendered at 56px in the Discover grid by `screens/invest/CategoryGrid.tsx`. **Ten
+`goal-*` icons** — the eight dreams the jar catalogue offers plus `goal-buffer` and `goal-debt` for
+the two pots the plan opens itself — used by `screens/goals/**` at three sizes: inside the jar on a
+catalogue tile, on the plate of a create-form carousel card, and on the 44px tile of a jar card and
+the 48px thumbnail in a jar's app bar. Both sets follow the rules below without exception.
 
 **They carry more colour than the rest of the app, and that is the rule, not an exception.** The
 chrome is one green; the illustration is where a bank is allowed to be warm. The reference makes
@@ -384,6 +388,11 @@ What keeps fourteen of them looking like one set:
   drop shadow.
 
 The app frames them; the file does not. Icons are drawn on transparency with no tile, circle or
-card behind them, because `CategoryGrid` and `ListRow` supply that.
+card behind them, because `CategoryGrid`, `ListRow` and `goals/JarMark` supply that.
 
-Files are 224px (4x the 56px render) quantised to 64 colours: 11.8 MB of source, 69 KB shipped.
+**They are drawn for a light ground, and that is what makes one file serve every placement.** The
+jar catalogue is a dark surface, so the jar's glass is filled pale and the icon sits inside it
+rather than in a hole cut through the outline — see the note in `screens/goals/JarMark.tsx`. Do not
+generate a `dark`-kind variant of an icon that already exists; light the container instead.
+
+Files are 224px (4x the 56px render) quantised to 64 colours: 21 MB of source, 125 KB shipped.

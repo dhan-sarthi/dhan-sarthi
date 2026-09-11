@@ -21,6 +21,7 @@ import { StatusBand } from '../../components/StatusBand.tsx'
 import { Bar, Button, Card, Head, Leader, Pill } from '../../components/ui.tsx'
 import { approx, inr, monthYear } from '../../lib/money.ts'
 import { band } from '../../lib/projection.ts'
+import { STAGE_ICON } from './dreams.ts'
 import {
   DEPOSIT_RATE_PCT,
   fundingRatePct,
@@ -101,6 +102,26 @@ export function JarDetail({
             jar.dated
               ? `Target of ${approx(jar.target)} by ${monthYear(jar.by)}`
               : `${approx(jar.target)} outstanding, and growing`
+          }
+          /* `06-jar-investment-details.png` puts the jar's own illustration on a white tile at
+             the right of the hero, opposite the title and the target line, and it is the one
+             thing that makes the screen belong to this jar rather than to any jar. The picture
+             comes from the stage kind: nothing on the record says which dream the target was
+             named after, because nothing on the record can (`dreams.ts`). */
+          right={
+            <span
+              aria-hidden="true"
+              className="grid size-12 flex-none place-items-center overflow-hidden rounded-sm bg-surface shadow-card"
+            >
+              <img
+                src={`/icons/${STAGE_ICON[jar.kind] ?? 'goal-wealth'}.png`}
+                alt=""
+                width={224}
+                height={224}
+                decoding="async"
+                className="size-9 select-none object-contain"
+              />
+            </span>
           }
         />
       }

@@ -13,9 +13,15 @@
  * better answer than a screen that lets them assume they made it. The stages that are *not* pots
  * stay on Plan; the list names them rather than dropping them silently.
  *
- * **The promo card is the reference's, minus the illustration.** `Create Another SmartJar` on a
- * cream card with a gold hairline maps onto `Card tint="clay"`, and the isometric artwork has no
- * IDBI counterpart — inventing one would be inventing a brand. The card is the copy and the CTA.
+ * **The promo card is the reference's, illustration and all.** `Create Another SmartJar` on a
+ * cream card with a gold hairline maps onto `Card tint="clay"`, and the isometric artwork it
+ * carries is now `Art name="jar-create"` beside the copy.
+ *
+ * **The funnel starts at the catalogue, which is where the reference starts it.** `Create a jar`
+ * used to open the form; it now opens `JarCatalogue`, the dark grid of lit jars that is the most
+ * distinctive screen in the source, and the form follows with the chosen dream's name and
+ * picture already in it. Both directions of that edge exist — the form's carousel goes back into
+ * the same eight without leaving the screen.
  *
  * **The empty state is designed, not observed.** The source has none, anywhere; its own brief
  * says so. Ours says what is true when the list is empty, which is not "no goals" — this app
@@ -32,7 +38,10 @@ import { Sheet } from '../../components/Sheet.tsx'
 import { Button, Card, Eyebrow, Head } from '../../components/ui.tsx'
 import { CreateJar } from './CreateJar.tsx'
 import { JarCard } from './JarCard.tsx'
+import { JarCatalogue } from './JarCatalogue.tsx'
 import { JarDetail } from './JarDetail.tsx'
+import { CUSTOM_DREAM, dreamsApplyTo } from './dreams.ts'
+import type { Dream } from './dreams.ts'
 import { jars, nonJarStages, statusLabel } from './jar.ts'
 import type { Jar } from './jar.ts'
 import { Art } from '../../components/Art.tsx'
@@ -68,12 +77,33 @@ export function SmartJars({
   /** The whole route, including the stages that are not pots. */
   onOpenPlan?: (() => void) | undefined
 }): ReactNode {
-  const [page, setPage] = useState<'list' | 'create'>('list')
+  const [page, setPage] = useState<'list' | 'catalogue' | 'create'>('list')
+  /* The dream travels with the funnel and no further. It is a name and a picture — `dreams.ts`
+     has the whole of why — so it lives here for the length of the two screens that use it and
+     is not written anywhere. */
+  const [dream, setDream] = useState<Dream>(CUSTOM_DREAM)
   const [openJar, setOpenJar] = useState<Jar | null>(null)
   const [explaining, setExplaining] = useState<Jar | null>(null)
 
   const list = jars(view.roadmap, view.snapshot)
   const others = nonJarStages(view.roadmap)
+  /* See `dreamsApplyTo`. A balance owed has no dream, so the grid is skipped rather than
+     offered and quietly ignored. */
+  const dreams = dreamsApplyTo(view.roadmap.goal.kind)
+  const startCreate = (): void => setPage(dreams ? 'catalogue' : 'create')
+
+  if (page === 'catalogue') {
+    return (
+      <JarCatalogue
+        selected={dream.id}
+        onBack={() => setPage('list')}
+        onPick={(picked) => {
+          setDream(picked)
+          setPage('create')
+        }}
+      />
+    )
+  }
 
   if (page === 'create') {
     return (
@@ -81,7 +111,8 @@ export function SmartJars({
         snapshot={view.snapshot}
         roadmap={view.roadmap}
         asOf={view.meta.asOf}
-        onBack={() => setPage('list')}
+        {...(dreams ? { dream, onPickDream: setDream } : {})}
+        onBack={() => setPage(dreams ? 'catalogue' : 'list')}
         onSaved={onSaved}
         onOpenProfile={onOpenProfile}
       />
@@ -151,7 +182,7 @@ export function SmartJars({
       }
     >
       {list.length === 0 ? (
-        <Empty goal={view.roadmap.goal.purpose ?? 'your goal'} onCreate={() => setPage('create')} />
+        <Empty goal={view.roadmap.goal.purpose ?? 'your goal'} onCreate={startCreate} />
       ) : (
         <div className="mt-3">
           {list.map((jar) => (
@@ -184,7 +215,7 @@ export function SmartJars({
             <Art name="jar-create" size="sm" className="-mr-1 -mt-1" />
           </div>
           <div className="mt-4">
-            <Button onClick={() => setPage('create')}>
+            <Button onClick={startCreate}>
               <Plus size={16} strokeWidth={2.6} />
               Create a jar
             </Button>

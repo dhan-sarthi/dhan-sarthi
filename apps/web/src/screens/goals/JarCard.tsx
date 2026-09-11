@@ -21,22 +21,21 @@
  * stretched-overlay trick cannot reach past the row either (`DESIGN.md`, gotcha 3). The row is
  * 68px with the tile in it and carries the chevron, which is where the reference puts the
  * affordance anyway.
+ *
+ * **The tile is an illustration and not a jar.** `12-rebalancing/01` puts a small illustrated
+ * apartment on a pale rounded square here — the lit jar belongs to the catalogue and the frames
+ * keep the two apart, which is right: at 40px a jar outline with something inside it is a smudge,
+ * and the list is scanned rather than browsed. The illustrated set is the same one, from
+ * `public/icons`, so the picture on the card is the picture on the tile that made it.
  */
 import type { ReactNode } from 'react'
-import { ChevronRight, CreditCard, Target, Umbrella } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { Bar } from '../../components/ui.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
 import { approx, monthYear } from '../../lib/money.ts'
+import { STAGE_ICON } from './dreams.ts'
 import { share, statusLabel, statusTone } from './jar.ts'
 import type { Jar } from './jar.ts'
-
-const GLYPH = {
-  build_buffer: Umbrella,
-  clear_debt: CreditCard,
-  grow: Target,
-  free_up: Target,
-  get_cover: Umbrella,
-} as const
 
 export function JarCard({
   jar,
@@ -48,7 +47,6 @@ export function JarCard({
   /** The ⓘ on the band. Opens the engine's own sentence for the stage, never a dead end. */
   onInfo: () => void
 }): ReactNode {
-  const Glyph = GLYPH[jar.kind]
   return (
     <section className="mb-3 min-w-0 overflow-hidden rounded-md border border-solid border-hairline-mint bg-surface">
       <div className="p-4">
@@ -60,9 +58,17 @@ export function JarCard({
         >
           <span
             aria-hidden="true"
-            className="grid size-10 flex-none place-items-center rounded-sm bg-legend-chip text-brand-deep"
+            className="grid size-11 flex-none place-items-center overflow-hidden rounded-sm bg-legend-chip"
           >
-            <Glyph size={21} strokeWidth={2} />
+            <img
+              src={`/icons/${STAGE_ICON[jar.kind] ?? 'goal-wealth'}.png`}
+              alt=""
+              width={224}
+              height={224}
+              loading="lazy"
+              decoding="async"
+              className="size-8 select-none object-contain"
+            />
           </span>
           <span className="min-w-0 flex-1">
             {/* Two lines, not one. The reference's jar names are nouns — "Apartment", "Dream

@@ -40,6 +40,9 @@ import { Checkbox, Field, MoneyInput, Stepper, TextInput } from '../../component
 import { Button, Card, Head, Leader, TextLink } from '../../components/ui.tsx'
 import { approx, inr, inWords, longDate, monthYear } from '../../lib/money.ts'
 import { futureValue, requiredLumpSum, requiredMonthly } from '../../lib/projection.ts'
+import { DreamCarousel } from './DreamCarousel.tsx'
+import { CUSTOM_DREAM } from './dreams.ts'
+import type { Dream } from './dreams.ts'
 import { InflationSheet } from './InflationSheet.tsx'
 import {
   addMonths,
@@ -58,6 +61,8 @@ export function CreateJar({
   snapshot,
   roadmap,
   asOf,
+  dream = CUSTOM_DREAM,
+  onPickDream,
   onBack,
   onSaved,
   onOpenProfile,
@@ -65,6 +70,14 @@ export function CreateJar({
   snapshot: Snapshot
   roadmap: Roadmap
   asOf: string
+  /**
+   * What the catalogue was pointed at. A name and a picture and nothing that reaches the wire —
+   * `dreams.ts` has the whole of why. Left out, the form is the plain one it was before, opened
+   * from a jar's own `Change the target`, where the dream is not the question.
+   */
+  dream?: Dream
+  /** Given, the form draws the reference's variant carousel and the dream can change here. */
+  onPickDream?: ((dream: Dream) => void) | undefined
   onBack: () => void
   /** Announced by the shell, which also re-reads the view — the plan changed underneath. */
   onSaved: (message: string) => void
@@ -75,7 +88,15 @@ export function CreateJar({
   const initialMonths = monthsBetween(asOf, goal.targetDate)
 
   const [step, setStep] = useState<'target' | 'funding'>('target')
-  const [name, setName] = useState(goal.purpose ?? 'My jar')
+  /* The reference prefills the name from the selected variant card and re-prefills it when the
+     card changes ("Carousel card tap -> selects that variant, updates SmartJar Name"). Kept, with
+     the one exception the reference has no equivalent of: the dashed `Something else` slot has no
+     name to give, so it falls back to the goal the plan already holds. */
+  const [name, setName] = useState(dream.custom ? (goal.purpose ?? 'My jar') : dream.label)
+  const pickDream = (picked: Dream): void => {
+    onPickDream?.(picked)
+    setName(picked.custom ? (goal.purpose ?? 'My jar') : picked.label)
+  }
   const [years, setYears] = useState(Math.floor(initialMonths / 12))
   const [months, setMonths] = useState(initialMonths % 12)
   const [amount, setAmount] = useState(goal.targetAmount)
@@ -193,6 +214,12 @@ export function CreateJar({
           ) : null
         }
       >
+        {/* The reference's variant carousel, which is a quarter of `05-create-jar-form.png` and
+            the first thing on it. Only where the dream is the question: reached from a jar's
+            `Change the target`, the caller passes no `onPickDream` and the row does not appear,
+            because that entry point is about a figure on a pot that already exists. */}
+        {onPickDream ? <DreamCarousel selected={dream.id} onPick={pickDream} /> : null}
+
         <Card tint="white">
           <Field label="Jar name">
             <TextInput
@@ -229,15 +256,20 @@ export function CreateJar({
               <span className="mb-1.5 block text-[13px] font-semibold text-ink">
                 Target duration
               </span>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                <label className="flex items-center gap-3">
-                  <span className="text-[13px] text-ink-soft">Years</span>
+              {/* One row with a dot between the two, which is the reference's `02 Y · 00 M · 00 D`
+                  and not a decoration: stacked, the same two steppers ran to 200px of a 430px
+                  screen and pushed the amount — the field the whole screen is about — under the
+                  fold. The word labels go with them; the `Y`/`M` suffix the Stepper already draws
+                  says the same thing in the space the reference gives it, and each stepper is a
+                  named `group` so its Fewer/More buttons still say which unit they move. */}
+              <div className="flex items-center gap-4">
+                <div role="group" aria-label="Years">
                   <Stepper value={years} min={0} max={40} suffix="Y" onChange={setYears} />
-                </label>
-                <label className="flex items-center gap-3">
-                  <span className="text-[13px] text-ink-soft">Months</span>
+                </div>
+                <span aria-hidden="true" className="size-1 rounded-pill bg-ink-faint" />
+                <div role="group" aria-label="Months">
                   <Stepper value={months} min={0} max={11} suffix="M" onChange={setMonths} />
-                </label>
+                </div>
               </div>
               <p className="mb-4 mt-2.5 flex items-center gap-1.5 text-[13px] text-ink-soft">
                 <CalendarDays
@@ -340,6 +372,26 @@ export function CreateJar({
               ? `${approx(amount)} outstanding at ${snapshot.debt.highestRate}%`
               : `Target of ${approx(amount)} by ${by.slice(0, 4)}`
           }
+          /* `06-jar-investment-details.png` puts a white rounded-square thumbnail of the goal's
+             illustration at the right of the hero, opposite the title and the target line. It is
+             the one thing that makes that screen belong to *this* jar rather than to any jar, so
+             it is kept. `Head` lays its `right` slot out; this is not an IconButton because it is
+             not a control — the dream is changed on the screen behind, not here. */
+          right={
+            <span
+              aria-hidden="true"
+              className="grid size-12 flex-none place-items-center overflow-hidden rounded-sm bg-surface shadow-card"
+            >
+              <img
+                src={`/icons/${isDebt ? 'goal-debt' : dream.icon}.png`}
+                alt=""
+                width={224}
+                height={224}
+                decoding="async"
+                className="size-9 select-none object-contain"
+              />
+            </span>
+          }
         />
       }
       footer={
@@ -361,7 +413,7 @@ export function CreateJar({
         <button
           type="button"
           onClick={onOpenProfile}
-          className="ds-press -mx-4 mb-3 flex w-full items-center gap-3 border-0 bg-legend-chip px-4 py-3 text-left"
+          className="ds-press -mx-4 mb-3 flex w-[calc(100%+32px)] items-center gap-3 border-0 bg-legend-chip px-4 py-3 text-left"
         >
           <span className="min-w-0 flex-1 text-[14px] text-ink">
             Your investment profile is{' '}
