@@ -49,7 +49,6 @@ import type { TransactionSource } from '../../lib/transactions.ts'
 import { Money } from '../Money.tsx'
 import type { MoneyTab } from '../Money.tsx'
 import { Today } from '../Today.tsx'
-import type { ClockControls } from '../Today.tsx'
 import { Analytics } from './Analytics.tsx'
 import { Holdings } from './Holdings.tsx'
 import { Overview } from './Overview.tsx'
@@ -66,7 +65,6 @@ const SPEND_TABS: readonly { id: MoneyTab; label: string }[] = [
 export function Dashboard({
   view,
   tier,
-  clock,
   decided,
   decisionsEnabled,
   busy,
@@ -88,7 +86,6 @@ export function Dashboard({
 }: {
   view: View
   tier: Tier
-  clock: ClockControls
   decided: ReadonlySet<string>
   decisionsEnabled: boolean
   busy: boolean
@@ -198,7 +195,6 @@ export function Dashboard({
       <Today
         view={view}
         chrome={chrome}
-        clock={clock}
         decided={decided}
         decisionsEnabled={decisionsEnabled}
         busy={busy}

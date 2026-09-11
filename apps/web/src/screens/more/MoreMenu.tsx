@@ -19,8 +19,8 @@
  *
  * Two rows the source has no equivalent for are here because they had nowhere else to live:
  * "What you already own" and "Linked accounts" were both reachable only from a button halfway
- * down another screen. `Switch customer` is a demo control and is grouped and labelled as one
- * rather than mixed in with the customer's own settings.
+ * down another screen. `Switch customer` used to sit under a `This demo` band here; it went
+ * when the app stopped being a demo. Nothing in this list is scaffolding now.
  *
  * The footer replaces the reference's `HDFC BANK / SmartWealth` lockup and `App Version
  * v11.0.11`. A build number is a placeholder in their demo and would be one here; what a
@@ -69,7 +69,6 @@ import {
   SlidersHorizontal,
   UserRound,
   Users,
-  UsersRound,
   Wallet,
 } from 'lucide-react'
 import type { View } from '@dhan/contracts'
@@ -96,7 +95,6 @@ export function MoreMenu({
   onOpenProfile,
   onEditHoldings,
   onLinkAccounts,
-  onSwitchCustomer,
   onRefresh,
 }: {
   view: View
@@ -109,7 +107,6 @@ export function MoreMenu({
   onOpenProfile: () => void
   onEditHoldings: () => void
   onLinkAccounts: () => void
-  onSwitchCustomer: () => void
   onRefresh: () => Promise<void>
 }): ReactNode {
   const { snapshot } = view
@@ -178,17 +175,6 @@ export function MoreMenu({
           sub="Account Aggregator consent"
           badge={view.accounts.length}
           onClick={onLinkAccounts}
-        />
-      </Group>
-
-      <Section label="This demo" />
-      <Group>
-        <ListRow
-          tall
-          icon={<UsersRound {...GLYPH} />}
-          title="Switch customer"
-          sub="Each persona fires a different rule"
-          onClick={onSwitchCustomer}
         />
       </Group>
 

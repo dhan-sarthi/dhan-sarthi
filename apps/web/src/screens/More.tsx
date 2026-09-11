@@ -45,7 +45,6 @@ export function More({
   onOpenFamily,
   onEditHoldings,
   onLinkAccounts,
-  onSwitchCustomer,
   onRefresh,
 }: {
   /**
@@ -67,7 +66,6 @@ export function More({
   onEditHoldings: () => void
   onLinkAccounts: () => void
   /** Back to the picker. The app has no sign-in; a persona *is* the session. */
-  onSwitchCustomer: () => void
   onRefresh: () => Promise<void>
 }): ReactNode {
   const [page, setPage] = useState<Page>(startOn)
@@ -109,7 +107,6 @@ export function More({
       onOpenFamily={onOpenFamily}
       onEditHoldings={onEditHoldings}
       onLinkAccounts={onLinkAccounts}
-      onSwitchCustomer={onSwitchCustomer}
       onRefresh={onRefresh}
     />
   )

@@ -322,14 +322,6 @@ export function App(): ReactNode {
         <Dashboard
           view={view}
           tier={tier}
-          clock={{
-            show: view.meta.simulatedClock,
-            horizonTo: vs.session?.ledgerHorizon.to ?? view.meta.dataFreshnessDate,
-            notice: m.clockNotice,
-            disabled: m.busy,
-            onAdvance: (days) => void m.advanceClock(days),
-            onReset: () => void m.resetClock(),
-          }}
           decided={m.decided}
           decisionsEnabled={vs.tier === 'server'}
           busy={m.busy}
@@ -403,7 +395,6 @@ export function App(): ReactNode {
           onOpenFamily={() => setFamily(true)}
           onEditHoldings={() => setSheet('holdings')}
           onLinkAccounts={() => setSheet('link')}
-          onSwitchCustomer={clearSession}
           onRefresh={async () => {
             await Promise.all([refreshView(), record.refresh()])
           }}

@@ -18,7 +18,6 @@ import type { ReactNode } from 'react'
 import { ArrowUpRight, ChevronDown, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
 import { Amount, Bar, Button, Card, Eyebrow, Leader, Pill, Tile } from '../components/ui.tsx'
-import { Clock } from '../components/Clock.tsx'
 import { Screen } from '../components/Screen.tsx'
 import type { ScreenChrome } from '../components/Screen.tsx'
 import { isNamed, merchantOf } from '../lib/merchant.ts'
@@ -36,21 +35,9 @@ const BTN_ON_INK_PRIMARY =
 const BTN_ON_INK_SECONDARY =
   'ds-press h-12 min-w-0 flex-auto whitespace-nowrap rounded-pill border-[1.5px] border-solid border-white/50 bg-transparent px-3 text-[15px] font-semibold text-on-dark disabled:opacity-55'
 
-export interface ClockControls {
-  /** False under a real bank feed, where today is today. */
-  show: boolean
-  /** The last date the feed has data for; a step past it is refused by the server. */
-  horizonTo: string
-  notice: string | null
-  disabled: boolean
-  onAdvance: (days: 1 | 7 | 30) => void
-  onReset: () => void
-}
-
 export function Today({
   view,
   chrome,
-  clock,
   decided,
   decisionsEnabled,
   busy,
@@ -65,7 +52,6 @@ export function Today({
   /* The app bar, the ribbon and the sub-tab row come from `Dashboard`, which owns them for all
      four of its panes: they must not change as you move between them. */
   chrome: ScreenChrome
-  clock: ClockControls
   /** Action ids decided since the page loaded, so the card moves on before the server re-cuts. */
   decided: ReadonlySet<string>
   /** False offline: nothing is recorded, so nothing can be decided. */
@@ -91,7 +77,6 @@ export function Today({
   onRefresh: () => Promise<void>
 }): ReactNode {
   const { snapshot, plan } = view
-  const asOf = view.meta.asOf
   const s = plan.safeToSpend
   const envelope = s.pot + (s.reserved.find((r) => r.label.startsWith('Already'))?.amount ?? 0)
   const spent = envelope - s.pot
@@ -105,25 +90,13 @@ export function Today({
   return (
     <Screen {...chrome} onRefresh={onRefresh}>
       {/*
-          Hidden, not disabled, when the ledger ends where the session opens.
-          A control that can never do anything is worse than no control: it reads as broken, and
-          on IDBI's feed that is its permanent state. It comes back the moment a source has
-          headroom, which the generator and the seeded database both do.
+          The simulated clock used to open this screen.
+          It was developer furniture — advance a month, watch the plan recompute — sitting in the
+          most valuable space on the most-visited surface. In a product a customer opens on day
+          one, time advances on its own. The machinery stays in `lib/mutations.ts` for whatever
+          wants it; the control is not the first thing anybody sees.
         */}
-      {clock.show && clock.horizonTo > asOf ? (
-        <div className="mt-3">
-          <Clock
-            asOf={asOf}
-            horizonTo={clock.horizonTo}
-            notice={clock.notice}
-            disabled={clock.disabled}
-            onAdvance={clock.onAdvance}
-            onReset={clock.onReset}
-          />
-        </div>
-      ) : (
-        <div className="mt-3" />
-      )}
+      <div className="mt-3" />
 
       {/* ------------------------------------------------ Safe to spend */}
       {/*
