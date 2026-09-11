@@ -25,7 +25,41 @@
  * The footer replaces the reference's `HDFC BANK / SmartWealth` lockup and `App Version
  * v11.0.11`. A build number is a placeholder in their demo and would be one here; what a
  * reviewer of *this* app wants in that slot is where the numbers came from and what date they
- * are true on.
+ * are true on. The *shape* is theirs though — a two-part lockup, bank above product, centred in
+ * the white below the last row — because that is what makes the list end rather than stop.
+ *
+ * ## What the frames corrected, once they were opened
+ *
+ * The first build of this screen was written from the spec text and got three things wrong that
+ * only the pictures say.
+ *
+ * **The band label is quiet.** It was an `Eyebrow` — 11px, green, `text-accent-text` — which is
+ * the app's "here comes something" type. In the frames the band label is `#8D9299` on `#F0F5FA`:
+ * grey on grey, letter-spaced, one step *below* the rows it introduces. A section band is
+ * furniture. Making it the loudest thing on the screen inverted the hierarchy, and green there
+ * also collided with the count badge and the profile pill, which are the two things on this list
+ * that are meant to be green.
+ *
+ * **The rows are looser than 68.** `01-more-menu.md` measures ~68dp for a bare row and ~90dp
+ * once a sub-label is under the title, and the frames bear that out at about 79 and 84. 68 is
+ * `ListRow`'s default because it is the height of SmartWealth's *compact* lists; a grouped
+ * settings list is not one. Hence `tall`.
+ *
+ * **The sub-labels are captions, not sentences.** Theirs are four words — `Check transaction
+ * history`, `Families you are tagged to`. Ours were clauses that wrapped to two lines, which
+ * made every row a different height and turned the list into prose. The rewrite says the same
+ * things shorter; where a row genuinely needs a paragraph, the paragraph belongs on the screen
+ * the row opens.
+ *
+ * ## Illustrated marks were considered here and are not used
+ *
+ * `public/icons` has fourteen drawn category marks and they carry the Discover grid. They do not
+ * belong on this list, on two counts. The set is drawn to read at 56px — `genart.py`'s `icon`
+ * kind says so in the prompt — and at the 34px a 40px `ListRow` tile leaves them, the one accent
+ * each carries shrinks to a speck and the object reads as a sticker rather than a signpost. And
+ * the frames do not ask for it: the reference's own menu rows are near-black 1.5dp mono-line
+ * glyphs with no tile behind them at all. Illustration here would be diverging from the source,
+ * not converging on it. Lucide at 20px in the `legend-chip` tile stays.
  */
 import type { ReactNode } from 'react'
 import {
@@ -83,16 +117,18 @@ export function MoreMenu({
       <Section label="Track and manage" />
       <Group>
         <ListRow
+          tall
           icon={<ScrollText {...GLYPH} />}
           title="Record"
-          sub="Every recommendation, and the rule that decided it"
+          sub="Every recommendation, and why"
           badge={decisions}
           onClick={onOpenRecord}
         />
         <ListRow
+          tall
           icon={<FileSpreadsheet {...GLYPH} />}
           title="Reports"
-          sub="Transaction and holding statements, as a file you can keep"
+          sub="Transaction and holding statements"
           onClick={onOpenReports}
         />
       </Group>
@@ -100,28 +136,32 @@ export function MoreMenu({
       <Section label="Your profile" />
       <Group>
         <ListRow
+          tall
           icon={<SlidersHorizontal {...GLYPH} />}
           title="Investment profile"
-          sub="The highest risk band you can be offered"
+          sub="How much risk you can be offered"
           value={<Pill>{profile}</Pill>}
           onClick={onOpenRiskProfile}
         />
         <ListRow
+          tall
           icon={<UserRound {...GLYPH} />}
           title="About you"
-          sub="Income, dependants, marital status, tax regime"
+          sub="Income, dependants, tax regime"
           onClick={onOpenProfile}
         />
         <ListRow
+          tall
           icon={<Wallet {...GLYPH} />}
           title="What you already own"
-          sub="Funds, deposits, PPF and NPS, insurance in force"
+          sub="Funds, deposits, PPF, NPS, insurance"
           onClick={onEditHoldings}
         />
         <ListRow
+          tall
           icon={<Link2 {...GLYPH} />}
           title="Linked accounts"
-          sub="Account Aggregator consent, checked with the bank"
+          sub="Account Aggregator consent"
           badge={view.accounts.length}
           onClick={onLinkAccounts}
         />
@@ -130,9 +170,10 @@ export function MoreMenu({
       <Section label="This demo" />
       <Group>
         <ListRow
+          tall
           icon={<UsersRound {...GLYPH} />}
           title="Switch customer"
-          sub="Each persona fires a different suitability rule"
+          sub="Each persona fires a different rule"
           onClick={onSwitchCustomer}
         />
       </Group>
@@ -147,10 +188,19 @@ export function MoreMenu({
  *
  * `-mx-4` escapes `.scroll`'s gutter and `px-4` puts the label back on it, which is the whole
  * trick: the band runs edge to edge and its text still lines up with every row above and below.
+ *
+ * ~40dp tall with the label optically centred, and the label grey rather than green — see the
+ * header comment. `tracking-[0.09em]` is the frames' letter-spacing, which is wider than the
+ * `tracking-wide` an `Eyebrow` carries; at 12px on a band that is the difference between a
+ * heading and a rule with a name on it.
+ *
+ * No divider above or below, and none under the last row of the group before it either. The
+ * source draws one there and against a tinted band it reads as a double rule; the band's own
+ * top edge is already the line.
  */
 function Section({ label }: { label: string }): ReactNode {
   return (
-    <div className="-mx-4 mt-2 bg-ground-deep px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
+    <div className="-mx-4 flex min-h-10 items-center bg-ground-deep px-4 text-[12px] font-semibold uppercase leading-none tracking-[0.09em] text-ink-soft">
       {label}
     </div>
   )
@@ -160,19 +210,38 @@ function Section({ label }: { label: string }): ReactNode {
  * Rows inside one band, hairlined between and not around.
  *
  * The source draws a divider under the last row of a section as well, immediately above the next
- * band. Against a tinted band that reads as a double rule, so it is dropped here — `divide-y`
- * puts a line between siblings and none at either end.
+ * band. Against a tinted band that reads as a double rule, so it is dropped here — the rule goes
+ * *between* siblings and at neither end. The one under the final row of the list is real and
+ * lives on `Footer`, which is where the list actually stops.
+ *
+ * `divide-y` draws none of them until `ListRow` stops carrying `border-0`, which it did until
+ * this screen was screenshotted: the shorthand and `divide-y`'s `border-top-width` are the same
+ * specificity, the shorthand won, and every grouped list in the app — here, `Today`, `Money`,
+ * `Holdings`, `Record` — was drawing its rows flush. The fix is in `ui.tsx`, with the reasoning.
  */
 function Group({ children }: { children: ReactNode }): ReactNode {
   return <div className="divide-y divide-solid divide-hairline-mint">{children}</div>
 }
 
+/**
+ * The lockup at the end of the list.
+ *
+ * Their shape — bank line above product name, centred, in the white below the last row, with a
+ * grey caption under it — carrying this app's content instead of a build number. The hairline
+ * across the top is the divider the frames draw under the final row; put it here rather than on
+ * the group so that a band never gets one immediately above it.
+ */
 function Footer({ view }: { view: View }): ReactNode {
   const { meta } = view
   return (
-    <div className="mt-8 pb-2 text-center">
-      <div className="text-[15px] font-semibold text-ink">Dhan Sarthi</div>
-      <p className="m-0 mt-1 text-xs leading-relaxed text-ink-soft">
+    <div className="-mx-4 border-0 border-t border-solid border-hairline-mint px-4 pb-2 pt-9 text-center">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">
+        IDBI Bank
+      </div>
+      <div className="mt-0.5 text-[19px] font-bold leading-tight tracking-tight text-brand-deep">
+        Dhan Sarthi
+      </div>
+      <p className="m-0 mt-2.5 text-[11.5px] leading-relaxed text-ink-soft">
         {SOURCE_LABEL[meta.source]} · {meta.ledgerHorizon.from.slice(0, 4)}–
         {meta.ledgerHorizon.to.slice(0, 4)} ledger
         <br />

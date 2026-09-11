@@ -552,6 +552,7 @@ export function ListRow({
   sub,
   value,
   badge,
+  tall = false,
   onClick,
 }: {
   /** A 22px lucide glyph. Sits in a 40px tile; leave it out and the text starts at the gutter. */
@@ -567,6 +568,17 @@ export function ListRow({
   value?: ReactNode
   /** A count pill before the chevron, in the neutral chip colours. */
   badge?: number
+  /**
+   * The settings-list height rather than the compact one.
+   *
+   * 68px is the height a *bare* row takes in SmartWealth and it is the default here. Its grouped
+   * settings list is looser — `13-reports/01-more-menu.md` measures ~79dp for a bare row and
+   * ~90dp once a sub-label is under the title, and the frames bear that out. A one-line sub at
+   * the compact height sits on the 68px floor and the whole list tightens, which is the opposite
+   * of the band-and-group rhythm the reference gets its structure from. `More` is the one screen
+   * that asks for it; everything else stays at 68.
+   */
+  tall?: boolean
   onClick?: () => void
 }): ReactNode {
   const ripple = useRipple()
@@ -597,7 +609,18 @@ export function ListRow({
       ) : null}
     </>
   )
-  const cls = 'flex min-h-[68px] w-full items-center gap-3 border-0 bg-transparent py-3 text-left'
+  /*
+   * No `border-0` here, and that is deliberate rather than an oversight.
+   *
+   * Preflight already zeroes every border, so it was belt and braces — except that it also set
+   * the shorthand, and `divide-y` on a wrapper sets `border-top-width` on the same element at the
+   * same specificity. The shorthand won, and four screens that ask for a hairline between their
+   * rows (`Today`, `Money`, `Holdings`, `Record`) drew none. A defensive class is worth keeping
+   * right up to the point where it defeats a real one.
+   */
+  const cls = `flex w-full items-center gap-3 bg-transparent text-left ${
+    tall === true ? 'min-h-[84px] py-3.5' : 'min-h-[68px] py-3'
+  }`
   if (!onClick) return <div className={cls}>{body}</div>
   return (
     <button type="button" className={`ds-press ${cls}`} onPointerDown={ripple} onClick={onClick}>
@@ -741,7 +764,15 @@ const PILL_TONE = {
   warn: 'bg-accent-soft text-accent-text',
   bad: 'bg-danger-soft text-danger',
   ok: 'bg-brand text-on-dark',
-  quiet: 'bg-ground-deep text-ink-mid',
+  /*
+   * The one chip that is an outline rather than a fill.
+   *
+   * `quiet` and `plain` are both "low emphasis", and on one hue that is a single axis with no
+   * room on it: as two fills they measured dE 3.2 apart, which is the same colour to the eye.
+   * A palette this narrow separates by form, so the quietest chip stops being filled at all.
+   * It also happens to be the right picture — `Gone quiet` is the absence of something.
+   */
+  quiet: 'border-[1.5px] border-solid border-hairline-mint bg-transparent text-ink-mid',
 } as const
 
 export function Pill({
