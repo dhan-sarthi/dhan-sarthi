@@ -383,6 +383,8 @@ Six marks, one system. Flat vector, the green ladder and nothing else, drawn on 
 | `rebalance-balance-dark` | Rebalancing, the hero on `tint-ink` |
 | `profile-result` | Investment profile, the computed result |
 | `order-recorded` | Order placed |
+| `reports-statement` | Reports, the hero above the three statement cards |
+| `onboarding-ready` | Onboarding, the success beat on the last step of the first run |
 | `hero-holdings` | Dashboard · Overview, beside the "What you hold" total |
 | `hero-plan` | Plan, the "Where you are going" hero |
 

@@ -31,6 +31,10 @@ export type ArtName =
   | 'rebalance-balance-dark'
   | 'profile-result'
   | 'order-recorded'
+  | 'onboarding-ready'
+  | 'reports-statement'
+  | 'promo-start-small'
+  | 'promo-advisor'
   | 'hero-holdings'
   | 'hero-plan'
 
