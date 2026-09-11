@@ -385,6 +385,8 @@ Six marks, one system. Flat vector, the green ladder and nothing else, drawn on 
 | `order-recorded` | Order placed |
 | `reports-statement` | Reports, the hero above the three statement cards |
 | `onboarding-ready` | Onboarding, the success beat on the last step of the first run |
+| `promo-start-small` | Discover, the "start from the cheapest thing on the shelf" promo |
+| `promo-advisor` | Discover, the "ask Uday first" promo |
 | `hero-holdings` | Dashboard · Overview, beside the "What you hold" total |
 | `hero-plan` | Plan, the "Where you are going" hero |
 
