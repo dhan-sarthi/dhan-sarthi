@@ -10,11 +10,16 @@
  * is not a nicety — nobody may present a projected corpus as a fact, and a single confident
  * figure is what a risk officer marks us down for. See `docs/product/decisions.md` §B2.
  *
- * ## What changed when Model Portfolios did not get built
+ * ## What this screen took from Model Portfolios
  *
- * `11-model-portfolios` was scoped out as a surface: this app's roadmap *is* a sequenced basket,
- * and a second curated-basket flow would compete with this screen rather than add to it. What
- * came across is the **presentation**, and it lands in three places.
+ * `11-model-portfolios` was scoped out when this was written, on the argument that the roadmap
+ * *is* a sequenced basket and a second curated flow would compete with this screen. It was later
+ * built as its own surface (`screens/baskets/**`), so only half of that stands. The half that
+ * does is the boundary, and both screens now say it out loud: **Plan decides what comes first;
+ * a basket decides how the growing money is split once you get there.** `planStance` reads this
+ * roadmap and prints that sentence over there, naming whichever stage of *this* customer's route
+ * comes ahead of investing. What came across to *this* screen is the **presentation**, in three
+ * places.
  *
  * - **The destination is the promo panel's shape.** `02-discover`'s dark card with two benefit
  *   sub-cards under a headline, an under-line and one action. The sub-cards carry what the route

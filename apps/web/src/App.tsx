@@ -43,6 +43,7 @@ import { Plan } from './screens/Plan.tsx'
 import { SmartJars } from './screens/goals/index.ts'
 import { Commitments } from './screens/commitments/Commitments.tsx'
 import { Family } from './screens/family/index.ts'
+import { Baskets } from './screens/baskets/index.ts'
 import { Onboarding } from './screens/Onboarding.tsx'
 import type { HoldingsSource } from './screens/dashboard/portfolio.ts'
 import { offlineAsk, serverAsk } from './lib/ask.ts'
@@ -66,6 +67,8 @@ export function App(): ReactNode {
   const [commitments, setCommitments] = useState(false)
   /** The household is a push too: it owns a tab row and a stack of its own. */
   const [family, setFamily] = useState(false)
+  /** Baskets is a push as well: it owns a cart and the spine's screens after the gate. */
+  const [baskets, setBaskets] = useState(false)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   /*
    * First run, per customer, decided once and held here.
@@ -192,6 +195,41 @@ export function App(): ReactNode {
 
   // A push over the shell: it owns a calendar and a detail stack, so it takes the whole screen
   // and the tab bar stays put underneath it.
+  if (baskets) {
+    return (
+      <div className="app">
+        {badge}
+        <Baskets
+          view={view}
+          /* The same evaluate Discover and the spine use, so a basket meets the same gate on the
+             same snapshot — one call over the whole basket, not one per line. */
+          evaluate={askBackend.evaluate}
+          onExit={() => setBaskets(false)}
+          onSeeRecord={() => {
+            setBaskets(false)
+            setMorePage('record')
+            setTab('more')
+            void record.refresh()
+          }}
+          onOpenProfile={() => setSheet('profile')}
+          onOpenPlan={() => {
+            setBaskets(false)
+            setTab('plan')
+          }}
+        />
+        <TabBar
+          active={tab}
+          onChange={(id) => {
+            setBaskets(false)
+            setTab(id)
+            setMorePage('menu')
+            if (id === 'more') void record.refresh()
+          }}
+        />
+      </div>
+    )
+  }
+
   if (family) {
     return (
       <div className="app">
@@ -265,6 +303,7 @@ export function App(): ReactNode {
           state — a sub-tab, an open sheet, a scroll position — start clean on the way back in. */}
       {tab === 'discover' ? (
         <Discover
+          onOpenBaskets={() => setBaskets(true)}
           view={view}
           /* The gate the transaction spine runs on. Same call the advisor's product check
              makes: `/suitability/evaluate` on the server tier, which writes the advice

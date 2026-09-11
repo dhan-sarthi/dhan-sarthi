@@ -74,12 +74,14 @@ export function Discover({
   view,
   evaluate,
   onAsk,
+  onOpenBaskets,
   onSeeRecord,
 }: {
   view: View
   /** The suitability gate, injected. See the header of `screens/invest/Invest.tsx`. */
   evaluate: (productId: string, monthly: number) => Promise<Verdict>
   onAsk: () => void
+  onOpenBaskets: () => void
   onSeeRecord: () => void
 }): ReactNode {
   /* The spine takes the screen once it opens, and holds the basket for as long as it is up.
@@ -130,6 +132,15 @@ export function Discover({
       onClick: () => setFilter({ kind: 'entry' }),
     })
   }
+  /* The reference's `Try Model Portfolio` promo. Ours names the offer honestly: a basket is the
+     shelf filtered by one rule you can check against the cards, not a curated product IDBI sells. */
+  promos.push({
+    id: 'baskets',
+    art: 'empty-basket',
+    title: 'A basket, not a shortlist',
+    body: 'Split one amount across the shelf by a rule you can check — no lock-in, no equity, or locked away. Same gate at the end.',
+    onClick: onOpenBaskets,
+  })
   promos.push({
     id: 'ask',
     art: 'promo-advisor',
