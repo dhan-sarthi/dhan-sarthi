@@ -379,6 +379,7 @@ Six marks, one system. Flat vector, the green ladder and nothing else, drawn on 
 | `jar-create` | SmartJars, the "set a new target" promo card |
 | `empty-jars` | SmartJars, nothing on the route accumulates yet |
 | `empty-commitments` | Commitments, nothing in the statements repeats yet |
+| `empty-basket` | Ready-made baskets, a basket its amount cannot fill or the customer emptied |
 | `rebalance-balance` | (light grounds — currently unused; keep for a white rebalance surface) |
 | `rebalance-balance-dark` | Rebalancing, the hero on `tint-ink` |
 | `profile-result` | Investment profile, the computed result |
