@@ -112,7 +112,15 @@ export interface Portfolio {
   largest: Position[]
 }
 
-const GROUPS: readonly { id: GroupId; label: string; kind: Group['kind'] }[] = [
+/**
+ * Every kind of holding this app knows about, present or not.
+ *
+ * Exported because the Holdings pane's product strip draws the *shelf*, not the portfolio: the
+ * reference's carousel has a tile for a product the customer holds none of, carrying a call to
+ * action where the figure would be (`05-dashboard-home-alt-header.md` — the one real empty state
+ * in the source footage). A screen cannot show the gap in a portfolio from the groups that exist.
+ */
+export const GROUP_CATALOGUE: readonly { id: GroupId; label: string; kind: Group['kind'] }[] = [
   { id: 'funds', label: 'Mutual funds', kind: 'capital' },
   { id: 'deposits', label: 'Deposits', kind: 'capital' },
   { id: 'retirement', label: 'PPF and NPS', kind: 'capital' },
@@ -193,7 +201,7 @@ export function portfolioOf(held: HoldingsResponse): Portfolio {
     ...held.policies.map((h) => positionOf(h, `p:${h.holdingId}`, true)),
   ]
 
-  const groups = GROUPS.map((g) =>
+  const groups = GROUP_CATALOGUE.map((g) =>
     groupOf(
       g.id,
       g.label,

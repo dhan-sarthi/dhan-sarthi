@@ -215,6 +215,7 @@ export function Dashboard({
             accounts={accounts}
             held={held}
             onEditHoldings={onEditHoldings}
+            onLinkAccounts={onLinkAccounts}
             onOpenSpending={() => openSpending('spending')}
             onOpenCommitments={onOpenCommitments ?? (() => openSpending('commitments'))}
             onOpenAnalytics={() => setPane('analytics')}

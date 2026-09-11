@@ -24,15 +24,31 @@
  *   claim a market value; the hero says what it is, which is what the customer recorded.
  * - **External Investments** promo banner — it advertises a CAS import that does not exist.
  * - **`Untagged Investments`** and the SmartJars row — no jars, and no tagging of holdings to
- *   them. `Plan` is this app's goal surface and it has a tab of its own.
+ *   them. `Plan` is this app's goal surface and it has a tab of its own. The row in that slot is
+ *   the nearest thing this data has: the holdings recorded with a value but no cost, which is
+ *   why the hero above cannot quote a gain on all of it.
+ * - The **carousel page dots** under their promo banner. They page a two-slide carousel of which
+ *   only one slide is ever shown in the footage; there is no second slide here to page.
+ *
+ * ## What the parity pass on this pane changed
+ *
+ * The rows. Theirs carry a status chip under the title and one or two *labelled* figures on the
+ * right (`Bought : ₹3.5K` over `Sold : ₹8.4K`); ours carried a grey sentence and a bare amount,
+ * which is the same skeleton at half the density. Every chip below is a verdict the snapshot
+ * already holds — a spending trend, a mandate that has gone quiet — and not one of them is a
+ * word invented to fill the slot. Their two allocation cards are both here now, drawn as
+ * `AllocationRow`: theirs are the same picture twice because both are demo data, ours are the
+ * money by product and the money by asset class, which are two different pictures.
  */
 import type { ReactNode } from 'react'
 import {
+  Blocks,
   CalendarClock,
   ChartPie,
   Plus,
   Receipt,
   Repeat,
+  Tag,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
@@ -47,10 +63,9 @@ import {
   Skeleton,
   TextLink,
 } from '../../components/ui.tsx'
-import { LegendRow, SegmentedBar, collapse, pct, series } from '../../components/charts/index.ts'
 import type { Slice } from '../../components/charts/index.ts'
 import { inr } from '../../lib/money.ts'
-import { Empty, RowCard, StatBox } from './parts.tsx'
+import { AllocationRow, Empty, Figures, PromoCard, RowCard, StatBox } from './parts.tsx'
 import type { Portfolio } from './portfolio.ts'
 import type { PortfolioState } from './usePortfolio.ts'
 import { Art } from '../../components/Art.tsx'
@@ -60,6 +75,7 @@ export function Overview({
   accounts,
   held,
   onEditHoldings,
+  onLinkAccounts,
   onOpenSpending,
   onOpenCommitments,
   onOpenAnalytics,
@@ -68,6 +84,7 @@ export function Overview({
   accounts: readonly Account[]
   held: PortfolioState
   onEditHoldings: () => void
+  onLinkAccounts: () => void
   onOpenSpending: () => void
   onOpenCommitments: () => void
   onOpenAnalytics: () => void
@@ -148,6 +165,16 @@ export function Overview({
         />
       </div>
 
+      {/* Their `External Investments` banner sits between the stat cards and the tab row, and
+          it advertises an import of holdings held somewhere else. This app has no CAS pull, so
+          the banner points at the thing it *can* do: consented account linking, which is the
+          same promise — count the money that is not held here — against an integration that
+          exists. `LinkAccountsSheet` is the real job behind it. */}
+      <PromoCard title="Money held elsewhere" onClick={onLinkAccounts}>
+        Link accounts at other banks and every figure on this screen counts all of your money, not
+        just the part IDBI can see.
+      </PromoCard>
+
       {/* The reference's tinted content strip. `#F3F4FA` is `--ground-deep`, and -mx-4 escapes
           the scroller's gutter so the band runs edge to edge while the cards stay on it. */}
       <div className="-mx-4 bg-ground-deep px-4 pb-1 pt-3">
@@ -155,8 +182,12 @@ export function Overview({
           <ListRow
             icon={<Receipt size={22} strokeWidth={1.9} />}
             title="Spending"
-            sub={spendingSub(snapshot)}
-            value={<Amount value={spendingFigure(snapshot)} size="sm" />}
+            sub={<Trend snapshot={snapshot} />}
+            value={
+              <Figures
+                rows={[{ label: monthLabel(snapshot), value: inr(spendingFigure(snapshot)) }]}
+              />
+            }
             onClick={onOpenSpending}
           />
         </RowCard>
@@ -165,16 +196,15 @@ export function Overview({
           <ListRow
             icon={<Repeat size={22} strokeWidth={1.9} />}
             title="Commitments"
-            sub={
-              snapshot.commitments.total > 0
-                ? `${snapshot.commitments.series.length} ${
-                    snapshot.commitments.series.length === 1 ? 'mandate' : 'mandates'
-                  } found in the ledger`
-                : 'Nothing here reads as a mandate'
-            }
+            sub={<Mandates snapshot={snapshot} />}
             value={
               snapshot.commitments.total > 0 ? (
-                <Amount value={snapshot.commitments.total} size="sm" />
+                <Figures
+                  rows={[
+                    { label: 'A month', value: inr(snapshot.commitments.total) },
+                    { label: 'A year', value: inr(annualCommitted(snapshot)) },
+                  ]}
+                />
               ) : undefined
             }
             onClick={onOpenCommitments}
@@ -189,18 +219,50 @@ export function Overview({
               sub={p.sipCount > 0 ? 'Going in every month, on your record' : 'Nothing running'}
               value={
                 p.sipCount > 0 ? (
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-[13px] text-ink-soft">Total : {p.sipCount}</span>
-                    <span aria-hidden="true" className="h-4 w-px bg-hairline-mint" />
-                    <Amount value={p.sipMonthly} size="sm" />
-                  </span>
+                  <Figures
+                    rule
+                    rows={[{ label: 'Total', value: p.sipCount }, { value: inr(p.sipMonthly) }]}
+                  />
                 ) : undefined
               }
             />
           </RowCard>
         ) : null}
 
-        <Allocation
+        {/* Their fourth row is `Untagged Investments` — holdings the app could not attach to a
+            goal. Nothing here tags a holding to anything, so the slot takes the gap this data
+            actually has: rows carrying a value with no cost beside them, which is the reason the
+            hero's gain covers only part of the total. It appears only when there are some. */}
+        {p !== null && p.unpriced > 0 ? (
+          <RowCard>
+            <ListRow
+              icon={<Tag size={22} strokeWidth={1.9} />}
+              title="Recorded without a cost"
+              sub={<Pill tone="warn">Outside the gain</Pill>}
+              value={
+                <Figures
+                  rows={[{ label: p.unpriced === 1 ? 'Entry' : 'Entries', value: p.unpriced }]}
+                />
+              }
+              onClick={onEditHoldings}
+            />
+          </RowCard>
+        ) : null}
+
+        {/* Their `Product Allocation`. Theirs and ours differ in what they can say: theirs splits
+            Mutual Fund from Deposit across a book it imported, ours splits the declared block by
+            the kind of thing each row is. Cover is not in it — a sum assured is not capital. */}
+        {p !== null && p.byGroup.length > 1 ? (
+          <AllocationRow
+            icon={<Blocks size={20} strokeWidth={2} />}
+            title="Product allocation"
+            slices={p.byGroup}
+          />
+        ) : null}
+
+        <AllocationRow
+          icon={<ChartPie size={20} strokeWidth={2} />}
+          title="Asset allocation"
           slices={
             p !== null && p.byAssetClass.length > 0 ? p.byAssetClass : snapshotClasses(snapshot)
           }
@@ -208,10 +270,63 @@ export function Overview({
              sums to less than its own total. Passing the total makes that a visible grey
              remainder rather than two figures quietly rescaled to 100%. */
           total={p !== null && p.byAssetClass.length > 0 ? undefined : snapshot.holdings.total}
-          onOpenAnalytics={onOpenAnalytics}
+          link={
+            <TextLink size="sm" flush onClick={onOpenAnalytics}>
+              See the full breakdown
+            </TextLink>
+          }
         />
       </div>
     </>
+  )
+}
+
+/* ---------------------------------------------------------------- Row status */
+
+/*
+ * The chip under a row title.
+ *
+ * Every SmartWealth Overview row carries one — `In Process`, `Needs attention`, `On Track` — and
+ * it is what makes their list scannable rather than four sentences in a column. The rule here is
+ * that a chip must be a verdict the snapshot already holds. `discretionary.trend` is one the
+ * engine computes over eleven months of statement; whether a detected series is still `active` is
+ * another. Neither is a word chosen to fill the slot, which is the only reason they are chips.
+ */
+function Trend({ snapshot }: { snapshot: Snapshot }): ReactNode {
+  const { trend, trendPct } = snapshot.discretionary
+  const move = Math.abs(Math.round(trendPct))
+  /* Two or three words, like theirs. A chip that wraps to three lines pushes the row past 68px
+     and the column of chips stops being a thing the eye can run down, which is the whole job. */
+  if (trend === 'rising' && move > 0) {
+    return (
+      <Pill tone="warn">
+        <TrendingUp size={12} strokeWidth={2.8} />
+        Up {move}%
+      </Pill>
+    )
+  }
+  if (trend === 'falling' && move > 0) {
+    return (
+      <Pill tone="ok">
+        <TrendingDown size={12} strokeWidth={2.8} />
+        Down {move}%
+      </Pill>
+    )
+  }
+  return <Pill>Steady</Pill>
+}
+
+function Mandates({ snapshot }: { snapshot: Snapshot }): ReactNode {
+  const all = snapshot.commitments.series
+  if (all.length === 0) return <>Nothing here reads as a mandate</>
+  const quiet = all.filter((one) => !one.active).length
+  if (quiet === 0) return <Pill tone="ok">All {all.length} live</Pill>
+  /* "Gone quiet" and not "cancelled": the ledger stopped showing the charge, which is evidence
+     about the statement and not a decision anybody told us about. */
+  return (
+    <Pill tone="warn">
+      {quiet} of {all.length} quiet
+    </Pill>
   )
 }
 
@@ -278,56 +393,6 @@ function Hero({ portfolio }: { portfolio: Portfolio }): ReactNode {
   )
 }
 
-/* ---------------------------------------------------------------- Allocation */
-
-/*
- * The reference's `Asset Allocation` summary row: a stacked bar and a legend, under a title.
- *
- * Only one of its two allocation rows is here. The other, `Product Allocation`, is the same
- * picture of the same money and it is drawn properly one tab across; two 140px blocks saying
- * nearly the same thing is the reference's density without its information. The link is the
- * thing the reference does not have — its rows go nowhere.
- */
-function Allocation({
-  slices,
-  total,
-  onOpenAnalytics,
-}: {
-  slices: readonly Slice[]
-  total?: number | undefined
-  onOpenAnalytics: () => void
-}): ReactNode {
-  if (slices.length === 0) return null
-  const resolved = series(collapse(slices), total)
-  if (resolved.empty) return null
-
-  return (
-    <Card>
-      <div className="flex items-center gap-2">
-        <ChartPie size={18} strokeWidth={2} className="flex-none text-brand-deep" />
-        <h2 className="min-w-0 flex-1">Asset allocation</h2>
-      </div>
-      <SegmentedBar slices={slices} total={total} className="mt-3.5" />
-      <div className="mt-1 divide-y divide-solid divide-hairline-mint">
-        {resolved.portions.map((portion, i) => (
-          <LegendRow
-            key={`${i}-${portion.label}`}
-            tone={portion.tone}
-            label={portion.label}
-            value={pct(portion.share)}
-            note={inr(portion.value)}
-          />
-        ))}
-      </div>
-      <div className="-mb-1.5 mt-1">
-        <TextLink size="sm" flush onClick={onOpenAnalytics}>
-          See the full breakdown
-        </TextLink>
-      </div>
-    </Card>
-  )
-}
-
 /* ---------------------------------------------------------------- Figures */
 
 /** Equity and Debt as the snapshot knows them. The fallback when the rows cannot be read. */
@@ -344,11 +409,18 @@ function spendingFigure(snapshot: Snapshot): number {
   return Math.round(snapshot.discretionary.byCategory.reduce((sum, [, amount]) => sum + amount, 0))
 }
 
-/* Short enough to stay on one line of a 68px row. The pane it links to says the rest. */
-function spendingSub(snapshot: Snapshot): string {
-  return snapshot.discretionary.monthly > 0
-    ? 'A normal month, median of twelve'
-    : 'Seen so far — under a month of it'
+/**
+ * The label on the spending row's figure. Their rows prefix every number with what it is —
+ * `Bought :`, `Total :` — and the two things this figure can be are not the same claim: a median
+ * over twelve months, or what has been seen so far in a statement too short to take one from.
+ */
+function monthLabel(snapshot: Snapshot): string {
+  return snapshot.discretionary.monthly > 0 ? 'A normal month' : 'Seen so far'
+}
+
+/** What the detected mandates cost over a year. Summed from the series, not the month times 12. */
+function annualCommitted(snapshot: Snapshot): number {
+  return Math.round(snapshot.commitments.series.reduce((sum, one) => sum + one.annualCost, 0))
 }
 
 /** The account line on the savings stat card: the bank's own mask, or how many there are. */

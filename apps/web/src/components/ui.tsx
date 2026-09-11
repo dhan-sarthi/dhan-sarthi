@@ -520,7 +520,12 @@ export function ListRow({
   /** A 22px lucide glyph. Sits in a 40px tile; leave it out and the text starts at the gutter. */
   icon?: ReactNode
   title: string
-  sub?: string
+  /**
+   * The second line. A string in nine callers out of ten; a node because SmartWealth's Overview
+   * rows put a **status chip** here rather than a sentence (`06-dashboard/01-dashboard-home.md`
+   * §7 — `In Process`, `Needs attention`, `On Track`), and a chip is not a string.
+   */
+  sub?: ReactNode
   /** The right-hand block: an amount, a pill, a count. */
   value?: ReactNode
   /** A count pill before the chevron, in the neutral chip colours. */

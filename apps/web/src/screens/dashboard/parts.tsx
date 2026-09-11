@@ -15,8 +15,10 @@
  * `components/StatusBand.tsx` and this file's copy went with it.
  */
 import type { ReactNode } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { Amount, Card } from '../../components/ui.tsx'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Amount, Button, Card } from '../../components/ui.tsx'
+import { SegmentedBar, bgOf, collapse, pct, series } from '../../components/charts/index.ts'
+import type { Slice } from '../../components/charts/index.ts'
 import { useRipple } from '../../lib/motion.ts'
 
 /* ---------------------------------------------------------------- StatBox */
@@ -87,7 +89,7 @@ export function StatBox({
  */
 export function RowCard({ children }: { children: ReactNode }): ReactNode {
   return (
-    <div className="mb-2.5 min-w-0 rounded-md border border-solid border-hairline-mint bg-surface px-4">
+    <div className="mb-3 min-w-0 rounded-md border border-solid border-hairline-mint bg-surface px-4">
       {children}
     </div>
   )
@@ -267,13 +269,24 @@ export function CardHead({
   title,
   note,
   right,
+  disclose,
 }: {
   icon: ReactNode
   title: string
   note?: string | undefined
   right?: ReactNode | undefined
+  /**
+   * Turn the whole head into the card's disclosure control, with a rotating chevron at its right.
+   *
+   * The reference's holding-group card puts a `›` on this row and nothing else
+   * (`03-dashboard-holdings-tab.md`), and it is the row you press. Ours turns rather than pushes,
+   * because the detail list behind theirs was never filmed and the rows are already here — so the
+   * glyph is a `ChevronDown` and `aria-expanded` says which way it is.
+   */
+  disclose?: { open: boolean; onToggle: () => void; label: string } | undefined
 }): ReactNode {
-  return (
+  const ripple = useRipple()
+  const body = (
     <div className="flex items-center gap-3">
       <span
         aria-hidden="true"
@@ -288,7 +301,31 @@ export function CardHead({
         ) : null}
       </span>
       {right !== undefined ? <span className="flex-none">{right}</span> : null}
+      {disclose !== undefined ? (
+        <ChevronDown
+          size={20}
+          strokeWidth={2.4}
+          aria-hidden="true"
+          className={`flex-none text-ink-faint transition-transform duration-200 ${
+            disclose.open ? 'rotate-180' : ''
+          }`}
+        />
+      ) : null}
     </div>
+  )
+  if (disclose === undefined) return body
+  return (
+    /* -m + p so the press target fills the card's own padding rather than sitting inside it. */
+    <button
+      type="button"
+      onPointerDown={ripple}
+      onClick={disclose.onToggle}
+      aria-expanded={disclose.open}
+      aria-label={disclose.label}
+      className="ds-press -mx-4 -mt-4 block w-[calc(100%+32px)] border-0 bg-transparent px-4 pb-0 pt-4 text-left"
+    >
+      {body}
+    </button>
   )
 }
 
@@ -313,5 +350,241 @@ export function Empty({
       <p className="m-0 mt-1.5 text-sm leading-relaxed text-ink-mid">{children}</p>
       {action !== undefined ? <div className="mt-4">{action}</div> : null}
     </Card>
+  )
+}
+
+/* ---------------------------------------------------------------- Figures */
+
+/*
+ * The right-hand block of a SmartWealth Overview row.
+ *
+ * Frame `01-dashboard-home__09` is the one to look at: the value on those rows is never a bare
+ * number. It is one or two `label : figure` lines, right-aligned, the label in grey and the
+ * figure in near-black bold — `Bought : ₹3.5K` over `Sold : ₹8.4K`, `Total : 5 │ ₹15K`. A bare
+ * amount on the right of a 68px row is what our list had, and it is why our rows read lighter
+ * than theirs at the same height: two figures per row is most of their density.
+ *
+ * The spacing convention is theirs and it is deliberate — a space on **both** sides of the colon
+ * (`01-dashboard-home.md`, end of Content). `rule` is the thin vertical hairline their `My SIPs`
+ * row puts between the count and the amount.
+ */
+export function Figures({
+  rows,
+  rule = false,
+}: {
+  rows: readonly { label?: string | undefined; value: ReactNode }[]
+  /** Lay the rows out on one line, separated by a hairline, rather than stacked. */
+  rule?: boolean
+}): ReactNode {
+  const cells = rows.map((r, i) => (
+    <span key={`${i}-${r.label ?? ''}`} className="whitespace-nowrap">
+      {r.label !== undefined ? (
+        <span className="text-[13px] text-ink-soft">{r.label} : </span>
+      ) : null}
+      <span className="text-[15px] font-semibold tabular-nums text-ink">{r.value}</span>
+    </span>
+  ))
+  if (rule) {
+    return (
+      <span className="flex items-center gap-2.5">
+        {cells.map((cell, i) => (
+          <span key={`c${i}`} className="flex items-center gap-2.5">
+            {i > 0 ? <span aria-hidden="true" className="h-4 w-px bg-hairline-mint" /> : null}
+            {cell}
+          </span>
+        ))}
+      </span>
+    )
+  }
+  return <span className="flex flex-col items-end gap-0.5 leading-tight">{cells}</span>
+}
+
+/* ---------------------------------------------------------------- AllocationRow */
+
+/*
+ * The `Product Allocation` / `Asset Allocation` cards at the foot of the reference's Overview.
+ *
+ * They are a different shape from `AllocationCard` in `components/charts/` and the difference is
+ * the point: no donut, no stacked legend column, no hairlines. A tile and a title, a full-width
+ * stacked bar, and then a **single line** of dot · label · bold percentage, wrapped and separated
+ * by thin rules. It is a summary, and the breakdown with the donut and the rupee figures is one
+ * tab across on Analytics — which is what the `link` at the foot goes to.
+ *
+ * Their two bars are drawn at a flat 50/50 whatever the legend says, and their Asset Allocation
+ * legend sums to 120%; `01-dashboard-home.md` flags both as demo artefacts. `SegmentedBar` draws
+ * `value / total` and nothing else, so ours cannot do that.
+ */
+export function AllocationRow({
+  icon,
+  title,
+  slices,
+  total,
+  link,
+}: {
+  icon: ReactNode
+  title: string
+  slices: readonly Slice[]
+  total?: number | undefined
+  link?: ReactNode | undefined
+}): ReactNode {
+  const resolved = series(collapse(slices), total)
+  if (resolved.empty) return null
+
+  return (
+    <Card>
+      <CardHead icon={icon} title={title} />
+      <SegmentedBar slices={slices} total={total} className="mt-3.5" />
+      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        {resolved.portions.map((portion, i) => (
+          <span key={`${i}-${portion.label}`} className="flex items-center gap-2.5">
+            {i > 0 ? <span aria-hidden="true" className="h-3.5 w-px bg-hairline-mint" /> : null}
+            <span className="flex items-center gap-1.5">
+              <span aria-hidden="true" className={`size-2.5 rounded-pill ${bgOf(portion.tone)}`} />
+              <span className="text-[13px] text-ink-mid">{portion.label}</span>
+              <span className="text-[13px] font-bold tabular-nums text-ink">
+                {pct(portion.share)}
+              </span>
+            </span>
+          </span>
+        ))}
+      </div>
+      {link !== undefined ? <div className="-mb-1.5 mt-2">{link}</div> : null}
+    </Card>
+  )
+}
+
+/* ---------------------------------------------------------------- Promo */
+
+/*
+ * The reference's `External Investments` banner: a full-width tinted card carrying a title with a
+ * chevron welded to it and two lines of body copy, sitting between the stat cards and the tab row.
+ *
+ * Theirs is a diagonal green gradient with white text, and it is the loudest thing on the screen.
+ * Ours is `tint-sage`, because `DESIGN.md` allows **one** ink card per screen and on this pane
+ * that card is already `Today`'s single action — a second dark slab further down would be taking
+ * the reference's emphasis along with its layout. The shape, the chevron and the two-line body
+ * are theirs; the weight is this app's.
+ */
+export function PromoCard({
+  title,
+  children,
+  onClick,
+}: {
+  title: string
+  children: ReactNode
+  onClick: () => void
+}): ReactNode {
+  const ripple = useRipple()
+  return (
+    <button
+      type="button"
+      onPointerDown={ripple}
+      onClick={onClick}
+      className="ds-press mb-3 block w-full rounded-md border-0 bg-tint-sage p-4 text-left"
+    >
+      <span className="flex items-center gap-1 text-[17px] font-bold leading-tight text-brand-deep">
+        {title}
+        <ChevronRight size={19} strokeWidth={2.4} className="flex-none" />
+      </span>
+      <span className="mt-1.5 block text-[13.5px] leading-snug text-ink-mid">{children}</span>
+    </button>
+  )
+}
+
+/* ---------------------------------------------------------------- Strip */
+
+/*
+ * The `Linked A/c Balance ₹9.85L … View All Bank A/c ›` bar from the legacy dashboard header
+ * (`05-dashboard-home-alt-header.md` §2): a full-bleed coloured strip, one figure at the left and
+ * one link at the right, sitting between two blocks of cards.
+ *
+ * Theirs is solid mid-blue with white text. The palette map sends that action blue to `--accent`,
+ * and a solid accent strip running the width of the screen would read as a button — the same
+ * argument `StatusBand` makes about its `warn` tone. `legend-chip` with `brand-deep` ink is what
+ * this app already uses for a coloured band that is information rather than a control.
+ */
+export function Strip({
+  label,
+  value,
+  action,
+}: {
+  label: string
+  value: string
+  action?: ReactNode | undefined
+}): ReactNode {
+  return (
+    <div className="-mx-4 mb-3 flex items-center gap-3 bg-legend-chip px-4 py-2.5">
+      <span className="min-w-0 flex-1 truncate text-[14px] text-brand-deep">
+        {label} <span className="font-bold tabular-nums">{value}</span>
+      </span>
+      {action !== undefined ? <span className="flex-none">{action}</span> : null}
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------- Product tiles */
+
+/*
+ * The horizontally scrolling product carousel that leads the legacy dashboard hero
+ * (`05-dashboard-home-alt-header.md` §1): ~150px tiles, one per product the customer can hold,
+ * each with the product's name, its value and its gain — and, where the customer holds none of
+ * it, **a call to action in place of the figure**. That last tile is the only genuine empty
+ * state anywhere in the source footage and it is the best idea in the frame: the shelf shows you
+ * the gap in your portfolio without a single fabricated number in it.
+ *
+ * The reference tiles carry a bright cyan accent line along their lower edge. Ours carry a
+ * `chart-hi` line in the same place — the one green that means "this is the figure to read".
+ *
+ * Nothing here is derived: a tile shows a group's own value, its own gain and nothing else, and
+ * a group with no rows shows no figure at all rather than a zero.
+ */
+export interface ProductTile {
+  id: string
+  label: string
+  /** Null where the customer holds none of this — the tile then draws the CTA instead. */
+  value: number | null
+  /** Under the figure: a gain, a cover note, whatever the group can honestly say. */
+  note?: ReactNode | undefined
+}
+
+export function ProductTiles({
+  tiles,
+  cta,
+}: {
+  tiles: readonly ProductTile[]
+  /** The control an empty tile carries. One label and one handler, used by every empty tile. */
+  cta: { label: string; onClick: () => void }
+}): ReactNode {
+  if (tiles.length === 0) return null
+  return (
+    /* -mx-4 + px-4 so the row scrolls edge to edge while the first tile still lines up with the
+       cards above it, and the last one can be scrolled fully clear of the right gutter. */
+    <ul className="-mx-4 mb-3 m-0 flex list-none gap-2.5 overflow-x-auto px-4 pb-1">
+      {tiles.map((tile) => (
+        <li
+          key={tile.id}
+          className="relative flex w-[152px] shrink-0 flex-col overflow-hidden rounded-md bg-tint-sage p-3.5"
+        >
+          <span className="truncate text-[13px] font-semibold text-ink-mid">{tile.label}</span>
+          {tile.value === null ? (
+            <span className="mt-2.5">
+              <Button tone="secondary" size="sm" full onClick={cta.onClick}>
+                {cta.label}
+              </Button>
+            </span>
+          ) : (
+            <>
+              <span className="mt-1.5 block">
+                <Amount value={tile.value} size="md" fit />
+              </span>
+              {tile.note !== undefined ? (
+                <span className="mt-0.5 block truncate text-xs text-ink-soft">{tile.note}</span>
+              ) : null}
+            </>
+          )}
+          <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[3px] bg-chart-hi" />
+        </li>
+      ))}
+    </ul>
   )
 }

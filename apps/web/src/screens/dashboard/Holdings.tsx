@@ -26,10 +26,31 @@
  *
  * **There is no Demat group.** The reference has one; this app has no demat feed and no equity
  * positions, so drawing an empty card for it would be worse than not drawing it.
+ *
+ * ## What the parity pass added
+ *
+ * The pane used to open straight into a group card, so nothing led it. The reference's Holdings
+ * frames are only ever shown under the legacy dashboard header
+ * (`05-dashboard-home-alt-header.md`), and that header is the missing piece: a figure with its
+ * gain, then a **horizontally scrolling strip of product tiles** — one per product on the shelf,
+ * showing its value and its gain, or a call to action where the customer holds none of it. The
+ * strip is the best thing in that frame because it shows the *gap* in a portfolio, not only what
+ * is in it. Then the reference's blue `Linked A/c Balance … View All Bank A/c ›` bar, which is
+ * the one band on this pane that belongs to the accounts below rather than to the holdings above.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChartColumn, Landmark, Link2, Pencil, PiggyBank, Plus, ShieldCheck } from 'lucide-react'
+import {
+  ChartColumn,
+  Landmark,
+  Link2,
+  Pencil,
+  PiggyBank,
+  Plus,
+  ShieldCheck,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react'
 import type { Account, Snapshot } from '@dhan/contracts'
 import {
   Amount,
@@ -44,8 +65,10 @@ import {
 } from '../../components/ui.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
 import { inr, longDate, monthYear } from '../../lib/money.ts'
-import { CardHead, Columns, Empty } from './parts.tsx'
-import type { Group, GroupId, Position } from './portfolio.ts'
+import { CardHead, Columns, Empty, ProductTiles, Strip } from './parts.tsx'
+import type { ProductTile } from './parts.tsx'
+import { GROUP_CATALOGUE } from './portfolio.ts'
+import type { Group, GroupId, Portfolio, Position } from './portfolio.ts'
 import type { PortfolioState } from './usePortfolio.ts'
 
 /* Shared strings for the small text, carried over from `Money` › Accounts. */
@@ -113,6 +136,9 @@ export function Holdings({
         </Empty>
       ) : (
         <>
+          {/* The reference's hero figure and its gain, above the product strip. */}
+          <Summary portfolio={p} />
+          <ProductTiles tiles={tilesOf(p)} cta={{ label: 'Add one', onClick: onEditHoldings }} />
           {p.groups.map((group) => (
             <GroupCard key={group.id} group={group} onEditHoldings={onEditHoldings} />
           ))}
@@ -134,6 +160,21 @@ export function Holdings({
 
       {/* ------------------------------------------------ Accounts */}
       <Eyebrow>Your accounts</Eyebrow>
+      {/* Their `Linked A/c Balance ₹9.85L · View All Bank A/c ›` band. Ours totals the accounts
+          the app can actually see, which is what "linked" means here. */}
+      {accounts.length > 0 ? (
+        <Strip
+          label={
+            accounts.length === 1 ? 'Linked account balance' : `${accounts.length} linked accounts`
+          }
+          value={inr(accounts.reduce((sum, a) => sum + a.currentBalance, 0))}
+          action={
+            <TextLink size="sm" onClick={onLinkAccounts}>
+              Link another
+            </TextLink>
+          }
+        />
+      ) : null}
       {accounts.map((a) => (
         <AccountCard key={a.accountNumberMasked} account={a} />
       ))}
@@ -268,6 +309,70 @@ export function Holdings({
   )
 }
 
+/* ---------------------------------------------------------------- Summary */
+
+/*
+ * What the whole declared block is worth, and how it has moved. The reference puts this at the
+ * top of its navy hero as `▲ ₹3,04,500 (7.08%)`, above the product carousel.
+ *
+ * Not "market value". `currentValue` is what the customer typed and there is no price feed in
+ * this app, so the label says whose number it is. The gain is only drawn where an invested amount
+ * was recorded against something; where it was not, the line says how many rows are outside it
+ * rather than quietly quoting a gain over half the portfolio.
+ */
+function Summary({ portfolio }: { portfolio: Portfolio }): ReactNode {
+  const up = (portfolio.gain ?? 0) >= 0
+  return (
+    <div className="mb-3.5 flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-ink-mid">Recorded value</div>
+        <div className="mt-1">
+          <Amount value={portfolio.total} size="xl" />
+        </div>
+      </div>
+      {portfolio.gain !== null ? (
+        <Pill tone={up ? 'ok' : 'bad'}>
+          {up ? (
+            <TrendingUp size={13} strokeWidth={2.6} />
+          ) : (
+            <TrendingDown size={13} strokeWidth={2.6} />
+          )}
+          {up ? '+' : '−'}
+          {inr(Math.abs(portfolio.gain))}
+          {portfolio.gainPct !== null ? ` (${Math.abs(portfolio.gainPct).toFixed(1)}%)` : ''}
+        </Pill>
+      ) : (
+        <span className="pb-1 text-[13px] text-ink-soft">No cost recorded</span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The shelf as tiles: every product this app knows about, with what the customer holds of it.
+ *
+ * A group with rows shows its value and its own second line — a gain where one can be quoted, the
+ * count of entries where it cannot, and for insurance the word `Cover`, because a sum assured is
+ * not a value that gained anything. A group with no rows shows **no figure at all** and carries
+ * the call to action instead: that is the reference's `Deposits → Start Investing` tile, and it
+ * is the one shape here that says something true by saying nothing.
+ */
+function tilesOf(portfolio: Portfolio): ProductTile[] {
+  return GROUP_CATALOGUE.map((entry): ProductTile => {
+    const held = portfolio.groups.find((g) => g.id === entry.id)
+    if (held === undefined) return { id: entry.id, label: entry.label, value: null }
+    const note =
+      held.kind === 'cover'
+        ? 'Cover in force'
+        : held.gain !== null && held.gainPct !== null
+          ? `${held.gain >= 0 ? '+' : '−'}${inr(Math.abs(held.gain))} (${Math.abs(
+              held.gainPct,
+            ).toFixed(1)}%)`
+          : `${held.positions.length} ${held.positions.length === 1 ? 'entry' : 'entries'}`
+    return { id: entry.id, label: entry.label, value: held.value, note }
+  })
+}
+
 /* ---------------------------------------------------------------- Group */
 
 /*
@@ -300,6 +405,11 @@ function GroupCard({
         note={`${group.positions.length} ${group.positions.length === 1 ? 'entry' : 'entries'}${
           group.sipMonthly > 0 ? ` · ${inr(group.sipMonthly)} a month going in` : ''
         }`}
+        disclose={{
+          open,
+          onToggle: () => setOpen((v) => !v),
+          label: `${open ? 'Hide' : 'Show'} what is in ${group.label}`,
+        }}
       />
 
       <div className="my-3.5 border-t border-solid border-hairline-mint" />
@@ -336,12 +446,6 @@ function GroupCard({
             ))}
           </div>
         </div>
-      </div>
-
-      <div className="-mb-1.5 mt-1">
-        <TextLink size="sm" flush ariaExpanded={open} onClick={() => setOpen((v) => !v)}>
-          {open ? 'Hide' : `Show ${group.positions.length === 1 ? 'it' : 'all'}`}
-        </TextLink>
       </div>
 
       {/* The reference's welded banner, and its one real analogue here. Theirs reconciles
