@@ -242,7 +242,7 @@ export interface StatusCopy {
   /** Where it came from, said out loud. */
   note: string
   tone: BandTone
-  pill: 'plain' | 'warn' | 'bad' | 'ok'
+  pill: 'plain' | 'warn' | 'bad' | 'ok' | 'quiet'
 }
 
 /**
@@ -260,13 +260,25 @@ export const STATUS: Record<CommitmentStatus, StatusCopy> = {
     label: 'Live',
     note: 'charging on schedule',
     tone: 'good',
-    pill: 'plain',
+    /*
+     * Solid, not tinted, and that is a translation rather than an embellishment.
+     *
+     * SmartWealth's three chips are green `#E1FBEF`, cream `#FBF7E6` and pink `#FDECED` — three
+     * hues, told apart at a glance down a scrolling list. On a palette that is green and white
+     * the map sends On Track to `legend-chip` and Paused to `accent-soft`, and those two tints
+     * are four hex points apart: put them side by side and the reference's clearest signal is
+     * gone. So the four states here are told apart by *weight* as well: `Live` is the filled
+     * brand chip (white on `#00836c`, 4.71:1 — what `DESIGN.md` says the brand green is for),
+     * `Paused` the soft one, `Stopped` the red one, and `Gone quiet` the grey one. Four shades,
+     * four states, and the label says which in words regardless.
+     */
+    pill: 'ok',
   },
   lapsed: {
     label: 'Gone quiet',
     note: 'nothing has been charged for two cycles',
     tone: 'quiet',
-    pill: 'plain',
+    pill: 'quiet',
   },
   paused: {
     label: 'Paused',

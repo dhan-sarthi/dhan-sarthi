@@ -69,6 +69,78 @@ export function Choice<T extends string>({
 }
 
 /**
+ * The same choice, as a column of rows — SmartWealth's `pause-sip-sheet` control.
+ *
+ * `Choice` is a wrap of pills and it is right for two or three short words on one line. The
+ * reference's duration picker is the other shape and it is measured in
+ * `spec/screens/07-sip-calendar/03-pause-sip-sheet.md`: full-width bordered rounded rows about
+ * 52pt tall with the label at the left and a radio at the right, the selected row filled and
+ * outlined in the brand colour. It reads as *a decision with consequences* where a pill row reads
+ * as a filter, which is the difference between "1 month" and "3 months" on somebody's money — and
+ * it is the shape the reference reuses for its SmartJar picker, so a second caller is coming.
+ *
+ * The radio is drawn rather than native: a native `input[type=radio]` cannot be recoloured
+ * reliably across engines and the row, not the 20px dot, has to be the target.
+ */
+export function RadioRows<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: readonly { id: T; label: string; sub?: string }[]
+  value: T
+  onChange: (id: T) => void
+  /** Names the group for a screen reader. The rows have no visible heading of their own. */
+  label: string
+}): ReactNode {
+  const ripple = useRipple()
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-col gap-2.5">
+      {options.map((o) => {
+        const on = o.id === value
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onPointerDown={ripple}
+            onClick={() => onChange(o.id)}
+            className={`ds-press flex min-h-[52px] w-full items-center gap-3 rounded-md border-[1.5px] border-solid px-3.5 py-2.5 text-left transition-colors duration-150 ${
+              on
+                ? 'border-accent bg-tint-sage'
+                : 'border-hairline-mint bg-surface hover:border-hairline'
+            }`}
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-semibold text-ink">{o.label}</span>
+              {o.sub ? (
+                <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-soft">
+                  {o.sub}
+                </span>
+              ) : null}
+            </span>
+            <span
+              aria-hidden="true"
+              className={`grid size-[21px] flex-none place-items-center rounded-pill border-[1.5px] border-solid transition-colors duration-150 ${
+                on ? 'border-accent' : 'border-hairline'
+              }`}
+            >
+              <span
+                className={`size-[11px] rounded-pill transition-transform duration-150 ${
+                  on ? 'scale-100 bg-accent' : 'scale-0 bg-transparent'
+                }`}
+              />
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * A box you tick.
  *
  * The app had no checkbox at all: `Choice` is a `role="radio"` group and the consent control on
@@ -84,12 +156,22 @@ export function Checkbox({
   checked,
   onChange,
   disabled,
+  label,
   children,
 }: {
   checked: boolean
   onChange: (next: boolean) => void
   disabled?: boolean
-  children: ReactNode
+  /**
+   * The accessible name where the box stands alone.
+   *
+   * `12-rebalancing/03-rebalance-additional-investment` puts the checkbox in the *left gutter*
+   * beside its amount field rather than on a row of its own — the field's own label is the words,
+   * and the box is a 24px square in the margin. That shape has nothing to put in `children`, so
+   * the name comes from here instead. Pass one or the other, never neither.
+   */
+  label?: string | undefined
+  children?: ReactNode
 }): ReactNode {
   const ripple = useRipple()
   return (
@@ -97,10 +179,13 @@ export function Checkbox({
       type="button"
       role="checkbox"
       aria-checked={checked}
+      {...(label === undefined ? {} : { 'aria-label': label })}
       disabled={disabled === true}
       onPointerDown={ripple}
       onClick={() => onChange(!checked)}
-      className="ds-press flex min-h-[44px] w-full items-start gap-3 rounded-sm border-0 bg-transparent px-0 py-2 text-left disabled:opacity-55"
+      className={`ds-press flex min-h-[44px] items-start gap-3 rounded-sm border-0 bg-transparent px-0 py-2 text-left disabled:opacity-55 ${
+        children === undefined ? 'w-11 justify-center' : 'w-full'
+      }`}
     >
       <span
         aria-hidden="true"
@@ -112,7 +197,9 @@ export function Checkbox({
       >
         <Check size={13} strokeWidth={3.2} />
       </span>
-      <span className="min-w-0 flex-1 text-[13.5px] leading-snug text-ink-mid">{children}</span>
+      {children === undefined ? null : (
+        <span className="min-w-0 flex-1 text-[13.5px] leading-snug text-ink-mid">{children}</span>
+      )}
     </button>
   )
 }

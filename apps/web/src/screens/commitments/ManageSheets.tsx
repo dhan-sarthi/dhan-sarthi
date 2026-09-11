@@ -26,9 +26,21 @@
  *    the month total answer "what would this look like without it". The button says exactly that
  *    and nothing more, and every surface the note reaches says it is a note.
  *
- * The pause sheet also carries the one thing the reference promises in narration and never
- * builds — its flow file, Gaps §6: *"you can pause and resume your SIP"*, and no resume control
- * exists anywhere. Here a pause has an end date, so it resumes on the calendar by itself.
+ * ## Four sheets, not three
+ *
+ * The `07-sip-calendar` specs describe three, but the pause/stop/resume set is filmed twice and
+ * the second take is in `10-diy-otp/07-your-sips__17/18.png`: a fourth sheet reading *"Do you
+ * want to resume this SIP ?"* over a single full-width `Okay`. So there is a resume control after
+ * all, and this file now has one — a one-button sheet in the same shape, which is also the only
+ * honest place to say that clearing a note does not un-cancel anything at the bank either.
+ *
+ * ## What the frames changed, on the second pass
+ *
+ * `03-pause-sip-sheet.png` and `01-systematic-calendar__14.png` draw the durations as a column
+ * of full-width bordered rows ~52pt tall with a radio at the right, the selected row filled and
+ * outlined in the brand colour — not as a wrap of pills, which is what the first pass used
+ * because `Choice` was the control that existed. `RadioRows` in `components/Form.tsx` is that
+ * shape, added there rather than here because the reference reuses it for its SmartJar picker.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -36,12 +48,12 @@ import { Info } from 'lucide-react'
 import { addDays, addMonths } from '@dhan/core'
 import { Sheet } from '../../components/Sheet.tsx'
 import { Button } from '../../components/ui.tsx'
-import { Choice, Field, MoneyInput, Stepper } from '../../components/Form.tsx'
+import { Field, MoneyInput, RadioRows, Stepper } from '../../components/Form.tsx'
 import { inr, longDate } from '../../lib/money.ts'
 import { howToChange } from './model.ts'
 import type { Commitment, Note } from './model.ts'
 
-export type ManageAction = 'pause' | 'stop' | 'update'
+export type ManageAction = 'pause' | 'stop' | 'update' | 'resume'
 
 const DURATIONS = [
   { id: '1', label: '1 month' },
@@ -91,12 +103,15 @@ export function ManageSheets({
   asOf,
   onClose,
   onNote,
+  onClearNote,
 }: {
   commitment: Commitment
   action: ManageAction | null
   asOf: string
   onClose: () => void
   onNote: (note: Note) => void
+  /** Resume: put the projection back exactly as the statement shows it. */
+  onClearNote: () => void
 }): ReactNode {
   const c = commitment
   const nominalDay = c.dayOfMonth ?? Number(c.series.lastSeen.slice(8, 10))
@@ -145,12 +160,19 @@ export function ManageSheets({
         }
       >
         <p className="m-0 text-[13.5px] leading-relaxed text-ink-mid">
-          How long do you want it off your calendar for? It comes back on{' '}
-          <strong className="font-semibold text-ink">{longDate(resumes)}</strong> without you having
-          to do anything — no resume to remember.
+          How long do you want it off your calendar for? It comes back by itself on the date you
+          pick, without you having to do anything — there is no resume to remember.
         </p>
         <div className="mt-3.5">
-          <Choice options={DURATIONS} value={months} onChange={setMonths} />
+          <RadioRows
+            label="How long to pause for"
+            options={DURATIONS.map((d) => ({
+              ...d,
+              sub: `Back on the calendar ${longDate(addMonths(asOf, Number(d.id)))}`,
+            }))}
+            value={months}
+            onChange={setMonths}
+          />
         </div>
         <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-ink-soft">
           That takes {inr(monthly * Number(months))} out of the next {months} month
@@ -195,6 +217,15 @@ export function ManageSheets({
             premium. Check what you would be giving up before you cancel this one.
           </p>
         ) : null}
+        {/* The reference warns that stopping "would impact your tagged SmartJars" on every SIP,
+            because a warning it cannot substantiate is the only one it has. These two it can. */}
+        {c.series.kind === 'emi' ? (
+          <p className="m-0 mt-3 rounded-md bg-danger-soft p-3.5 text-[13px] leading-relaxed text-danger">
+            A loan repayment is not one of the things you can simply stop. A missed instalment is a
+            default and it reaches your credit record. Taking it off this calendar takes it off the
+            projection and off nothing else — talk to the lender first.
+          </p>
+        ) : null}
         <NotAnInstruction mode={c.series.mode} />
       </Sheet>
 
@@ -221,8 +252,9 @@ export function ManageSheets({
         }
       >
         <p className="m-0 mb-4 text-[13.5px] leading-relaxed text-ink-mid">
-          The reference app asks you to confirm and then never shows the form. Here is the form —
-          but it changes what this screen projects, not what the bank collects.
+          For when you have already agreed different figures and the statements have not caught up
+          yet. This changes what the calendar and the month total project — not what the bank
+          collects.
         </p>
         <Field label="Each charge" hint={`Currently ${inr(c.series.amount)}`}>
           <MoneyInput value={amount} onChange={setAmount} ariaLabel="Amount of each charge" />
@@ -239,6 +271,42 @@ export function ManageSheets({
             <Stepper value={day} min={1} max={31} onChange={setDay} />
           </Field>
         ) : null}
+        <NotAnInstruction mode={c.series.mode} />
+      </Sheet>
+
+      {/*
+       * The resume sheet — `10-diy-otp/07-your-sips__17/18.png`. One centred question and one
+       * full-width button, no `Cancel`: the sheet's own close and its scrim already do that, and
+       * the reference draws exactly one control here.
+       *
+       * What resuming means is different on this screen and the difference is the whole sentence
+       * on it. The reference resumes a mandate it registered. This puts the charge back on the
+       * projection it was always going to make, because nothing was ever taken off anything but
+       * this screen.
+       */}
+      <Sheet
+        open={action === 'resume'}
+        onClose={onClose}
+        title="Put this back on the calendar?"
+        sub={c.name}
+        footer={
+          <Button
+            full
+            onClick={() => {
+              onClearNote()
+              onClose()
+            }}
+          >
+            Okay
+          </Button>
+        }
+      >
+        <p className="m-0 text-[13.5px] leading-relaxed text-ink-mid">
+          Your note comes off and this goes back to {inr(c.series.amount)}
+          {c.series.dayOfMonth === null ? '' : ` on the ${String(c.series.dayOfMonth)}`} — the
+          figures the statement actually shows. {inr(monthly)} a month back in the month total and
+          back on the plan.
+        </p>
         <NotAnInstruction mode={c.series.mode} />
       </Sheet>
     </>

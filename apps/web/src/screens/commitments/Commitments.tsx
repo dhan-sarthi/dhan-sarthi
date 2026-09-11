@@ -29,7 +29,7 @@
  */
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CalendarX2, Info, X } from 'lucide-react'
+import { CalendarX2, Info } from 'lucide-react'
 import { ymd } from '@dhan/core'
 import type { Snapshot } from '@dhan/contracts'
 import { Screen } from '../../components/Screen.tsx'
@@ -144,10 +144,20 @@ export function Commitments({
 
   return (
     <Screen header={header} {...(onRefresh ? { onRefresh } : {})}>
-      {/* The reference's cream banner, on `tint-clay` per `03-PALETTE-MAP.md`, saying the two
-          numbers it does not: what has already gone this month, and what has not. */}
-      <div className="mt-3">
-        <Card tint="clay">
+      {/*
+       * The banner and the grid are **one card**, because in the reference they are one shape.
+       *
+       * Measured across `01-systematic-calendar__02/03/04/06.png`: the cream block and the white
+       * calendar run to the same two x-coordinates, the calendar's top edge sits directly on the
+       * cream's bottom edge, and there is no gap and no second shadow. Two `Card`s with 12px
+       * between them — which is what the first pass shipped — reads as a stat card that happens
+       * to be followed by a calendar. One clipped shape reads as a month.
+       *
+       * `tint-clay` is where `03-PALETTE-MAP.md` sends the cream; on this palette it aliases the
+       * one sage tint, which is the whole point of that alias.
+       */}
+      <section className="mb-3 mt-3 overflow-hidden rounded-md border border-solid border-hairline-mint">
+        <div className="bg-tint-clay px-4 pb-4 pt-3.5">
           <div className="text-[13px] text-ink-soft">
             {monthLabel(month.year, month.month)}
             {monthsBetween(here, month) === 0 ? ' · this month' : ''}
@@ -157,78 +167,37 @@ export function Commitments({
           </div>
           <p className="m-0 mt-1 text-sm text-ink-mid">
             across {totals.count} {totals.count === 1 ? 'charge' : 'charges'}
+            {selected === null ? ' · tap a date to see that day' : ''}
           </p>
-          <div className="mt-3.5">
-            <Leader label="Already charged" value={inr(totals.paid)} filled />
-            {totals.late > 0 ? (
-              <Leader label="Due, not charged yet" value={inr(totals.late)} />
-            ) : null}
-            <Leader label="Still to come" value={inr(totals.due)} />
-          </div>
-        </Card>
-      </div>
-
-      <CalendarMonth
-        year={month.year}
-        month={month.month}
-        asOf={asOf}
-        dues={dues}
-        selected={selected}
-        onSelect={setSelected}
-        onMonth={(by) => {
-          setSelected(null)
-          setMonth((m) => shiftMonth(m.year, m.month, by))
-        }}
-        canPrev={monthsBetween(range.first, month) > 0}
-        canNext={monthsBetween(month, range.last) > 0}
-      />
+        </div>
+        <CalendarMonth
+          year={month.year}
+          month={month.month}
+          asOf={asOf}
+          dues={dues}
+          totals={totals}
+          selected={selected}
+          onSelect={setSelected}
+          onMonth={(by) => {
+            setSelected(null)
+            setMonth((m) => shiftMonth(m.year, m.month, by))
+          }}
+          canPrev={monthsBetween(range.first, month) > 0}
+          canNext={monthsBetween(month, range.last) > 0}
+        />
+      </section>
 
       {/*
-       * The per-date detail. `01-systematic-calendar.md`: the banner reads "Tap on dates to see
-       * SIP details", the grid selection never changes across any frame, and the flow file's
-       * Gaps §2 records that the list is never date-filtered. So this whole block is designed.
+       * `Your SIPs` — a heading, a count line, and then the list. Not an eyebrow band, which is
+       * what this was: the reference sets its section title at 20px bold with a muted count under
+       * it (`You have 7 active SIPs and 2 paused SIPs`) and gives the whole thing white space,
+       * and it is the strongest thing on the lower half of the screen. Ours says the same three
+       * facts. The tune icon at its right is still not built — see the file header.
        */}
-      {selected !== null ? (
-        <section className="mb-3 rounded-md border border-solid border-hairline-mint bg-surface p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="m-0 text-[16px] font-semibold leading-tight text-ink">
-                {longDate(selected)}
-              </h2>
-              <p className="m-0 mt-1 text-[13px] text-ink-soft">
-                {onDay.length === 0
-                  ? 'Nothing due on this date'
-                  : `${inr(onDay.reduce((sum, d) => sum + d.amount, 0))} across ${String(onDay.length)} ${onDay.length === 1 ? 'charge' : 'charges'}`}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              className="ds-press -mr-1 -mt-1 flex h-9 flex-none items-center gap-1 rounded-pill border-0 bg-transparent px-2 text-[13px] font-semibold text-brand-deep"
-            >
-              <X size={14} strokeWidth={2.6} />
-              Clear
-            </button>
-          </div>
-          {onDay.length > 0 ? (
-            <ul className="m-0 mt-3 list-none space-y-2 p-0">
-              {onDay.map((d) => (
-                <li key={d.key} className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 flex-1 truncate text-[14.5px] text-ink">{d.label}</span>
-                  <span className="flex-none text-[14.5px] font-semibold tabular-nums text-ink">
-                    {inr(d.amount)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </section>
-      ) : null}
-
-      <div className="-mx-4 mt-2 flex items-baseline justify-between gap-3 bg-ground-deep px-4 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-accent-text">
-          {selected === null ? 'Every commitment we found' : `On ${longDate(selected)}`}
-        </span>
+      <div className="mt-5 flex items-baseline justify-between gap-3">
+        <h2 className="m-0 text-[20px] font-semibold leading-tight text-ink">
+          {selected === null ? 'Your commitments' : longDate(selected)}
+        </h2>
         {selected !== null ? (
           <TextLink size="sm" flush onClick={() => setSelected(null)}>
             Show all {commitments.length}
@@ -236,16 +205,30 @@ export function Commitments({
         ) : null}
       </div>
 
-      <p className="mb-3 mt-2.5 text-[13px] leading-snug text-ink-soft">
-        {counts.live} charging on schedule
-        {counts.lapsed > 0 ? `, ${String(counts.lapsed)} gone quiet` : ''}
-        {counts.noted > 0 ? `, ${String(counts.noted)} you have a note on` : ''}. Detected from the
-        pattern of your statements, not from a form you filled in.
+      <p className="mb-3 mt-1.5 text-[13px] leading-snug text-ink-soft">
+        {selected === null
+          ? `You have ${String(counts.live)} charging on schedule${
+              counts.lapsed > 0 ? `, ${String(counts.lapsed)} gone quiet` : ''
+            }${counts.noted > 0 ? `, ${String(counts.noted)} you have a note on` : ''}. Detected from the pattern of your statements, not from a form you filled in.`
+          : onDay.length === 0
+            ? 'Nothing is due on this date.'
+            : `${inr(onDay.reduce((sum, d) => sum + d.amount, 0))} across ${String(onDay.length)} ${onDay.length === 1 ? 'charge' : 'charges'} on this date.`}
       </p>
 
-      {shown.map((c) => (
-        <CommitmentRow key={c.key} commitment={c} onOpen={() => setOpen(c.key)} />
-      ))}
+      {/* The reference's list is full-bleed white cards on a pale blue-grey ground, separated by
+          ~10pt bands of it. On this palette the ground is `ground-deep` and the cards keep the
+          app's 14px radius and its gutter, which is the one place IDBI's language wins over the
+          reference's: a square-cornered edge-to-edge card would be the only one in the app. */}
+      <div className="-mx-4 bg-ground-deep px-4 pb-0 pt-3">
+        {shown.map((c) => (
+          <CommitmentRow key={c.key} commitment={c} onOpen={() => setOpen(c.key)} />
+        ))}
+        {shown.length === 0 ? (
+          <p className="m-0 pb-3 text-[13.5px] leading-relaxed text-ink-soft">
+            Nothing on that date. Pick another, or clear the filter above.
+          </p>
+        ) : null}
+      </div>
 
       <div className="mb-2 mt-4 flex gap-2.5 rounded-md bg-ground-deep p-3.5">
         <Info size={16} strokeWidth={2.2} className="mt-px flex-none text-ink-soft" />

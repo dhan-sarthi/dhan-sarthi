@@ -726,18 +726,29 @@ function initials(name: string): string {
 
 /* ---------------------------------------------------------------- Pill */
 
+/*
+ * `quiet` is the fifth and it is not a state.
+ *
+ * SmartWealth's SIP row carries two kinds of chip and draws them differently on purpose: the
+ * status (`Active`, `Paused`, `Stopped`) is tinted in its own colour, and the taxonomy beside the
+ * fund name (`Equity`, `Large Cap`, `Growth`) is grey text on a pale neutral. Rendering both as
+ * `plain` puts four green chips on one row and throws that hierarchy away — which is what the
+ * commitments list did until somebody put the frame beside it. `ground-deep` with `ink-mid` is
+ * the neutral pairing `StatusBand` and `Button tone="quiet"` already use, at 8.4:1.
+ */
 const PILL_TONE = {
   plain: 'bg-legend-chip text-brand-deep',
   warn: 'bg-accent-soft text-accent-text',
   bad: 'bg-danger-soft text-danger',
   ok: 'bg-brand text-on-dark',
+  quiet: 'bg-ground-deep text-ink-mid',
 } as const
 
 export function Pill({
   tone = 'plain',
   children,
 }: {
-  tone?: 'plain' | 'warn' | 'bad' | 'ok'
+  tone?: 'plain' | 'warn' | 'bad' | 'ok' | 'quiet'
   children: ReactNode
 }): ReactNode {
   return (
