@@ -62,7 +62,7 @@ export function AddMember({
         </div>
         <p className="m-0 mt-1 text-[13px] leading-relaxed text-ink-soft">
           Nothing is sent. IDBI has no household in its records and no way to look a Customer ID up
-          against one, so this is the flow and the consent rules behind it — not a live request.
+          against one — this is the flow and its consent rules, not a live request.
         </p>
       </div>
 

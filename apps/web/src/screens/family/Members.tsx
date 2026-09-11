@@ -99,9 +99,8 @@ export function Members({
         }
       >
         <p className="m-0 text-[15px] leading-relaxed text-ink-mid">
-          Their figures come out of the household total and you stop seeing what they hold. In a
-          real household they would have to accept again to come back; here they are demo state, so
-          nothing is sent and nothing is lost.
+          Their figures leave the household total and you stop seeing what they hold. In a real
+          household they would have to accept again; here they are demo state, so nothing is sent.
         </p>
       </Sheet>
     </>

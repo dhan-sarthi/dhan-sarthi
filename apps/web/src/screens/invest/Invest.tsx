@@ -166,7 +166,7 @@ export function Invest({
     } catch {
       // Fail closed. A check that did not run is not a check that passed.
       setGateError(
-        'The suitability check could not be run, so nothing has been placed. Try again in a moment.',
+        'The suitability check could not be run, so nothing was placed. Try again in a moment.',
       )
     } finally {
       setPlacing(false)
@@ -313,7 +313,7 @@ export function Invest({
         open={breakdown}
         onClose={() => setBreakdown(false)}
         title="What is payable"
-        sub="A lump sum leaves today; a SIP leaves on its start date and every month after it."
+        sub="A lump sum leaves today; a SIP on its start date and every month after."
       >
         <div className="pb-2">
           {lines

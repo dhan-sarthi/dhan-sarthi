@@ -125,15 +125,14 @@ export function Today({
           </h2>
           {snapshot.customer.declaredMonthlyIncome > 0 ? (
             <p className={`${META} mt-1.5`}>
-              You told me {inr(snapshot.customer.declaredMonthlyIncome)} a month comes in, and the
-              plan is built on it. Nothing in this statement looks like it, though, so I am not
-              going to turn it into a daily allowance I cannot check against the ledger.
+              You told me {inr(snapshot.customer.declaredMonthlyIncome)} a month comes in and the
+              plan uses it. Nothing in this statement matches it, so it does not become a daily
+              allowance.
             </p>
           ) : (
             <p className={`${META} mt-1.5`}>
-              Nothing in this statement looks like a salary or a regular credit, so there is no
-              daily allowance I can stand behind. What I can see is below, and everything else on
-              this screen is built only from what is actually in the ledger.
+              No salary or regular credit in this statement, so there is no daily allowance to stand
+              behind. What the ledger does show is below.
             </p>
           )}
           <div className="mt-4 grid grid-cols-2 gap-2.5">
@@ -187,20 +186,10 @@ export function Today({
           </div>
 
           {/*
-              The second tile only where there is a commitment to name.
-              "Goes out each month ₹0" is a derived zero standing in for an observation: on
-              Neha's feed nothing in the statement is recognisable as a mandate, and the screen
-              was reporting that as a customer with no outgoings, directly above ₹6.03 lakh of
-              borrowing. One tile that is true beats two where one is invented.
+              The two tiles that used to close this card — "Comes in each month" and "Goes out
+              each month" — printed the same two figures the waterfall directly above already
+              names, at 90px of height. A card does not get to say a number twice.
             */}
-          <div
-            className={`mt-4 grid gap-2.5 ${snapshot.commitments.total > 0 ? 'grid-cols-2' : ''}`}
-          >
-            <Tile label="Comes in each month" value={snapshot.income.monthly} />
-            {snapshot.commitments.total > 0 ? (
-              <Tile label="Goes out each month" value={snapshot.commitments.total} />
-            ) : null}
-          </div>
         </Card>
       )}
 
@@ -245,7 +234,7 @@ export function Today({
                   build one from, and a cap is worth knowing about either way. */}
             {plan.since.capBreached ? (
               <p className="ds-rise m-0 mt-2.5 rounded-sm bg-tint-clay px-3 py-2 text-[13px] font-semibold leading-snug text-danger">
-                You are over a limit you set. Money &rarr; Spending has the figure.
+                Over a limit you set. Spending has the figure.
               </p>
             ) : null}
             <div className="mt-2 divide-y divide-solid divide-hairline-mint">
@@ -301,15 +290,15 @@ export function Today({
       ) : null}
 
       <p className={`${NOTE} mb-0 mt-5`}>
-        Every figure on this screen is computed from {snapshot.quality.transactions}{' '}
+        Computed from {snapshot.quality.transactions}{' '}
         {snapshot.quality.transactions === 1 ? 'transaction' : 'transactions'}{' '}
         {historySpan(snapshot.quality.monthsOfHistory)}.{' '}
         {/* "matched to a merchant or a mandate" overstated what the number measures: it also
               counts a keyword like SALARY or CHGS, which names a purpose rather than a
               counterparty. On IDBI's feed that read as 50% matched to merchants beside forty
               rows that name nobody at all. */}
-        {Math.round(snapshot.quality.categorisedShare * 100)}% of them carry enough for me to
-        recognise what they were; the rest are filed as the bank filed them.
+        {Math.round(snapshot.quality.categorisedShare * 100)}% carry enough to recognise; the rest
+        are filed as the bank filed them.
       </p>
     </Screen>
   )
@@ -319,15 +308,15 @@ export function Today({
 function leadSentence(lead: LeadOutcomeResponse): string {
   switch (lead.status) {
     case 'created':
-      return 'IDBI has your request. Someone from the bank will pick it up.'
+      return 'IDBI has your request. Someone at the bank will pick it up.'
     case 'duplicate':
-      return 'IDBI already had this request on file, so nothing was sent twice.'
+      return 'IDBI already had this request. Nothing was sent twice.'
     case 'refused':
       return `The bank did not accept the request: ${lead.message}`
     case 'incomplete':
       return lead.message
     case 'unavailable':
-      return 'Your decision is recorded. The bank could not be reached to pass it on, so it will need sending again.'
+      return 'Recorded here. The bank could not be reached to pass it on, so it needs sending again.'
   }
 }
 
@@ -383,8 +372,8 @@ function ActionCard({
       {/* Never a promise. The rate is on screen and the wording is conditional. */}
       {action.projected ? (
         <p className="mb-0 mt-3 text-[13.5px] leading-normal opacity-80">
-          Over {action.projected.years} years at an assumed {action.projected.ratePct}%, that would
-          be about <b>{approx(action.projected.becomes)}</b>. An illustration, not a promise.
+          At an assumed {action.projected.ratePct}% over {action.projected.years} years: about{' '}
+          <b>{approx(action.projected.becomes)}</b>. An illustration, not a promise.
         </p>
       ) : null}
 
@@ -432,7 +421,7 @@ function ActionCard({
 
       {!enabled ? (
         <p className="mb-0 mt-3 text-[13px] leading-normal opacity-80">
-          Decisions are written to the record on the advisor service. Reconnect to act on this.
+          Decisions are recorded on the advisor service. Reconnect to act.
         </p>
       ) : null}
       <button

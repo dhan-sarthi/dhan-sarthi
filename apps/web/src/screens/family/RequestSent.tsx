@@ -61,8 +61,7 @@ export function RequestSent({
           Your request has been sent successfully
         </h1>
         <p className="mb-0 mt-2.5 text-[15px] leading-relaxed text-ink-soft">
-          Your request has been sent successfully for Customer ID {maskCustomerId(customerId)}.
-          Please ask the family member to accept the same.
+          Sent for Customer ID {maskCustomerId(customerId)}. Ask the family member to accept it.
         </p>
       </div>
 
@@ -78,9 +77,9 @@ export function RequestSent({
       </div>
 
       <p className="mb-4 mt-0 text-[13px] leading-relaxed text-ink-soft">
-        Nothing left the app. There is no household in IDBI&rsquo;s records, so the request, the
-        five-day rule and the member you would link are all part of the demonstration — the date
-        above is five days on from the simulated clock, and it moves when you move it.
+        Nothing left the app. IDBI has no household in its records, so the request, the five-day
+        rule and the member are part of the demonstration — the date above is five days on from the
+        simulated clock, and moves when you move it.
       </p>
     </Screen>
   )

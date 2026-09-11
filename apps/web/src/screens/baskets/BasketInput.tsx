@@ -157,28 +157,27 @@ export function BasketInput({
           open={about}
           onClose={() => setAbout(false)}
           title="What a basket is"
-          sub="And the three things the screen deliberately does not tell you."
+          sub="And the three things it does not tell you."
         >
           <div className="pb-2 text-[14.5px] leading-relaxed text-ink-mid">
             <p className="mb-3 mt-0">
-              A basket is the same shelf Discover sells, filtered by one rule, with your amount
-              split equally across whatever passes that rule. The rule is printed above the schemes
-              so you can check it against them.
+              The shelf Discover sells, filtered by one rule, with your amount split equally across
+              whatever passes. The rule is printed above the schemes so you can check it.
             </p>
             <p className="mb-3 mt-0">
               <b className="font-semibold text-ink">No expected return.</b> Deposits carry a
-              contracted rate and funds carry none, so a blended basket return would be part fact
-              and part guess presented as one number.
+              contracted rate and funds carry none, so a blended figure would be part fact, part
+              guess.
             </p>
             <p className="mb-3 mt-0">
               <b className="font-semibold text-ink">No risk grade for the basket.</b> SEBI&rsquo;s
-              riskometer is a per-scheme disclosure and it is shown per scheme. Rolling several into
-              one word is a rating, and this app does not publish ratings.
+              riskometer is a per-scheme disclosure, shown per scheme. Rolling several into one word
+              would be a rating, and this app does not publish ratings.
             </p>
             <p className="mb-0 mt-0">
               <b className="font-semibold text-ink">Nothing is checked yet.</b> The suitability gate
-              runs on the whole basket when you place it, and a refusal on any one scheme stops all
-              of it.
+              runs on the whole basket when you place it — a refusal on any one scheme stops all of
+              it.
             </p>
           </div>
         </Sheet>
@@ -194,10 +193,10 @@ export function BasketInput({
          * banded white card against a flat tinted one is a difference in *form*.
          */
         <Card tint="white">
-          <h2>Your plan does not reach investing yet</h2>
+          <h2>Your plan says not yet</h2>
           <p className="mb-0 mt-1.5 text-[14.5px] leading-relaxed text-ink-mid">
-            The next thing on your roadmap is {STAGE_NOUN[stance.first.kind]}, not putting money
-            into anything. A basket cannot move that — it only decides how an amount is split.
+            Next on your roadmap is {STAGE_NOUN[stance.first.kind]}, not investing. A basket cannot
+            move that — it only splits an amount.
           </p>
           {onOpenPlan ? (
             <div className="mt-2">
@@ -207,7 +206,7 @@ export function BasketInput({
             </div>
           ) : null}
           <StatusBand tone="bad" label="Expect a refusal.">
-            The suitability gate is going to stop these schemes on the same grounds your plan puts{' '}
+            The suitability gate will stop these schemes on the same grounds your plan puts{' '}
             {STAGE_NOUN[stance.first.kind]} first.
           </StatusBand>
         </Card>
@@ -217,20 +216,20 @@ export function BasketInput({
           <p className="mb-0 mt-1.5 text-[14.5px] leading-relaxed text-ink-mid">
             {stance?.kind === 'after' ? (
               <>
-                Plan decides what comes first, and it puts {STAGE_NOUN[stance.before.kind]} ahead of
-                this. A basket only decides how the growing money is split once you get there.
+                Plan puts {STAGE_NOUN[stance.before.kind]} ahead of this. A basket only splits the
+                growing money once you get there.
               </>
             ) : stance?.kind === 'now' ? (
               <>
-                Plan names one scheme for the growing stage
+                Plan names one scheme for growing
                 {stance.grow.productName ? <> — {stance.grow.productName}</> : null}, at{' '}
-                {inr(stance.grow.monthly)} a month. A basket spreads the same kind of money across
-                several instead. It does not change the order of your roadmap.
+                {inr(stance.grow.monthly)} a month. A basket spreads the same money across several.
+                It does not change your roadmap&rsquo;s order.
               </>
             ) : (
               <>
-                Plan decides what comes first, computed from your statements. A basket only decides
-                how one amount is split across the shelf.
+                Plan decides what comes first, from your statements. A basket only splits one amount
+                across the shelf.
               </>
             )}
           </p>
@@ -245,14 +244,14 @@ export function BasketInput({
       )}
 
       <p className="mb-0 mt-4 text-[14.5px] leading-relaxed text-ink-mid">
-        Tell us how much and you get three baskets to compare. Each one is the shelf filtered by a
-        different rule, with your amount split equally across it.
+        Three baskets to compare, each the shelf filtered by a different rule, with your amount
+        split equally across it.
       </p>
 
       <Card tint="white">
         <h2>How much</h2>
         <p className="mb-0 mt-1 text-[13px] text-ink-soft">
-          A monthly SIP, a one-off amount, or both. At least one.
+          A monthly SIP, a one-off, or both — at least one.
         </p>
 
         <AmountRow
@@ -278,7 +277,7 @@ export function BasketInput({
 
         {shortSip || shortLump ? (
           <p role="alert" className="mb-0 mt-3 text-[13px] leading-snug text-danger">
-            Below {inr(floor)} a basket can only hold one scheme, and one scheme is not a basket.
+            Below {inr(floor)} a basket holds one scheme, and one scheme is not a basket.
           </p>
         ) : null}
       </Card>
@@ -291,7 +290,7 @@ export function BasketInput({
           <p className="mb-0 mt-2.5 text-center text-[13px] text-ink-soft">
             {shortSip || shortLump
               ? `Raise the amount to at least ${inr(floor)}.`
-              : 'Tick a box and type an amount to see the baskets.'}
+              : 'Tick a box and type an amount.'}
           </p>
         )}
       </div>

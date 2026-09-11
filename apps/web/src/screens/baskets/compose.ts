@@ -109,19 +109,19 @@ export const BASKETS: readonly BasketSpec[] = [
   {
     id: 'open',
     tab: 'No lock-in',
-    rule: 'Every scheme in this basket can be taken back out on any working day. None of them is locked, and one of them holds shares.',
+    rule: 'Every scheme here can be taken back out on any working day. One of them holds shares.',
     holds: (p) => p.lockInYears === 0,
   },
   {
     id: 'noeq',
     tab: 'No equity',
-    rule: 'Nothing in this basket holds shares, so nothing in it rises or falls with a share index. None of it is locked either.',
+    rule: 'Nothing here holds shares, so nothing moves with a share index. None of it is locked.',
     holds: (p) => shapeOf(p) !== 'equity',
   },
   {
     id: 'locked',
     tab: 'Locked away',
-    rule: 'Everything in this basket is locked for three years or more. Long-dated money only — you cannot take it back out early.',
+    rule: 'Everything here is locked for three years or more. Long-dated money only.',
     holds: (p) => p.lockInYears > 0,
   },
 ]

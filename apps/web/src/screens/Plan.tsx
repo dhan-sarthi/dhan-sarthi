@@ -168,12 +168,12 @@ export function Plan({
             {
               icon: <ListOrdered size={18} strokeWidth={2} />,
               title: 'In order',
-              body: 'Every step is here because the one before it has to happen first, and says why.',
+              body: 'Each step needs the one before it, and says why.',
             },
             {
               icon: <ShieldCheck size={18} strokeWidth={2} />,
               title: 'Checked, then placed',
-              body: 'Anything this plan proposes to buy runs past the suitability rules first.',
+              body: 'Anything it proposes runs past the suitability rules first.',
             },
           ]}
           note={
@@ -205,13 +205,9 @@ export function Plan({
             {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)},{' '}
             {atHorizon ? `in ${roadmap.goal.targetDate.slice(0, 4)} rupees` : 'in today’s money'}
           </p>
-          {!roadmap.feasible ? (
-            <p className="mb-0 mt-3 text-[13.5px] leading-normal text-on-dark/85">
-              I would rather show you that than move the number until it fits. We can push the date,
-              lower the target, or find the difference in your spending — and the last one is
-              usually the least painful.
-            </p>
-          ) : null}
+          {/* The three ways out — push the date, lower the target, find the difference — used to
+              be spelled out here too. The growing stage below says them already, one scroll down,
+              with the two figures beside them. Twice on one screen is once too many. */}
         </BenefitCards>
       </div>
 
@@ -282,7 +278,7 @@ export function Plan({
             </div>
 
             <label className="mt-4 block text-[12.5px] text-ink-soft">
-              Assumed annual return — change it and see
+              Assumed annual return
               <input
                 type="range"
                 min={4}
@@ -309,9 +305,8 @@ export function Plan({
         </div>
         <p className="m-0 text-[15px] leading-normal text-ink">{roadmap.reasonForChange}</p>
         <p className={`${NOTE} mb-0 mt-3`}>
-          Every version of this plan is kept, with the reason it changed and the figures it was
-          built on. That record is what makes the advice auditable five years from now — and it is
-          the same record that lets the plan learn what you actually do.
+          Every version is kept with the reason it changed and the figures it was built on, so the
+          advice stays auditable.
         </p>
       </Card>
 
@@ -323,8 +318,8 @@ export function Plan({
           </h2>
           <p className="m-0 mt-2 text-sm leading-relaxed text-ink-mid">
             {drifts.length === 0
-              ? 'Nothing has moved since this version was cut, and you can see exactly which checks say so.'
-              : 'Where the money is meant to go, against where your statements show it going — and what would bring the two back together.'}
+              ? 'Nothing has moved since this version was cut. See which checks say so.'
+              : 'Where the money is meant to go, against where your statements show it going.'}
           </p>
           <div className="mt-4">
             <Button full tone="secondary" onClick={() => setRebalancing(true)}>

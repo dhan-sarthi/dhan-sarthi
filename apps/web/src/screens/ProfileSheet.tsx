@@ -116,7 +116,7 @@ export function ProfileSheet({
       open={open}
       onClose={onClose}
       title="About you"
-      sub="What the bank does not know. Every one of these changes the advice."
+      sub="What the bank does not know. Each one changes the advice."
       footer={
         <Button full busy={busy} disabled={!dirty} onClick={() => void save()}>
           {dirty ? 'Save and recalculate' : 'Nothing to save'}
@@ -149,17 +149,14 @@ export function ProfileSheet({
                 The bank sends no date of birth for you
               </p>
               <p className="m-0 mt-1 text-[12.5px] leading-snug text-ink-mid">
-                Age decides which products can be recommended at all, so nothing can be suggested
-                until this is filled in.
+                Age decides what can be recommended, so nothing is suggested until this is filled
+                in.
               </p>
             </div>
           ) : null}
 
           {needsDob || draft.dateOfBirth !== '' ? (
-            <Field
-              label="Date of birth"
-              hint={needsDob ? 'Needed before any advice can be given.' : undefined}
-            >
+            <Field label="Date of birth" hint={needsDob ? 'Needed before any advice.' : undefined}>
               <TextInput
                 type="date"
                 ariaLabel="Date of birth"
@@ -171,7 +168,7 @@ export function ProfileSheet({
 
           <Field
             label="What you earn a year"
-            hint="Before tax. Used for the cover you need and the surplus you can invest."
+            hint="Before tax. Sets the cover you need and the surplus you can invest."
           >
             <MoneyInput
               ariaLabel="Annual income"
@@ -190,7 +187,7 @@ export function ProfileSheet({
 
           <Field
             label="How you feel about risk"
-            hint="Conservative caps you at a Moderate riskometer, which refuses most equity funds. Balanced and Growth share the same ceiling. More → Investment profile explains it, and can work it out from six questions."
+            hint="Conservative caps you at a Moderate riskometer, refusing most equity funds; Balanced and Growth share one ceiling. More → Investment profile can work it out from six questions."
           >
             <Choice
               options={RISK}
@@ -216,7 +213,7 @@ export function ProfileSheet({
 
           <Field
             label="Tax regime"
-            hint="The new regime has been the default since FY 2023-24, and under it a tax-saving fund saves no tax."
+            hint="Default since FY 2023-24, and under it a tax-saving fund saves no tax."
           >
             <Choice
               options={REGIME}
@@ -226,8 +223,8 @@ export function ProfileSheet({
           </Field>
 
           <p className="mb-1 mt-5 text-xs leading-relaxed text-ink-soft">
-            These are yours, not the bank&rsquo;s. Record &rarr; Your data marks them as declared,
-            and the bank never sees them.
+            Yours, not the bank&rsquo;s. Record &rarr; Your data marks them declared; the bank never
+            sees them.
           </p>
         </div>
       )}

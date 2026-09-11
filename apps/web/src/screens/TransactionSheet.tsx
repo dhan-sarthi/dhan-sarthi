@@ -90,10 +90,10 @@ export function TransactionSheet({
               something it read. */}
           <p className={`${NOTE} mb-0 mt-2`}>
             {txn.merchantName !== undefined
-              ? `The bank sent "${txn.merchantName}" as the merchant, so that is the name shown rather than anything read out of the line.`
+              ? `"${txn.merchantName}" is the merchant the bank sent, not a name read out of the line.`
               : narratedName(txn.narration) !== null
                 ? `"${merchantOf(txn)}" is read out of that line. The bank sent no merchant name for it.`
-                : 'Nothing in that line names who was paid, and the bank sent no merchant name, so the direction of the money is all there is to go on.'}
+                : 'Nothing in that line names who was paid, and the bank sent no merchant name, so only the direction of the money is known.'}
           </p>
 
           {/* ------------------------------------------------ The rest of the row */}
@@ -117,15 +117,14 @@ export function TransactionSheet({
           {txn.balanceAfterTxn === null ? (
             <p className={`${NOTE} mt-3`}>
               No running balance on this one. The bank sends one, but it did not reconcile against
-              the account&rsquo;s own balance across this statement, so it is withheld rather than
-              shown as though it had been checked.
+              the account&rsquo;s own balance, so it is withheld rather than shown as checked.
             </p>
           ) : null}
 
           <p className={`${NOTE} mt-3`}>
             {narratedName(txn.narration) === null && txn.merchantName === undefined
-              ? `The category is this app’s, not the bank’s, and with nothing in the line to read it falls back to ${txn.spendCategory}. The spending figures are built on it, which is worth knowing when they all look the same.`
-              : 'The category is this app’s, not the bank’s. It is worked out from the line above and it is what the spending figures are built on, so it is worth a look if one of them surprises you.'}
+              ? `The category is this app’s, not the bank’s, and with nothing in the line to read it falls back to ${txn.spendCategory}. The spending figures are built on it.`
+              : 'The category is this app’s, not the bank’s — worked out from the line above, and what the spending figures are built on.'}
           </p>
         </>
       )}

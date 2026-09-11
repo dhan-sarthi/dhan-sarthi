@@ -70,9 +70,8 @@ export function RequestsReceived({
           Demo requests
         </div>
         <p className="m-0 mt-1 text-[13px] leading-relaxed text-ink-soft">
-          The people asking are demo people. Answering one changes what this app shows you and
-          nothing else — nobody is notified, because there is no household in IDBI&rsquo;s records
-          to join.
+          The people asking are demo people. Answering one changes what this app shows and nothing
+          else — nobody is notified, because IDBI has no household to join.
         </p>
       </div>
 
@@ -86,8 +85,8 @@ export function RequestsReceived({
           </span>
           <h2 className="m-0 mt-3.5 text-[18px] font-semibold text-ink">Nothing to answer</h2>
           <p className="mb-0 mt-1.5 text-[15px] leading-relaxed text-ink-soft">
-            When someone asks to link their accounts to yours, it waits here until you say yes or
-            no. Until you do, they see nothing of what you hold.
+            A request to link accounts waits here until you say yes or no. Until then they see
+            nothing of what you hold.
           </p>
         </div>
       ) : null}
@@ -132,8 +131,7 @@ export function RequestsReceived({
           </div>
           {answer === 'accepted' ? (
             <StatusBand flush tone="good" label="Accepted">
-              — {request.name} is in the household now, and what they hold is on the Overall
-              Holdings tab.
+              — {request.name} is in the household; what they hold is on Overall Holdings.
             </StatusBand>
           ) : (
             <StatusBand flush tone="quiet" label="Declined">

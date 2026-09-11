@@ -68,14 +68,13 @@ export function OrderPlaced({
   if (kinds.has('units')) {
     next.push(
       'Units are allotted at the NAV that applies once the money is realised, before the ' +
-        'scheme’s cut-off for the day, and the holding appears under Dashboard within two ' +
-        'working days.',
+        'day’s cut-off. The holding appears under Dashboard within two working days.',
     )
   }
   if (kinds.has('cover')) {
     next.push(
       'The policy is issued once the first premium is realised. Cover starts from the date on ' +
-        'the policy document, not from today.',
+        'the policy document, not today.',
     )
   }
   if (kinds.has('deposit')) {
@@ -83,7 +82,7 @@ export function OrderPlaced({
   }
   if (t.monthly > 0 && firstDebit) {
     next.push(
-      `The mandate is registered against your account. The first monthly debit is on ${longDate(
+      `The mandate is registered against your account. First debit ${longDate(
         firstDebit,
       )}, and you can pause or stop it at any time.`,
     )
@@ -167,14 +166,12 @@ export function OrderPlaced({
       <Card tint="clay">
         <h2>What actually happened</h2>
         <p className="mb-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-          The suitability gate ran against your current position before any of this, and cleared{' '}
-          {rulesPassed} {rulesPassed === 1 ? 'rule' : 'rules'} for every scheme in the order. That
-          check is real and every verdict it reached — including a refusal — is written to the
-          hash-chained advice record.
+          The suitability gate ran against your position first and cleared {rulesPassed}{' '}
+          {rulesPassed === 1 ? 'rule' : 'rules'} for every scheme in the order. That check is real,
+          and every verdict — including a refusal — goes into the hash-chained advice record.
         </p>
         <p className="mb-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-          No instruction reached an AMC and no money moved. There is no order path behind this app,
-          and this screen is not pretending it grew one.
+          No instruction reached an AMC and no money moved — this app has no order path.
         </p>
         <div className="mt-2">
           <TextLink flush size="sm" onClick={onSeeRecord}>

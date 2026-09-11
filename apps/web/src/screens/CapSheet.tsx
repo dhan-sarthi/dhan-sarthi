@@ -84,7 +84,7 @@ export function CapSheet({
           <p className="m-0 mb-4 mt-1 text-[14px] leading-normal text-ink-mid">
             {target.monthly
               ? `${target.category} costs you about ${inr(target.spend)} a month at the moment.`
-              : `${target.category} comes to ${inr(target.spend)} over the statement on file, which is under a month, so this is the window rather than a monthly rate.`}
+              : `${target.category} comes to ${inr(target.spend)} over the statement on file — under a month, so this is the window rather than a monthly rate.`}
           </p>
 
           <Field label="Limit per month" hint="Nothing is blocked. You get told, that is all.">
@@ -103,14 +103,13 @@ export function CapSheet({
           ) : null}
           {amount > 0 && target.monthly && amount >= target.spend ? (
             <p className="m-0 text-[13px] leading-snug text-ink-soft">
-              That is at or above what you already spend, so it will not bind until something
-              changes. Which is a fine way to start.
+              At or above what you already spend, so it will not bind until something changes.
             </p>
           ) : null}
 
           <p className="mb-1 mt-4 text-xs leading-relaxed text-ink-soft">
-            This is yours and lives on your session, not on anything the bank holds. It is not a
-            block on the account and it cannot decline a payment.
+            Yours, on your session, not on anything the bank holds. It is not a block on the account
+            and cannot decline a payment.
           </p>
         </>
       )}

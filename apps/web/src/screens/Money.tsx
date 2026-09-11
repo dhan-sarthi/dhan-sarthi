@@ -169,7 +169,7 @@ function Spending({
         {snapshot.discretionary.monthly > 0 ? (
           <Card tint="sage">
             <h2>A normal month</h2>
-            <p className={META}>Median of the last twelve, so one Diwali does not distort it</p>
+            <p className={META}>Median of twelve, so one Diwali does not distort it</p>
             <div className="mb-1 mt-3.5">
               <Amount value={snapshot.discretionary.monthly} size="xl" />
             </div>
@@ -185,11 +185,11 @@ function Spending({
           <Card tint="sage">
             <h2>Not enough of a month yet</h2>
             <p className={`${META} mt-1.5`}>
-              A normal month is the median of twelve, and this statement is{' '}
+              A normal month is a median of twelve; this statement is{' '}
               {snapshot.quality.monthsOfHistory <= 0
                 ? 'under a month'
                 : `${snapshot.quality.monthsOfHistory} ${snapshot.quality.monthsOfHistory === 1 ? 'month' : 'months'}`}
-              . What follows is the window itself, not a typical one.
+              . What follows is the window, not a typical month.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <Tile label="Spent in the window" value={observedSpend} />
@@ -307,8 +307,7 @@ function Spending({
           <Eyebrow>Habits · not commitments</Eyebrow>
           <Card>
             <p className={`${NOTE} mb-3`}>
-              Merchants you use often. These are choices, not obligations — which is exactly why
-              they are the only real lever you have.
+              Merchants you use often. Choices, not obligations — which is why they are the lever.
             </p>
             <div className="divide-y divide-solid divide-hairline-mint">
               {snapshot.discretionary.topHabits.map((h) => (
@@ -531,15 +530,13 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
         <Card tint="clay">
           <h2>Nothing recognisable as a commitment</h2>
           <p className={`${META} mt-1.5`}>
-            Rent, loan repayments, bills and standing instructions are found by reading the
-            narration on each line. Nothing in this statement carries one, so there is no breakdown
-            to show — not because there is nothing going out, but because the bank does not say what
-            it was for.
+            These are found by reading the narration on each line, and nothing in this statement
+            carries one. Money is still going out; the bank just does not say what for.
           </p>
           {snapshot.debt.monthlyOutgo > 0 ? (
             <p className={`${NOTE} mt-3`}>
-              The one exception is {inr(snapshot.debt.monthlyOutgo)} a month of loan repayment,
-              which comes from the loan record rather than from the statement.
+              Except {inr(snapshot.debt.monthlyOutgo)} a month of loan repayment, which comes from
+              the loan record, not the statement.
             </p>
           ) : null}
         </Card>

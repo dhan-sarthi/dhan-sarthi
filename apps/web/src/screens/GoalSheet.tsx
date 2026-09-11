@@ -170,8 +170,8 @@ export function GoalSheet({
         ) : null}
 
         <p className="mb-1 mt-5 text-xs leading-relaxed text-ink-soft">
-          Changing this cuts a new version of the plan, kept with the reason and the figures it was
-          built on. Nothing is overwritten.
+          Cuts a new version of the plan, kept with the reason and the figures it was built on.
+          Nothing is overwritten.
         </p>
       </div>
     </Sheet>

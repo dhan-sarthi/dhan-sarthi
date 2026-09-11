@@ -205,7 +205,7 @@ export function SelectBasket({
             <>
               {' '}
               <b className="font-semibold text-ink">
-                You have changed it: {offRule} scheme{offRule === 1 ? '' : 's'} in it no longer
+                You have changed it: {offRule} scheme{offRule === 1 ? '' : 's'} no longer
                 {offRule === 1 ? ' matches' : ' match'} that rule.
               </b>
             </>
@@ -217,9 +217,9 @@ export function SelectBasket({
       {dropped > 0 && all.length > 0 ? (
         <Card tint="clay">
           <p className="mb-0 mt-0 text-[13.5px] leading-relaxed text-ink-mid">
-            {dropped} scheme{dropped === 1 ? '' : 's'} left out of this basket: your amount does not
-            divide far enough to clear every scheme&rsquo;s own minimum. Raise the amount and it
-            comes back.
+            {dropped} scheme{dropped === 1 ? '' : 's'} left out: your amount does not divide far
+            enough to clear every scheme&rsquo;s own minimum. Raise it and{' '}
+            {dropped === 1 ? 'it comes' : 'they come'} back.
           </p>
         </Card>
       ) : null}
@@ -236,8 +236,8 @@ export function SelectBasket({
           <h2 className="m-0 mt-4 text-[18px] font-semibold text-ink">This basket is empty</h2>
           <p className="mb-0 mt-1.5 text-[14px] leading-relaxed text-ink-soft">
             {dropped > 0
-              ? `Your amount will not divide far enough to clear any of this basket's own minimums. Raise it, or try another basket.`
-              : 'You have taken everything out of it. Add a scheme back, or try another basket.'}
+              ? `Your amount will not clear any of this basket's own minimums. Raise it, or try another basket.`
+              : 'You have taken everything out. Add a scheme back, or try another basket.'}
           </p>
           <div className="mt-5 w-full">
             <Button full tone="secondary" onClick={() => onAdd(groups[0]?.mode ?? 'sip')}>
@@ -337,9 +337,9 @@ export function SelectBasket({
 
       {selecting || all.length === 0 ? null : (
         <p className="mb-6 mt-5 text-xs leading-relaxed text-ink-soft">
-          Nothing here has been checked yet. The suitability gate runs on the whole basket when you
-          place it — {t.count} scheme{t.count === 1 ? '' : 's'} means {t.count} evaluation
-          {t.count === 1 ? '' : 's'}, and a refusal on any one of them stops all of it.
+          Nothing here is checked yet. The suitability gate runs on the whole basket when you place
+          it — {t.count} scheme{t.count === 1 ? '' : 's'}, {t.count} evaluation
+          {t.count === 1 ? '' : 's'}, and one refusal stops all of it.
         </p>
       )}
     </Screen>

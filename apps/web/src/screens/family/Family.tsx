@@ -264,8 +264,8 @@ function Hero({
         </StatusBand>
       ) : (
         <StatusBand flush tone="warn" label={`${inr(household.realValue)} of this is yours`}>
-          — computed from your statements. The other {household.demoMembers} are demo people; their{' '}
-          {inr(household.demoValue)} is invented, because IDBI has no household in its records.
+          — from your statements. The other {household.demoMembers} are demo people; their{' '}
+          {inr(household.demoValue)} is invented — IDBI has no household in its records.
         </StatusBand>
       )}
     </section>

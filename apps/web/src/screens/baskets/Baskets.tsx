@@ -170,7 +170,7 @@ export function Baskets({
     } catch {
       // Fail closed. A check that did not run is not a check that passed.
       setGateError(
-        'The suitability check could not be run, so nothing has been placed. Try again in a moment.',
+        'The suitability check could not be run, so nothing was placed. Try again in a moment.',
       )
     } finally {
       setPlacing(false)

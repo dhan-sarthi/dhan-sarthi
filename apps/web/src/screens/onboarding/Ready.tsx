@@ -57,8 +57,7 @@ export function Ready({
           {first === null ? 'That is everything' : `That is everything, ${first}`}
         </h1>
         <p className="m-0 mt-2 max-w-[32ch] text-[14.5px] leading-normal text-ink-mid">
-          One thing to do today, and the reasoning behind it. Nothing on the next screen is written
-          by hand.
+          One thing to do today, and the reasoning behind it. Nothing next is written by hand.
         </p>
       </div>
 

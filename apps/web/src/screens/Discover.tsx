@@ -128,7 +128,7 @@ export function Discover({
       id: 'entry',
       art: 'promo-start-small',
       title: `Start from ${inr(entry.floor)}`,
-      body: `${entry.ids.size} of the products IDBI can sell you open at ${inr(entry.floor)}. Same rules, same record.`,
+      body: `${entry.ids.size} products IDBI sells open at ${inr(entry.floor)}. Same rules, same record.`,
       onClick: () => setFilter({ kind: 'entry' }),
     })
   }
@@ -138,21 +138,21 @@ export function Discover({
     id: 'baskets',
     art: 'empty-basket',
     title: 'A basket, not a shortlist',
-    body: 'Split one amount across the shelf by a rule you can check — no lock-in, no equity, or locked away. Same gate at the end.',
+    body: 'One amount split across the shelf by a rule you can check. Same gate at the end.',
     onClick: onOpenBaskets,
   })
   promos.push({
     id: 'ask',
     art: 'promo-advisor',
     title: 'Ask Uday first',
-    body: 'Have any product on the shelf checked against your position, with no order to place at the end of it.',
+    body: 'Any product on the shelf, checked against your position. No order at the end.',
     onClick: onAsk,
   })
   promos.push({
     id: 'record',
     art: 'order-recorded',
     title: 'Every check, on the record',
-    body: `${view.rules.length} rules, the sentence each one wrote, and a chain nobody can quietly edit.`,
+    body: `${view.rules.length} rules, the sentence each one wrote, and a chain nobody can edit.`,
     onClick: onSeeRecord,
   })
 
@@ -391,9 +391,8 @@ function GateCard({ rules }: { rules: View['rules'] }): ReactNode {
       </div>
 
       <p className="mb-0 mt-3 text-[13px] leading-relaxed text-ink-soft">
-        {rules.length} rules in all, run against what your statements actually show. The earliest
-        one to fail is the one you are shown — IDBI sells some of the products below that it will
-        refuse to sell you.
+        {rules.length} rules in all, run against your statements. The first to fail is the one you
+        are shown — IDBI sells products below that it will refuse to sell you.
       </p>
     </section>
   )

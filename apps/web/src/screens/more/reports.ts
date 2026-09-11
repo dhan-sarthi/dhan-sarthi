@@ -111,8 +111,7 @@ export function coverage(requested: DateRange, horizon: DateRange): Coverage {
  * the honesty is not.
  */
 export const DELIVERY_UNAVAILABLE =
-  'The bank sends no email address for you and this app never asks for one, so there is nowhere ' +
-  'to send it.'
+  'The bank sends no email address and this app never asks for one, so there is nowhere to send it.'
 
 /* ---------------------------------------------------------------- CSV */
 

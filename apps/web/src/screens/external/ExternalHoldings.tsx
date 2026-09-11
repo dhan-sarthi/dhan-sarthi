@@ -233,7 +233,7 @@ export function ExternalHoldings({
               className="mb-3 mt-3 rounded-md bg-danger-soft px-3.5 py-3 text-[13px] leading-snug text-danger"
             >
               What you hold at IDBI could not be read, so this list is only what the statement
-              brought in — there is nothing here to compare it against.
+              brought in — nothing here to compare it against.
             </p>
           ) : null}
           {classes.length > 1 ? (
@@ -303,7 +303,7 @@ export function ExternalHoldings({
               <h2>{active === 'elsewhere' ? 'Nothing imported yet' : 'No funds here'}</h2>
               <p className="mb-0 mt-1.5 text-[14px] leading-normal text-ink-mid">
                 {active === 'elsewhere'
-                  ? 'Generate a statement and the folios you hold with other fund houses land in this list.'
+                  ? 'Generate a statement and the folios you hold with other fund houses land here.'
                   : 'Nothing in your record matches this filter.'}
               </p>
             </Card>
@@ -326,9 +326,8 @@ export function ExternalHoldings({
                   tone="warn"
                   label={`${held4Session} of these ${held4Session === 1 ? 'is' : 'are'} held for this session only,`}
                 >
-                  because this data source serves its own holdings and would not take the import.{' '}
-                  {held4Session === 1 ? 'It is' : 'They are'} not on your record and{' '}
-                  {held4Session === 1 ? 'is' : 'are'} gone when the app reloads.
+                  because this data source serves its own holdings and would not take the import —
+                  not on your record, and gone when the app reloads.
                 </StatusBand>
               ) : null}
             </Card>

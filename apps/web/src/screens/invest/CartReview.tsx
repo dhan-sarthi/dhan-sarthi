@@ -91,8 +91,8 @@ export function CartReview({
       }
       notice={
         <InfoBanner tone="sage">
-          <b className="font-semibold">Demonstration</b> — the suitability check on this order is
-          real and is recorded. No money moves and nothing reaches the AMC.
+          <b className="font-semibold">Demonstration</b> — the suitability check is real and
+          recorded. No money moves and nothing reaches the AMC.
         </InfoBanner>
       }
       footer={
@@ -103,7 +103,7 @@ export function CartReview({
               className="mb-3 mt-0 text-[13px] font-semibold leading-snug text-danger"
             >
               {inr(t.today)} is more than the {inr(available.amount)} available in{' '}
-              {available.masked}. Reduce the order, or move money in first.
+              {available.masked}. Reduce the order, or move money in.
             </p>
           ) : null}
           {gateError ? (

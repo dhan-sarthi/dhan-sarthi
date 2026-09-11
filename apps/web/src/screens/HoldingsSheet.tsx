@@ -144,7 +144,7 @@ export function HoldingsSheet({
       open={open}
       onClose={onClose}
       title="What you own"
-      sub="The bank has no record of this. It is what you tell us, and the advice is built on it."
+      sub="The bank has no record of this — what you tell us, and what the advice is built on."
       footer={
         readOnly ? null : adding ? (
           <div className="flex gap-2">
@@ -214,10 +214,7 @@ export function HoldingsSheet({
           </Field>
           {draft.kind !== 'cover' ? (
             <>
-              <Field
-                label="What did you put in?"
-                hint="Leave blank if you would rather not work it out."
-              >
+              <Field label="What did you put in?" hint="Leave blank if you would rather not.">
                 <MoneyInput
                   ariaLabel="Invested"
                   value={draft.invested}
@@ -243,8 +240,8 @@ export function HoldingsSheet({
             Nothing recorded yet
           </p>
           <p className="m-0 mt-1.5 text-[13px] leading-normal text-ink-mid">
-            Without this we cannot tell whether you already hold what we are about to suggest, or
-            whether the cover you have is enough.
+            Without this we cannot tell whether you already hold what we suggest, or whether your
+            cover is enough.
           </p>
         </div>
       ) : (
@@ -282,7 +279,7 @@ export function HoldingsSheet({
 
       {readOnly ? (
         <p className="mb-1 mt-4 text-xs leading-relaxed text-ink-soft">
-          This data source brings its own holdings, so there is nothing here for the app to change.
+          This data source brings its own holdings, so there is nothing to change here.
         </p>
       ) : null}
     </Sheet>

@@ -148,7 +148,7 @@ export function ReportForm({
       setError(
         isApiError(err)
           ? err.unreachable
-            ? 'The advisor service could not be reached, so there was nothing to build the statement from. Nothing was downloaded.'
+            ? 'The advisor service could not be reached, so there was nothing to build from. Nothing was downloaded.'
             : err.message
           : 'The statement could not be built. Nothing was downloaded.',
       )
@@ -163,8 +163,8 @@ export function ReportForm({
       footer={
         <>
           <p className="mb-3 mt-0 text-center text-xs leading-snug text-ink-soft">
-            A <b className="font-semibold text-ink-mid">CSV file</b>, saved to this device. It opens
-            in Excel and in any spreadsheet.
+            A <b className="font-semibold text-ink-mid">CSV file</b>, saved to this device. Opens in
+            Excel and any spreadsheet.
           </p>
           <Button full busy={busy} disabled={!ready} onClick={() => void generate()}>
             <Download size={17} strokeWidth={2.3} />
@@ -202,7 +202,7 @@ export function ReportForm({
               <Leader label="Source" value={reportMeta.source} />
               <p className="mb-1 mt-4 text-[13px] leading-relaxed text-ink-soft">
                 Check your downloads if your browser did not offer to save it. Nothing was emailed
-                and nothing left this device — the file was built here, from data already on screen.
+                and nothing left this device — it was built here, from data already on screen.
               </p>
             </div>
           ) : null}
@@ -290,8 +290,8 @@ export function ReportForm({
           className="mb-3 mt-3 rounded-md bg-tint-clay p-3.5 text-[13.5px] leading-relaxed text-accent-text"
         >
           {kind === 'holdings'
-            ? 'You have not recorded anything you own, so there is nothing to put in a holding statement. Add it under More → What you already own and try again.'
-            : 'There is not a single line in that window, so the file would be nothing but column headings. Nothing was downloaded — widen the dates and try again.'}
+            ? 'Nothing recorded to put in a holding statement. Add it under More → What you already own and try again.'
+            : 'Not a single line in that window, so the file would be column headings only. Nothing was downloaded — widen the dates and try again.'}
         </div>
       ) : null}
 
@@ -343,11 +343,9 @@ function AsOnDate({ asOf }: { asOf: string }): ReactNode {
       </div>
 
       <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-ink-soft">
-        There is no other date to pick. A holding statement for an earlier day would need a record
-        of what you held on that day, and this app keeps only your current position — one invested
-        figure and one current value per holding, as you or the bank last told it. So this is
-        today&rsquo;s position, and the file says so on its first page rather than leaving you to
-        assume it.
+        There is no other date to pick. An earlier day would need a record of what you held then,
+        and this app keeps only your current position — one invested figure and one current value
+        per holding. So this is today&rsquo;s position, and the file says so on its first page.
       </p>
     </div>
   )

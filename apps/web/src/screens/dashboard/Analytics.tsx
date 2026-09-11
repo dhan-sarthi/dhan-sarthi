@@ -350,7 +350,7 @@ function Analysed({
           <CardHead
             icon={<Network size={22} strokeWidth={1.9} />}
             title="What is not here"
-            note={`${words(view.gaps.length)} the reference draws that IDBI cannot`}
+            note={`${words(view.gaps.length)} this data cannot support`}
           />
           <div className="my-3.5 border-t border-solid border-hairline-mint" />
           <ul className="m-0 list-none p-0">
@@ -367,9 +367,8 @@ function Analysed({
             ))}
           </ul>
           <p className="m-0 mt-3.5 text-[13.5px] leading-relaxed text-ink-mid">
-            None of it is drawn from a placeholder. Nothing in {lines} statement lines can stand in
-            for a scheme&rsquo;s portfolio disclosure, and what Exposure shows instead is your own
-            positions — the part of that picture this data really does support.
+            None of it is filled with a placeholder: nothing in {lines} statement lines can stand in
+            for a scheme&rsquo;s disclosure.
           </p>
         </Card>
       </Section>
@@ -464,12 +463,12 @@ interface View {
    Debt's are about a factsheet; the look-through applies to both and to Overall. */
 const LOOK_THROUGH: Gap = {
   title: 'What each fund holds',
-  why: 'A look-through to the individual shares and bonds inside a scheme needs its portfolio disclosure. IDBI publishes none, so Exposure lists your own positions instead.',
+  why: 'Needs the scheme’s portfolio disclosure. IDBI publishes none, so Exposure lists your own positions instead.',
 }
 const EQUITY_GAPS: Gap[] = [
   {
     title: 'Market cap distribution',
-    why: 'Large, mid and small cap shares of an equity holding are properties of the scheme, not of your record of it.',
+    why: 'A property of the scheme, not of your record of it.',
   },
   {
     title: 'Sector allocation',
@@ -479,16 +478,16 @@ const EQUITY_GAPS: Gap[] = [
 const DEBT_GAPS: Gap[] = [
   {
     title: 'Portfolio YTM and modified duration',
-    why: 'Yield to maturity, average maturity and modified duration come off a debt scheme’s monthly factsheet. There is no factsheet feed here.',
+    why: 'Off a debt scheme’s monthly factsheet. There is no factsheet feed here.',
   },
   {
     title: 'Instrument type and credit rating',
-    why: 'Debenture, SOV, AA+ — the instrument and rating mix is inside the scheme, not in what you recorded.',
+    why: 'Debenture, SOV, AA+ — inside the scheme, not in what you recorded.',
   },
 ]
 const PRICE_GAP: Gap = {
   title: 'A live valuation',
-  why: 'Every figure here is the value you recorded, not a NAV. There is no price feed in this app, so nothing on this pane says “market value”.',
+  why: 'Values you recorded, not NAVs. No price feed here, so nothing says “market value”.',
 }
 
 function viewOf(portfolio: Portfolio, scope: string): View {

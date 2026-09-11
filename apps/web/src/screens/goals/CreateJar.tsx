@@ -296,8 +296,8 @@ export function CreateJar({
 
           {isDebt ? (
             <p className="m-0 -mt-1 text-[13px] leading-snug text-ink-soft">
-              A balance owed does not inflate — it accrues, at {snapshot.debt.highestRate}% a year,
-              and the plan amortises against that rather than against a price index.
+              A balance owed does not inflate — it accrues at {snapshot.debt.highestRate}% a year,
+              and the plan amortises against that.
             </p>
           ) : (
             /* Offered at every horizon, which it was not until the wire could carry the answer.
@@ -339,8 +339,8 @@ export function CreateJar({
           </p>
           {isDebt ? (
             <p className="mb-0 mt-3 text-[13.5px] leading-relaxed text-ink-mid">
-              This one is a balance to clear rather than a pot to fill, so there is no rate to save
-              at — the next screen shows what the plan is already paying at it.
+              A balance to clear, not a pot to fill, so there is no rate to save at. The next screen
+              shows what the plan is already paying at it.
             </p>
           ) : (
             <>
@@ -349,8 +349,8 @@ export function CreateJar({
               </p>
               <p className="mb-0 mt-1 text-[13px] leading-snug text-ink-mid">
                 At an assumed {ratePct}% a year
-                {existing > 0 ? `, on top of the ${approx(existing)} you already hold` : ''}. The
-                next screen is where you set it.
+                {existing > 0 ? `, on top of the ${approx(existing)} you already hold` : ''}. You
+                set it next.
               </p>
             </>
           )}
@@ -401,8 +401,8 @@ export function CreateJar({
           </Button>
           <p className="mb-0 mt-2.5 text-center text-xs leading-snug text-ink-soft">
             {isDebt
-              ? 'Saving changes the target figure on your goal. It does not change what you owe, and while an expensive debt is top of the ladder the plan will keep proposing it — the record cannot hold a different kind of goal yet.'
-              : `The target is saved${adjustment ? ` as an amount in ${by.slice(0, 4)} rupees` : ''} and the plan is re-cut against it. The name, the date and the split above are yours on this screen only — the goal record holds the figure and the money it is in, and nothing else the app can change.`}
+              ? 'Saves the target figure on your goal, not what you owe. While an expensive debt is top of the ladder the plan keeps proposing it — the record cannot hold another kind of goal yet.'
+              : `The target is saved${adjustment ? ` in ${by.slice(0, 4)} rupees` : ''} and the plan re-cut against it. The name, the date and the split live on this screen only — the record holds the figure and the money it is in, nothing else.`}
           </p>
         </>
       }
@@ -432,9 +432,8 @@ export function CreateJar({
         <Card tint="white">
           <h2>What this costs</h2>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-            There is no SIP to size here. Nothing on the shelf returns {snapshot.debt.highestRate}%
-            a year, so every rupee that can go at this balance beats every rupee that goes anywhere
-            else, and the plan already sends it there first.
+            No SIP to size. Nothing on the shelf returns {snapshot.debt.highestRate}% a year, so
+            every rupee belongs at this balance — and the plan already sends it there first.
           </p>
           <div className="mb-1.5 mt-3">
             <Leader label="Rate on the balance" value={`${snapshot.debt.highestRate}%`} />
@@ -471,8 +470,8 @@ export function CreateJar({
               {debtClears
                 ? `${inr(debtStage.monthly)} a month, clearing ${approx(debtStage.targetAmount)} by ${monthYear(debtStage.completesOn)}.`
                 : debtStage.monthly > 0
-                  ? `The interest alone is ${inr(debtInterest)} a month and ${inr(debtStage.monthly)} is going at it, so the balance grows. There is no date to give you — it is not a slow plan, it is not a plan.`
-                  : 'Your statements show nothing spare once the commitments and a normal month are out, so the plan has committed nothing to it yet.'}
+                  ? `Interest alone is ${inr(debtInterest)} a month against ${inr(debtStage.monthly)} going at it, so the balance grows. No date to give — it is not a slow plan, it is not a plan.`
+                  : 'Nothing is spare once the commitments and a normal month are out, so the plan has committed nothing to it yet.'}
             </StatusBand>
           ) : null}
         </Card>
@@ -494,8 +493,8 @@ export function CreateJar({
             </TextLink>
           </div>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-            We suggest an SIP of {inr(recommendedSip)} a month, or {approx(recommendedLump)} as a
-            lump sum. Either reaches {approx(amount)} by {by.slice(0, 4)} at an assumed {ratePct}%.
+            An SIP of {inr(recommendedSip)} a month, or {approx(recommendedLump)} as a lump sum.
+            Either reaches {approx(amount)} by {by.slice(0, 4)} at an assumed {ratePct}%.
           </p>
 
           <div className="mt-2">
@@ -513,8 +512,7 @@ export function CreateJar({
                     </>
                   ) : (
                     <>
-                      {inr(snapshot.surplus.deployable)} a month is what your statements say you
-                      have free
+                      {inr(snapshot.surplus.deployable)} a month is what your statements say is free
                     </>
                   )}
                 </p>
@@ -571,8 +569,8 @@ export function CreateJar({
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
             {inr(monthly)} a month is {inr(monthly - snapshot.surplus.deployable)} more than the{' '}
             {inr(snapshot.surplus.deployable)} your statements say is free once the commitments and
-            a normal month&rsquo;s spending are out. The suitability rules check an amount against
-            that same figure, so a mandate this size is one the bank would refuse to start.
+            a normal month are out. The suitability rules use that same figure, so the bank would
+            refuse to start a mandate this size.
           </p>
         </Card>
       ) : null}

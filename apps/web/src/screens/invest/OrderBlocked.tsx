@@ -120,7 +120,7 @@ export function OrderBlocked({
           </p>
         ) : (
           <p className="mb-0 mt-2 text-xs leading-relaxed text-ink-soft">
-            The first rule in the book answered, so nothing else was reached. The most fundamental
+            The first rule in the book answered, so nothing else was reached — the most fundamental
             objection wins, not the most technical one.
           </p>
         )}
@@ -137,9 +137,8 @@ export function OrderBlocked({
           “{verdict.recorded}”
         </p>
         <p className="mb-0 mt-2 text-xs leading-relaxed text-ink-soft">
-          The same judgement you just read, in the words a reviewer needs. It is written to the
-          hash-chained advice record whether you go ahead with anything else or not — you can read
-          it under More → Record.
+          The same judgement, in the words a reviewer needs. It goes into the hash-chained advice
+          record either way — read it under More → Record.
         </p>
       </Card>
     </Screen>

@@ -306,9 +306,7 @@ function Result({
             <ArrowLeft size={18} strokeWidth={2.3} />
           </IconButton>
           <Art name="profile-result" size="lg" className="mb-4 mt-4" />
-          <div className="text-[13.5px] text-ink-soft">
-            Here is your evaluated investment profile
-          </div>
+          <div className="text-[13.5px] text-ink-soft">Your evaluated investment profile</div>
           <h1 className="m-0 mt-1 text-[34px] font-bold leading-tight tracking-tight text-ink">
             {profile}
           </h1>
@@ -331,7 +329,7 @@ function Result({
           role="status"
           className="mb-3 rounded-md bg-tint-sage p-3.5 text-[13.5px] leading-relaxed text-brand-deep"
         >
-          Saved. Your plan has been recalculated and the gate is using {profile} from now on.
+          Saved. Your plan has been recalculated and the gate now uses {profile}.
         </div>
       ) : null}
 
@@ -351,8 +349,8 @@ function Result({
           {direction === 'same'
             ? `Your profile is already ${current}, so saving this changes nothing.`
             : direction === 'narrower'
-              ? `This is narrower than the ${current} on your profile today. Saving it can only reduce what you are offered.`
-              : `This is wider than the ${current} on your profile today. Saving it removes a refusal; it does not add a recommendation, and every other rule still runs.`}
+              ? `Narrower than the ${current} on your profile today — saving it can only reduce what you are offered.`
+              : `Wider than the ${current} on your profile today. It removes a refusal, does not add a recommendation, and every other rule still runs.`}
         </p>
       </Card>
 
@@ -361,25 +359,22 @@ function Result({
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
           You scored <b className="font-semibold tabular-nums text-ink">{score}</b> out of{' '}
           {MAX_SCORE}: nought to three per question, in three equal bands. Nought to six is
-          Conservative, seven to twelve Balanced, thirteen and above Growth. Both edges fall on the
-          narrower side, so a borderline answer reads as the more cautious profile.
+          Conservative, seven to twelve Balanced, thirteen and above Growth — both edges falling to
+          the narrower side, so a borderline answer reads as the more cautious profile.
         </p>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-          Two of the six questions are the reference app&rsquo;s, word for word. The other four are
-          written for this app and were labelled as such while you answered them — the source
-          footage only ever shows two of its six questions legibly, and reconstructing the rest
-          would have been invention.
+          Two of the six are the reference app&rsquo;s, word for word. The other four are written
+          for this app and were labelled so while you answered — the footage shows only two of its
+          six legibly, and reconstructing the rest would have been invention.
         </p>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-          None of them asks about your income, your horizon or what you could afford to lose. The
-          app already reads all three from your statement and your goal, and enforces them in rules
-          of their own.
+          None asks about your income, your horizon or what you could afford to lose — the app reads
+          all three from your statement and your goal, and enforces them in rules of their own.
         </p>
       </Card>
 
       <p className="mb-2 mt-8 text-center text-xs leading-relaxed text-ink-soft">
-        You can always change your investment profile from{' '}
-        <b className="font-semibold">More &rarr; Investment profile</b>.
+        Change it any time from <b className="font-semibold">More &rarr; Investment profile</b>.
       </p>
     </Screen>
   )

@@ -109,8 +109,8 @@ export function CommitmentDetail({
       tone="bad"
       label={`You marked this ${c.status} on ${longDate(c.note?.on ?? asOf)}`}
     >
-      · and {inr(s.amount)} was charged on {longDate(s.lastSeen)} anyway. Either the instruction has
-      not reached the rail, or it never went.
+      · and {inr(s.amount)} was charged on {longDate(s.lastSeen)} anyway. Either the instruction
+      never reached the rail, or it never went.
     </StatusBand>
   ) : c.note ? (
     <StatusBand flush tone={status.tone} label="Your note, held on this screen only">
@@ -124,9 +124,8 @@ export function CommitmentDetail({
     </StatusBand>
   ) : rise ? (
     <StatusBand flush tone="warn" label={`The price went up in ${monthYear(rise.on)}`}>
-      · {inr(rise.from)} to {inr(rise.to)}, which is {inr((rise.to - rise.from) * 12)} a year you
-      did not agree to. Nobody sends a letter about that; it is found by comparing one charge to the
-      last.
+      · {inr(rise.from)} to {inr(rise.to)} — {inr((rise.to - rise.from) * 12)} a year you did not
+      agree to. Nobody sends a letter; it is found by comparing one charge to the last.
     </StatusBand>
   ) : (
     <StatusBand flush tone={status.tone} label={status.note}>
@@ -227,8 +226,8 @@ export function CommitmentDetail({
         {rise && !riseInFoot ? (
           <p className="m-0 mt-2.5 text-sm leading-relaxed text-ink-mid">
             The price stepped from {inr(rise.from)} to {inr(rise.to)} in {monthYear(rise.on)} —{' '}
-            {inr((rise.to - rise.from) * 12)} a year you did not agree to. Nobody sends a letter
-            about that; it is found by comparing one charge to the last.
+            {inr((rise.to - rise.from) * 12)} a year you did not agree to. Nobody sends a letter; it
+            is found by comparing one charge to the last.
           </p>
         ) : null}
         <div className="mt-3.5">
@@ -248,14 +247,14 @@ export function CommitmentDetail({
         <ListRow
           icon={<RotateCcw size={20} strokeWidth={2} />}
           title="Put it back on the calendar"
-          sub="Clear your note and project it exactly as the statement shows it"
+          sub="Project it exactly as the statement shows it"
           onClick={() => setAction('resume')}
         />
       ) : null}
       <ListRow
         icon={<PauseCircle size={20} strokeWidth={2} />}
         title="Pause it for a while"
-        sub="Take it off the calendar for a month or three, and see what that frees up"
+        sub="Take it off for a month or three and see what that frees up"
         onClick={() => setAction('pause')}
       />
       <ListRow
@@ -267,7 +266,7 @@ export function CommitmentDetail({
       <ListRow
         icon={<SquarePen size={20} strokeWidth={2} />}
         title="Different amount or day"
-        sub="Project it at the figures you have agreed rather than the ones we found"
+        sub="Project the figures you have agreed, not the ones we found"
         onClick={() => setAction('update')}
       />
       {onSeeCharges ? (
@@ -290,8 +289,8 @@ export function CommitmentDetail({
       <div className="mt-4 flex gap-2.5 rounded-md bg-ground-deep p-3.5">
         <PiggyBank size={16} strokeWidth={2.2} className="mt-px flex-none text-ink-soft" />
         <p className="m-0 text-xs leading-relaxed text-ink-soft">
-          None of the three sends anything to the bank. This app reads your statements; it holds no
-          mandate and cannot amend one. Each sheet says where the change is really made.
+          None of these sends anything to the bank — this app reads your statements and holds no
+          mandate. Each sheet says where the change is really made.
         </p>
       </div>
     </Screen>

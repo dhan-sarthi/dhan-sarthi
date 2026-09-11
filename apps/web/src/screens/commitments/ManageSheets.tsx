@@ -160,8 +160,8 @@ export function ManageSheets({
         }
       >
         <p className="m-0 text-[13.5px] leading-relaxed text-ink-mid">
-          How long do you want it off your calendar for? It comes back by itself on the date you
-          pick, without you having to do anything — there is no resume to remember.
+          How long off your calendar? It comes back by itself on the date you pick — there is no
+          resume to remember.
         </p>
         <div className="mt-3.5">
           <RadioRows
@@ -206,24 +206,22 @@ export function ManageSheets({
              version of that warning is the one the engine can prove: this is money currently
              going into investments, and stopping it is not the same as saving it. */
           <p className="m-0 mt-3 rounded-md bg-tint-sky p-3.5 text-[13px] leading-relaxed text-ink-mid">
-            This one is going into investments, not out of them. Stopping it frees up {inr(monthly)}{' '}
-            a month and takes the same amount out of what you are putting away — your plan on the
-            Plan tab is built on it.
+            This goes into investments, not out of them. Stopping it frees {inr(monthly)} a month
+            and takes the same out of what you are putting away — your plan is built on it.
           </p>
         ) : null}
         {c.series.kind === 'insurance' ? (
           <p className="m-0 mt-3 rounded-md bg-danger-soft p-3.5 text-[13px] leading-relaxed text-danger">
             A missed premium can lapse the cover, and the cover is usually worth more than the
-            premium. Check what you would be giving up before you cancel this one.
+            premium. Check what you would give up first.
           </p>
         ) : null}
         {/* The reference warns that stopping "would impact your tagged SmartJars" on every SIP,
             because a warning it cannot substantiate is the only one it has. These two it can. */}
         {c.series.kind === 'emi' ? (
           <p className="m-0 mt-3 rounded-md bg-danger-soft p-3.5 text-[13px] leading-relaxed text-danger">
-            A loan repayment is not one of the things you can simply stop. A missed instalment is a
-            default and it reaches your credit record. Taking it off this calendar takes it off the
-            projection and off nothing else — talk to the lender first.
+            A missed instalment is a default and it reaches your credit record. Taking it off this
+            calendar takes it off the projection and nothing else — talk to the lender first.
           </p>
         ) : null}
         <NotAnInstruction mode={c.series.mode} />
@@ -252,9 +250,8 @@ export function ManageSheets({
         }
       >
         <p className="m-0 mb-4 text-[13.5px] leading-relaxed text-ink-mid">
-          For when you have already agreed different figures and the statements have not caught up
-          yet. This changes what the calendar and the month total project — not what the bank
-          collects.
+          For figures you have already agreed that the statements have not caught up with. It
+          changes what the calendar and the month total project, not what the bank collects.
         </p>
         <Field label="Each charge" hint={`Currently ${inr(c.series.amount)}`}>
           <MoneyInput value={amount} onChange={setAmount} ariaLabel="Amount of each charge" />
@@ -262,11 +259,7 @@ export function ManageSheets({
         {c.series.cadence === 'monthly' ? (
           <Field
             label="Day of the month"
-            hint={
-              day > 28
-                ? 'Short months clamp to the last day, which is what the rails do too.'
-                : undefined
-            }
+            hint={day > 28 ? 'Short months clamp to the last day, as the rails do.' : undefined}
           >
             <Stepper value={day} min={1} max={31} onChange={setDay} />
           </Field>
@@ -303,9 +296,9 @@ export function ManageSheets({
       >
         <p className="m-0 text-[13.5px] leading-relaxed text-ink-mid">
           Your note comes off and this goes back to {inr(c.series.amount)}
-          {c.series.dayOfMonth === null ? '' : ` on the ${String(c.series.dayOfMonth)}`} — the
-          figures the statement actually shows. {inr(monthly)} a month back in the month total and
-          back on the plan.
+          {c.series.dayOfMonth === null ? '' : ` on the ${String(c.series.dayOfMonth)}`}, the
+          figures the statement shows — {inr(monthly)} a month back in the month total and on the
+          plan.
         </p>
         <NotAnInstruction mode={c.series.mode} />
       </Sheet>

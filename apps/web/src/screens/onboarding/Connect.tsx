@@ -211,8 +211,7 @@ function FileCard({ facts }: { facts: Facts }): ReactNode {
       </div>
 
       <p className="m-0 border-0 border-t border-solid border-hairline-mint px-4 py-3 text-xs leading-relaxed text-ink-soft">
-        This is what IDBI sends. There is no PAN, no demat and no KYC status on the feed, so there
-        is no row for one.
+        This is what IDBI sends. No PAN, no demat, no KYC status on the feed — so no row for one.
       </p>
     </div>
   )

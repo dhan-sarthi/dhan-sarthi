@@ -109,8 +109,8 @@ export function InflationSheet({
           ))}
         </div>
         <p className="mb-0 mt-2 text-xs leading-snug text-ink-soft">
-          Your plan assumes {INFLATION_PCT}% a year. The chips are whole numbers because a rate you
-          pick is a guess, and a guess to one decimal place is a guess pretending.
+          Your plan assumes {INFLATION_PCT}% a year. Whole numbers only — a rate you pick is a
+          guess, and a guess to one decimal place is a guess pretending.
         </p>
 
         <div className="my-4 border-0 border-t border-solid border-hairline-mint" />
@@ -127,11 +127,10 @@ export function InflationSheet({
         </div>
 
         <p className="mb-1 mt-4 text-xs leading-relaxed text-ink-soft">
-          Prices rise while you save, so {inr(amount)} of something today is {inr(adjusted)} of it
-          by the time you buy. Taking the adjusted amount aims at the second figure, and your plan
-          is told the target is in future rupees rather than today&rsquo;s — so it funds it at the
-          full assumed return and nothing is counted twice. Keep the original and the target stays
-          in money you recognise now, with the price rises handled in the projection instead.
+          Prices rise while you save, so {inr(amount)} today is {inr(adjusted)} by the time you buy.
+          Take the adjusted amount and your plan is told the target is in future rupees — it funds
+          it at the full assumed return and nothing is counted twice. Keep the original and the
+          target stays in money you recognise now, with the price rises handled in the projection.
         </p>
       </div>
     </Sheet>

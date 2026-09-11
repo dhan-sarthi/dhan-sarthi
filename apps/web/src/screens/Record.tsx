@@ -139,9 +139,9 @@ function Decisions({
       <Card>
         <h2>Nothing is recorded offline</h2>
         <p className={`${META} mt-[7px]`}>
-          The record is written by the advisor service, one row per recommendation, with the figures
-          it was based on and the exact words you were shown. This browser is simulating without it,
-          so nothing you do here is kept.
+          The record is written by the advisor service — one row per recommendation, with the
+          figures it was based on and the exact words you were shown. This browser is simulating, so
+          nothing here is kept.
         </p>
       </Card>
     )
@@ -211,8 +211,8 @@ function Decisions({
         <Card>
           <h2>Nothing yet</h2>
           <p className={`${META} mt-[7px]`}>
-            Every recommendation you accept or decline is recorded here with the figures it was
-            based on and the exact words you were shown. Retained five years.
+            Every recommendation you accept or decline is recorded here — the figures it was based
+            on, the exact words you were shown. Retained five years.
           </p>
           {plan.primary ? (
             <p className={`${NOTE} m-0 mt-3.5`}>
@@ -382,10 +382,9 @@ function Rules({
         <Card tint="sage">
           <h2>The model does not decide</h2>
           <p className={BODY}>
-            Whether a product suits you is decided by the rules below, in this order, before
-            anything reaches you. Uday reads back the verdict — he cannot overrule it, and he cannot
-            reach a recommendation by any other path. That is enforced in the code, not asked for in
-            a prompt.
+            The rules below decide, in this order, before anything reaches you. Uday reads back the
+            verdict — he cannot overrule it or reach one by any other path. Enforced in the code,
+            not asked for in a prompt.
           </p>
         </Card>
       </div>
@@ -400,9 +399,8 @@ function Rules({
       <Card tint="clay">
         <h2>Your risk profile: {view.snapshot.customer.riskProfile}</h2>
         <p className={BODY}>
-          RISK_CEILING below reads this, and nothing else in the rule book comes from you rather
-          than from your statement. Narrowing it refuses more; widening it never adds a
-          recommendation.
+          RISK_CEILING below reads this, the only input to the rule book that is not from your
+          statement. Narrowing it refuses more; widening it never adds a recommendation.
         </p>
         <div className="mt-1.5">
           <TextLink flush size="sm" onClick={onEditRiskProfile}>
@@ -431,8 +429,8 @@ function Rules({
       <Eyebrow>What is on the shelf</Eyebrow>
       <Card>
         <p className={`${NOTE} m-0 mb-3`}>
-          Including the ones we will refuse. A product list containing only suitable products cannot
-          demonstrate suitability.
+          Including the ones we will refuse — a shelf of only suitable products cannot demonstrate
+          suitability.
         </p>
         <div className="divide-y divide-solid divide-hairline-mint">
           {view.shelf.map((p) => (
@@ -492,7 +490,7 @@ function Consent({
     {
       scope: 'PROFILE',
       what: 'Profile',
-      why: 'Age, dependents and risk profile decide which products can even be considered for you.',
+      why: 'Age, dependents and risk profile decide which products can be considered at all.',
       detail:
         `${snapshot.customer.age}, ` +
         `${snapshot.customer.dependents} ${snapshot.customer.dependents === 1 ? 'dependent' : 'dependents'}, ` +
@@ -501,7 +499,7 @@ function Consent({
     {
       scope: 'TXN',
       what: 'Transactions',
-      why: 'To work out what a normal month looks like, and what is committed before you decide anything.',
+      why: 'To work out what a normal month looks like, and what is already committed.',
       detail:
         `${snapshot.quality.transactions} ` +
         `${snapshot.quality.transactions === 1 ? 'transaction' : 'transactions'}, ` +
@@ -518,7 +516,7 @@ function Consent({
     {
       scope: 'ACCOUNTS',
       what: 'Balances',
-      why: 'To find money that has not been needed, and to know whether you have a buffer.',
+      why: 'To find money you have not needed, and whether you have a buffer.',
       detail: `Twelve-month floor ${inr(snapshot.balances.idleFloor)}.`,
     },
     {
@@ -537,7 +535,7 @@ function Consent({
     {
       scope: 'HOLDINGS',
       what: 'Investments and policies in force',
-      why: 'So we do not sell you cover you already have, or miss a gap you do not know about.',
+      why: 'So we do not sell you cover you already have, or miss a gap.',
       detail: `Life cover in force ${inr(snapshot.protection.lifeCoverInForce)} · invested ${inr(snapshot.holdings.total)}.`,
     },
   ]
@@ -551,8 +549,8 @@ function Consent({
         <Card tint="sky">
           <h2>What we read, and why</h2>
           <p className={BODY}>
-            Five things, each with a reason. You can withdraw any of them and the advice recomputes
-            in front of you — including getting worse, which is the honest consequence.
+            Five things, each with a reason. Withdraw any of them and the advice recomputes in front
+            of you — including getting worse.
           </p>
           {consent ? (
             <p className={`${NOTE} m-0 mt-3`}>
@@ -626,8 +624,7 @@ function Consent({
         </p>
         <p className={`${NOTE} m-0 mt-[11px]`}>
           There is a product reason as well as a legal one: an advisor that remembers your medical
-          history is not reassuring, it is uncanny — and the moment this feels like surveillance it
-          is finished.
+          history is uncanny, not reassuring.
         </p>
       </Card>
 
@@ -671,12 +668,12 @@ function Erase({ editable }: { editable: boolean }): ReactNode {
     <Card>
       <h2>Erase all of this</h2>
       <p className="m-0 mt-2 text-[13.5px] leading-[1.55] text-ink-mid">
-        Deletes everything held about this session: the profile you gave us, what you told us you
-        own, the snapshots and the decisions.
+        Deletes everything held about this session: the profile you gave, what you told us you own,
+        the snapshots and the decisions.
       </p>
       <p className={`${NOTE} m-0 mt-[11px]`}>
-        The advice records stay, because an audit trail that can be deleted is not one. They are
-        unlinked from you and cannot be traced back.
+        The advice records stay — an audit trail that can be deleted is not one. They are unlinked
+        from you and cannot be traced back.
       </p>
 
       {error ? (

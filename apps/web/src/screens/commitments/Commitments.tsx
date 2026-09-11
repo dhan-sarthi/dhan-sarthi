@@ -209,7 +209,7 @@ export function Commitments({
         {selected === null
           ? `You have ${String(counts.live)} charging on schedule${
               counts.lapsed > 0 ? `, ${String(counts.lapsed)} gone quiet` : ''
-            }${counts.noted > 0 ? `, ${String(counts.noted)} you have a note on` : ''}. Detected from the pattern of your statements, not from a form you filled in.`
+            }${counts.noted > 0 ? `, ${String(counts.noted)} you have a note on` : ''}. Found in the pattern of your statements, not on a form you filled in.`
           : onDay.length === 0
             ? 'Nothing is due on this date.'
             : `${inr(onDay.reduce((sum, d) => sum + d.amount, 0))} across ${String(onDay.length)} ${onDay.length === 1 ? 'charge' : 'charges'} on this date.`}
@@ -233,10 +233,9 @@ export function Commitments({
       <div className="mb-2 mt-4 flex gap-2.5 rounded-md bg-ground-deep p-3.5">
         <Info size={16} strokeWidth={2.2} className="mt-px flex-none text-ink-soft" />
         <p className="m-0 text-xs leading-relaxed text-ink-soft">
-          Dates on the calendar are the rhythm of each series walked out from the last charge we
-          actually saw — the engine gives us a pattern, not a list of debits. The last charge and
-          the first are exact; the ones in between are where that rhythm says they fell. A charge
-          shown as due has not happened yet, and one shown in red was expected and has not arrived.
+          Dates walk each series forward from the last charge we saw — the engine gives a pattern,
+          not a list of debits. The first and last charge are exact; the ones between are where the
+          rhythm says they fell. Due has not happened yet; red was expected and has not arrived.
         </p>
       </div>
     </Screen>
@@ -261,11 +260,10 @@ function Empty({ snapshot }: { snapshot: Snapshot }): ReactNode {
         <div className="flex items-start gap-2.5">
           <CalendarX2 size={18} strokeWidth={2.2} className="mt-0.5 flex-none text-accent-text" />
           <div className="min-w-0">
-            <h2>Nothing in your statements repeats yet</h2>
+            <h2>No repeating charges yet</h2>
             <p className="m-0 mt-1.5 text-sm leading-relaxed text-ink-mid">
-              A commitment is found, not declared: the same charge has to appear at least three
-              times, across three different months, at a steady interval — or arrive on a mandate,
-              which counts on its own. Nothing here has done that.
+              A commitment is found, not declared: the same charge three times, across three months,
+              at a steady interval — or on a mandate, which counts alone. Nothing here has.
             </p>
           </div>
         </div>
@@ -284,8 +282,8 @@ function Empty({ snapshot }: { snapshot: Snapshot }): ReactNode {
         </div>
         <p className="m-0 mt-3.5 text-[13px] leading-relaxed text-ink-soft">
           {q.monthsOfHistory < 3
-            ? `Three months is the floor for the pattern to be checkable at all, and there ${q.monthsOfHistory === 1 ? 'is' : 'are'} ${String(Math.round(q.monthsOfHistory))} here. Link an older account and this fills in.`
-            : `There is enough history — ${monthYear(snapshot.asOf)} back ${String(Math.round(q.monthsOfHistory))} months — so this is about what the narrations say rather than how many there are. Bank feeds often print a reference number and nothing else, and a line nobody can name cannot be matched to the same line last month.`}
+            ? `Three months is the floor for a checkable pattern, and there ${q.monthsOfHistory === 1 ? 'is' : 'are'} ${String(Math.round(q.monthsOfHistory))} here. Link an older account and this fills in.`
+            : `Enough history — ${monthYear(snapshot.asOf)} back ${String(Math.round(q.monthsOfHistory))} months — so this is about what the narrations say, not how many. Feeds often print a reference number and nothing else, and a line nobody can name cannot be matched to the same line last month.`}
         </p>
       </Card>
     </div>

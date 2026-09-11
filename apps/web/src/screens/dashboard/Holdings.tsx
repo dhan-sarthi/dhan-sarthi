@@ -146,8 +146,8 @@ export function Holdings({
               list below with their rate and maturity, and the two lists have different
               provenance even where they name the same product. */}
           <p className={`${NOTE} mb-3.5`}>
-            Recorded by you or brought in at sign-up — IDBI publishes no holdings feed. Deposits the
-            bank itself holds arrive as accounts and are listed under Your accounts.
+            Your own record — IDBI publishes no holdings feed. Deposits the bank itself holds are
+            under Your accounts.
           </p>
           <div className="mb-3">
             <Button tone="secondary" size="sm" full onClick={onEditHoldings}>
@@ -219,7 +219,7 @@ export function Holdings({
           <div className="min-w-0 flex-1">
             <div className="text-[15.5px] font-bold text-ink">Accounts at other banks</div>
             <p className={`${META} mt-[3px]`}>
-              Link them and the plan works from all of your money, not just the part held here.
+              The plan then works from all your money, not just the part held here.
             </p>
           </div>
           <Link2 size={19} strokeWidth={2.2} className="mt-0.5 flex-none text-accent-text" />
@@ -262,8 +262,7 @@ export function Holdings({
             ) : null}
             {debt.missedRepayment ? (
               <p className="m-0 mt-2.5 text-[13.5px] text-danger">
-                A repayment is past due. This blocks every investment recommendation until it is
-                cleared.
+                A repayment is past due. Every investment recommendation is blocked until it clears.
               </p>
             ) : null}
           </Card>
@@ -289,8 +288,7 @@ export function Holdings({
         </div>
         {protection.gap > 0 ? (
           <p className={`${NOTE} mt-2.5`}>
-            {inr(protection.gap)} short of what your dependents would need. This comes before any
-            investment.
+            {inr(protection.gap)} short of what your dependents would need — before any investment.
           </p>
         ) : null}
       </Card>

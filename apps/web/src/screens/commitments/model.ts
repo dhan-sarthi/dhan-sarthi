@@ -107,7 +107,7 @@ export const CADENCE_LABEL: Record<Series['cadence'], string> = {
 export const REASON_LABEL: Record<Series['reason'], string> = {
   mandate: 'a standing instruction the bank is executing — somebody signed a mandate',
   'fixed-monthly': 'the same amount leaves on the same day every month',
-  utility: 'the amount moves but the timing does not, which is what a utility bill looks like',
+  utility: 'the amount moves but the timing does not — what a utility bill looks like',
   'regular-obligation': 'near-fixed, near-same-day, and not optional in practice',
   income: 'money arriving rather than leaving',
 }
@@ -121,15 +121,15 @@ export const REASON_LABEL: Record<Series['reason'], string> = {
 export function howToChange(mode: Series['mode']): string {
   switch (mode) {
     case 'ACH-D':
-      return 'This is a NACH mandate. It is amended or cancelled with the company collecting it, or through IDBI net banking under Mandate Management — the debit keeps running until one of them acts.'
+      return 'A NACH mandate. Amend or cancel it with the company collecting it, or in IDBI net banking under Mandate Management — the debit runs until one of them acts.'
     case 'SI':
-      return 'This is a standing instruction on your IDBI account. Change or cancel it in net banking, in GO Mobile+, or at the branch.'
+      return 'A standing instruction on your IDBI account. Change or cancel it in net banking, GO Mobile+, or at the branch.'
     case 'UPI':
-      return 'This looks like a UPI AutoPay mandate. It is paused and revoked inside the UPI app that approved it, under Mandates — not at the bank.'
+      return 'Looks like UPI AutoPay. Pause or revoke it in the UPI app that approved it, under Mandates — not at the bank.'
     case 'CARD':
-      return 'This is a recurring card charge. Cancel it with the merchant; a card block stops it too, and takes everything else on the card with it.'
+      return 'A recurring card charge. Cancel it with the merchant; a card block stops it too, and everything else on the card.'
     default:
-      return 'This one leaves as an ordinary transfer, so nothing at the bank can stop it. It stops when you stop sending it.'
+      return 'An ordinary transfer, so nothing at the bank can stop it. It stops when you stop sending it.'
   }
 }
 

@@ -119,8 +119,8 @@ export function Pick(): ReactNode {
           under every source, and Today's ribbon names the source exactly.
         */}
         <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
-          Pick a customer to try it. Every figure on these screens is computed from that customer’s
-          own statements, none of it written by hand.
+          Pick one. Every figure is computed from that customer’s own statements, none of it written
+          by hand.
         </p>
       </div>
 
@@ -129,8 +129,8 @@ export function Pick(): ReactNode {
           role="status"
           className="m-0 mb-4 rounded-sm bg-tint-clay px-3 py-2.5 text-[13px] leading-normal text-accent-text"
         >
-          The advisor service could not be reached. You can still look around — as a simulation in
-          this browser, with nothing recorded.
+          The advisor service could not be reached. Look around as a simulation in this browser,
+          with nothing recorded.
         </p>
       ) : null}
 
@@ -201,8 +201,8 @@ export function Pick(): ReactNode {
       ))}
 
       <p className="m-0 mt-6 text-sm leading-normal text-ink-soft">
-        Nothing here is a real customer. Each reviewer gets their own session on the advisor
-        service; this browser keeps only the token for it.
+        No real customers. Each reviewer gets their own session on the advisor service; this browser
+        keeps only its token.
       </p>
     </div>
   )

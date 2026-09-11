@@ -92,8 +92,8 @@ export function CasLanding({
           <div className="min-w-0 flex-1">
             <h2>External investments</h2>
             <p className="mb-0 mt-1.5 text-[14px] leading-normal text-ink-mid">
-              Bring the mutual-fund folios you hold with other fund houses into this app, so every
-              figure counts all of your money rather than the part IDBI can see.
+              Bring in the folios you hold with other fund houses, so every figure counts all your
+              money, not just the part IDBI can see.
             </p>
           </div>
           <Art name="external-folios" size="sm" className="-mr-1 -mt-1" />
@@ -115,8 +115,8 @@ export function CasLanding({
 
         {!persisted && !loading ? (
           <StatusBand tone="quiet" label="This data source serves its own holdings,">
-            so the app may not write to your record. The import will be held for this session
-            instead, and every row it adds will say so.
+            so the app cannot write to your record. The import is held for this session instead, and
+            every row it adds says so.
           </StatusBand>
         ) : null}
       </Card>
@@ -133,17 +133,17 @@ export function CasLanding({
       <DemoStrip>
         <b className="font-semibold text-ink">MF Central is not connected to this app.</b> No
         statement is requested and no code is sent. The {CAS_FOLIOS.length} folios below are a
-        fixture shipped with the build — the same four, every run, for every customer.{' '}
+        fixture — the same four, every run, for every customer.{' '}
         {persisted ? (
           <>
-            What is real is everything after: importing them records them against your name as
-            holdings held outside IDBI, where the plan, the analytics and the suitability gate all
-            read them, and where <i>What you own</i> can edit or delete any of them.
+            What is real is everything after: they go on your record as holdings held outside IDBI,
+            read there by the plan, the analytics and the suitability gate, and editable in{' '}
+            <i>What you own</i>.
           </>
         ) : (
           <>
-            On a source that owns its own holdings they are shown for this session and go no
-            further; on the IDBI seam the same button writes them to your record for good.
+            Here they are shown for this session and go no further; on the IDBI seam the same button
+            writes them to your record for good.
           </>
         )}
       </DemoStrip>
@@ -151,10 +151,9 @@ export function CasLanding({
       <Card>
         <h2>What a CAS is</h2>
         <p className="mb-0 mt-1.5 text-[14px] leading-normal text-ink-mid">
-          A consolidated account statement lists every mutual-fund folio you hold, across every fund
-          house, in one place. In India you ask MF Central for one and the registrars — CAMS and
-          KFintech — answer it against the mobile number and PAN on your folios, after you approve
-          it with a one-time code.
+          One statement listing every mutual-fund folio you hold, across every fund house. You ask
+          MF Central, and the registrars — CAMS and KFintech — answer against the mobile number and
+          PAN on your folios, after a one-time code.
         </p>
       </Card>
 

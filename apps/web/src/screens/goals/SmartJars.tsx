@@ -47,13 +47,12 @@ import type { Jar } from './jar.ts'
 import { Art } from '../../components/Art.tsx'
 
 const MEANING = {
-  reached: 'The pot has as much in it as the target asks for. Nothing further is needed here.',
-  on_track:
-    'Money is going in and, at the present pace, this reaches its target on the date shown.',
+  reached: 'The pot holds what the target asks for. Nothing further is needed.',
+  on_track: 'Money is going in and, at this pace, reaches the target on the date shown.',
   queued:
-    'Nothing is going in yet. The jar ahead of it has the surplus until it is finished — the route runs one at a time on purpose, because splitting a small surplus four ways finishes none of them.',
+    'Nothing is going in yet — the jar ahead has the surplus until it is done. One at a time on purpose: a small surplus split four ways finishes none of them.',
   attention:
-    'This will not reach its target at the present pace. Nothing has gone wrong; the plan is telling you the arithmetic rather than moving the number until it fits.',
+    'This will not reach its target at the present pace. The plan gives you the arithmetic rather than moving the number until it fits.',
 } as const
 
 export function SmartJars({
@@ -172,7 +171,7 @@ export function SmartJars({
               <p className="m-0 text-[15px] leading-relaxed text-ink">
                 {MEANING[explaining.status]}
               </p>
-              <Eyebrow>Why this jar is on your route</Eyebrow>
+              <Eyebrow>Why it is on your route</Eyebrow>
               <p className="mb-1 mt-0 text-[14px] leading-relaxed text-ink-mid">
                 {explaining.stage.why}
               </p>
@@ -207,8 +206,7 @@ export function SmartJars({
               quoting one beside a card showing the other reads as an error. The purpose does not
               have that problem. */}
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-                Name what you are saving for, say when you want it, and see what it costs a month
-                before you commit to anything. Today it is “
+                Name it, date it, and see the monthly cost before you commit. Today it is “
                 {view.roadmap.goal.purpose ?? 'your goal'}”.
               </p>
             </div>
@@ -229,8 +227,7 @@ export function SmartJars({
             {others.length} more {others.length === 1 ? 'step' : 'steps'} on your route
           </h2>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-            Things you do rather than pots you fill, so nothing here has a bar to draw. The whole
-            route, in order, is on Plan.
+            Things you do rather than pots you fill, so no bars. The whole route is on Plan.
           </p>
           <ul className="m-0 mt-3 list-none p-0">
             {others.map((s) => (
@@ -275,12 +272,11 @@ function Empty({ goal, onCreate }: { goal: string; onCreate: () => void }): Reac
         <Art name="empty-jars" size="md" className="mx-auto mb-1" />
         <h2>Nothing to fill yet</h2>
         <p className="m-0 mt-2 text-[14px] leading-relaxed text-ink-mid">
-          A jar is a pot on your route with a number on it. Right now your route has none — either
-          the buffer is already where it needs to be, or there is nothing spare each month for the
-          plan to commit, so it has not opened one.
+          A jar is a pot on your route with a number on it. Yours has none — either the buffer is
+          already where it needs to be, or nothing is spare each month for the plan to commit.
         </p>
         <p className="m-0 mt-3 text-[14px] leading-relaxed text-ink-mid">
-          Your goal is still {goal}. Set a target and a date and the plan will open the jar for it.
+          Your goal is still {goal}. Set a target and a date and the plan opens a jar for it.
         </p>
         <div className="mt-4">
           <Button onClick={onCreate}>

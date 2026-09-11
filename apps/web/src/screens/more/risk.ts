@@ -74,8 +74,8 @@ export const PROFILE_COPY: Record<RiskProfile, ProfileCopy> = {
   Conservative: {
     tagline: 'Keep what I have',
     body:
-      'Getting the money back matters more to you than growing it. You would rather earn a ' +
-      'little and know the figure than earn more and have to watch it.',
+      'Getting the money back matters more than growing it. You would rather earn a little and ' +
+      'know the figure than earn more and have to watch it.',
     ceiling: 'Moderate',
     effect:
       'Anything the riskometer rates above Moderate is refused outright — which is most equity ' +
@@ -85,7 +85,7 @@ export const PROFILE_COPY: Record<RiskProfile, ProfileCopy> = {
     tagline: 'Grow it, within reason',
     body:
       'You can live with a bad year if the decade is good. You want the money to beat inflation ' +
-      'and you do not want to think about it every week.',
+      'without thinking about it every week.',
     ceiling: 'Very High',
     effect:
       'Nothing on the shelf is refused on risk band alone. What still refuses a fund is the date ' +
@@ -94,12 +94,12 @@ export const PROFILE_COPY: Record<RiskProfile, ProfileCopy> = {
   Growth: {
     tagline: 'Grow it, and I can wait',
     body:
-      'You understand that a fall is the price of the return, and you have the time and the ' +
-      'spare income to sit through one without selling.',
+      'A fall is the price of the return, and you have the time and the spare income to sit ' +
+      'through one without selling.',
     ceiling: 'Very High',
     effect:
-      'The same ceiling as Balanced — the risk band alone refuses nothing. The gate still checks ' +
-      'your horizon, your buffer, your debt and what you can actually afford each month.',
+      'The same ceiling as Balanced — risk band alone refuses nothing. The gate still checks your ' +
+      'horizon, your buffer, your debt and what you can afford each month.',
   },
 }
 

@@ -101,8 +101,8 @@ export function JarCard({
         <p className="mb-0 mt-2.5 text-[13.5px] leading-snug text-ink-mid">
           {jar.achieved === null ? (
             <>
-              {approx(jar.target)} outstanding. How much has already been repaid is not in your
-              statements, so there is no share to show.
+              {approx(jar.target)} outstanding. Your statements do not show how much has been
+              repaid, so there is no share.
             </>
           ) : (
             <>

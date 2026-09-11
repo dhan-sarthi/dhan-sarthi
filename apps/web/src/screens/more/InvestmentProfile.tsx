@@ -114,9 +114,9 @@ function SelectProfile({
       <Card tint="sky">
         <h2>This one is enforced</h2>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-          Your profile is not a label. It is read by the suitability gate before anything is
-          recommended to you, and a product rated above it is refused outright — with the reason
-          written into the record. Narrowing it can only ever reduce what you are offered.
+          Not a label: the suitability gate reads it before anything is recommended, and a product
+          rated above it is refused outright, with the reason on the record. Narrowing it can only
+          reduce what you are offered.
         </p>
         <div className="mt-3.5">
           <ProfileScale value={current} />
@@ -128,7 +128,7 @@ function SelectProfile({
           role="status"
           className="mb-3 rounded-md bg-tint-sage p-3.5 text-[13.5px] leading-relaxed text-brand-deep"
         >
-          Saved. Your plan has been recalculated and the gate is using {choice} from now on.
+          Saved. Your plan has been recalculated and the gate now uses {choice}.
         </div>
       ) : null}
 
@@ -165,8 +165,8 @@ function SelectProfile({
         {dirty ? (
           <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
             {direction === 'narrower'
-              ? `That is narrower than ${current}. Anything already recommended to you that sits above the new ceiling will start being refused.`
-              : `That is wider than ${current}. Widening a profile removes a refusal — it does not add a recommendation, and every other rule still runs.`}
+              ? `Narrower than ${current}. Anything already recommended above the new ceiling starts being refused.`
+              : `Wider than ${current}. Widening removes a refusal; it does not add a recommendation, and every other rule still runs.`}
           </p>
         ) : null}
       </Card>
@@ -179,14 +179,14 @@ function SelectProfile({
       <Card>
         <h2>Why three and not five</h2>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-          The suitability gate stores one of three values and looks each up in a three-row table of
-          risk ceilings. A five-stop scale would ask you to choose between names that produce the
-          same answer.
+          The gate stores one of three values and looks each up in a three-row table of risk
+          ceilings. A five-stop scale would ask you to choose between names that produce the same
+          answer.
         </p>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-          The same honesty cuts the other way, and it is on the card above: of the three, only
-          Conservative refuses anything on risk band alone. What keeps a Balanced or Growth investor
-          out of the wrong fund is the date on the goal, not the profile.
+          It cuts the other way too, as the card above says: of the three, only Conservative refuses
+          anything on risk band alone. What keeps a Balanced or Growth investor out of the wrong
+          fund is the date on the goal, not the profile.
         </p>
       </Card>
     </Screen>

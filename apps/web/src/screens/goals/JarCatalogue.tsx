@@ -93,8 +93,8 @@ export function JarCatalogue({
             Select your dream
           </h2>
           <p className="m-0 mb-4 mt-1.5 text-[13.5px] leading-snug text-white/70">
-            Your plan holds one target at a time. Picking a dream names it and gives it a picture —
-            the figure and the date come next.
+            One target at a time. Picking a dream names it and gives it a picture — the figure and
+            the date come next.
           </p>
 
           <div className="grid grid-cols-2 gap-3">

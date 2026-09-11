@@ -281,9 +281,8 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       measure: 'realign',
       title: 'A repayment is behind',
       detail:
-        `There is a repayment on record that was missed. Until it is cleared the suitability ` +
-        `rules refuse every investment on the shelf, so no amount of extra money moves this ` +
-        `plan forward — the arrear does.`,
+        `A repayment on record was missed. Until it clears, the suitability rules refuse every ` +
+        `investment on the shelf — so clearing it is the only thing that moves this plan.`,
       planned: null,
       observed: null,
       severity: 'bad',
@@ -304,9 +303,8 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
         title: 'The balance is growing',
         detail:
           `${inr(snapshot.debt.total)} at ${snapshot.debt.highestRate}% accrues ` +
-          `${inr(interest)} a month in interest alone, and the plan can put ${inr(paying)} ` +
-          `against it. At that pace the balance rises — there is no payoff date to give you, ` +
-          `because there is not one.`,
+          `${inr(interest)} a month; the plan can put ${inr(paying)} against it. The balance ` +
+          `rises at that pace, so there is no payoff date.`,
         planned: paying,
         observed: interest,
         severity: 'bad',
@@ -326,9 +324,9 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       detail:
         `${snapshot.customer.dependents} ` +
         `${snapshot.customer.dependents === 1 ? 'person depends' : 'people depend'} on your ` +
-        `income and ${inr(snapshot.protection.gap)} of the cover the plan asks for is still ` +
-        `not in force. ${cover.productName ?? 'The policy'} is ${inr(cover.monthly)} a month ` +
-        `and it is the one step on this route that cannot be caught up on later.`,
+        `income and ${inr(snapshot.protection.gap)} of cover is not in force. ` +
+        `${cover.productName ?? 'The policy'} is ${inr(cover.monthly)} a month, and it is the ` +
+        `one step here that cannot be caught up on later.`,
       planned: cover.monthly,
       observed: null,
       severity: 'bad',
@@ -395,8 +393,7 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       title: 'The target is out of reach at this pace',
       detail:
         `Reaching ${roadmap.goal.purpose ? `“${roadmap.goal.purpose}”` : 'your goal'} on time ` +
-        `needs ${inr(roadmap.shortfallMonthly)} a month more than your statements leave spare. ` +
-        `The plan says so rather than moving the number until it fits.`,
+        `needs ${inr(roadmap.shortfallMonthly)} a month more than your statements leave spare.`,
       planned: roadmap.monthlyCommitment + roadmap.shortfallMonthly,
       observed: roadmap.monthlyCommitment,
       severity: 'bad',
@@ -412,10 +409,9 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       measure: 'realign',
       title: 'The plan costs more than is spare',
       detail:
-        `The route commits ${inr(roadmap.monthlyCommitment)} a month and your statements leave ` +
-        `${inr(snapshot.surplus.deployable)} spare after commitments, everyday spending and the ` +
-        `provision for one-off costs. The plan was cut against a different month than the one ` +
-        `you are having.`,
+        `The route commits ${inr(roadmap.monthlyCommitment)} a month; your statements leave ` +
+        `${inr(snapshot.surplus.deployable)} spare after commitments, everyday spending and ` +
+        `one-off costs. It was cut against a different month than the one you are having.`,
       planned: roadmap.monthlyCommitment,
       observed: snapshot.surplus.deployable,
       severity: 'bad',
@@ -447,7 +443,7 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
           ? `, most of it ${worst.category.toLowerCase()} — ${inr(worst.prior)} to ` +
             `${inr(worst.recent)}.`
           : `.`) +
-        ` Every rupee of that came out of what the plan had to work with.`,
+        ` That came out of what the plan had to work with.`,
       planned: null,
       observed: trend.monthly,
       severity: 'warn',
@@ -675,7 +671,7 @@ export function changesFor(
     push('change-cover', cover, {
       group: 'start',
       label: `Start ${cover.productName ?? 'term cover'} at ${inr(cover.monthly)} a month`,
-      detail: `Closes ${inr(snapshot.protection.gap)} of the cover your dependents are short of. It is the one step here that cannot be caught up on later.`,
+      detail: `Closes ${inr(snapshot.protection.gap)} of the cover your dependents are short of — the one step here that cannot be caught up on later.`,
       monthly: cover.monthly,
     })
   }
@@ -697,8 +693,8 @@ export function changesFor(
       label: `Put ${inr(card.monthly)} a month against the card`,
       detail:
         card.monthly > interest
-          ? `${inr(interest)} a month is what the balance accrues at ${snapshot.debt.highestRate}%, so this is what makes it fall. ${inr(inThree)} a month would clear it inside three years.`
-          : `${inr(interest)} a month is what the balance accrues at ${snapshot.debt.highestRate}%, so this does not yet make it fall. ${inr(inThree)} a month clears it inside three years — dial the difference in above and it comes back here.`,
+          ? `The balance accrues ${inr(interest)} a month at ${snapshot.debt.highestRate}%, so this makes it fall. ${inr(inThree)} a month would clear it inside three years.`
+          : `The balance accrues ${inr(interest)} a month at ${snapshot.debt.highestRate}%, so this does not yet make it fall. ${inr(inThree)} a month clears it inside three years.`,
       monthly: card.monthly,
       productId: null,
       productName: null,
@@ -714,7 +710,7 @@ export function changesFor(
     push('change-buffer', buffer, {
       group: 'start',
       label: `Put ${inr(buffer.monthly)} a month into ${buffer.productName ?? 'the buffer'}`,
-      detail: `Takes the reachable balance towards ${inr(buffer.targetAmount)} — the floor the suitability rules check every later step against.`,
+      detail: `Towards ${inr(buffer.targetAmount)} — the floor the suitability rules check every later step against.`,
       monthly: buffer.monthly,
     })
   }
@@ -779,7 +775,7 @@ export function changesFor(
         id: `change-cap-${habit.key}`,
         group: 'stop',
         label: `Cap ${habit.merchant ?? habit.key} at ${inr(cap)} a month`,
-        detail: `About ${inr(habit.monthlyAverage)} a month now. Roughly ${inr(habit.monthlyAverage - cap)} of it is what funds the step above it.`,
+        detail: `About ${inr(habit.monthlyAverage)} a month now. Roughly ${inr(habit.monthlyAverage - cap)} of that funds the step above.`,
         monthly: habit.monthlyAverage - cap,
         oneOff: 0,
         productId: null,

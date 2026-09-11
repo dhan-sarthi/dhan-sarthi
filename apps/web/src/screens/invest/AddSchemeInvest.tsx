@@ -92,8 +92,8 @@ const isProtection = (p: ShelfProduct): boolean =>
  */
 const SETTLEMENT: Record<Settlement, string> = {
   units:
-    'Units are allotted at the NAV that applies once the money is realised, before the scheme’s ' +
-    'cut-off time for the day.',
+    'Units are allotted at the NAV that applies once the money is realised, before the day’s ' +
+    'cut-off.',
   cover: 'Cover begins once the first premium is realised and the policy is issued.',
   deposit: 'The instruction is placed once the money is realised, at the rate applicable that day.',
 }
@@ -191,7 +191,7 @@ export function AddSchemeInvest({
             open={sheet === 'date'}
             onClose={() => setSheet(null)}
             title={`${copy.first} on`}
-            sub="The day of the month IDBI debits your account. These are the dates the AMC accepts."
+            sub="The day of the month IDBI debits you. These are the dates the AMC accepts."
           >
             <Choice
               options={dates.map((d) => ({ id: String(d.day), label: dayMonth(d.on) }))}
@@ -207,7 +207,7 @@ export function AddSchemeInvest({
             open={sheet === 'count'}
             onClose={() => setSheet(null)}
             title={`How many ${copy.count.toLowerCase()}`}
-            sub="You can stop or pause at any time, whichever you pick."
+            sub="You can stop or pause at any time."
           >
             <Choice
               options={[
@@ -226,7 +226,7 @@ export function AddSchemeInvest({
             open={sheet === 'folio'}
             onClose={() => setSheet(null)}
             title="Folio"
-            sub="IDBI has not sent a folio number for this holding, so there is none to show."
+            sub="IDBI sends no folio number for this holding, so there is none to show."
           >
             <Choice
               options={FOLIOS}

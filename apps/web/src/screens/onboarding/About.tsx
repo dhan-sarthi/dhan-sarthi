@@ -104,9 +104,9 @@ export function About({ first, onNext }: { first: string | null; onNext: () => v
         Five things the bank cannot tell me
       </h1>
       <p className="m-0 mb-5 mt-2 text-[14.5px] leading-normal text-ink-mid">
-        {first === null ? 'Your' : `${first}’s`} statements say what went out. They do not say what
-        comes in, who depends on it, or how much risk is bearable. Every one of these changes the
-        advice, so none of them is guessed.
+        {first === null ? 'Your' : `${first}’s`} statements say what went out — not what comes in,
+        who depends on it, or how much risk is bearable. Each one changes the advice, so none is
+        guessed.
       </p>
 
       {error ? (
@@ -150,7 +150,7 @@ export function About({ first, onNext }: { first: string | null; onNext: () => v
         </Field>
         <Field
           label="Tax regime"
-          hint="Under the new one a tax-saving fund saves no tax, so it stops being recommended."
+          hint="Under the new one a tax-saving fund saves no tax, so it is not recommended."
         >
           <Choice options={REGIME} value={regime} onChange={setRegime} />
         </Field>
@@ -158,8 +158,7 @@ export function About({ first, onNext }: { first: string | null; onNext: () => v
 
       <div className="mt-2 border-0 border-t border-solid border-hairline-mint pt-1">
         <Checkbox checked={consent} onChange={setConsent}>
-          These five answers are mine to give. They go to the advisor service so it can judge what
-          to recommend, never to the bank, and{' '}
+          Mine to give. They go to the advisor service, never to the bank, and{' '}
           <span className="font-semibold text-brand-deep">Record &rarr; Your data</span> marks them
           as declared.
         </Checkbox>

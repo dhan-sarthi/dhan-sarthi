@@ -206,8 +206,8 @@ export function Rebalance({
         </div>
       ) : null}
       <p className={`${NOTE} mb-0 mt-4`}>
-        Every figure here is read off your own statements and the plan built from them. Where this
-        app cannot see something, it says so rather than showing a zero.
+        Every figure is read off your own statements and the plan built from them. Where this app
+        cannot see something, it says so rather than showing a zero.
       </p>
     </Sheet>
   )
@@ -221,26 +221,21 @@ export function Rebalance({
   const explainer = (
     <Sheet open={learning} title="What rebalancing means here" onClose={() => setLearning(false)}>
       <p className="m-0 text-[15px] leading-relaxed text-ink-mid">
-        Your plan was built from twelve months of your statements. Rebalancing is the check that the
-        plan and the statements still agree: what the roadmap asks your money to do each month,
-        against what your account shows it actually doing.
-      </p>
-      <p className="m-0 mt-3 text-[15px] leading-relaxed text-ink-mid">
-        There are only ever two answers. Put more in, or move what is already moving.
+        The check that your plan and your statements still agree: what the roadmap asks of your
+        money each month, against what your account shows it doing. Two answers only — put more in,
+        or move what is already moving.
       </p>
       <div className="mt-4 rounded-md bg-tint-sage p-4">
         <p className="m-0 text-[14px] font-semibold leading-snug text-ink">What this does not do</p>
         <p className="mb-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-          It does not compare what is inside your funds. That needs a look-through into every scheme
-          you hold, a live price for each one and a model portfolio to measure against, and this app
-          has none of the three. Nothing here will tell you that you are 10% overweight in equity,
-          because it would be guessing.
+          It does not compare what is inside your funds. That needs a look-through, a live price and
+          a model portfolio, and this app has none of the three — so nothing here will tell you that
+          you are 10% overweight in equity.
         </p>
       </div>
       <p className={`${NOTE} mb-0 mt-4`}>
-        Anything this proposes to buy goes through the same suitability rules as every other order
-        in the app, on the same figures. A rule that says no stops the purchase and shows you the
-        rule.
+        Anything this proposes to buy runs the same suitability rules as any other order. A rule
+        that says no stops the purchase and shows you the rule.
       </p>
     </Sheet>
   )
@@ -439,7 +434,7 @@ function RebalanceIntro({
   return (
     <>
       <p className="mb-0 mt-5 text-[16px] font-semibold leading-snug text-ink">
-        Your plan can be brought back on track by taking the following measures
+        What would bring the plan back on track
       </p>
       <p className="mb-0 mt-1.5 text-[13px] leading-snug text-ink-soft">
         {drifts.length === 1
@@ -457,7 +452,7 @@ function RebalanceIntro({
           body={
             add.length > 0
               ? lead(add[0]?.detail ?? '')
-              : 'Nothing here needs more money. The arithmetic reaches your target at the pace the plan is already running.'
+              : 'Nothing needs more money — the arithmetic reaches your target at the present pace.'
           }
           figure={add.length > 1 ? `${add.length} findings` : undefined}
           onPick={add.length > 0 ? () => onPick('add') : undefined}
@@ -507,8 +502,8 @@ function NoDrift({ roadmap }: { roadmap: View['roadmap'] }): ReactNode {
           </span>
           <h2 className="mt-3">Nothing has drifted</h2>
           <p className="m-0 mt-2 text-sm leading-relaxed text-ink-mid">
-            Version {roadmap.version} of your plan still matches what your statements show. There is
-            nothing to rebalance, so this screen is not going to invent something to sell you.
+            Version {roadmap.version} still matches what your statements show. Nothing to rebalance,
+            and nothing invented to sell you.
           </p>
         </Card>
       </div>
@@ -529,9 +524,8 @@ function NoDrift({ roadmap }: { roadmap: View['roadmap'] }): ReactNode {
           ))}
         </ul>
         <p className={`${NOTE} mb-0 mt-4`}>
-          What this cannot check is what is inside each fund. There is no price feed and no
-          portfolio disclosure in this app, so nothing here compares one scheme&rsquo;s holdings
-          against another&rsquo;s — and a screen that claimed to would be guessing.
+          It cannot check what is inside each fund: no price feed and no portfolio disclosure, so
+          nothing here compares one scheme&rsquo;s holdings against another&rsquo;s.
         </p>
       </Card>
     </>
@@ -604,7 +598,7 @@ function AddMore({
             <h2>Nothing here takes money yet</h2>
             <p className="m-0 mt-2 text-sm leading-relaxed text-ink-mid">
               Your route&rsquo;s next step is behavioural — freeing money up, or clearing an arrear
-              — so there is no pot for a top-up to go into. Realigning is the measure that applies.
+              — so there is no pot to top up. Realigning is the measure that applies.
             </p>
           </Card>
         </div>
@@ -835,7 +829,7 @@ function GrowthTopUp({
         body={
           missPct > 0
             ? `At the pace this plan is running you land about ${missPct}% short of what this step is for.`
-            : 'This step reaches its target at the pace the plan is already running. Anything you add here brings the date forward.'
+            : 'This step reaches its target at the present pace. Anything you add brings the date forward.'
         }
       />
 
@@ -896,13 +890,13 @@ function GrowthTopUp({
             monthlyLabel="Monthly, on top of what is running"
             monthlyHint={
               spare > 0
-                ? `Your statements leave ${inr(spare)} a month spare. Anything above that is money the plan cannot see.`
-                : 'Your statements leave nothing spare this month, so anything here has to come from somewhere the plan cannot see yet.'
+                ? `Your statements leave ${inr(spare)} a month spare. Above that is money the plan cannot see.`
+                : 'Your statements leave nothing spare, so anything here comes from somewhere the plan cannot see.'
             }
             lumpLabel="One-off, today"
             lumpHint={
               snapshot.buffer.shortfall > 0
-                ? `${inr(snapshot.balances.total)} is reachable, and the plan is still counting on it for the emergency buffer — money moved out of there is money the buffer no longer has.`
+                ? `${inr(snapshot.balances.total)} is reachable, but the plan is counting on it for the emergency buffer.`
                 : `${inr(snapshot.balances.total)} is reachable today.`
             }
           />
@@ -965,7 +959,7 @@ function DebtTopUp({
       <MeasureHead
         measure="add"
         title="Additional repayment required"
-        body={`This balance accrues ${inr(interest)} a month in interest alone, and what the plan can put against it does not yet beat that.`}
+        body={`This balance accrues ${inr(interest)} a month in interest, and what the plan puts against it does not yet beat that.`}
       />
 
       {/*
@@ -983,8 +977,8 @@ function DebtTopUp({
         band={
           months === null ? (
             <StatusBand flush tone="bad" label="At this payment the balance grows.">
-              {inr(paying)} a month does not cover the {inr(interest)} of interest, so there is no
-              payoff date to give you.
+              {inr(paying)} a month does not cover {inr(interest)} of interest, so there is no
+              payoff date.
             </StatusBand>
           ) : undefined
         }
@@ -1024,7 +1018,7 @@ function DebtTopUp({
             monthlyHint={
               spare > 0
                 ? `Your statements leave ${inr(spare)} a month spare.`
-                : 'Your statements leave nothing spare, which is why the first step on your route is freeing some up.'
+                : 'Your statements leave nothing spare — which is why your first step is freeing some up.'
             }
             lumpLabel="One-off, today"
             lumpHint={`${inr(snapshot.balances.total)} is reachable. Every rupee off the balance is a rupee that stops accruing at ${rate}%.`}
@@ -1038,7 +1032,7 @@ function DebtTopUp({
           label={months === null ? 'Still not clearing.' : 'That clears it.'}
         >
           {months === null
-            ? `${inr(paying)} a month against ${inr(interest)} of interest. It has to beat the interest before the balance can fall at all.`
+            ? `${inr(paying)} a month against ${inr(interest)} of interest. It has to beat that before the balance falls.`
             : `${inr(paying)} a month clears ${inr(principal)} in about ${months} ${months === 1 ? 'month' : 'months'}.`}
         </StatusBand>
       </section>
@@ -1094,17 +1088,15 @@ function Realign({
       <MeasureHead
         measure="align"
         title="Align your month"
-        body="This is not a comparison of what is inside your funds — there is no price feed in this app and nothing here will pretend otherwise. It is where your money goes each month: what the plan asks for, against what your statements show."
+        body="Not a comparison of what is inside your funds — there is no price feed here. It is where your money goes each month: what the plan asks for, against what your statements show."
       />
 
       {income.amount <= 0 ? (
         <Card tint="clay">
           <h2>There is no month to compare</h2>
           <p className="m-0 mt-2 text-sm leading-relaxed text-ink-mid">
-            Nothing in your statements is recognisable as income, and you have not told us what
-            comes in. Without that there is no whole for these shares to be shares of, so this
-            screen would be drawing a chart out of nothing. Set your income on your profile and this
-            becomes a real comparison.
+            Nothing in your statements reads as income and you have not told us what comes in, so
+            there is no whole for these shares to be shares of. Set your income on your profile.
           </p>
         </Card>
       ) : (
@@ -1126,7 +1118,7 @@ function Realign({
             {income.source === 'declared' ? ', the income you declared' : ''}
             {income.source === 'statement' ? ', read off your credits' : ''}.
             {running.source === 'mandates'
-              ? ` What is going towards the plan is taken from your recorded mandates rather than from the statement, which does not recognise them.`
+              ? ` What goes towards the plan is taken from your recorded mandates; the statement does not recognise them.`
               : ''}
           </p>
         </>

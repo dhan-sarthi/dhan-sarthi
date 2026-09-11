@@ -59,7 +59,7 @@ export function CasSynced({
           sub={
             persisted
               ? 'Held outside IDBI, now on your record'
-              : 'Held outside IDBI, and held here for this session'
+              : 'Held outside IDBI, and here for this session only'
           }
         />
       }
@@ -84,10 +84,10 @@ export function CasSynced({
         </h1>
         <p className="m-0 mt-2 max-w-[32ch] text-[14.5px] leading-normal text-ink-mid">
           {count === 0
-            ? 'Every folio on the statement had already been imported, so nothing was done twice.'
+            ? 'Every folio had already been imported, so nothing was done twice.'
             : persisted
-              ? 'They are ordinary holdings now — counted in your totals, charted in the analytics, and read by the suitability gate before it lets you buy another fund.'
-              : 'They are on the list on the next screen and nowhere else: this data source owns the holdings block, so nothing was written to your record.'}
+              ? 'Ordinary holdings now — counted in your totals, charted, and read by the suitability gate before your next buy.'
+              : 'On the next screen and nowhere else: this data source owns the holdings block, so nothing was written to your record.'}
         </p>
       </div>
 
@@ -110,17 +110,16 @@ export function CasSynced({
       ) : null}
 
       <DemoStrip>
-        Nothing was fetched. The folios above came from the fixture this build ships, not from MF
-        Central.{' '}
+        Nothing was fetched — the folios above came from a fixture, not MF Central.{' '}
         {persisted ? (
           <>
-            They were written into your holdings by the same call <i>What you own</i> uses — which
-            is also where you can change or remove any of them.
+            They were written by the same call <i>What you own</i> uses, which is also where you can
+            change or remove any of them.
           </>
         ) : (
           <>
-            They were not written anywhere: this data source serves its own holdings, so the list
-            holds them for the length of this session and they are gone when the app reloads.
+            They were not written anywhere: this data source serves its own holdings, so they last
+            this session and are gone when the app reloads.
           </>
         )}
       </DemoStrip>

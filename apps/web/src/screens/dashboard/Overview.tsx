@@ -110,7 +110,7 @@ export function Overview({
             </Button>
           }
         >
-          {held.error} The rest of this screen is computed from your statements and is unaffected.
+          {held.error} The rest of this screen comes from your statements and is unaffected.
         </Empty>
       ) : p === null || p.total <= 0 ? (
         /* `total` is capital, and cover is not capital — so a customer holding two policies and
@@ -129,15 +129,15 @@ export function Overview({
         >
           {p !== null && p.coverInForce > 0 ? (
             <>
-              {inr(p.coverInForce)} of cover is on your record and it is under Protection on
-              Holdings — but cover is not capital, so there is nothing here to value. IDBI publishes
-              no holdings feed either: funds, deposits elsewhere, NPS and PPF are yours to fill in.
+              {inr(p.coverInForce)} of cover is on your record, under Protection on Holdings — but
+              cover is not capital, so there is nothing here to value. IDBI publishes no holdings
+              feed: funds, deposits elsewhere, NPS and PPF are yours to fill in.
             </>
           ) : (
             <>
-              IDBI publishes no holdings feed — no funds, no deposit book, no NPS, no insurance — so
-              this block is yours to fill in. Until it has something in it we are advising into a
-              vacuum: suggesting an equity fund to somebody who already holds three.
+              IDBI publishes no holdings feed — no funds, no deposits, no NPS, no insurance — so
+              this block is yours to fill in. Empty, we could suggest an equity fund to somebody who
+              already holds three.
             </>
           )}
         </Empty>
@@ -171,8 +171,7 @@ export function Overview({
           same promise — count the money that is not held here — against an integration that
           exists. `LinkAccountsSheet` is the real job behind it. */}
       <PromoCard title="Money held elsewhere" onClick={onLinkAccounts}>
-        Link accounts at other banks and every figure on this screen counts all of your money, not
-        just the part IDBI can see.
+        Link other banks and these figures count all your money, not just the part IDBI can see.
       </PromoCard>
 
       {/* The reference's tinted content strip. `#F3F4FA` is `--ground-deep`, and -mx-4 escapes
@@ -216,7 +215,7 @@ export function Overview({
             <ListRow
               icon={<CalendarClock size={22} strokeWidth={1.9} />}
               title="Monthly mandates"
-              sub={p.sipCount > 0 ? 'Going in every month, on your record' : 'Nothing running'}
+              sub={p.sipCount > 0 ? 'On your record' : 'Nothing running'}
               value={
                 p.sipCount > 0 ? (
                   <Figures
@@ -386,8 +385,8 @@ function Hero({ portfolio }: { portfolio: Portfolio }): ReactNode {
       ) : null}
       <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">
         {portfolio.unpriced > 0 && portfolio.gain !== null
-          ? `Your own record — IDBI sends no holdings feed. ${portfolio.unpriced} of these carry no invested amount, so they are outside the gain.`
-          : 'Your own record — IDBI sends no holdings feed, so these are the values you entered rather than a live price.'}
+          ? `Values you entered — IDBI sends no holdings feed. ${portfolio.unpriced} carry no invested amount, so sit outside the gain.`
+          : 'Values you entered — IDBI sends no holdings feed, so no live price.'}
       </p>
     </Card>
   )

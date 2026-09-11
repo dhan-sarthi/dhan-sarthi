@@ -84,8 +84,7 @@ export function Reports({
           <h2>Not while this browser is simulating</h2>
           <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
             The advisor service could not be reached, so the app is running its own copy of the
-            ledger to keep the screens working. A statement has to be built from the real thing — it
-            is a file you might file — so nothing is generated from the simulation.
+            ledger. A statement is a file you might keep, so it is not built from a simulation.
           </p>
           <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
             Reconnect and this page works.
@@ -111,7 +110,7 @@ export function Reports({
           <ReportCard
             icon={<Table2 {...GLYPH} />}
             title="Transaction statement"
-            sub="Every line of your account over a period you choose, with the category we read it as"
+            sub="Every line over a period you choose, with the category we read it as"
             onClick={() => setKind('transactions')}
           />
           <ReportCard
@@ -132,24 +131,21 @@ export function Reports({
           <Card tint="sage">
             <h2>Why there is no capital-gain statement</h2>
             <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-              A capital-gain statement has to split every sale into short-term and long-term, which
-              needs the units you bought, the day you bought them, the NAV on both days and a record
-              of what you redeemed. This app holds one invested figure and one current value per
-              holding, and no redemptions at all.
+              Splitting every sale into short-term and long-term needs the units you bought, the day
+              you bought them, the NAV on both days and a record of what you redeemed. This app
+              holds one invested figure and one current value per holding, and no redemptions.
             </p>
             <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
-              What it could produce from that is the change in value of what you still hold. That is
-              not a capital gain, it is not what a tax return asks for, and putting it under this
-              title would be wrong in the one place the number matters. The holding statement above
-              shows that same figure under its own name.
+              What it could produce is the change in value of what you still hold — not a capital
+              gain, and not what a tax return asks for. The holding statement above shows that same
+              figure under its own name.
             </p>
           </Card>
 
           <p className="m-0 px-1 text-[12.5px] leading-relaxed text-ink-soft">
-            Whichever you pick, what you get is a CSV file saved to this device, built from the same
-            data every screen in this app reads. It carries your name, the window it covers, the
-            date it was taken and where the numbers came from, so it can be filed rather than only
-            looked at.
+            Either one is a CSV file saved to this device, built from the same data every screen
+            reads. It carries your name, the window it covers, the date it was taken and where the
+            numbers came from, so it can be filed rather than only looked at.
           </p>
         </div>
       </div>

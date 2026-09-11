@@ -51,7 +51,7 @@ const STATUS_COPY: Record<ConsentRequestResponse['status'], { label: string; not
   },
   REPORTED: {
     label: 'Checking',
-    note: 'Something came back. We are asking the bank to confirm it before trusting it.',
+    note: 'Something came back. We are asking the bank to confirm it.',
   },
   ACTIVE: { label: 'Live', note: 'The bank has confirmed it. Those accounts are being read.' },
   CLOSED: { label: 'Closed', note: 'The bank says this one is no longer active.' },
@@ -181,7 +181,7 @@ export function LinkAccountsSheet({
           </span>
           <span className="mt-1 block text-[13px] leading-snug text-ink-mid">
             Import them from a consolidated account statement, so your totals and your plan count
-            them too. The statement in this build is a demonstration fixture.
+            them. The statement in this build is a demonstration fixture.
           </span>
         </span>
       </button>
@@ -211,9 +211,8 @@ export function LinkAccountsSheet({
             Only your IDBI accounts are being read
           </p>
           <p className="m-0 mt-1.5 text-[13px] leading-normal text-ink-mid">
-            Linking an account elsewhere lets the plan work from what you actually have, not just
-            the part of it that happens to sit here. You approve it at the aggregator, and you can
-            withdraw it at any time.
+            Linking an account elsewhere lets the plan work from all of what you have. You approve
+            it at the aggregator and can withdraw at any time.
           </p>
         </div>
       ) : (
@@ -281,8 +280,8 @@ export function LinkAccountsSheet({
       )}
 
       <p className="mb-1 mt-4 text-xs leading-relaxed text-ink-soft">
-        Nothing is read until the bank itself confirms the consent. An approval that arrives any
-        other way is recorded and then checked, never acted on.
+        Nothing is read until the bank confirms the consent. An approval arriving any other way is
+        recorded and checked, never acted on.
       </p>
     </Sheet>
   )

@@ -88,9 +88,8 @@ export function CasConsent({
     <Screen header={<Head onBack={onBack} backLabel="Back to the statement" title="Enter OTP" />}>
       <div className="pt-2">
         <p className="mb-0 text-[15px] leading-relaxed text-ink-mid">
-          MF Central sends a 6-digit code to the mobile registered against your PAN, and answers
-          with the folios held at that number. Enter it to bring{' '}
-          {folios === 1 ? 'the folio' : `all ${folios} folios`}{' '}
+          MF Central sends a 6-digit code to the mobile registered against your PAN. Enter it to
+          bring {folios === 1 ? 'the folio' : `all ${folios} folios`}{' '}
           {persisted ? 'into your record' : 'onto your list of holdings'}.
         </p>
 
@@ -161,14 +160,14 @@ export function CasConsent({
 
         <div className="mt-6">
           <DemoStrip>
-            No request went to MF Central and no message was sent — this app has no MF Central
+            No request went to MF Central and no message was sent — there is no MF Central
             integration and no SMS gateway. The code is{' '}
             <b className="text-[15px] font-bold tabular-nums tracking-widest text-ink">{code}</b>.
             Verifying brings in the {CAS_FOLIOS.length} fixture folios{' '}
             {persisted
-              ? 'by writing them to your own holdings record, marked as held outside IDBI'
+              ? 'by writing them to your holdings record, marked as held outside IDBI'
               : 'and holds them for this session, because this data source serves its own holdings and will not take a write'}
-            ; it does not read anything from anywhere.
+            ; nothing is read from anywhere.
           </DemoStrip>
         </div>
       </div>

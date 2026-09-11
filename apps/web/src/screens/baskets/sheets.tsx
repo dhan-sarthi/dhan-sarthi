@@ -124,7 +124,7 @@ export function EditLine({
               onChange={(v) => setDay(Number(v))}
             />
           </Field>
-          <Field label="Instalments" hint="You can stop or pause a SIP at any time either way.">
+          <Field label="Instalments" hint="You can stop or pause a SIP at any time.">
             <Choice
               options={[
                 { id: '12' as CountId, label: '12' },
@@ -159,12 +159,12 @@ export function AddScheme({
       open={open}
       onClose={onClose}
       title="Add a scheme"
-      sub="Everything on IDBI's shelf that a basket may hold. Adding one does not re-split the others."
+      sub="Everything on IDBI's shelf a basket may hold. Adding one does not re-split the others."
     >
       <div className="divide-y divide-solid divide-hairline-mint pb-2">
         {options.length === 0 ? (
           <p className="mb-0 mt-0 py-4 text-sm leading-relaxed text-ink-soft">
-            This basket already holds everything on the shelf that its rule allows.
+            This basket already holds everything its rule allows.
           </p>
         ) : (
           options.map((p) => (

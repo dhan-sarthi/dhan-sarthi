@@ -132,9 +132,8 @@ export function JarDetail({
           <>
             <h2>{approx(jar.target)} outstanding</h2>
             <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-              This is what is left, not what has been paid. Your statements show the balance and the
-              repayments leaving each month; the principal you started with is not in them, so there
-              is no share of the way there to draw and none is drawn.
+              What is left, not what has been paid. Your statements show the balance and the
+              repayments, not the principal you started with — so there is no share to draw.
             </p>
           </>
         ) : (
@@ -180,8 +179,8 @@ export function JarDetail({
           <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-ink-mid">
             Nothing is going in yet.{' '}
             {jar.running
-              ? 'Your statements show nothing spare once the commitments and a normal month are out, so the plan has not committed anything to this.'
-              : `The jar in front of it has the money until ${monthYear(stage.startsOn)}. Sequential, on purpose — splitting a small surplus four ways finishes nothing.`}
+              ? 'Nothing is spare once the commitments and a normal month are out, so the plan has committed nothing to this.'
+              : `The jar in front has the money until ${monthYear(stage.startsOn)}. One at a time on purpose — a small surplus split four ways finishes nothing.`}
           </p>
         )}
         {stage.verdict?.verdict === 'PASS' ? (
@@ -236,9 +235,9 @@ export function JarDetail({
         <p className="m-0 mt-2 text-[14px] leading-relaxed text-ink-mid">{stage.why}</p>
         {!jar.isGoal ? (
           <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">
-            You did not create this one and you cannot delete it. It is on the route because your
-            statements put it in front of {roadmap.goal.purpose ?? 'your goal'} — and it comes off
-            the route when it is done, not when it is dismissed.
+            You did not create this one and cannot delete it. Your statements put it in front of{' '}
+            {roadmap.goal.purpose ?? 'your goal'}; it comes off the route when it is done, not when
+            it is dismissed.
           </p>
         ) : jar.target !== roadmap.goal.targetAmount ? (
           /* The buffer case, and it is not a bug in either number: `suggestGoal` proposes six
@@ -247,8 +246,8 @@ export function JarDetail({
              one jar is confusing exactly until somebody says which is which. */
           <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">
             Your goal asks for {approx(roadmap.goal.targetAmount)}. This stage aims at{' '}
-            {approx(jar.target)} first — the floor the rest of the plan waits on, and the point at
-            which anything with a lock-in can be recommended at all.
+            {approx(jar.target)} first — the floor the rest of the plan waits on, and the point
+            anything with a lock-in can be recommended.
           </p>
         ) : null}
       </Card>
@@ -257,8 +256,7 @@ export function JarDetail({
         <Card>
           <h2>Read from {snapshot.quality.monthsOfHistory} months of statements</h2>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-            Short history makes every figure above a wider guess than it looks. It gets better as
-            the months land.
+            Short history makes every figure above a wider guess than it looks.
           </p>
         </Card>
       ) : null}
