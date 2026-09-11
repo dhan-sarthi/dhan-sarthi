@@ -91,7 +91,7 @@ export function TabBar({
                   <Glyph size={26} strokeWidth={1.75} />
                 </span>
                 <span
-                  className={`truncate text-[11px] leading-[14px] ${
+                  className={`truncate text-[10px] leading-[14px] min-[360px]:text-[11px] ${
                     isActive ? 'font-bold' : 'font-medium'
                   }`}
                 >
@@ -105,10 +105,13 @@ export function TabBar({
         return (
           <div key={t.id} className="relative flex min-w-0">
             {/* The lifted card. A sibling of the button so it can reach 8px above the bar, and
-                `pointer-events-none` so the press still lands on the button underneath it. */}
+                `pointer-events-none` so the press still lands on the button underneath it.
+                It spans the full column: at five columns the longest label ("Dashboard", 61px)
+                is wider than a column inset by 8px on a 320px screen, and the text spilled past
+                the card onto the green. The label drops to 10px below 360px for the same reason. */}
             <span
               aria-hidden="true"
-              className={`pointer-events-none absolute inset-x-1 -top-2 bottom-1 rounded-lg bg-surface shadow-lift transition-all duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)] ${
+              className={`pointer-events-none absolute inset-x-0 -top-2 bottom-1 rounded-lg bg-surface shadow-lift transition-all duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)] ${
                 isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
               }`}
             />
@@ -130,7 +133,7 @@ export function TabBar({
                 <Glyph size={22} strokeWidth={isActive ? 2.3 : 1.75} />
               </span>
               <span
-                className={`truncate text-[11px] leading-[14px] ${
+                className={`truncate text-[10px] leading-[14px] min-[360px]:text-[11px] ${
                   isActive ? 'font-bold' : 'font-medium'
                 }`}
               >
