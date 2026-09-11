@@ -254,11 +254,18 @@ export function Rebalance({
 
   if (step === 'intro') {
     /*
-     * `scrollHeader` + `overlap`, and here the overlap is not a card hanging into the bar — it is
-     * the hero *continuing* it. `Screen`'s `-mt-12` pulls the dark panel up over the slab's own
-     * rounded bottom corners so the two paint as one region with a straight edge at the bottom,
-     * which is what every frame of `02-rebalance-intro` shows. `IntroHero` carries both halves,
-     * so there is no seam between two gradients to line up.
+     * `scrollHeader`, and no `overlap`.
+     *
+     * `overlap` exists to pull a white card up into a dark bar so the bar reads as a backdrop.
+     * There is no card here and no separate bar: `02-rebalance-intro` merges the two, so
+     * `IntroHero` paints the arrow, the mark, the title and the caption on one gradient with a
+     * straight bottom edge, and the white sheet is simply the next child. One region rather than
+     * two means there is no seam between two gradients to line up — which is the failure mode a
+     * `Head tone="brand"` above a `tint-ink` panel would have had on the left edge, where the
+     * bar's diagonal is still light and the panel's flat green is not.
+     *
+     * `scrollHeader` is what puts it inside the scroller. It costs nothing here: the source's
+     * screen does not scroll at all, and ours only does when the body outgrows the phone.
      */
     return (
       <Screen
