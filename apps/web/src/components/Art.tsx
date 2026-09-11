@@ -27,6 +27,7 @@ export type ArtName =
   | 'jar-create'
   | 'empty-jars'
   | 'empty-commitments'
+  | 'family-invite'
   | 'rebalance-balance'
   | 'rebalance-balance-dark'
   | 'profile-result'
