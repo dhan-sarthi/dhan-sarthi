@@ -9,7 +9,8 @@
  *
  * Four rules it exists to hold.
  *
- * **Colour is positional, never semantic.** The nth slice takes `--chart-n`, and "Others" always
+ * **Colour is positional, never semantic.** A slice's rung is decided by where it sits and how
+ * many there are — see `tonesFor` — and "Others" always
  * takes `--chart-5`, the grey, wherever it sits. Nothing in this file looks at what a category
  * means. The source app had no such rule and ended up with the same sky blue meaning Commodities
  * on its rebalancing screens and Debt on its dashboard; a hue that means two things is worse than
@@ -139,8 +140,42 @@ export function isOthers(slice: Slice): boolean {
   return slice.others === true || slice.label.trim().toLowerCase() === OTHERS_LABEL.toLowerCase()
 }
 
-function toneAt(index: number, limit: number): Tone {
-  return TONES[Math.min(index, limit - 1)] ?? OTHERS_TONE
+/*
+ * Which rungs of the ramp a series of `count` named slices stands on.
+ *
+ * Walking 1,2,3,… is right when a series fills the ramp and wrong when it does not. The ramp is
+ * one hue, so its rungs separate by lightness alone — about 1.8:1 between neighbours — and a
+ * two-slice donut walking 1,2 draws the single worst pair in the palette at 1.88:1, two darks
+ * that read as one. Two slices is also the *common* case here: a real IDBI portfolio is usually
+ * debt and one other thing.
+ *
+ * So a short series spreads instead of crowding the dark end. Two named slices take 1 and 4 and
+ * separate at 7.17:1 rather than 1.88 — the same picture, four times more legible, no second hue.
+ * With an "Others" already holding the pale rung the spread shortens to 1 and 3 (3.09:1), because
+ * 4 beside 5 is worse than 2 beside 1. Three and four named slices have no better arrangement
+ * available and keep the plain walk.
+ *
+ * This does not weaken the positional rule in DESIGN.md — assignment is still by position and
+ * never by meaning, and `AllocationCompare` still aligns its two series so a category keeps its
+ * rung across a comparison. What it drops is the idea that a *rung* means a category across
+ * unrelated charts, which was never true of a monochrome ramp: nobody reads "dark green = Equity"
+ * off a wheel of five greens. They read the legend, which every slice has.
+ */
+const SPREAD: Record<number, readonly Tone[]> = {
+  1: [1],
+  2: [1, 4],
+  3: [1, 2, 3],
+  4: [1, 2, 3, 4],
+}
+const SPREAD_WITH_OTHERS: Record<number, readonly Tone[]> = {
+  1: [1],
+  2: [1, 3],
+  3: [1, 2, 3],
+}
+
+function tonesFor(count: number, hasOthers: boolean): readonly Tone[] {
+  const table = hasOthers ? SPREAD_WITH_OTHERS : SPREAD
+  return table[count] ?? TONES.slice(0, hasOthers ? RAMP - 1 : RAMP)
 }
 
 function amount(value: number): number {
@@ -185,7 +220,8 @@ export function series(slices: readonly Slice[], total?: number): Series {
   const whole = Math.max(sum, target)
 
   const hasOthers = slices.some(isOthers)
-  const limit = hasOthers ? RAMP - 1 : RAMP
+  const namedCount = slices.filter((slice) => !isOthers(slice)).length
+  const tones = tonesFor(namedCount, hasOthers)
   let named = 0
 
   const portions = slices.map((slice, i): Portion => {
@@ -197,7 +233,7 @@ export function series(slices: readonly Slice[], total?: number): Series {
       value,
       share,
       display: slice.display ?? pct(share),
-      tone: others ? OTHERS_TONE : toneAt(named++, limit),
+      tone: others ? OTHERS_TONE : (tones[named++] ?? OTHERS_TONE),
       others,
     }
   })

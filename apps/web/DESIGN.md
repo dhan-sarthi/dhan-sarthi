@@ -259,6 +259,13 @@ matter, so a donut re-sorted by weight is safe.
 - **Legend is not optional.** `chart-3` and `chart-5` are light on purpose, so a slice is read
   against its neighbours rather than against the page. Every chart gets a legend row — swatch,
   label, figure — and colour is never the only channel.
+- **A short series spreads; it does not crowd the dark end.** Two named slices take rungs 1 and 4
+  (7.17:1) rather than 1 and 2 (1.88:1, the worst pair in the palette and two darks that read as
+  one). With an `Others` already on the pale rung the spread shortens to 1 and 3. Three and four
+  named slices keep the plain walk — no better arrangement exists in one hue. `tonesFor` in
+  `charts/series.ts` owns this, and two slices is the *common* case for a real portfolio here.
+  Assignment is still positional and never semantic; what it drops is the idea that a rung means
+  a category across unrelated charts, which was never true of a monochrome ramp.
 - Never use a ramp colour for a control, and never use `bg-accent` for a slice. The action green means
   "press this" everywhere else in the app; `chart-4` is deep enough not to be mistaken for it.
 

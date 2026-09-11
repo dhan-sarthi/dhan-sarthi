@@ -23,13 +23,62 @@ describe('colour is positional', () => {
     assert.deepEqual(tones(caps), [1, 2, 3, 5])
   })
 
-  it('keeps Others grey wherever it sits, without shifting the named slices', () => {
+  it('keeps Others grey wherever it sits, without reordering the named slices', () => {
     const mixed: Slice[] = [
       { label: 'Equity', value: 40 },
       { label: 'Others', value: 10 },
       { label: 'Debt', value: 50 },
     ]
-    assert.deepEqual(tones(mixed), [1, 5, 2])
+    // Others holds the grey in the middle; the two named slices take the ramp in their given
+    // order, spread to 1 and 3 because a short series does not crowd the dark end.
+    assert.deepEqual(tones(mixed), [1, 5, 3])
+  })
+
+  /*
+   * The reason the spread exists. The ramp is one hue, so rungs separate by lightness alone and
+   * neighbours sit at about 1.8:1 — fine across four slices, useless across two. Two named slices
+   * are the common case for a real portfolio here, so they take the ends rather than the first
+   * two rungs. These assert the arrangement; the ratios behind it are in `tokens.css`.
+   */
+  it('spreads a two-slice series to the ends of the ramp', () => {
+    assert.deepEqual(
+      tones([
+        { label: 'Debt', value: 70 },
+        { label: 'Hybrid', value: 30 },
+      ]),
+      [1, 4],
+    )
+  })
+
+  it('shortens the spread when Others already holds the pale rung', () => {
+    assert.deepEqual(
+      tones([
+        { label: 'Debt', value: 70 },
+        { label: 'Hybrid', value: 25 },
+        { label: 'Others', value: 5 },
+      ]),
+      [1, 3, 5],
+    )
+  })
+
+  it('leaves three and four named slices on the plain walk, which is already the best available', () => {
+    assert.deepEqual(
+      tones([
+        { label: 'A', value: 1 },
+        { label: 'B', value: 1 },
+        { label: 'C', value: 1 },
+      ]),
+      [1, 2, 3],
+    )
+    assert.deepEqual(
+      tones([
+        { label: 'A', value: 1 },
+        { label: 'B', value: 1 },
+        { label: 'C', value: 1 },
+        { label: 'D', value: 1 },
+      ]),
+      [1, 2, 3, 4],
+    )
   })
 
   it('uses all five when nothing is Others', () => {
