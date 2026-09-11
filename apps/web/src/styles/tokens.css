@@ -15,6 +15,18 @@
  * decorative background washes anywhere in this file. A card is white; a card that needs to
  * step forward is --tint-sage; the one hero card per screen is --tint-ink with white on it.
  *
+ * **Three tint names, one colour, and that is not an oversight.** --tint-sage, --tint-sky and
+ * --tint-clay were mint, aqua and peach, and they told kinds of card apart by hue. One hue has
+ * no hues to spare, so they are aliases now and a screen cannot separate two things by picking
+ * two of them — two parity passes found chips and cards drawing identical pixels that way before
+ * this was written down. The names survive so 50-odd call sites did not have to churn.
+ *
+ * In a one-hue palette the differentiators are **weight and form**, not tint: a filled brand chip
+ * against a soft one against a hairline outline; a solid fill for something observed against a
+ * soft one for something projected; an illustrated mark carrying an accent. --accent-soft sits a
+ * real step below the card tint (1.11:1 apart, where it used to be 1.05 and invisible) so that
+ * "this is the emphasised one" is a step a reader can actually see.
+ *
  * Two colours are not green, and both earn it. --danger is red because a refusal that is not
  * red is a refusal nobody reads as one, and this product refuses sales. --ink is near-black
  * because body text is.
@@ -75,7 +87,7 @@
   --brand-deep: #164c3f;
   --brand-night: #0e3329;
   --accent: #00735d;
-  --accent-soft: #e3f2ed;
+  --accent-soft: #d7ede7;
   --accent-text: #00735d;
   --on-accent: #ffffff;
   --danger: #b3261e;

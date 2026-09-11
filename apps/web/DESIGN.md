@@ -53,12 +53,19 @@ and `ink` is near-black because body text is. One large number still leads each 
 | `bg-brand-night` | #0e3329 | Bottom stop of the call-screen gradient. |
 | `bg-accent` / `text-accent` | #00735d | Every action, and small green text. 5.8:1 on white both ways. |
 | `text-on-accent` | #ffffff | The label on a filled action. 5.8:1 — the orange this replaced managed 2.59:1. |
-| `bg-accent-soft` | #e3f2ed | Attention pill background; soft bar fill. |
+| `bg-accent-soft` | #d7ede7 | Attention pill background; soft bar fill. A real step below the card tint (1.11:1), so "emphasised" is visible. |
 | `text-accent-text` | #00735d | Alias of `accent`. The split existed only because orange could not be both a fill and an ink. |
 | `text-danger` / `bg-danger` | #b3261e | Refusals; the hang-up button. |
 | `bg-danger-soft` | #fbe3e0 | Bad pill background. |
 | `text-good` | #00836c | Alias of brand for "good" values. |
 | `bg-tint-sage` | #eef6f3 | The one card tint. A card is white; a card that must step forward is this. |
+
+> **Three tint names, one colour.** `tint-sage`, `tint-sky` and `tint-clay` are aliases. They were
+> mint, aqua and peach and told kinds of card apart by hue; one hue has none to spare. **You cannot
+> separate two things by picking two of them** — two parity passes shipped chips and cards drawing
+> identical pixels before this was written down. In a one-hue palette the differentiators are
+> **weight and form**: filled brand against soft against hairline outline; solid for observed
+> against soft for projected; an illustrated mark carrying one accent. Reach for those.
 | `bg-tint-sky` | #eef6f3 | Alias of `tint-sage`. The three tints collapsed to one when the palette did. |
 | `bg-tint-clay` | #eef6f3 | Alias of `tint-sage`. No warm tint exists any more. |
 | `bg-tint-ink` | #164c3f | The one hero card per screen, with `text-on-dark`. Aliases `brand-deep`. |
