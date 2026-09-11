@@ -355,6 +355,14 @@ export const ROHAN: PersonaSpec = {
     },
   ],
   openingBalance: 22_000,
+  // The ₹2 lakh Suvidha FD, and it belongs here rather than in `holdings`.
+  //
+  // A term deposit held *at IDBI* arrives as an account on 394 and 365 and is already in the
+  // accounts block — `derive` counts it in `balances.deposits`, which is also what makes his
+  // buffer cover six months. `packages/contracts/src/routes/holdings.ts` says outright that
+  // recording it a second time "would count it twice in every net-worth figure", and it did:
+  // the same ₹2,00,000 was in `balances.deposits` and in `holdings.debt`, so the dashboard's
+  // net worth read ₹2 lakh higher than Rohan has.
   extraAccounts: [
     {
       accountNumberMasked: 'XXXXXXXXXXXX9930',
@@ -366,18 +374,9 @@ export const ROHAN: PersonaSpec = {
       branchIfsc: 'IBKL0000155',
     },
   ],
-  holdings: [
-    {
-      holdingType: 'FD',
-      name: 'IDBI Suvidha Fixed Deposit',
-      assetClass: 'Debt',
-      investedAmount: 200_000,
-      currentValue: 200_000,
-      sipActive: false,
-      maturityDate: '2026-09-11',
-      interestRate: 7.1,
-    },
-  ],
+  // Nothing declared. The Axis flexi-cap SIP is a holding too, but the generator rolls that one
+  // forward from `sips` rather than declaring it, so listing it here would double it as well.
+  holdings: [],
   // Two dependents and nothing in force. This is what BUNDLED_PROTECTION needs in order to
   // be the rule that fires when the ULIP is proposed.
   policies: [],

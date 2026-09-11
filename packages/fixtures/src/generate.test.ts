@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { derive } from '@dhan/core'
 import { addMonths, monthKey } from './calendar.ts'
 import { generateCustomerFile, generateForward, generateLedger } from './generate.ts'
 import { PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
@@ -246,6 +247,52 @@ describe('the customer file', () => {
       'SUNIL needs a missed repayment for MISSED_REPAYMENT',
     )
     assert.equal(sunil.customer.riskProfile, 'Conservative')
+  })
+
+  it('never records a deposit held at IDBI as both an account and a holding', () => {
+    /*
+     * `packages/contracts/src/routes/holdings.ts` states the rule and the reason: a term
+     * deposit held at IDBI "arrives as an account on 394 and 365 and is already in the accounts
+     * block, so recording it again would count it twice in every net-worth figure".
+     *
+     * Rohan's ₹2,00,000 Suvidha FD was in both — an `extraAccounts` row and a declared holding
+     * with the same value and the same maturity date — so his dashboard added it to
+     * `balances.deposits` and to `holdings.debt` and put his net worth ₹2 lakh above what he
+     * has. The rule is checked against every persona, not only the one that broke it.
+     */
+    for (const spec of PERSONAS) {
+      const file = generateCustomerFile(spec, OPTS)
+      const deposits = file.accounts.filter((a) => a.accountType === 'FD' || a.accountType === 'RD')
+
+      for (const holding of file.holdings) {
+        const twin = deposits.find(
+          (a) =>
+            a.currentBalance === holding.currentValue ||
+            (a.maturityDate !== undefined && a.maturityDate === holding.maturityDate),
+        )
+        assert.equal(
+          twin,
+          undefined,
+          `${spec.slug}: "${holding.name}" is already account ${twin?.accountNumberMasked} ` +
+            `— ${holding.currentValue} would be counted twice`,
+        )
+      }
+    }
+  })
+
+  it('leaves ROHAN a net worth that counts his deposit once', () => {
+    const s = derive(generateCustomerFile(ROHAN, OPTS), ASOF)
+
+    // The FD is an account, and it is the reason his buffer covers six months.
+    assert.equal(s.balances.deposits, 200_000)
+    // And it is not also a holding, so the two blocks can be added without doubling it. What he
+    // owns beyond the accounts is the flexi-cap fund the generator rolls forward from his SIP.
+    assert.equal(s.holdings.debt, 0)
+    assert.equal(s.holdings.total, s.holdings.equity)
+
+    // The figure Overview puts on the card. It read ₹7,67,628 while the FD was counted twice.
+    const netWorth = s.balances.total + s.holdings.total - s.debt.total
+    assert.equal(Math.round(netWorth), 567_628)
   })
 })
 

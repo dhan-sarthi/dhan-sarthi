@@ -37,6 +37,23 @@ import type { Product } from './types.ts'
 export type GoalKind =
   'emergency_fund' | 'debt_payoff' | 'protection' | 'wealth_target' | 'retirement'
 
+/**
+ * Which rupees `Goal.targetAmount` is counted in.
+ *
+ * `today` — the amount is in money the customer recognises now. A long-dated target stated
+ * this way has to be funded at the *real* rate, or thirty years of price rises are silently
+ * left out of the contribution. This is what `suggestGoal` produces and what `goal.ts` argues
+ * for at length: a retirement number inflated forward to 2057 came out at ₹11.48 crore, read
+ * as absurd, and made every plan infeasible for a reason that had nothing to do with the
+ * customer.
+ *
+ * `at_horizon` — the customer has already inflated the figure themselves and typed the rupees
+ * of the year it lands. Discounting it a second time would tell them to save far more than
+ * they need, for a reason nobody on either side of the screen could see, so it is funded at
+ * the nominal rate however long the horizon.
+ */
+export type GoalAmountBasis = 'today' | 'at_horizon'
+
 export interface Goal {
   id: string
   kind: GoalKind
@@ -48,6 +65,11 @@ export interface Goal {
    */
   purpose?: string
   targetAmount: number
+  /**
+   * Which money `targetAmount` is in. Absent means `today`, so every goal written before this
+   * field existed — and every goal `suggestGoal` proposes — keeps the numbers it had.
+   */
+  amountBasis?: GoalAmountBasis
   targetDate: string
   createdAt: string
 }
@@ -55,6 +77,7 @@ export interface Goal {
 export type StageKind = 'free_up' | 'get_cover' | 'clear_debt' | 'build_buffer' | 'grow'
 
 export interface Stage {
+  /** One-based, in route order. There is no stage 0. */
   index: number
   kind: StageKind
   label: string
@@ -66,8 +89,24 @@ export interface Stage {
   monthly: number
   /** What the stage is trying to reach. Zero for open-ended stages. */
   targetAmount: number
+  /**
+   * How long the stage runs. **Zero means it has no end**, and it is the only way this type
+   * has of saying so.
+   *
+   * One stage can be undated: a debt whose monthly payment does not beat the interest accruing
+   * on the balance. `monthsToClear` returns null there because the balance grows, and the
+   * honest answer to "when is it clear" is that there is no such month. This used to be filled
+   * with a flat 120 months so the stage had *a* length, which put a payoff date on a debt that
+   * mathematically never clears — and dated every sequential stage behind it off that fiction.
+   *
+   * Read it with `completesOn`, which lands on `startsOn` whenever this is zero.
+   */
   monthsToComplete: number
   startsOn: string
+  /**
+   * When the stage finishes — **except** where it equals `startsOn`, which together with
+   * `monthsToComplete: 0` means there is no completion date to give. Never render such a date.
+   */
   completesOn: string
   /**
    * `ongoing` stages keep costing their monthly amount after they complete — a term premium
@@ -87,14 +126,33 @@ export interface Roadmap {
   reasonForChange: string
   goal: Goal
   stages: Stage[]
+  /**
+   * The **array position** of the stage running now: `stages[currentStageIndex]`.
+   *
+   * A position into `stages`, deliberately, and *not* a `Stage.index` — those are one-based, so
+   * a stage index of 0 would name no stage at all and the two conventions have already been
+   * read for each other once. Every stage is laid from `createdAt` forward, so on a freshly cut
+   * roadmap this is 0 and the first stage is the live one; it is computed rather than asserted
+   * so it stays true if that ever stops being so.
+   *
+   * It answers "which stage does the plan open at", which is what the avatar brief and
+   * `get_plan` want. It does **not** answer "which stages have money going into them this
+   * month" — several can at once, because an ongoing premium runs alongside whatever is
+   * sequential. That rule is `s.index === 1 || s.cadence === 'ongoing'`, and it is what
+   * `monthlyCommitment` below is summed over.
+   */
   currentStageIndex: number
   /** What leaves the account this month across every stage now running. */
   monthlyCommitment: number
   totalMonths: number
   completesOn: string
-  /** False where the goal cannot be reached from the customer's present position. */
+  /**
+   * False where the goal cannot be reached from the customer's present position — including
+   * where a prerequisite cannot be: a debt the payment never clears blocks everything behind
+   * it, so a route containing one is not feasible whatever the goal stage worked out.
+   */
   feasible: boolean
-  /** How much more per month the goal would need. Zero when feasible. */
+  /** How much more per month the plan would need. Zero when feasible. */
   shortfallMonthly: number
   /** Present only for market-linked stages, and always a band. */
   projection: Projection | null
@@ -163,6 +221,44 @@ const DEFAULTS: RoadmapOptions = {
 }
 
 /**
+ * Beyond this many years a target in today's money is funded in real terms. Below it, the
+ * nominal rate: the correction is small enough that quoting it would be false precision.
+ */
+export const REAL_RATE_HORIZON_YEARS = 10
+
+/**
+ * The rate a goal's contribution is sized at, and the only place that decision is made.
+ *
+ * Exported because the create-a-goal screen has to quote the same monthly figure the roadmap
+ * will carry a moment later, and a customer shown two numbers is right to stop believing
+ * either. A screen that mirrors this branch by hand drifts from it the first time either is
+ * edited; a screen that calls it cannot.
+ *
+ * Three cases, in order:
+ *
+ * - **Not a growth goal** — a buffer or a short-dated target funded with a deposit. The rate is
+ *   contractual rather than a guess, and no inflation adjustment is applied at all.
+ * - **A growth goal stated in today's money, ten years out or more** — funded at the *real*
+ *   rate, nominal less inflation, because the target is in rupees that will buy less by then.
+ * - **Everything else** — the nominal rate. That includes a growth goal whose amount is
+ *   `at_horizon`: the customer has already put the inflation in, and taking it out again here
+ *   is the double-discount this branch exists to avoid.
+ */
+export function fundingRatePct(
+  goal: Pick<Goal, 'kind' | 'amountBasis'>,
+  horizonYears: number,
+  options?: Partial<Pick<RoadmapOptions, 'growthRatePct' | 'inflationPct' | 'depositRatePct'>>,
+): number {
+  const opts = { ...DEFAULTS, ...options }
+  if (goal.kind !== 'wealth_target' && goal.kind !== 'retirement') return opts.depositRatePct
+
+  const inTodaysMoney = (goal.amountBasis ?? 'today') === 'today'
+  return inTodaysMoney && horizonYears >= REAL_RATE_HORIZON_YEARS
+    ? opts.growthRatePct - opts.inflationPct
+    : opts.growthRatePct
+}
+
+/**
  * Build the route.
  *
  * Pure: snapshot in, roadmap out, no I/O and no clock. `asOf` comes from the caller so a
@@ -183,6 +279,17 @@ export function buildRoadmap(
   let available = snapshot.surplus.deployable
   let cursor = asOf
   let index = 0
+
+  /*
+   * A debt on the route that the payment never clears, and what it would take to clear it.
+   *
+   * Held out here because it is the whole route's problem rather than one stage's: nothing
+   * sequential behind a balance that grows has a date either, so the roadmap is not feasible
+   * whatever the goal stage goes on to work out, and the shortfall worth quoting is the one
+   * that unblocks it rather than the one behind it.
+   */
+  let undatedDebt = false
+  let undatedDebtShortfall = 0
 
   const push = (
     stage: Omit<Stage, 'index' | 'startsOn' | 'completesOn' | 'verdict'> & {
@@ -332,8 +439,26 @@ export function buildRoadmap(
     // never arrive, promised to someone trusting us with their money.
     const clears = monthsToClear(principal, rate, available)
     const viable = clears !== null
-    const months = clears ?? 120
     const needed = paymentToClear(principal, rate, 36)
+
+    /*
+     * And where it never clears, the stage says so in its numbers and not only in its prose.
+     *
+     * This used to fall back to a flat 120 months, which is the same promise wearing a longer
+     * face: `completesOn` came out ten years from now on a balance that grows every month, the
+     * label said "will not clear" directly above it, and — because the stage is sequential —
+     * every stage behind it was dated off a payoff that does not happen. Priya's buffer was
+     * scheduled for 2036 and her route ran to 2040 on the strength of it.
+     *
+     * Zero months is this type's way of saying there is no end: `completesOn` lands back on
+     * `startsOn`, the cursor does not move, and the roadmap below is marked infeasible with the
+     * payment that would actually retire the balance.
+     */
+    const months = clears ?? 0
+    if (!viable) {
+      undatedDebt = true
+      undatedDebtShortfall = Math.max(0, needed - available)
+    }
 
     push({
       kind: 'clear_debt',
@@ -432,13 +557,11 @@ export function buildRoadmap(
   if (!alreadyPrerequisite) {
     const wantsGrowth = goal.kind === 'wealth_target' || goal.kind === 'retirement'
 
-    // Long-horizon targets are stated in today's money, so they are funded at the real rate.
-    // Sizing a thirty-year goal at the nominal 10% would understate the contribution badly.
-    const rate = wantsGrowth
-      ? horizonYears >= 10
-        ? opts.growthRatePct - opts.inflationPct
-        : opts.growthRatePct
-      : opts.depositRatePct
+    // A long target in today's money is funded at the real rate: sizing a thirty-year goal at
+    // the nominal 10% would understate the contribution badly. A target the customer has
+    // already inflated is funded at the nominal one, because taking the inflation back out
+    // would charge them for it twice. `fundingRatePct` owns that decision for both of us.
+    const rate = fundingRatePct(goal, horizonYears, opts)
 
     const vehicle = wantsGrowth
       ? horizonYears >= 3
@@ -490,8 +613,16 @@ export function buildRoadmap(
 
   /* Assemble ----------------------------------------------------------- */
 
-  // The first stage not yet finished. Everything the customer sees on Today comes from here.
-  const currentStageIndex = 0
+  /*
+   * Where the plan opens: the position in `stages` of the first one still to finish.
+   *
+   * An array position, not a `Stage.index` — see the field. Stages are laid from `asOf`
+   * forward, so this resolves to the first of them and `stages[0]` is what every consumer
+   * subscripting this gets. Derived rather than written down as a literal 0, because a
+   * hardcoded index that happens to be right reads exactly like one that is wrong.
+   */
+  const firstUnfinished = stages.findIndex((s) => s.completesOn > asOf)
+  const currentStageIndex = firstUnfinished === -1 ? 0 : firstUnfinished
   const running = stages.filter((s) => s.index === 1 || s.cadence === 'ongoing')
   // Sequential stages run one after another; an ongoing goal runs to its own horizon. The route
   // is as long as the longer of the two, not the sum — a term premium does not extend the plan.
@@ -511,9 +642,29 @@ export function buildRoadmap(
     monthlyCommitment: running.reduce((s, x) => s + x.monthly, 0),
     totalMonths,
     completesOn: addMonths(asOf, Math.max(totalMonths, Math.round(horizonYears * 12))),
-    feasible,
-    shortfallMonthly,
+    // A balance that outruns its payment blocks the route whether or not it is the goal, and
+    // it did not use to: the goal stage is skipped when a prerequisite already carries the
+    // goal, so a plan whose one debt never clears reported itself feasible with nothing short.
+    feasible: feasible && !undatedDebt,
+    shortfallMonthly: Math.max(shortfallMonthly, undatedDebt ? undatedDebtShortfall : 0),
     projection,
     disclaimer: DISCLAIMER,
   }
+}
+
+/**
+ * The stage the route is on, on a given date.
+ *
+ * `roadmap.currentStageIndex` answers the same question, but it is fixed when the roadmap is
+ * cut and a roadmap outlives the day it was cut — it is stored and served again while the
+ * snapshot and the goal hold. Read a month later it still names the stage the plan opened at,
+ * which by then may have finished. This asks the question against a clock instead, so a caller
+ * holding a stored roadmap gets the stage that is actually running.
+ *
+ * A stage with no end — `monthsToComplete` of zero, which only an unclearable debt has — is
+ * never behind us: nothing after it has a date either, so the route stops there and says so.
+ * Null once every stage has finished, which is a real answer rather than the last one again.
+ */
+export function currentStage(roadmap: Roadmap, asOf: string): Stage | null {
+  return roadmap.stages.find((s) => s.monthsToComplete === 0 || s.completesOn > asOf) ?? null
 }
