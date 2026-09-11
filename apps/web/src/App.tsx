@@ -302,6 +302,26 @@ export function App(): ReactNode {
           asOf={view.meta.asOf}
           onEditGoal={() => setSheet('goal')}
           onRefresh={refreshView}
+          rebalance={{
+            view,
+            // The same evaluate Discover hands the spine, so a rebalance that reaches a
+            // purchase is refused by the same gate on the same snapshot.
+            evaluate: askBackend.evaluate,
+            onSeeRecord: () => {
+              setMorePage('record')
+              setTab('more')
+              void record.refresh()
+            },
+            decisions: {
+              actions: [view.plan.primary, ...view.plan.secondary].filter(
+                (a): a is NonNullable<typeof a> => a !== null && a !== undefined,
+              ),
+              decided: m.decided,
+              enabled: vs.tier === 'server',
+              busy: m.busy,
+              onDecide: (action, kind) => void m.decide(action, kind),
+            },
+          }}
         />
       ) : null}
 

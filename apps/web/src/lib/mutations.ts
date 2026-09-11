@@ -12,7 +12,12 @@
  * Amounts and products are never sent: the server re-derives the action from its own plan.
  */
 import { useCallback, useState } from 'react'
-import type { Action, ConsentScope, LeadOutcomeResponse } from '@dhan/contracts'
+import type {
+  Action,
+  ConsentScope,
+  DecisionKind as ContractDecisionKind,
+  LeadOutcomeResponse,
+} from '@dhan/contracts'
 import { api, isApiError, newIdempotencyKey } from '../api/client.ts'
 import { clearSession } from '../api/session.ts'
 import type { ViewState } from './view.ts'
@@ -24,7 +29,14 @@ function sessionEnded(err: unknown): boolean {
   return true
 }
 
-export type DecisionKind = 'did_it' | 'declined'
+/*
+ * All four, not the two the daily plan's buttons offer.
+ *
+ * `decideAction` takes `DecisionKindSchema` and the record stores whichever of the four it is
+ * given, so narrowing here was a UI-layer restriction with nothing behind it — and it blocked
+ * the rebalancing screen, which defers a change as often as it takes one.
+ */
+export type DecisionKind = ContractDecisionKind
 
 type ClockOp = { advanceDays: 1 | 7 | 30 } | { reset: true }
 
