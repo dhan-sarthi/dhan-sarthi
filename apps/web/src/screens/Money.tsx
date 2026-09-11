@@ -10,31 +10,21 @@
  * spend. Sixty-seven Swiggy orders is not a subscription, and telling a customer it is would read
  * as broken.
  *
- * Accounts are read from the snapshot's facts — balances, holdings, debt, protection — because
- * that is what crosses the wire. The statement itself comes from `/transactions`, a page at a
- * time, newest first, and only as far as the session's clock has reached.
+ * The statement comes from `/transactions`, a page at a time, newest first, and only as far as
+ * the session's clock has reached. Everything else is read from the snapshot's facts, because
+ * that is what crosses the wire.
+ *
+ * The account block that used to be this screen's third tab moved to the Dashboard's Holdings
+ * pane in step 4, where the reference groups what you own — `06-EXISTING-APP-MAP.md` §6 puts it
+ * there, and splitting "what you have" from "what you own" across two tabs was this app's
+ * arrangement, not a decision anybody defended. What is left is the two halves of the ledger
+ * story, and they are two halves of one Dashboard pane rather than two panes.
  */
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type {
-  Account as AccountRow,
-  CategoryCap,
-  SpendCategory,
-  Snapshot,
-  Transaction,
-} from '@dhan/contracts'
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Link2, Pencil, Plus } from 'lucide-react'
-import {
-  Amount,
-  Bar,
-  Button,
-  Card,
-  Eyebrow,
-  Leader,
-  Pill,
-  Skeleton,
-  Tile,
-} from '../components/ui.tsx'
+import type { CategoryCap, SpendCategory, Snapshot, Transaction } from '@dhan/contracts'
+import { ArrowDownLeft, ArrowUpRight, ChevronRight } from 'lucide-react'
+import { Amount, Bar, Button, Card, Eyebrow, Leader, Skeleton, Tile } from '../components/ui.tsx'
 import { Screen } from '../components/Screen.tsx'
 import type { ScreenChrome } from '../components/Screen.tsx'
 import { TransactionSheet } from './TransactionSheet.tsx'
@@ -46,8 +36,8 @@ import { useTransactions } from '../lib/transactions.ts'
 import { useRipple } from '../lib/motion.ts'
 import type { TransactionSource } from '../lib/transactions.ts'
 
-/** The three of Dashboard's four panes this file draws. `today` is `Today.tsx`. */
-export type MoneyTab = 'accounts' | 'spending' | 'commitments'
+/** The two halves of the Dashboard's Spending pane. The switch between them is `Dashboard`'s. */
+export type MoneyTab = 'spending' | 'commitments'
 
 /* Shared strings for the small text on this screen (the retired `.meta` / `.note` classes). */
 const META = 'm-0 text-[13px] text-ink-soft'
@@ -56,31 +46,32 @@ const NOTE = 'm-0 text-xs leading-[1.5] text-ink-soft'
 export function Money({
   tab,
   chrome,
+  lead,
   snapshot,
-  accounts,
   source,
   asOf,
-  onEditHoldings,
-  onLinkAccounts,
   onRefresh,
   caps,
   onSetCap,
   capsEnabled,
 }: {
-  /** Which pane. Controlled by `Dashboard`, which draws the tab row that changes it. */
+  /** Which half. Controlled by `Dashboard`, which draws the switch that changes it. */
   tab: MoneyTab
   /* The app bar, the ribbon and the sub-tab row, drawn once by `Dashboard` for all four panes. */
   chrome: ScreenChrome
+  /**
+   * Drawn at the top of the scroller, above whichever half is mounted.
+   *
+   * The Dashboard's switch between this month and the commitments goes here rather than in
+   * `chrome.tabs`, which is already the four-cell screen-level row. Two levels of tab is the
+   * reference's own arrangement on its analytics tab — a tab row with a filter row under it —
+   * and a switch that scrolls with the content is the half of it that belongs to this pane.
+   */
+  lead?: ReactNode
   snapshot: Snapshot
-  /** One row per account, rather than the snapshot's two totals. */
-  accounts: readonly AccountRow[]
   /** Pages of the statement, from the API or the offline ledger. */
   source: TransactionSource
   asOf: string
-  /** The holdings block is the app's own, so this screen is where it is changed. */
-  onEditHoldings: () => void
-  /** Accounts at other banks, through the Account Aggregator. */
-  onLinkAccounts: () => void
   /** Pull down at the top to re-read the view. */
   onRefresh: () => Promise<void>
   /** The limits already in force, from the session. */
@@ -124,14 +115,7 @@ export function Money({
         </>
       }
     >
-      {tab === 'accounts' ? (
-        <Accounts
-          snapshot={snapshot}
-          accounts={accounts}
-          onEditHoldings={onEditHoldings}
-          onLinkAccounts={onLinkAccounts}
-        />
-      ) : null}
+      {lead}
       {tab === 'spending' ? (
         <Spending
           snapshot={snapshot}
@@ -144,208 +128,6 @@ export function Money({
       ) : null}
       {tab === 'commitments' ? <Commitments snapshot={snapshot} /> : null}
     </Screen>
-  )
-}
-
-/* ---------------------------------------------------------------- Accounts */
-
-function Accounts({
-  snapshot,
-  accounts,
-  onEditHoldings,
-  onLinkAccounts,
-}: {
-  snapshot: Snapshot
-  /** The accounts themselves. Empty where the customer has withdrawn the block. */
-  accounts: readonly AccountRow[]
-  onEditHoldings: () => void
-  onLinkAccounts: () => void
-}): ReactNode {
-  const { balances, holdings, debt, protection } = snapshot
-
-  return (
-    <>
-      {/* One row per account, which is what somebody opening a banking app came to see. The
-          screen used to show two totals, and a customer with four accounts got two numbers
-          neither of which was any of their balances. */}
-      {accounts.map((a, i) => (
-        <AccountCard key={a.accountNumberMasked} account={a} index={i} />
-      ))}
-
-      {accounts.length === 0 ? (
-        <>
-          <Card>
-            <div className="flex items-start justify-between">
-              <p className={META}>Savings account</p>
-              <Pill>Savings</Pill>
-            </div>
-            <div className="mt-2">
-              <Amount value={balances.savings} size="lg" paise />
-            </div>
-            {/* The claim needs whole months behind it. With `idleMonths` at 0 it read "never fell
-            below ₹56,780 in 0 months", which asserts a floor over no period at all. */}
-            {balances.idleFloor > 0 && balances.idleMonths > 0 ? (
-              <p className={`${NOTE} mt-2`}>
-                Never fell below {inr(balances.idleFloor)} in{' '}
-                {balances.idleMonths === 1 ? 'a month' : `${balances.idleMonths} months`} — that
-                part has not been needed once.
-              </p>
-            ) : null}
-          </Card>
-
-          {balances.deposits > 0 ? (
-            <Card>
-              <div className="flex items-start justify-between">
-                <p className={META}>Deposits</p>
-                <Pill>FD · RD</Pill>
-              </div>
-              <div className="mt-2">
-                <Amount value={balances.deposits} size="lg" />
-              </div>
-            </Card>
-          ) : null}
-        </>
-      ) : null}
-
-      {/* The whole block is the app's own record, so it is editable from where it is shown
-          rather than from a settings screen somebody has to go looking for. */}
-      <Eyebrow>Investments</Eyebrow>
-      {holdings.total > 0 ? (
-        <>
-          <Card>
-            <div className="flex justify-between gap-2.5">
-              <div className="flex-1">
-                <div className="text-[15.5px] font-bold text-ink">What you hold</div>
-                {/* Prefer the SIP debits seen in the statement; fall back to what the holdings
-                    themselves declare, since a feed with no recognisable narration finds no
-                    debits and would otherwise report "nothing going in" over a live mandate. */}
-                <p className={`${META} mt-[3px]`}>
-                  {snapshot.commitments.investments > 0
-                    ? `${inr(snapshot.commitments.investments)}/month already going in`
-                    : holdings.sipMonthly > 0
-                      ? `${inr(holdings.sipMonthly)}/month going in, on your own record`
-                      : 'Nothing going in each month'}
-                </p>
-              </div>
-              <Amount value={holdings.total} size="md" />
-            </div>
-            <div className="mt-2">
-              <Leader label="Equity" value={inr(holdings.equity)} filled />
-              <Leader label="Debt and deposits" value={inr(holdings.debt)} filled />
-            </div>
-            <div className="mt-3.5">
-              <Button tone="secondary" size="sm" full onClick={onEditHoldings}>
-                <Pencil size={15} strokeWidth={2.5} />
-                Change what you own
-              </Button>
-            </div>
-          </Card>
-        </>
-      ) : (
-        <Card tint="clay">
-          <h2>Tell us what you already own</h2>
-          <p className={`${META} mt-1.5`}>
-            The bank has no record of your funds, deposits elsewhere or insurance. Without them we
-            cannot tell whether you already hold what we are about to suggest.
-          </p>
-          <div className="mt-3.5">
-            <Button size="sm" full onClick={onEditHoldings}>
-              <Plus size={16} strokeWidth={2.6} />
-              Add what you own
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="text-[15.5px] font-bold text-ink">Accounts at other banks</div>
-            <p className={`${META} mt-[3px]`}>
-              Link them and the plan works from all of your money, not just the part held here.
-            </p>
-          </div>
-          <Link2 size={19} strokeWidth={2.2} className="mt-0.5 flex-none text-accent-text" />
-        </div>
-        <div className="mt-3.5">
-          <Button tone="secondary" size="sm" full onClick={onLinkAccounts}>
-            Link an account
-          </Button>
-        </div>
-      </Card>
-
-      {debt.total > 0 ? (
-        <>
-          <Eyebrow>What you owe</Eyebrow>
-          <Card {...(debt.hasHighInterest ? ({ tint: 'clay' } as const) : {})}>
-            <div className="flex justify-between gap-2.5">
-              <div className="flex-1">
-                <div className="text-[15.5px] font-bold text-ink">Loans and cards</div>
-                {/* Terms come from 391 and 433, and IDBI holds them for one loan account out
-                    of five. "₹0/month at up to 0%" on a ₹6 lakh balance is not a fact about the
-                    loan, it is the absence of one. */}
-                <p className={`${META} mt-[3px]`}>
-                  {[
-                    debt.monthlyOutgo > 0 ? `${inr(debt.monthlyOutgo)}/month` : null,
-                    debt.highestRate > 0 ? `up to ${debt.highestRate}%` : null,
-                  ]
-                    .filter((part) => part !== null)
-                    .join(' at ') || 'The bank sends no rate or instalment for these'}
-                </p>
-              </div>
-              <Amount value={debt.total} size="md" />
-            </div>
-            {debt.endingSoon ? (
-              <p className={`${NOTE} mt-2.5`}>
-                Your {debt.endingSoon.loanType.toLowerCase()} ends in {debt.endingSoon.monthsLeft}{' '}
-                {debt.endingSoon.monthsLeft === 1 ? 'month' : 'months'}, freeing{' '}
-                {inr(debt.endingSoon.emiAmount)} a month.
-              </p>
-            ) : null}
-            {debt.missedRepayment ? (
-              <p className="m-0 mt-2.5 text-[13.5px] text-danger">
-                A repayment is past due. This blocks every investment recommendation until it is
-                cleared.
-              </p>
-            ) : null}
-          </Card>
-        </>
-      ) : null}
-
-      <Eyebrow>Protection</Eyebrow>
-      <Card {...(protection.gap > 0 ? ({ tint: 'clay' } as const) : {})}>
-        <div className="flex justify-between gap-2.5">
-          <div className="flex-1">
-            <div className="text-[15.5px] font-bold text-ink">Life cover in force</div>
-            {/* With nobody depending on the income there is no requirement to quote, and
-                "0 dependents · indicative need ₹0" reads as a calculation that failed rather
-                than as the right answer. */}
-            <p className={`${META} mt-[3px]`}>
-              {protection.dependents === 0
-                ? 'Nobody on record depends on your income'
-                : `${protection.dependents} ${protection.dependents === 1 ? 'dependent' : 'dependents'} · indicative need ${inr(protection.lifeCoverNeeded)}`}
-            </p>
-          </div>
-          <Amount value={protection.lifeCoverInForce} size="md" />
-        </div>
-        {protection.gap > 0 ? (
-          <p className={`${NOTE} mt-2.5`}>
-            {inr(protection.gap)} short of what your dependents would need. This comes before any
-            investment.
-          </p>
-        ) : null}
-      </Card>
-
-      <Eyebrow>Position</Eyebrow>
-      <Card tint="sage">
-        <div className="grid grid-cols-2 gap-2.5">
-          <Tile label="Reachable savings" value={balances.total} />
-          <Tile label="Invested" value={holdings.total} />
-          <Tile label="Owed" value={debt.total} />
-          <Tile label="Net" value={balances.total + holdings.total - debt.total} />
-        </div>
-      </Card>
-    </>
   )
 }
 
@@ -825,81 +607,5 @@ function Commitments({ snapshot }: { snapshot: Snapshot }): ReactNode {
         </Card>
       ))}
     </>
-  )
-}
-
-/* ---------------------------------------------------------------- One account */
-
-const ACCOUNT_PILL: Record<AccountRow['accountType'], string> = {
-  Savings: 'Savings',
-  Current: 'Current',
-  FD: 'Fixed deposit',
-  RD: 'Recurring deposit',
-  PPF: 'PPF',
-  NPS: 'NPS',
-}
-
-/**
- * One account, with the detail the aggregate threw away.
- *
- * The spendable figure is the bank's own `EFFAVL`, not the balance less the lien: on a current
- * account IDBI withholds a minimum balance on top of the lien, so the two are different numbers
- * and the smaller one is the true one. Shown only when it differs from the balance, because
- * "₹56,780 · ₹56,780 available" is noise.
- */
-function AccountCard({ account, index }: { account: AccountRow; index: number }): ReactNode {
-  const held =
-    account.effectiveAvailableBalance !== undefined &&
-    account.effectiveAvailableBalance < account.currentBalance
-      ? account.currentBalance - account.effectiveAvailableBalance
-      : 0
-  // Never more than what is actually withheld: a lien larger than the gap would mean the two
-  // figures disagree, and the smaller one is the one the customer can go and verify.
-  const lien = Math.min(held, account.lienAmount ?? 0)
-
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-2">
-        <p className={META}>
-          {account.accountNumberMasked.slice(-8)}
-          {account.branchIfsc ? ` · ${account.branchIfsc}` : ''}
-        </p>
-        <Pill>{ACCOUNT_PILL[account.accountType]}</Pill>
-      </div>
-      <div className="mt-2">
-        <Amount value={account.currentBalance} size="lg" paise />
-      </div>
-
-      {held > 0 ? (
-        <div className="mt-2.5">
-          <Leader
-            label="Yours to spend"
-            value={inr(account.effectiveAvailableBalance ?? 0)}
-            filled
-          />
-          {/* The lien is only part of it. On the current account IDBI withholds ₹2,000 of lien
-              and a further ₹3,000 of minimum balance, so calling the whole ₹5,000 a lien would
-              be wrong about a figure the customer could go and check. */}
-          {lien > 0 ? <Leader label="Held by a lien" value={`−${inr(lien)}`} /> : null}
-          {held - lien > 0.005 ? (
-            <Leader
-              label={lien > 0 ? 'Also held back' : 'Held back'}
-              value={`−${inr(held - lien)}`}
-            />
-          ) : null}
-        </div>
-      ) : null}
-
-      <p className={`${NOTE} mt-2.5`}>
-        {account.maturityDate !== undefined
-          ? `Matures ${dayMonth(account.maturityDate)} ${account.maturityDate.slice(0, 4)}`
-          : account.accountOpeningDate > '1970-01-01'
-            ? `Open since ${monthYear(account.accountOpeningDate)}`
-            : 'The bank sends no opening date for this one'}
-        {account.interestRate !== undefined ? ` · ${account.interestRate}%` : ''}
-      </p>
-      {/* Index is only here so the stagger has something to key on when the list is long. */}
-      <span hidden>{index}</span>
-    </Card>
   )
 }

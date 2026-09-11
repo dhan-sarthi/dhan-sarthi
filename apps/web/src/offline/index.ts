@@ -32,6 +32,7 @@ import type {
   Answer,
   AskSuggestions,
   CustomerSummary,
+  HoldingsResponse,
   SessionState,
   ShelfProduct,
   SpendCategory,
@@ -253,6 +254,32 @@ export function transactionsPage(
   const items = all.slice(start, start + limit)
   const next = start + limit
   return { items, nextCursor: next < all.length ? String(next) : null }
+}
+
+/* ---------------------------------------------------------------- Holdings */
+
+/**
+ * The declared holdings block, in the shape `GET /api/v1/holdings` answers.
+ *
+ * The Dashboard needs the rows and not just the snapshot's four totals, and without this the
+ * whole Holdings and Analytics half of the surface would be an error card on the tier a reviewer
+ * on hotel wifi actually sees. The generated customer file already carries them, so this is the
+ * same read `transactionsPage` is.
+ *
+ * `editable: false`, because it is: nothing offline is recorded, and the sheet that writes these
+ * rows has no endpoint to write to.
+ */
+export function holdings(state: OfflineState): HoldingsResponse {
+  const { file } = build(state)
+  const withIds = (rows: CustomerFile['holdings'], prefix: string): HoldingsResponse['holdings'] =>
+    rows.map((h, i) => ({ ...h, holdingId: `${prefix}-${i}` }))
+  return {
+    holdings: withIds(file.holdings, 'offline-h'),
+    policies: withIds(file.policies, 'offline-p'),
+    updatedAt: `${state.asOf}T00:00:00.000Z`,
+    totalValue: file.holdings.reduce((sum, h) => sum + h.currentValue, 0),
+    editable: false,
+  }
 }
 
 /* ---------------------------------------------------------------- Text tier */

@@ -55,6 +55,7 @@ export function Today({
   decisionsEnabled,
   busy,
   lead,
+  portfolio,
   onDecide,
   onAsk,
   onOpenProfile,
@@ -72,6 +73,16 @@ export function Today({
   busy: boolean
   /** What IDBI did with the last accepted recommendation, where one was handed over. */
   lead: LeadOutcomeResponse | null
+  /**
+   * The Dashboard's Overview block, rendered under the one action.
+   *
+   * The plan is the landing experience and it stays that way — `06-EXISTING-APP-MAP.md` §6 is
+   * explicit that demoting it to a card on a portfolio screen turns "one action at a time" into
+   * a widget. So the portfolio does not go above it or around it; it goes *after* the action,
+   * where the section break already is, and the number and the working end up one scroll apart
+   * instead of one tap. Left out, this screen is exactly what it was.
+   */
+  portfolio?: ReactNode
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
   /** Opens the declared profile. Also reachable from the app bar, which Dashboard draws. */
@@ -238,6 +249,9 @@ export function Today({
           {lead ? <p className={`${META} mt-2.5`}>{leadSentence(lead)}</p> : null}
         </Card>
       )}
+
+      {/* ------------------------------------------------ Where you stand */}
+      {portfolio}
 
       {/* ------------------------------------------------ Since you were away */}
       {plan.since.transactions.length > 0 ? (

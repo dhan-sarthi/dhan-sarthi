@@ -8,9 +8,10 @@
  *
  * The tabs are SmartWealth's destinations in the count this app already shipped, which
  * `07-DECISIONS.md` settles and `06-EXISTING-APP-MAP.md` argues for. Nothing was deleted to make
- * room: `Today` and `Money` are the four panes of Dashboard, `Plan` kept a slot of its own,
- * `Record` is pushed from More along with the three editing sheets that used to be reachable
- * only from a button halfway down another screen, and `Ask` is untouched.
+ * room: `Today` and `Money` are inside Dashboard's four panes — Overview · Holdings · Spending ·
+ * Analytics — `Plan` kept a slot of its own, `Record` is pushed from More along with the three
+ * editing sheets that used to be reachable only from a button halfway down another screen, and
+ * `Ask` is untouched.
  *
  * Everything the tabs show comes from one `View` the API computed for this reviewer's session.
  * The shell wires the hooks together — session, view, record, mutations, availability — and
@@ -34,12 +35,13 @@ import { HoldingsSheet } from './screens/HoldingsSheet.tsx'
 import { LinkAccountsSheet } from './screens/LinkAccountsSheet.tsx'
 import { GoalSheet } from './screens/GoalSheet.tsx'
 import { Ask } from './screens/Ask.tsx'
-import { Dashboard } from './screens/Dashboard.tsx'
+import { Dashboard } from './screens/dashboard/Dashboard.tsx'
 import { Discover } from './screens/Discover.tsx'
 import { More } from './screens/More.tsx'
 import { Pick } from './screens/Pick.tsx'
 import { Plan } from './screens/Plan.tsx'
 import { Onboarding } from './screens/Onboarding.tsx'
+import type { HoldingsSource } from './screens/dashboard/portfolio.ts'
 import { offlineAsk, serverAsk } from './lib/ask.ts'
 import { useAvailability } from './lib/availability.ts'
 import { useMutations } from './lib/mutations.ts'
@@ -107,6 +109,16 @@ export function App(): ReactNode {
                 ...(category ? { category } : {}),
               },
             }),
+    [offline],
+  )
+  /* The declared holdings block, the same way the statement is wired: the offline tier answers
+     from the ledger it generated, so the Dashboard has one code path rather than an empty
+     Holdings tab whenever the API is out of reach. */
+  const holdings = useMemo<HoldingsSource>(
+    () =>
+      offline
+        ? () => Promise.resolve(offline.mod.holdings(offline.state))
+        : () => api('getHoldings'),
     [offline],
   )
   const askBackend = useMemo(() => (offline ? offlineAsk(offline) : serverAsk), [offline])
@@ -231,6 +243,7 @@ export function App(): ReactNode {
           lead={m.lead}
           accounts={view.accounts}
           source={source}
+          holdings={holdings}
           caps={vs.session?.caps ?? []}
           capsEnabled={vs.tier === 'server'}
           onDecide={(action, kind) => void m.decide(action, kind)}
