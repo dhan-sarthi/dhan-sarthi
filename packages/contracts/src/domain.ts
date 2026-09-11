@@ -480,11 +480,31 @@ export const GoalKindSchema = z.enum([
   'retirement',
 ])
 
+/**
+ * Which rupees `Goal.targetAmount` is counted in. Absent means `today`.
+ *
+ * Optional rather than defaulted, and that is load-bearing on both sides of the wire: a
+ * goal written before this field existed has to come back out meaning exactly what it meant
+ * going in, and `core`'s `fundingRatePct` reads the absence itself. Defaulting it here would
+ * stamp `today` onto every historical roadmap version the moment it was read back.
+ */
+export const GoalAmountBasisSchema = z.enum(['today', 'at_horizon'])
+export type GoalAmountBasis = z.infer<typeof GoalAmountBasisSchema>
+
 export const GoalSchema = z.object({
   id: z.string(),
   kind: GoalKindSchema,
   purpose: z.string().optional(),
   targetAmount: MoneySchema,
+  /**
+   * `at_horizon` where the customer inflated the figure themselves and typed the rupees of
+   * the year it lands. The engine funds such a target at the nominal rate however long the
+   * horizon; discounting it again is the double-discount `core/roadmap.ts` describes.
+   *
+   * This schema is not `.strict()`, so it *strips* what it does not name — which is how the
+   * field could exist in the engine and reach no client at all.
+   */
+  amountBasis: GoalAmountBasisSchema.optional(),
   targetDate: IsoDateSchema,
   createdAt: IsoDateSchema,
 })
@@ -750,6 +770,13 @@ export const SessionStateSchema = z.object({
   asOf: IsoDateSchema,
   lastSeen: IsoDateSchema,
   goalTarget: MoneySchema.nullable(),
+  /**
+   * Which money `goalTarget` is in, or null where the customer never said — which reads as
+   * today's money, the same as an absent `Goal.amountBasis`. Nullable rather than optional
+   * because the override is a pair: an amount stored without the basis it was stated in is
+   * the half-carry that had the engine discounting an inflated target twice.
+   */
+  goalBasis: GoalAmountBasisSchema.nullable(),
   caps: z.array(CategoryCapSchema),
   scopeOverrides: z.array(ConsentScopeSchema),
   version: z.number().int(),

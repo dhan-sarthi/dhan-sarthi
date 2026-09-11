@@ -13,6 +13,7 @@ import type {
   AvatarProviderName,
   ClockRequest,
   ConsentScope,
+  GoalAmountBasis,
   IsoDate,
   SessionState,
 } from '@dhan/contracts'
@@ -100,6 +101,7 @@ export class SessionService {
       asOf: session.asOf,
       lastSeen: session.lastSeen,
       goalTarget: session.goalTarget,
+      goalBasis: session.goalBasis,
       caps: session.caps,
       scopeOverrides: session.scopeOverrides,
       version: session.version,
@@ -141,8 +143,20 @@ export class SessionService {
     return updated
   }
 
-  async setGoal(session: Session, targetAmount: number): Promise<Session> {
-    return this.patch(session, { goalTarget: targetAmount })
+  /**
+   * The customer's own target, and which money they stated it in.
+   *
+   * Both are written every time, and the basis is written even when the caller omits it —
+   * `null`, meaning today's money. Patching only what was sent would leave a stale
+   * `at_horizon` sitting under an amount the customer has since retyped in today's money,
+   * and the engine would fund it at the nominal rate for a reason nobody could see.
+   */
+  async setGoal(
+    session: Session,
+    targetAmount: number,
+    amountBasis?: GoalAmountBasis,
+  ): Promise<Session> {
+    return this.patch(session, { goalTarget: targetAmount, goalBasis: amountBasis ?? null })
   }
 
   /**

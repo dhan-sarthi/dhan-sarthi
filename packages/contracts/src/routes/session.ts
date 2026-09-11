@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ErrorBodySchema, MoneySchema, NoContentSchema } from '../common.ts'
-import { ConsentScopeSchema, SessionStateSchema } from '../domain.ts'
+import { ConsentScopeSchema, GoalAmountBasisSchema, SessionStateSchema } from '../domain.ts'
 import { SESSION_ERRORS, defineRoute } from '../route.ts'
 
 export const getSessionRoute = defineRoute({
@@ -55,7 +55,20 @@ export const advanceClockRoute = defineRoute({
   },
 })
 
-export const GoalPatchSchema = z.object({ targetAmount: MoneySchema.positive() }).strict()
+/**
+ * The customer's target, and which money they stated it in.
+ *
+ * `amountBasis` is optional and absent means `today`, so a client written before the field
+ * existed sends the same body and gets the same plan. Sending `at_horizon` says the customer
+ * has already inflated the figure themselves — the engine then funds it at the nominal rate
+ * however long the horizon, rather than taking that inflation straight back out.
+ */
+export const GoalPatchSchema = z
+  .object({
+    targetAmount: MoneySchema.positive(),
+    amountBasis: GoalAmountBasisSchema.optional(),
+  })
+  .strict()
 export type GoalPatch = z.infer<typeof GoalPatchSchema>
 
 export const setGoalRoute = defineRoute({
@@ -63,7 +76,7 @@ export const setGoalRoute = defineRoute({
   method: 'PATCH',
   path: '/api/v1/session/goal',
   summary:
-    'Override the suggested goal target. The next /view cuts a new roadmap version with reason "Target changed by the customer".',
+    'Override the suggested goal target, and say whether it is in today’s money or the rupees of the year it lands. The next /view cuts a new roadmap version with reason "Target changed by the customer".',
   auth: 'session',
   request: { body: GoalPatchSchema },
   response: { 200: SessionStateSchema, 400: ErrorBodySchema, ...SESSION_ERRORS },

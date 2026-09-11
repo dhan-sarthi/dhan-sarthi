@@ -19,11 +19,12 @@ import { describe, it } from 'node:test'
 import {
   buildRoadmap,
   compoundedOneOff,
+  fundingRatePct as coreFundingRatePct,
   derive,
   requiredMonthly as coreRequiredMonthly,
   suggestGoal,
 } from '@dhan/core'
-import type { Snapshot as CoreSnapshot } from '@dhan/core'
+import type { Goal as CoreGoal, Snapshot as CoreSnapshot } from '@dhan/core'
 import { PRIYA, PRODUCT_SHELF, ROHAN, SUNIL, generateCustomerFile } from '@dhan/fixtures'
 import type { PersonaSpec } from '@dhan/fixtures'
 import type { Roadmap, Snapshot } from '@dhan/contracts'
@@ -44,9 +45,13 @@ const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
 const snap = (spec: PersonaSpec): CoreSnapshot => derive(generateCustomerFile(spec, OPTS), ASOF)
 
 /** The engine's own output, in the shape the wire carries it in. Same object, narrower types. */
-function plan(spec: PersonaSpec, override: number | null = null): [Roadmap, Snapshot] {
+function plan(
+  spec: PersonaSpec,
+  override: number | null = null,
+  basis: CoreGoal['amountBasis'] | null = null,
+): [Roadmap, Snapshot] {
   const s = snap(spec)
-  const roadmap = buildRoadmap(s, suggestGoal(s, ASOF, override), PRODUCT_SHELF, ASOF)
+  const roadmap = buildRoadmap(s, suggestGoal(s, ASOF, override, basis), PRODUCT_SHELF, ASOF)
   return [roadmap as unknown as Roadmap, s as unknown as Snapshot]
 }
 
@@ -137,9 +142,10 @@ describe('status', () => {
 
   it('refuses a payoff date on a balance the payment does not beat', () => {
     /*
-     * The engine gives a never-clearing debt a `completesOn` anyway — `monthsToClear` returns
-     * null and `buildRoadmap` falls back to 120 months so the stage has a length. Rendering that
-     * as "clear by October 2036" is the promise core's own comment says will never arrive.
+     * The engine gives such a stage `monthsToComplete: 0`, so its `completesOn` lands back on
+     * `startsOn` — a start date, not a payoff date. Rendering it as "clear by October 2036"
+     * would be the promise core's own comment says will never arrive, and the card decides
+     * before it prints rather than trusting the field.
      */
     const [roadmap, snapshot] = plan(PRIYA)
     const debt = jars(roadmap, snapshot).find((j) => j.kind === 'clear_debt')
@@ -221,31 +227,95 @@ describe('the client mirror of the engine s arithmetic', () => {
     assert.equal(roadmap.feasible, true)
 
     const horizon = monthsBetween(ASOF, roadmap.goal.targetDate) / 12
-    const rate = fundingRatePct(roadmap.goal.kind, horizon)
+    const rate = fundingRatePct(roadmap.goal, horizon)
     const existing = existingTowards(roadmap.goal.kind, snapshot) ?? 0
     assert.equal(requiredMonthly(roadmap.goal.targetAmount, horizon, rate, existing), grow.monthly)
+  })
+
+  it('picks the same rate as core across every kind, basis and horizon', () => {
+    // The mirror, proved rather than asserted. ADR-0001 keeps the engine out of the main
+    // bundle, so this branch is written twice; the only defence against the two drifting is to
+    // run both. The basis is in the grid because it is the argument that was missing.
+    const kinds = [
+      'wealth_target',
+      'retirement',
+      'emergency_fund',
+      'debt_payoff',
+      'protection',
+    ] as const
+    for (const kind of kinds) {
+      for (const amountBasis of [undefined, 'today', 'at_horizon'] as const) {
+        for (const years of [0.5, 5, 9.99, 10, 15, 31]) {
+          const goal = { kind, ...(amountBasis === undefined ? {} : { amountBasis }) }
+          assert.equal(
+            fundingRatePct(goal, years),
+            coreFundingRatePct(goal, years),
+            `${kind}/${amountBasis ?? 'absent'} over ${years}y`,
+          )
+        }
+      }
+    }
+  })
+
+  it('quotes the nominal rate on a long target the customer already inflated', () => {
+    /*
+     * The defect this screen used to work around, from the screen's side.
+     *
+     * ₹25,00,000 fifteen years out, inflated by the customer at 5.5% to what the deposit will
+     * actually cost. Funded in real terms it demanded ₹20,733 a month; funded at the nominal
+     * rate — which is what an `at_horizon` target gets — it is ₹12,023. The screen quotes the
+     * second only because it can now say which money the amount is in.
+     */
+    const atHorizon = inflated(2_500_000, 15, 5.5)
+    assert.equal(atHorizon, 5_581_191)
+
+    const snapshot = snap(ROHAN)
+    const existing = snapshot.holdings.equity
+    const stated = { kind: 'wealth_target', amountBasis: 'at_horizon' } as const
+    const todaysMoney = { kind: 'wealth_target' } as const
+
+    assert.equal(fundingRatePct(stated, 15), 10)
+    assert.equal(fundingRatePct(todaysMoney, 15), 4.5)
+    assert.equal(requiredMonthly(atHorizon, 15, fundingRatePct(stated, 15), existing), 12_023)
+    assert.equal(requiredMonthly(atHorizon, 15, fundingRatePct(todaysMoney, 15), existing), 20_733)
+  })
+
+  it('leaves a goal with no basis on exactly the plan it had', () => {
+    // The compatibility claim, run end to end through the engine rather than asserted about
+    // the rate alone: an absent basis is `today`, and `today` is what every persona has always
+    // been funded as.
+    for (const spec of [ROHAN, PRIYA, SUNIL]) {
+      const [absent] = plan(spec)
+      const [today] = plan(spec, null, 'today')
+      assert.deepEqual(today.stages, absent.stages)
+      assert.equal(today.goal.amountBasis, undefined, 'no override, so no basis to record')
+    }
   })
 })
 
 describe('when inflation may move the target', () => {
-  it('refuses on a long growth horizon, where the engine funds in real terms', () => {
-    assert.equal(inflationMayMoveTarget('retirement', 31), false)
-    assert.equal(inflationMayMoveTarget('wealth_target', 10), false)
+  it('offers it on a long growth horizon, which is where it matters most', () => {
+    // The lifted guard. This returned false until `Goal.amountBasis` gave the engine a way to
+    // be told, and the refusal landed on exactly the horizons inflation dominates.
+    assert.equal(inflationMayMoveTarget('retirement'), true)
+    assert.equal(inflationMayMoveTarget('wealth_target'), true)
   })
 
-  it('allows it on a short one, where the engine funds at the nominal rate', () => {
-    assert.equal(inflationMayMoveTarget('wealth_target', 5), true)
-    assert.equal(inflationMayMoveTarget('emergency_fund', 2), true)
+  it('offers it on a short one too, as it always did', () => {
+    assert.equal(inflationMayMoveTarget('emergency_fund'), true)
+    assert.equal(inflationMayMoveTarget('protection'), true)
   })
 
   it('refuses on a balance owed, which accrues rather than inflates', () => {
-    assert.equal(inflationMayMoveTarget('debt_payoff', 3), false)
+    assert.equal(inflationMayMoveTarget('debt_payoff'), false)
   })
 
   it('takes the rate branch out of the engine with it', () => {
-    assert.equal(fundingRatePct('retirement', 31), 4.5)
-    assert.equal(fundingRatePct('wealth_target', 5), 10)
-    assert.equal(fundingRatePct('emergency_fund', 2), 6.9)
+    assert.equal(fundingRatePct({ kind: 'retirement' }, 31), 4.5)
+    assert.equal(fundingRatePct({ kind: 'wealth_target' }, 5), 10)
+    assert.equal(fundingRatePct({ kind: 'emergency_fund' }, 2), 6.9)
+    // And the branch the guard exists to make safe: an inflated target, at the nominal rate.
+    assert.equal(fundingRatePct({ kind: 'retirement', amountBasis: 'at_horizon' }, 31), 10)
   })
 })
 

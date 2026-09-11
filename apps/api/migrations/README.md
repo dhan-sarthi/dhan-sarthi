@@ -20,6 +20,7 @@ demo-critical subset of that DDL, adapted to the reviewer-session model in
 | `0006_app_engine.sql`       | `snapshots`, `roadmap_versions`, `verdicts`, `actions`, `audit_records` (hash chain), `decisions`, `avatar_sessions`, `avatar_tool_calls`, `avatar_leases`, `avatar_waitlist`                                                                   |
 | `0007_views_security.sql`   | the `*_current` views, `customer_360`, `liabilities_current`, grants and REVOKEs for `dhan_app`, default privileges, RLS policies                                                                                                                |
 | `0008_roadmap_at_sim_display_order.sql` | additive: `roadmap_versions.at_sim` (the simulated date a version was cut at; older rows read `roadmap->>'createdAt'`) and `scope_overrides`; `customers.display_order` for the picker, backfilled once for rows seeded before it existed |
+| `0009_session_goal_basis.sql` | additive: `sessions.goal_basis` — whether the reviewer's `goal_target` is in today's money or the rupees of the year it lands. Null reads as today, so rows older than the column keep the plan they had |
 
 ## Decisions worth knowing before you add a migration
 

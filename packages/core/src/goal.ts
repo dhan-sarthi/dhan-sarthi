@@ -10,9 +10,26 @@
  * API, the avatar brief and the screens all have to propose the same one.
  */
 import type { Snapshot } from './derive.ts'
-import type { Goal } from './roadmap.ts'
+import type { Goal, GoalAmountBasis } from './roadmap.ts'
 
-export function suggestGoal(snapshot: Snapshot, asOf: string, override: number | null): Goal {
+/**
+ * The default goal, or the customer's own amount in place of the proposed one.
+ *
+ * `overrideBasis` says which money that amount is in and is only meaningful beside an
+ * `override`: every figure this function *proposes* is in today's money, for the reason the
+ * retirement branch records below. It is spread in only when given, so a session that has
+ * never stated a basis produces byte for byte the goal it always produced — and `Goal`
+ * reads an absent `amountBasis` as `today`, which is what that goal has always meant.
+ */
+export function suggestGoal(
+  snapshot: Snapshot,
+  asOf: string,
+  override: number | null,
+  overrideBasis: GoalAmountBasis | null = null,
+): Goal {
+  const basis: Pick<Goal, 'amountBasis'> =
+    override !== null && overrideBasis !== null ? { amountBasis: overrideBasis } : {}
+
   const monthlyOutflow = snapshot.commitments.total + snapshot.discretionary.monthly
 
   /*
@@ -37,6 +54,7 @@ export function suggestGoal(snapshot: Snapshot, asOf: string, override: number |
       kind: 'debt_payoff',
       purpose: 'Clear the expensive debt',
       targetAmount: override ?? snapshot.debt.total,
+      ...basis,
       targetDate: `${Number(asOf.slice(0, 4)) + 3}${asOf.slice(4)}`,
       createdAt: asOf,
     }
@@ -50,6 +68,7 @@ export function suggestGoal(snapshot: Snapshot, asOf: string, override: number |
       kind: 'emergency_fund',
       purpose: 'Six months of breathing room',
       targetAmount: override ?? Math.round(monthlyBasis * 6),
+      ...basis,
       targetDate: `${Number(asOf.slice(0, 4)) + 2}${asOf.slice(4)}`,
       createdAt: asOf,
     }
@@ -71,6 +90,7 @@ export function suggestGoal(snapshot: Snapshot, asOf: string, override: number |
     kind: 'retirement',
     purpose: 'Enough to stop working at 60',
     targetAmount: override ?? Math.round(target / 500_000) * 500_000,
+    ...basis,
     targetDate: `${Number(asOf.slice(0, 4)) + yearsTo60}${asOf.slice(4)}`,
     createdAt: asOf,
   }

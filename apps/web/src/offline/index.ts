@@ -126,6 +126,7 @@ export function sessionState(state: OfflineState): SessionState {
     asOf: state.asOf,
     lastSeen: state.lastSeen,
     goalTarget: null,
+    goalBasis: null,
     caps: [],
     scopeOverrides: [],
     version: state.version,

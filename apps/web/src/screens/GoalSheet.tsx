@@ -60,7 +60,19 @@ export function GoalSheet({
     setBusy(true)
     setError(null)
     try {
-      await api('setGoal', { body: { targetAmount: Math.round(target) } })
+      /*
+       * The basis rides along unchanged, because this sheet moves the amount and not the money
+       * it is in. A customer who inflated their target on the create screen and then nudges the
+       * slider here is still aiming at a figure in the rupees of the year it lands; dropping the
+       * basis would quietly re-read the same number as today's money and roughly treble the
+       * monthly, for a reason the slider never mentioned.
+       */
+      await api('setGoal', {
+        body: {
+          targetAmount: Math.round(target),
+          ...(roadmap.goal.amountBasis ? { amountBasis: roadmap.goal.amountBasis } : {}),
+        },
+      })
       onSaved('Target changed. A new version of the plan is on the record.')
       onClose()
     } catch (err) {
@@ -107,8 +119,14 @@ export function GoalSheet({
           <div className="text-[32px] font-bold leading-none tracking-tight tabular-nums text-ink">
             {approx(target)}
           </div>
+          {/* Which money, read off the goal rather than assumed — the slider keeps whichever
+              the target was already stated in, and saying the wrong one here would make the
+              figure above mean something it does not. */}
           <p className="m-0 mt-1.5 text-[13px] text-ink-soft">
-            by {roadmap.goal.targetDate.slice(0, 4)}, in today&rsquo;s money
+            by {roadmap.goal.targetDate.slice(0, 4)},{' '}
+            {roadmap.goal.amountBasis === 'at_horizon'
+              ? `in ${roadmap.goal.targetDate.slice(0, 4)} rupees`
+              : 'in today’s money'}
           </p>
           <p className="m-0 mt-3 text-[14px] font-semibold leading-snug text-ink">
             {inr(Math.round(shownPerMonth))} a month for {months}{' '}

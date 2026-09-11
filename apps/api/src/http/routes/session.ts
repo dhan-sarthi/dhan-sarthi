@@ -15,7 +15,7 @@ export function sessionRoutes(r: Registrar, s: AppServices): void {
   )
 
   r(routeById('setGoal'), async ({ session, body }) =>
-    s.sessions.state(await s.sessions.setGoal(session, body.targetAmount)),
+    s.sessions.state(await s.sessions.setGoal(session, body.targetAmount, body.amountBasis)),
   )
 
   r(routeById('setCategoryCap'), async ({ session, body }) =>

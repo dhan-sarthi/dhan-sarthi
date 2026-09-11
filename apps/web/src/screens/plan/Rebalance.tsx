@@ -681,7 +681,7 @@ function GrowthTopUp({
 }): ReactNode {
   const { roadmap, snapshot } = view
   const years = Math.max(0.25, Math.round((stage.monthsToComplete / 12) * 100) / 100)
-  const ratePct = fundingRatePct(roadmap.goal.kind, years)
+  const ratePct = fundingRatePct(roadmap.goal, years)
   const target = stage.targetAmount
   const existing = stage.kind === 'grow' ? snapshot.holdings.equity : snapshot.balances.total
   const nowMonthly = stage.kind === 'grow' ? running : stage.monthly

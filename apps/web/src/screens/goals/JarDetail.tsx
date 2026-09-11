@@ -64,7 +64,7 @@ export function JarDetail({
   const marketLinked =
     jar.kind === 'grow' &&
     (roadmap.goal.kind === 'wealth_target' || roadmap.goal.kind === 'retirement')
-  const ratePct = marketLinked ? fundingRatePct(roadmap.goal.kind, years) : DEPOSIT_RATE_PCT
+  const ratePct = marketLinked ? fundingRatePct(roadmap.goal, years) : DEPOSIT_RATE_PCT
 
   /*
    * The server's own band for the goal, and a single-rate illustration for the rest.

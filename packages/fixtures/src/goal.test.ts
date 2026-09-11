@@ -72,6 +72,27 @@ describe('the suggested goal', () => {
     assert.equal(suggestGoal(settled, ASOF, 7_500_000).targetAmount, 7_500_000)
   })
 
+  it('records which money the customer stated their target in, on every branch', () => {
+    const thin: Snapshot = { ...settled, buffer: { ...settled.buffer, monthsCovered: 1 } }
+    for (const snapshot of [priya, thin, settled]) {
+      assert.equal(suggestGoal(snapshot, ASOF, 5_581_191, 'at_horizon').amountBasis, 'at_horizon')
+      assert.equal(suggestGoal(snapshot, ASOF, 5_581_191, 'today').amountBasis, 'today')
+    }
+  })
+
+  it('leaves the basis off a goal nobody stated an amount for', () => {
+    /*
+     * Absence is the whole compatibility story, so it is asserted as absence rather than as
+     * "today". Every figure this function *proposes* is in today's money — the retirement
+     * branch says why, at length — and a basis on a proposal would be the app claiming the
+     * customer said something they never said.
+     */
+    const proposed = suggestGoal(settled, ASOF, null, 'at_horizon')
+    assert.ok(!('amountBasis' in proposed))
+    assert.deepEqual(proposed, suggestGoal(settled, ASOF, null))
+    assert.ok(!('amountBasis' in suggestGoal(settled, ASOF, 7_500_000)))
+  })
+
   it('is a pure function of its inputs', () => {
     assert.deepEqual(suggestGoal(rohan, ASOF, null), suggestGoal(rohan, ASOF, null))
     assert.notEqual(

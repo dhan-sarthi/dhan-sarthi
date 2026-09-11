@@ -243,9 +243,14 @@ export const REAL_RATE_HORIZON_YEARS = 10
  * - **Everything else** — the nominal rate. That includes a growth goal whose amount is
  *   `at_horizon`: the customer has already put the inflation in, and taking it out again here
  *   is the double-discount this branch exists to avoid.
+ *
+ * The parameter is spelled out rather than `Pick<Goal, …>` so a goal that has come off the wire
+ * can be handed straight to it. Under `exactOptionalPropertyTypes` a zod optional infers as
+ * `?: T | undefined`, which `?: T` will not accept — and this function's whole reason for being
+ * exported is that callers on the other side of the API ask it rather than reimplement it.
  */
 export function fundingRatePct(
-  goal: Pick<Goal, 'kind' | 'amountBasis'>,
+  goal: { kind: GoalKind; amountBasis?: GoalAmountBasis | undefined },
   horizonYears: number,
   options?: Partial<Pick<RoadmapOptions, 'growthRatePct' | 'inflationPct' | 'depositRatePct'>>,
 ): number {

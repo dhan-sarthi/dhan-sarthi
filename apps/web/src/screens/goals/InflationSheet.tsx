@@ -8,21 +8,24 @@
  * `inflated()` in `lib/projection.ts`, the inverse of the real-terms line the projection band
  * already draws, compounded annually because that is how an inflation rate is quoted.
  *
- * ## The one place this refuses the reference
+ * ## What the button now means, and what it used to have to refuse
  *
- * `packages/core/src/goal.ts` states targets in **today's money** on purpose, and records what
- * happened when it did not: a retirement number inflated forward to 60 came out at ₹11.48 crore,
- * overflowed the card, read as absurd and made every plan infeasible. So the engine funds a
- * long-horizon target at the *real* rate — nominal less inflation — and `Goal` carries no field
- * saying which money an amount is in.
+ * `packages/core/src/goal.ts` *proposes* targets in **today's money** on purpose, and records
+ * what happened when it did not: a retirement number inflated forward to 60 came out at ₹11.48
+ * crore, overflowed the card, read as absurd and made every plan infeasible. The engine funds
+ * such a target at the *real* rate — nominal less inflation — which is right for a figure in
+ * rupees the customer recognises now.
  *
- * That makes the reference's button safe under ten years and wrong above it. Under ten years the
- * engine funds at the nominal rate, so a target restated in the rupees of the year it lands is
- * funded correctly, and "what the car costs in 2031" is the truer thing to save for. At ten years
- * and beyond, handing the engine an inflated target has it discount for inflation a second time:
- * the customer would be told to save far more than they need for a reason nobody could see. So
- * the sheet still shows both figures — the question is a fair one and the answer is interesting —
- * and offers to move the target only where moving it is right.
+ * It was wrong for a figure the customer had already inflated, and until `Goal.amountBasis`
+ * existed there was no way to tell the two apart. So this sheet showed the adjusted amount
+ * beyond ten years but would not let anyone use it: handing the engine an inflated target had
+ * it discount the same price rises twice and quote a contribution most of the way to double.
+ * Refusing at ten years and beyond meant refusing exactly where inflation matters most.
+ *
+ * The basis now travels — screen to `GoalPatch` to the session to `buildRoadmap` — so taking
+ * the adjusted amount states an `at_horizon` target and the engine funds it at the full assumed
+ * return, at any horizon. The sheet offers, unconditionally, and the caller does not mount it
+ * where the question is meaningless: a balance owed accrues, it does not inflate.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -47,8 +50,6 @@ export function InflationSheet({
   onClose,
   amount,
   years,
-  /** False on a ten-year-plus growth target. See the header. */
-  mayMoveTarget,
   onUseAdjusted,
 }: {
   open: boolean
@@ -56,7 +57,7 @@ export function InflationSheet({
   /** The amount as typed, in today's money. */
   amount: number
   years: number
-  mayMoveTarget: boolean
+  /** Taking the adjusted figure restates the target at the horizon. The caller has to say so. */
   onUseAdjusted: (adjusted: number, ratePct: number) => void
 }): ReactNode {
   const [rate, setRate] = useState(() => nearestRate(INFLATION_PCT))
@@ -69,26 +70,20 @@ export function InflationSheet({
       title="Inflation adjustment"
       sub={`What ${inr(amount)} today costs in ${years < 1 ? 'under a year' : `${Math.round(years)} years`}`}
       footer={
-        mayMoveTarget ? (
-          <>
-            <Button
-              full
-              onClick={() => {
-                onUseAdjusted(adjusted, rate)
-                onClose()
-              }}
-            >
-              Use the adjusted amount
-            </Button>
-            <div className="mt-1.5 flex justify-center">
-              <TextLink onClick={onClose}>Keep the original amount</TextLink>
-            </div>
-          </>
-        ) : (
-          <Button full onClick={onClose}>
-            Keep today&rsquo;s amount
+        <>
+          <Button
+            full
+            onClick={() => {
+              onUseAdjusted(adjusted, rate)
+              onClose()
+            }}
+          >
+            Use the adjusted amount
           </Button>
-        )
+          <div className="mt-1.5 flex justify-center">
+            <TextLink onClick={onClose}>Keep the original amount</TextLink>
+          </div>
+        </>
       }
     >
       <div className="pt-1">
@@ -132,16 +127,11 @@ export function InflationSheet({
         </div>
 
         <p className="mb-1 mt-4 text-xs leading-relaxed text-ink-soft">
-          {mayMoveTarget
-            ? `Prices rise while you save, so ${inr(amount)} of something today is ` +
-              `${inr(adjusted)} of it by the time you buy. Taking the adjusted amount aims at the ` +
-              `second figure; your plan funds a target of this length at the full assumed return, ` +
-              `so nothing is counted twice.`
-            : `Over a horizon this long your plan already handles inflation, and it handles it in ` +
-              `the projection rather than in the target: the target stays in money you recognise ` +
-              `today and the contribution is sized at the return net of inflation. Moving the ` +
-              `target as well would charge you for the same price rises twice, which is why the ` +
-              `figure above is here to look at and not to save into.`}
+          Prices rise while you save, so {inr(amount)} of something today is {inr(adjusted)} of it
+          by the time you buy. Taking the adjusted amount aims at the second figure, and your plan
+          is told the target is in future rupees rather than today&rsquo;s — so it funds it at the
+          full assumed return and nothing is counted twice. Keep the original and the target stays
+          in money you recognise now, with the price rises handled in the projection instead.
         </p>
       </div>
     </Sheet>

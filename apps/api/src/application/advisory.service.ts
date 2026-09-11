@@ -217,7 +217,7 @@ export class AdvisoryService {
       stored,
       snapshotSource,
       snapshot: stored.snapshot,
-      goal: suggestGoal(stored.snapshot, session.asOf, session.goalTarget),
+      goal: suggestGoal(stored.snapshot, session.asOf, session.goalTarget, session.goalBasis),
       shelfProducts,
       latest,
       ledgerHorizon,

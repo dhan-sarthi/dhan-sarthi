@@ -7,7 +7,13 @@
  * Implemented by `adapters/postgres/session-store.postgres.ts` (`subjects`, `sessions`,
  * `idempotency_keys`; optimistic `version` column) and `adapters/memory/session-store.memory.ts`.
  */
-import type { CategoryCap, ConsentScope, IsoDate, Timestamp } from '@dhan/contracts'
+import type {
+  CategoryCap,
+  ConsentScope,
+  GoalAmountBasis,
+  IsoDate,
+  Timestamp,
+} from '@dhan/contracts'
 
 export interface Session {
   id: string
@@ -20,6 +26,13 @@ export interface Session {
   /** When the customer last opened the app, for "since you were away". */
   lastSeen: IsoDate
   goalTarget: number | null
+  /**
+   * Which money `goalTarget` is in, or null where the customer never said — read as today's
+   * money, exactly as an absent `Goal.amountBasis` is. Stored beside the amount rather than
+   * inferred from it: a figure the customer inflated themselves and one in today's money are
+   * the same number on the wire and want opposite funding rates.
+   */
+  goalBasis: GoalAmountBasis | null
   caps: CategoryCap[]
   /** Consent scopes the reviewer has withdrawn for this session. */
   scopeOverrides: ConsentScope[]
@@ -46,6 +59,7 @@ export interface SessionPatch {
   asOf?: IsoDate
   lastSeen?: IsoDate
   goalTarget?: number | null
+  goalBasis?: GoalAmountBasis | null
   caps?: CategoryCap[]
   scopeOverrides?: ConsentScope[]
 }

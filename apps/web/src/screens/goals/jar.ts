@@ -49,10 +49,12 @@ export interface Jar {
   /**
    * Whether `by` is a date that will actually arrive.
    *
-   * False on a debt whose payment does not beat the interest accruing on it. `monthsToClear`
-   * returns null there and `buildRoadmap` falls back to 120 months so the stage has *a* length —
-   * so `completesOn` on such a stage is a payoff date that never comes, which core's own comment
-   * calls the single easiest way to lose a room of bankers. Nothing draws it.
+   * False on a debt whose payment does not beat the interest accruing on it. The engine says so
+   * in the stage's own numbers — `monthsToComplete` of zero, and `completesOn` landing back on
+   * `startsOn` — because there is no month in which a balance that grows every month is clear.
+   * `by` is then that same start date wearing a completion label, so nothing draws it. Tested
+   * against the engine rather than trusted: this flag is the card's own arithmetic, run so the
+   * status can be decided before a date is rendered.
    */
   dated: boolean
   status: JarStatus
@@ -208,37 +210,52 @@ export function addMonths(from: string, months: number): string {
 /**
  * The rate the plan will fund this target at, once it is saved.
  *
- * Mirrors the branch in `buildRoadmap`'s goal stage, and it has to: the create screen quotes a
- * monthly figure and the roadmap quotes one a second later, and a customer who sees two is right
- * to stop believing either. A long target stated in today's money is funded at the *real* rate —
- * nominal less inflation — because inflating the target instead is the thing `goal.ts` refused to
- * do. Under ten years the engine uses the nominal rate, and a goal it funds with a deposit uses
- * the contractual one.
+ * Mirrors `fundingRatePct` in `packages/core/src/roadmap.ts`, argument for argument, and it has
+ * to: the create screen quotes a monthly figure and the roadmap quotes one a second later, and a
+ * customer who sees two is right to stop believing either. The main bundle may not import the
+ * engine (ADR-0001), so the branch is written twice and `jar.test.ts` runs both.
+ *
+ * It takes the goal rather than its kind because the kind is no longer enough to answer. A long
+ * target stated in **today's money** is funded at the *real* rate — nominal less inflation —
+ * because inflating the target instead is the thing `goal.ts` refused to do. A target the
+ * customer already inflated themselves is `at_horizon`, and taking that inflation back out here
+ * is the double-discount the engine now exists to avoid. Under ten years both are the nominal
+ * rate anyway, and a goal funded with a deposit uses the contractual one.
  */
 export const GROWTH_RATE_PCT = 10
 export const INFLATION_PCT = 5.5
 export const DEPOSIT_RATE_PCT = 6.9
+/** Beyond this many years a target in today's money is funded in real terms. Core's constant. */
+export const REAL_RATE_HORIZON_YEARS = 10
 
-export function fundingRatePct(kind: Goal['kind'], horizonYears: number): number {
-  const wantsGrowth = kind === 'wealth_target' || kind === 'retirement'
+export function fundingRatePct(
+  goal: { kind: Goal['kind']; amountBasis?: Goal['amountBasis'] },
+  horizonYears: number,
+): number {
+  const wantsGrowth = goal.kind === 'wealth_target' || goal.kind === 'retirement'
   if (!wantsGrowth) return DEPOSIT_RATE_PCT
-  return horizonYears >= 10 ? GROWTH_RATE_PCT - INFLATION_PCT : GROWTH_RATE_PCT
+
+  const inTodaysMoney = (goal.amountBasis ?? 'today') === 'today'
+  return inTodaysMoney && horizonYears >= REAL_RATE_HORIZON_YEARS
+    ? GROWTH_RATE_PCT - INFLATION_PCT
+    : GROWTH_RATE_PCT
 }
 
 /**
  * Whether the target may be restated in the rupees of the year it lands.
  *
- * Under ten years, yes: the engine funds the target at the nominal rate, so a nominal target is
- * funded correctly and "what the car costs in 2031" is the truer number to save for. At ten years
- * and beyond the engine funds in real terms *on purpose* — `goal.ts` records why, and it is the
- * decision that stopped a retirement plan quoting ₹11.48 crore — so an inflated target would be
- * discounted for inflation a second time and every plan would read as infeasible. There is no
- * field on `Goal` saying which money an amount is in, so the screen has to hold the line instead.
+ * This used to refuse beyond ten years, which is exactly where inflation matters most, and the
+ * refusal was honest at the time: the engine funded any long target in real terms because `Goal`
+ * had no field saying which money an amount was in, so handing it an inflated figure had it
+ * discount the same price rises a second time. `Goal.amountBasis` now says, `GoalPatch` carries
+ * it and the session stores it, so the screen no longer has to hold a line the wire can hold.
+ * A customer who takes the adjusted amount is stating an `at_horizon` target and the engine
+ * funds it at the nominal rate, whatever the horizon.
+ *
+ * One case still refuses, and it is not about horizons at all: a balance owed does not inflate.
+ * It accrues, at a rate the plan already amortises against, and dressing that up as inflation
+ * would be two different arithmetics wearing one label.
  */
-export function inflationMayMoveTarget(kind: Goal['kind'], horizonYears: number): boolean {
-  // A balance owed does not inflate. It accrues, at a rate the plan already amortises against,
-  // and dressing that up as inflation would be two different arithmetics wearing one label.
-  if (kind === 'debt_payoff') return false
-  const wantsGrowth = kind === 'wealth_target' || kind === 'retirement'
-  return !wantsGrowth || horizonYears < 10
+export function inflationMayMoveTarget(kind: Goal['kind']): boolean {
+  return kind !== 'debt_payoff'
 }

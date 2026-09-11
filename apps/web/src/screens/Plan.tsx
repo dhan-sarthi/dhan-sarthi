@@ -92,6 +92,8 @@ export function Plan({
   const [rebalancing, setRebalancing] = useState(false)
 
   const growth = roadmap.stages.find((s) => s.kind === 'grow')
+  /** The customer inflated the target themselves, so every figure it is read against is nominal. */
+  const atHorizon = roadmap.goal.amountBasis === 'at_horizon'
   const contribution = roadmap.projection?.monthlyContribution ?? growth?.monthly ?? 0
   const years =
     roadmap.projection?.years ?? Math.max(1, Math.round((growth?.monthsToComplete ?? 360) / 12))
@@ -188,8 +190,14 @@ export function Plan({
           <div className="mb-1 mt-3 text-[34px] font-bold leading-none tracking-tight tabular-nums text-on-dark">
             {approx(roadmap.goal.targetAmount)}
           </div>
+          {/* Which money the figure above is in, said rather than assumed. It used to read
+              "in today's money" unconditionally, which was true of every goal the engine could
+              hold; a customer who takes the inflation adjustment on the create screen is now
+              stating a target in the rupees of the year it lands, and a card that called that
+              today's money would be wrong by three decades of prices. */}
           <p className="m-0 text-[13px] text-on-dark/80">
-            {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)}, in today&rsquo;s money
+            {roadmap.goal.purpose} by {monthYear(roadmap.goal.targetDate)},{' '}
+            {atHorizon ? `in ${roadmap.goal.targetDate.slice(0, 4)} rupees` : 'in today’s money'}
           </p>
           {!roadmap.feasible ? (
             <p className="mb-0 mt-3 text-[13.5px] leading-normal text-on-dark/85">
@@ -234,13 +242,24 @@ export function Plan({
         <>
           <Eyebrow>If you keep it up</Eyebrow>
           <Card>
-            {/* Today's money leads, because the goal above is stated in today's money and the two
-                have to be comparable. Quoting the nominal figure first invites someone to read
-                ₹3.15 crore against a ₹2.18 crore target and conclude they are ahead. */}
-            <h2>{approx(mid?.realCorpus ?? 0)}</h2>
+            {/*
+             * Whichever money the target is in leads, because the target is the last row of the
+             * list below and the two have to be comparable.
+             *
+             * For a target in today's money that is the real-terms corpus: quoting the nominal
+             * figure first invites someone to read ₹3.15 crore against a ₹2.18 crore target and
+             * conclude they are ahead. For a target the customer inflated to the year it lands
+             * the same reasoning runs the other way — a real-terms corpus under a nominal target
+             * reads as a shortfall that is not there — so the nominal figure leads instead and
+             * the other one is the aside.
+             */}
+            <h2>{approx((atHorizon ? mid?.corpus : mid?.realCorpus) ?? 0)}</h2>
             <p className={META}>
-              in today&rsquo;s money, after {years} years at an assumed {rate}% — which is{' '}
-              {approx(mid?.corpus ?? 0)} in {Number(asOf.slice(0, 4)) + years} rupees
+              {atHorizon
+                ? `in ${Number(asOf.slice(0, 4)) + years} rupees, after ${years} years at an assumed ${rate}% — which is `
+                : `in today’s money, after ${years} years at an assumed ${rate}% — which is `}
+              {approx((atHorizon ? mid?.realCorpus : mid?.corpus) ?? 0)}
+              {atHorizon ? ' in today’s money' : ` in ${Number(asOf.slice(0, 4)) + years} rupees`}
             </p>
 
             <div className="mb-1.5 mt-[18px]">
@@ -248,7 +267,7 @@ export function Plan({
                 <Leader
                   key={sc.label}
                   label={`${sc.label} · ${sc.ratePct}%`}
-                  value={approx(sc.realCorpus)}
+                  value={approx(atHorizon ? sc.corpus : sc.realCorpus)}
                   filled={sc.ratePct === rate}
                 />
               ))}

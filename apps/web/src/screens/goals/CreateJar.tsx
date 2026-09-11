@@ -9,17 +9,24 @@
  *
  * ## What is actually written
  *
- * `PATCH /api/v1/session/goal` takes one field: `targetAmount`. So the amount is real, the plan
- * is re-cut against it and a new roadmap version is kept with the reason — and the name, the
- * date and the funding split are live inputs that drive every figure on screen and are then let
- * go. That is stated on the screen rather than hidden, and it is not papered over by keeping a
- * second copy of a goal in the browser: two stores would put two answers on screen and the wrong
- * one would be the pretty one. The missing fields are named in the handover, not invented here.
+ * `PATCH /api/v1/session/goal` takes two fields: `targetAmount`, and `amountBasis` saying which
+ * money it is in. So the amount is real, the plan is re-cut against it and a new roadmap version
+ * is kept with the reason — and the name, the date and the funding split are live inputs that
+ * drive every figure on screen and are then let go. That is stated on the screen rather than
+ * hidden, and it is not papered over by keeping a second copy of a goal in the browser: two
+ * stores would put two answers on screen and the wrong one would be the pretty one. The missing
+ * fields are named in the handover, not invented here.
+ *
+ * The basis is the half that used to go missing. A customer who takes the inflation adjustment
+ * is not typing a bigger number in today's money — they are stating what the thing will cost in
+ * the year they buy it, and the engine has to be told, or it discounts those price rises a
+ * second time and asks for a contribution most of the way to double.
  *
  * ## Why the numbers here match the plan that follows
  *
  * `requiredMonthly` in `lib/projection.ts` is core's function line for line, and `fundingRatePct`
- * in `jar.ts` is the rate branch out of `buildRoadmap`'s goal stage. A customer who is quoted
+ * in `jar.ts` is the rate branch out of `buildRoadmap`'s goal stage — including the basis, so the
+ * rate on this screen moves the moment the adjustment is applied. A customer who is quoted
  * ₹18,400 a month here and ₹22,000 on Plan a second later is right to stop believing both.
  */
 import { useState } from 'react'
@@ -78,8 +85,18 @@ export function CreateJar({
   const totalMonths = Math.max(1, years * 12 + months)
   const horizonYears = totalMonths / 12
   const by = addMonths(asOf, totalMonths)
-  const ratePct = fundingRatePct(goal.kind, horizonYears)
-  const mayInflate = inflationMayMoveTarget(goal.kind, horizonYears)
+  /*
+   * Which money the amount in the field is in, and it is the adjustment that decides.
+   *
+   * Applying the inflation sheet's figure restates the target in the rupees of the year it
+   * lands, so from that moment the goal is `at_horizon` and the engine funds it at the full
+   * assumed return. Clearing the adjustment — or typing over the amount, which clears it —
+   * puts it back in today's money. The same value is quoted from here and saved below, so the
+   * rate on screen is the rate the plan will use rather than a guess at it.
+   */
+  const amountBasis = adjustment ? 'at_horizon' : 'today'
+  const ratePct = fundingRatePct({ kind: goal.kind, amountBasis }, horizonYears)
+  const mayInflate = inflationMayMoveTarget(goal.kind)
 
   /* What already counts towards this target, and therefore what the recommendation may lean on:
      the invested corpus for a growth goal, the reachable balances for a buffer. */
@@ -96,11 +113,12 @@ export function CreateJar({
   /*
    * Whether the balance actually clears, and this is not a nicety.
    *
-   * `monthsToClear` returns null where the payment does not beat the interest, and `buildRoadmap`
-   * then falls back to 120 months so the stage has *a* length — which means `completesOn` on a
-   * debt that never clears is a date that will never arrive. Printing it as "clear by October
-   * 2036" is the exact thing core's own comment says is not a rounding error. Same test as core's:
-   * the payment against the interest at the current balance.
+   * `monthsToClear` returns null where the payment does not beat the interest, and the engine
+   * gives such a stage `monthsToComplete: 0` — so `completesOn` lands back on `startsOn` and is
+   * a start date, not a payoff date. Printing it as "clear by October 2036" would be the exact
+   * thing core's own comment says is not a rounding error. Same test as core's, because the
+   * screen has to decide before it prints: the payment against the interest at the current
+   * balance.
    */
   const debtPrincipal = debtStage?.targetAmount ?? amount
   const debtInterest = Math.round((debtPrincipal * snapshot.debt.highestRate) / 100 / 12)
@@ -134,8 +152,10 @@ export function CreateJar({
     setBusy(true)
     setError(null)
     try {
-      await api('setGoal', { body: { targetAmount: Math.round(amount) } })
-      onSaved(`Target set to ${approx(amount)}. A new version of the plan is on the record.`)
+      await api('setGoal', { body: { targetAmount: Math.round(amount), amountBasis } })
+      onSaved(
+        `Target set to ${approx(amount)}${adjustment ? `, in ${by.slice(0, 4)} rupees` : ''}. A new version of the plan is on the record.`,
+      )
       onBack()
     } catch (err) {
       setError(isApiError(err) ? err.message : 'That could not be saved.')
@@ -156,17 +176,21 @@ export function CreateJar({
           </Button>
         }
         after={
-          <InflationSheet
-            open={inflationOpen}
-            onClose={() => setInflationOpen(false)}
-            amount={adjustment ? adjustment.from : amount}
-            years={horizonYears}
-            mayMoveTarget={mayInflate}
-            onUseAdjusted={(adjusted, rate) => {
-              setAdjustment({ ratePct: rate, from: adjustment ? adjustment.from : amount })
-              setAmount(adjusted)
-            }}
-          />
+          /* Not mounted at all where the target may not be restated, which is a debt and only a
+             debt. A sheet that opens to say "here is the figure, and no" is a dead end wearing
+             an affordance. */
+          mayInflate ? (
+            <InflationSheet
+              open={inflationOpen}
+              onClose={() => setInflationOpen(false)}
+              amount={adjustment ? adjustment.from : amount}
+              years={horizonYears}
+              onUseAdjusted={(adjusted, rate) => {
+                setAdjustment({ ratePct: rate, from: adjustment ? adjustment.from : amount })
+                setAmount(adjusted)
+              }}
+            />
+          ) : null
         }
       >
         <Card tint="white">
@@ -243,7 +267,13 @@ export function CreateJar({
               A balance owed does not inflate — it accrues, at {snapshot.debt.highestRate}% a year,
               and the plan amortises against that rather than against a price index.
             </p>
-          ) : mayInflate ? (
+          ) : (
+            /* Offered at every horizon, which it was not until the wire could carry the answer.
+               The screen used to refuse beyond ten years and explain why in a paragraph — the
+               engine funded any long target in real terms and would have discounted an inflated
+               one twice. `amountBasis` says which money the figure is in, so the offer stands
+               and the engine is told. `mayInflate` is now false only on a debt, which is the
+               branch above, so there is no third state and no paragraph. */
             <div className="-mt-1 flex items-center justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <Checkbox
@@ -263,16 +293,6 @@ export function CreateJar({
               </div>
               <TextLink size="sm" onClick={() => setInflationOpen(true)}>
                 {adjustment ? 'Change rate' : 'Adjust'}
-              </TextLink>
-            </div>
-          ) : (
-            <div className="-mt-1 flex items-center justify-between gap-2">
-              <p className="m-0 min-w-0 flex-1 text-[13px] leading-snug text-ink-soft">
-                Over a horizon this long the plan handles inflation in the projection, so this
-                target stays in today&rsquo;s money.
-              </p>
-              <TextLink size="sm" onClick={() => setInflationOpen(true)}>
-                See it
               </TextLink>
             </div>
           )}
@@ -330,7 +350,7 @@ export function CreateJar({
           <p className="mb-0 mt-2.5 text-center text-xs leading-snug text-ink-soft">
             {isDebt
               ? 'Saving changes the target figure on your goal. It does not change what you owe, and while an expensive debt is top of the ladder the plan will keep proposing it — the record cannot hold a different kind of goal yet.'
-              : 'The target is saved and the plan is re-cut against it. The name, the date and the split above are yours on this screen only — the goal record has one field the app can change.'}
+              : `The target is saved${adjustment ? ` as an amount in ${by.slice(0, 4)} rupees` : ''} and the plan is re-cut against it. The name, the date and the split above are yours on this screen only — the goal record holds the figure and the money it is in, and nothing else the app can change.`}
           </p>
         </>
       }

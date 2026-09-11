@@ -7,7 +7,13 @@
  * its snapshots, roadmap versions and idempotency keys; audit rows have no key into any of
  * those and stay where they are.
  */
-import type { CategoryCap, ConsentScope, IsoDate, Timestamp } from '@dhan/contracts'
+import type {
+  CategoryCap,
+  ConsentScope,
+  GoalAmountBasis,
+  IsoDate,
+  Timestamp,
+} from '@dhan/contracts'
 import { NotFound } from '../../application/errors.ts'
 import type { Db } from '../../db/pool.ts'
 import type {
@@ -28,6 +34,7 @@ interface SessionRow {
   as_of: IsoDate
   last_seen: IsoDate
   goal_target: number | null
+  goal_basis: GoalAmountBasis | null
   caps: CategoryCap[]
   scope_overrides: ConsentScope[]
   version: number
@@ -39,8 +46,8 @@ interface SessionRow {
 }
 
 const SESSION_COLUMNS = `
-  s.id, s.subject_id, sub.cif, s.token_hash, s.as_of, s.last_seen, s.goal_target, s.caps,
-  s.scope_overrides, s.version, s.client_hint, s.created_at, s.last_active_at, s.expires_at, s.revoked_at`
+  s.id, s.subject_id, sub.cif, s.token_hash, s.as_of, s.last_seen, s.goal_target, s.goal_basis,
+  s.caps, s.scope_overrides, s.version, s.client_hint, s.created_at, s.last_active_at, s.expires_at, s.revoked_at`
 
 const SELECT_SQL = `
   SELECT ${SESSION_COLUMNS}
@@ -57,6 +64,7 @@ function toSession(row: SessionRow): Session {
     asOf: row.as_of,
     lastSeen: row.last_seen,
     goalTarget: row.goal_target,
+    goalBasis: row.goal_basis,
     caps: row.caps,
     scopeOverrides: row.scope_overrides,
     version: row.version,
@@ -141,6 +149,7 @@ export class PostgresSessionStore implements SessionStore {
     if (patch.asOf !== undefined) set('as_of', patch.asOf)
     if (patch.lastSeen !== undefined) set('last_seen', patch.lastSeen)
     if (patch.goalTarget !== undefined) set('goal_target', patch.goalTarget)
+    if (patch.goalBasis !== undefined) set('goal_basis', patch.goalBasis)
     if (patch.caps !== undefined) set('caps', JSON.stringify(patch.caps))
     if (patch.scopeOverrides !== undefined) set('scope_overrides', patch.scopeOverrides)
 
