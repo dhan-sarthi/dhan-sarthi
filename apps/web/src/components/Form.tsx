@@ -181,7 +181,7 @@ export function MoneyInput({
   const id = useId()
   const shown = value > 0 ? new Intl.NumberFormat('en-IN').format(Math.round(value)) : ''
   return (
-    <div className="flex h-12 items-center gap-1 rounded-md border-[1.5px] border-solid border-hairline bg-surface px-3 focus-within:border-accent">
+    <div className="flex h-12 items-center gap-1 rounded-md border-[1.5px] border-solid border-hairline bg-surface px-3 focus-within:border-accent-text">
       <span className="text-[16px] font-semibold text-ink-soft">₹</span>
       <input
         id={id}
@@ -221,7 +221,7 @@ export function TextInput({
       type={type}
       maxLength={maxLength}
       autoComplete="off"
-      className="h-12 w-full rounded-md border-[1.5px] border-solid border-hairline bg-surface px-3 text-[16px] font-medium text-ink outline-none focus:border-accent"
+      className="h-12 w-full rounded-md border-[1.5px] border-solid border-hairline bg-surface px-3 text-[16px] font-medium text-ink outline-none focus:border-accent-text"
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}

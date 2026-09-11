@@ -346,7 +346,7 @@ function AmountField({
   return (
     <section className="mb-3 mt-5 text-center">
       <div className="text-sm text-ink-soft">{label}</div>
-      <div className="mx-auto mt-1.5 flex w-fit items-baseline justify-center gap-1 border-0 border-b-[1.5px] border-solid border-hairline pb-1 focus-within:border-accent">
+      <div className="mx-auto mt-1.5 flex w-fit items-baseline justify-center gap-1 border-0 border-b-[1.5px] border-solid border-hairline pb-1 focus-within:border-accent-text">
         <span className="text-[20px] font-bold text-ink-soft">₹</span>
         <input
           aria-label={label}

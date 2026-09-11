@@ -116,13 +116,18 @@ export function Screen({
     <>
       {chrome}
       {onRefresh ? (
-        <PullToRefresh className="scroll" contentClassName={content} onRefresh={onRefresh}>
+        <PullToRefresh
+          as="main"
+          className="scroll"
+          contentClassName={content}
+          onRefresh={onRefresh}
+        >
           {body}
         </PullToRefresh>
       ) : (
-        <div className="scroll">
+        <main className="scroll">
           <div className={content}>{body}</div>
-        </div>
+        </main>
       )}
       {footer ? (
         <div className="flex-none border-0 border-t border-solid border-hairline-mint bg-surface p-4 pb-[max(16px,env(safe-area-inset-bottom))]">

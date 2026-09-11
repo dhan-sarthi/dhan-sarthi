@@ -24,11 +24,17 @@ export function PullToRefresh({
   onRefresh,
   className = '',
   contentClassName = '',
+  as: Host = 'div',
   children,
 }: {
   onRefresh: () => Promise<void>
   /** The scrolling element's own classes. This component *is* the scroller. */
   className?: string
+  /**
+   * The element to render as. `Screen` passes `main`, because the scroller is the one region a
+   * screen reader should be able to jump to — the app bar and the tab bar sit outside it.
+   */
+  as?: 'div' | 'main'
   /**
    * The wrapper the children sit in.
    *
@@ -104,7 +110,7 @@ export function PullToRefresh({
   const ready = distance >= TRIGGER
 
   return (
-    <div
+    <Host
       ref={host}
       className={className}
       onPointerDown={down}
@@ -135,6 +141,6 @@ export function PullToRefresh({
       {busy ? <span className="sr-only">Refreshing</span> : null}
       {ready && !busy ? <span className="sr-only">Release to refresh</span> : null}
       <div className={contentClassName}>{children}</div>
-    </div>
+    </Host>
   )
 }
