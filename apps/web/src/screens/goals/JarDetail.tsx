@@ -19,6 +19,7 @@ import type { Projection, Roadmap, Snapshot } from '@dhan/contracts'
 import { Screen } from '../../components/Screen.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
 import { Bar, Button, Card, Head, Leader, Pill } from '../../components/ui.tsx'
+import { GrowthCard } from '../../components/charts/index.ts'
 import { approx, inr, monthYear } from '../../lib/money.ts'
 import { band } from '../../lib/projection.ts'
 import { STAGE_ICON } from './dreams.ts'
@@ -75,9 +76,9 @@ export function JarDetail({
    * engine funds them at a contractual rate and does not project them — so where one is drawn
    * here it says so, at one rate, with the same disclaimer.
    */
-  const scenarios: Scenario[] =
+  const projection: Projection | null =
     jar.isGoal && roadmap.projection
-      ? roadmap.projection.scenarios
+      ? roadmap.projection
       : jar.monthly > 0
         ? band(
             jar.monthly,
@@ -86,11 +87,33 @@ export function JarDetail({
             [{ label: marketLinked ? 'Assumed' : 'Contractual', ratePct }],
             INFLATION_PCT,
             roadmap.disclaimer,
-          ).scenarios
-        : []
+          )
+        : null
 
+  const scenarios: Scenario[] = projection?.scenarios ?? []
   const lands = scenarios[Math.min(1, scenarios.length - 1)]
-  const shortBy = lands ? Math.max(0, jar.target - lands.corpus) : 0
+  /*
+   * The shortfall, in the money the target is quoted in.
+   *
+   * This used to be `jar.target - lands.corpus`, and that was the wrong subtraction: a target the
+   * customer set today is in today's rupees and `corpus` is in the rupees of the year it lands,
+   * so a ₹2.20 crore goal came out "cleared" by a ₹2.79 crore projection that is worth ₹53.1
+   * lakh. `Plan` has always read it the other way and so does the engine — `buildRoadmap` sizes
+   * the contribution against a real return, which is why it asks for ₹26,555 a month where the
+   * nominal arithmetic would ask for ₹7,826 — so the two screens were disagreeing about the same
+   * goal. Drawing the curve is what made it visible; correcting it is what lets the curve be
+   * drawn under a true sentence.
+   */
+  const shortBy = lands ? Math.max(0, jar.target - lands.realCorpus) : 0
+  /*
+   * Only a band gets drawn. `GrowthCard` separates its three lines by weight and dash — the
+   * expected rate solid, what you put in dashed, the cautious-to-optimistic spread as a wash
+   * between them — and with one scenario the wash has no width and its key row reads "if it runs
+   * 7% to 7%". A jar the engine funds at a contractual rate has no band by construction
+   * (`buildRoadmap` gives it one rate), so that jar keeps the list it already had, which is the
+   * right shape for one number anyway.
+   */
+  const banded = projection !== null && scenarios.length > 1
 
   return (
     <Screen
@@ -203,27 +226,46 @@ export function JarDetail({
       {/* ------------------------------------------------ Against the projection */}
       {lands && jar.dated ? (
         <Card tint="sky">
-          <h2>{approx(lands.corpus)}</h2>
-          <p className="m-0 mt-1.5 text-[13px] text-ink-soft">
-            by {monthYear(jar.by)} at {marketLinked ? 'an assumed' : 'a contractual'}{' '}
-            {lands.ratePct}% — {approx(lands.realCorpus)} in today&rsquo;s money
-          </p>
-          <div className="mb-1.5 mt-4">
-            {scenarios.map((sc) => (
-              <Leader
-                key={sc.label}
-                label={`${sc.label} · ${sc.ratePct}%`}
-                value={approx(sc.corpus)}
-                filled={sc.ratePct === lands.ratePct}
-              />
-            ))}
-            <Leader label="Of which you put in" value={approx(lands.contributed)} />
+          {/*
+            Three rates and a contribution over thirty-one years was five figures in a column and
+            no shape at all: the thing a customer wants off this card is how far apart the
+            cautious and the optimistic line get, and how much of the end figure is growth rather
+            than money they put in. Both of those are the picture and neither is the list, so the
+            list is gone and the four figures that were in it are the chart's own key, at the
+            weight and dash of the mark each one names.
+
+            The disclaimer stays in the card's voice underneath. `DESIGN.md` is explicit that it
+            belongs to the card and not to the chart, and `GrowthCard` deliberately does not
+            carry it.
+          */}
+          {banded && projection ? (
+            <GrowthCard projection={projection} to={monthYear(jar.by)} />
+          ) : (
+            <>
+              <h2>{approx(lands.corpus)}</h2>
+              {/* The today's-money translation used to run on the end of this line and now runs
+                  under the target below, where the comparison it is for actually happens. */}
+              <p className="m-0 mt-1.5 text-[13px] text-ink-soft">
+                by {monthYear(jar.by)} at {marketLinked ? 'an assumed' : 'a contractual'}{' '}
+                {lands.ratePct}%
+              </p>
+              <div className="mb-1.5 mt-4">
+                <Leader label="Of which you put in" value={approx(lands.contributed)} />
+              </div>
+            </>
+          )}
+          <div className={banded ? 'mt-1' : 'mb-1.5'}>
             <Leader total label="Target" value={approx(jar.target)} />
           </div>
+          {/* Everything the chart draws is in the rupees of {jar.by}; the target is in today's.
+              One line carries the conversion and the verdict, because a card that shows both
+              numbers and does not say they are different kinds of number is the trap. */}
           <p className="mb-0 mt-1 text-[13.5px] leading-snug text-ink">
+            {approx(lands.corpus)} in {jar.by.slice(0, 4)} is about {approx(lands.realCorpus)} in
+            today&rsquo;s money —{' '}
             {shortBy > 0
-              ? `About ${approx(shortBy)} short of the target ${scenarios.length > 1 ? 'on the middle line' : 'at that rate'}.`
-              : `That clears the target ${scenarios.length > 1 ? 'on the middle line' : 'at that rate'}.`}
+              ? `about ${approx(shortBy)} short of the target ${banded ? 'on the middle line' : 'at that rate'}.`
+              : `which clears the target ${banded ? 'on the middle line' : 'at that rate'}.`}
           </p>
           <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">{roadmap.disclaimer}</p>
         </Card>

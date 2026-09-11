@@ -798,3 +798,19 @@ export function changeTotals(changes: readonly Change[]): { monthly: number; one
     { monthly: 0, oneOff: 0 },
   )
 }
+
+/**
+ * A stage's kind, in three words.
+ *
+ * Here rather than on `StageCard` because two surfaces name a stage now — the card, and the
+ * track above the route on `Plan`, whose lanes are about 200px and cannot take `stage.label`
+ * (that is a whole sentence with the figures in it). One list of five strings, in the module
+ * both already import.
+ */
+export const STAGE_LABEL: Record<Stage['kind'], string> = {
+  free_up: 'Free up money',
+  get_cover: 'Get covered',
+  clear_debt: 'Clear the debt',
+  build_buffer: 'Build the buffer',
+  grow: 'Grow it',
+}

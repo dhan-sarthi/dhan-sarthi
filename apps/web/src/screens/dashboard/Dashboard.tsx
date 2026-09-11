@@ -54,6 +54,7 @@ import { Holdings } from './Holdings.tsx'
 import { Overview } from './Overview.tsx'
 import type { HoldingsSource } from './portfolio.ts'
 import { usePortfolio } from './usePortfolio.ts'
+import { useBalanceMonths } from './useBalanceMonths.ts'
 
 type Pane = 'overview' | 'jars' | 'holdings' | 'spending' | 'analytics'
 
@@ -141,6 +142,13 @@ export function Dashboard({
   /* Keyed on the snapshot, so advancing the clock or saving a holding brings the rows back with
      the view rather than a step behind it. */
   const held = usePortfolio(holdings, view.meta.snapshotId)
+  /* Read only while the pane that draws it is open — see `useBalanceMonths`. */
+  const balanceMonths = useBalanceMonths(
+    source,
+    view.meta.snapshotId,
+    view.meta.asOf,
+    pane === 'holdings',
+  )
 
   const panes: readonly { id: Pane; label: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -253,6 +261,7 @@ export function Dashboard({
           snapshot={view.snapshot}
           accounts={accounts}
           held={held}
+          balanceMonths={balanceMonths}
           onEditHoldings={onEditHoldings}
           onLinkAccounts={onLinkAccounts}
         />

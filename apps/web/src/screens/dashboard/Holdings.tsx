@@ -64,6 +64,8 @@ import {
   Tile,
 } from '../../components/ui.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
+import { Sparkline } from '../../components/charts/index.ts'
+import type { MonthPoint } from '../../components/charts/index.ts'
 import { inr, longDate, monthYear } from '../../lib/money.ts'
 import { CardHead, Columns, Empty, ProductTiles, Strip } from './parts.tsx'
 import type { ProductTile } from './parts.tsx'
@@ -86,17 +88,28 @@ export function Holdings({
   snapshot,
   accounts,
   held,
+  balanceMonths = [],
   onEditHoldings,
   onLinkAccounts,
 }: {
   snapshot: Snapshot
   accounts: readonly Account[]
   held: PortfolioState
+  /**
+   * The statement account's closing balance, a month at a time (`useBalanceMonths`).
+   *
+   * Empty until it has been read, and empty for good if it could not be — the savings card is
+   * complete without it and simply draws no line.
+   */
+  balanceMonths?: readonly MonthPoint[] | undefined
   onEditHoldings: () => void
   onLinkAccounts: () => void
 }): ReactNode {
   const { balances, holdings, debt, protection } = snapshot
   const p = held.portfolio
+  /** See the note where this is used: one savings account, or the line is not drawn at all. */
+  const savings = accounts.filter((a) => a.accountType === 'Savings')
+  const statementAccount = savings.length === 1 ? savings[0]?.accountNumberMasked : undefined
 
   return (
     <>
@@ -176,7 +189,21 @@ export function Holdings({
         />
       ) : null}
       {accounts.map((a) => (
-        <AccountCard key={a.accountNumberMasked} account={a} />
+        <AccountCard
+          key={a.accountNumberMasked}
+          account={a}
+          /*
+           * The line goes on the account the statement is *of*, and on no other.
+           *
+           * `/transactions` is one stream with one running `balanceAfterTxn` on it, so the series
+           * belongs to exactly one account — and there is nothing on a line saying which. Where
+           * the customer has a single savings account that question has one answer; where they
+           * have two it has none the app can prove, and drawing one account's balance under the
+           * other one's figure is the worst thing this card could do. So: one savings account or
+           * no chart.
+           */
+          months={a.accountNumberMasked === statementAccount ? balanceMonths : []}
+        />
       ))}
 
       {accounts.length === 0 ? (
@@ -189,15 +216,16 @@ export function Holdings({
             <div className="mt-2">
               <Amount value={balances.savings} size="lg" paise />
             </div>
-            {/* The claim needs whole months behind it. With `idleMonths` at 0 it read "never fell
-            below ₹56,780 in 0 months", which asserts a floor over no period at all. */}
-            {balances.idleFloor > 0 && balances.idleMonths > 0 ? (
-              <p className={`${NOTE} mt-2`}>
-                Never fell below {inr(balances.idleFloor)} in{' '}
-                {balances.idleMonths === 1 ? 'a month' : `${balances.idleMonths} months`} — that
-                part has not been needed once.
-              </p>
-            ) : null}
+            {/* The same reading as the card above, from the snapshot's own two figures rather
+                than the account's, because on this branch there is no account row to read them
+                off. The claim needs whole months behind it: with `idleMonths` at 0 it read
+                "never fell below ₹56,780 in 0 months", which asserts a floor over no period at
+                all, and `BalanceLine` keeps that condition on the caption. */}
+            <BalanceLine
+              points={balanceMonths}
+              floor={balances.idleFloor}
+              months={balances.idleMonths}
+            />
           </Card>
 
           {balances.deposits > 0 ? (
@@ -553,7 +581,71 @@ const ACCOUNT_PILL: Record<Account['accountType'], string> = {
  * and the smaller one is the true one. Shown only when it differs from the balance, because
  * "₹56,780 · ₹56,780 available" is noise.
  */
-function AccountCard({ account }: { account: Account }): ReactNode {
+/**
+ * A year of the account, and the line it never went under.
+ *
+ * The snapshot has carried `idleFloor` and `idleMonths` since the beginning and the only place
+ * they were ever said was a sentence — *"never fell below ₹1,41,663 in 11 months — that part has
+ * not been needed once"* — on the branch of this screen that draws when the bank sends no
+ * accounts at all, which is to say almost never. That sentence is the premise of the whole plan:
+ * a buffer is being built out of money that has demonstrably sat still. It is worth more as the
+ * picture it describes, so it is drawn, and the sentence is not repeated under it — the caption
+ * names the dashed rule and stops.
+ *
+ * `monthlyClose`, not a monthly total: a balance is a level that persists between statements, so
+ * a month with no lines keeps the previous close rather than dropping to zero. Same statistic
+ * `derive.ts` reads for `idleFloor`, so the rule cannot fall outside its own series. Drawn from
+ * zero — a bank balance's zero is the whole point of the reading, and a series cropped to its own
+ * range would turn a steady year into a mountain.
+ */
+function BalanceLine({
+  points,
+  floor,
+  months,
+}: {
+  points: readonly MonthPoint[]
+  floor: number
+  months: number
+}): ReactNode {
+  const first = points[0]
+  const last = points[points.length - 1]
+  /* Under half a year there is no trend to read and the rule has nothing to be a floor of. */
+  if (points.length < 6 || first === undefined || last === undefined) return null
+
+  return (
+    <div className="mt-3.5">
+      <Sparkline
+        mark="line"
+        points={points}
+        rule={floor > 0 ? floor : null}
+        height={60}
+        label={`Closing balance each month from ${first.label} to ${last.label}, ending ${inr(
+          last.value,
+        )}${floor > 0 ? `, never below ${inr(floor)}` : ''}.`}
+      />
+      <div className="mt-1 flex items-baseline justify-between text-[11px] text-ink-soft">
+        <span>{first.label}</span>
+        <span>{last.label}</span>
+      </div>
+      {/* The sentence used to end "— that part has not been needed once", and the block of
+          untouched money under the dashed rule is now that clause. What is left is the two facts
+          a rule with no axis beside it cannot carry: which figure it is at, and over how long. */}
+      {floor > 0 && months > 0 ? (
+        <p className={`${NOTE} mt-2`}>
+          Never below {inr(floor)} in {months === 1 ? 'a month' : `${months} months`}.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function AccountCard({
+  account,
+  months = [],
+}: {
+  account: Account
+  months?: readonly MonthPoint[] | undefined
+}): ReactNode {
   const withheld =
     account.effectiveAvailableBalance !== undefined &&
     account.effectiveAvailableBalance < account.currentBalance
@@ -595,6 +687,14 @@ function AccountCard({ account }: { account: Account }): ReactNode {
           ) : null}
         </div>
       ) : null}
+
+      {/* `minBalance12m` is a twelve-month statistic, so the caption counts the complete months
+          drawn and leaves the month still running out of it. */}
+      <BalanceLine
+        points={months}
+        floor={account.minBalance12m ?? 0}
+        months={months.filter((m) => !m.partial).length}
+      />
 
       <p className={`${NOTE} mt-2.5`}>
         {account.maturityDate !== undefined

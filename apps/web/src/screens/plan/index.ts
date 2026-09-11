@@ -35,6 +35,7 @@ export {
   paymentToClear,
   plannedMonth,
   MONTH_SLICES,
+  STAGE_LABEL,
 } from './drift.ts'
 export type {
   Change,

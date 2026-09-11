@@ -46,10 +46,11 @@ import { InfoBanner } from '../components/InfoBanner.tsx'
 import { Screen } from '../components/Screen.tsx'
 import { approx, dayMonth, inr, monthYear } from '../lib/money.ts'
 import { band } from '../lib/projection.ts'
+import { StageTrack } from '../components/charts/index.ts'
 import { BenefitCards, StageCard } from './plan/parts.tsx'
 import { Rebalance } from './plan/Rebalance.tsx'
 import type { RebalanceDecisions } from './plan/Rebalance.tsx'
-import { detectDrift } from './plan/drift.ts'
+import { detectDrift, STAGE_LABEL } from './plan/drift.ts'
 
 /* Card meta line (the old `.card .meta`) and the small grey note (the old `.note`). */
 const META = 'm-0 text-[13px] text-ink-soft'
@@ -215,6 +216,40 @@ export function Plan({
       <Eyebrow>
         The route · {roadmap.stages.length} {roadmap.stages.length === 1 ? 'stage' : 'stages'}
       </Eyebrow>
+      {/*
+        The route on one time axis, above the cards that detail it.
+
+        The numbered spine below says the *order*; what it cannot say is the *shape* — that
+        getting covered is over in a month and growing into the goal runs thirty-one years, drawn
+        at thirty-one times the length — or what each of those costs while it runs. Every card
+        below carries its own month and its own figure, but they are in separate boxes a scroll
+        apart, and "₹985 for one month against ₹9,948 for three decades" is a comparison, not a
+        pair of facts. The comparison is the only thing here that is new, so the track carries the
+        two columns it needs for one and nothing else: no dates per lane, because the axis ends
+        name the span and the card names the month. One stage has nothing to compare against, and
+        draws nothing.
+      */}
+      {roadmap.stages.length > 1 ? (
+        <div className="mb-4">
+          <StageTrack
+            asOf={asOf}
+            from={monthYear(roadmap.stages[0]?.startsOn ?? asOf)}
+            to={monthYear(roadmap.completesOn)}
+            stages={roadmap.stages.map((stage) => ({
+              key: String(stage.index),
+              /* The kind, not `stage.label` — the label is a sentence with the figures in it
+                 ("Enough to stop working at 60: ₹2,20,00,000 by September 2057") and a lane is
+                 about 200px wide. */
+              label: STAGE_LABEL[stage.kind],
+              startsOn: stage.startsOn,
+              completesOn: stage.completesOn,
+              /* A stage with nothing going into it — one that only frees money up, or one queued
+                 behind another — gets no figure rather than a zero. */
+              ...(stage.monthly > 0 ? { figure: inr(stage.monthly) } : {}),
+            }))}
+          />
+        </div>
+      ) : null}
       {roadmap.stages.map((stage, i) => {
         const drift = driftFor(stage.index)
         return (

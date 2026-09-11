@@ -53,6 +53,7 @@ import type { Stage } from '@dhan/contracts'
 import { Card, Pill, TextLink } from '../../components/ui.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
 import { approx, inr, monthName } from '../../lib/money.ts'
+import { STAGE_LABEL } from './drift.ts'
 import { Art } from '../../components/Art.tsx'
 import type { ArtName } from '../../components/Art.tsx'
 
@@ -320,14 +321,6 @@ export function TargetCard({
 }
 
 /* ---------------------------------------------------------------- Stage card */
-
-const STAGE_LABEL: Record<Stage['kind'], string> = {
-  free_up: 'Free up money',
-  get_cover: 'Get covered',
-  clear_debt: 'Clear the debt',
-  build_buffer: 'Build the buffer',
-  grow: 'Grow it',
-}
 
 /** `Oct 2026`. Three letters, because the column is 96px and the full month name is not. */
 const shortMonth = (iso: string): string => `${monthName(iso).slice(0, 3)} ${iso.slice(0, 4)}`
