@@ -77,6 +77,7 @@ export function Dashboard({
   caps,
   capsEnabled,
   jars,
+  onOpenCommitments,
   onDecide,
   onAsk,
   onOpenProfile,
@@ -107,6 +108,12 @@ export function Dashboard({
    * chrome={chrome} … />} />` and nothing in here has to move.
    */
   jars?: (chrome: ScreenChrome) => ReactNode
+  /**
+   * Given, the Overview's Commitments row opens the commitments surface instead of this
+   * screen's Spending pane. That surface owns a calendar and a detail stack, so it is a push
+   * over the shell rather than a fifth pane in here.
+   */
+  onOpenCommitments?: (() => void) | undefined
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
   onOpenProfile: () => void
@@ -209,7 +216,7 @@ export function Dashboard({
             held={held}
             onEditHoldings={onEditHoldings}
             onOpenSpending={() => openSpending('spending')}
-            onOpenCommitments={() => openSpending('commitments')}
+            onOpenCommitments={onOpenCommitments ?? (() => openSpending('commitments'))}
             onOpenAnalytics={() => setPane('analytics')}
           />
         }

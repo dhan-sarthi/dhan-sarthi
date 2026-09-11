@@ -40,6 +40,8 @@ import { Discover } from './screens/Discover.tsx'
 import { More } from './screens/More.tsx'
 import { Pick } from './screens/Pick.tsx'
 import { Plan } from './screens/Plan.tsx'
+import { SmartJars } from './screens/goals/index.ts'
+import { Commitments } from './screens/commitments/Commitments.tsx'
 import { Onboarding } from './screens/Onboarding.tsx'
 import type { HoldingsSource } from './screens/dashboard/portfolio.ts'
 import { offlineAsk, serverAsk } from './lib/ask.ts'
@@ -59,6 +61,8 @@ export function App(): ReactNode {
      unmounted when it does, so the destination has to be set before the tab changes. */
   const [morePage, setMorePage] = useState<'menu' | 'record'>('menu')
   const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | 'goal' | null>(null)
+  /** The commitments surface is a push, not a pane: it owns a calendar and a detail stack. */
+  const [commitments, setCommitments] = useState(false)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   /*
    * First run, per customer, decided once and held here.
@@ -183,6 +187,30 @@ export function App(): ReactNode {
     )
   }
 
+  // A push over the shell: it owns a calendar and a detail stack, so it takes the whole screen
+  // and the tab bar stays put underneath it.
+  if (commitments) {
+    return (
+      <div className="app">
+        {badge}
+        <Commitments
+          snapshot={view.snapshot}
+          onBack={() => setCommitments(false)}
+          onRefresh={refreshView}
+        />
+        <TabBar
+          active={tab}
+          onChange={(id) => {
+            setCommitments(false)
+            setTab(id)
+            setMorePage('menu')
+            if (id === 'more') void record.refresh()
+          }}
+        />
+      </div>
+    )
+  }
+
   // Full bleed. Everything else in the app is inside the shell; this is the shell.
   if (tab === 'ask') {
     return (
@@ -253,6 +281,17 @@ export function App(): ReactNode {
           onLinkAccounts={() => setSheet('link')}
           onSetCap={m.setCap}
           onRefresh={refreshView}
+          onOpenCommitments={() => setCommitments(true)}
+          jars={(chrome) => (
+            <SmartJars
+              view={view}
+              chrome={chrome}
+              onRefresh={refreshView}
+              onSaved={(message) => say(message)}
+              onOpenProfile={() => setSheet('profile')}
+              onOpenPlan={() => setTab('plan')}
+            />
+          )}
         />
       ) : null}
 

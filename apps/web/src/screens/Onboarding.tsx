@@ -109,7 +109,7 @@ const EMPLOYMENT = [
 ] as const
 
 const RISK = [
-  { id: 'Conservative', label: 'Careful' },
+  { id: 'Conservative', label: 'Conservative' },
   { id: 'Balanced', label: 'Balanced' },
   { id: 'Growth', label: 'Growth' },
 ] as const
@@ -417,7 +417,7 @@ function About({ first, onNext }: { first: string | null; onNext: () => void }):
 
       <Field
         label="How you feel about risk"
-        hint="Careful can only ever narrow what you are offered, never widen it."
+        hint="Conservative can only ever narrow what you are offered, never widen it."
       >
         <Choice options={RISK} value={risk} onChange={setRisk} />
       </Field>
