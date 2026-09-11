@@ -34,6 +34,8 @@ export type ArtName =
   | 'order-recorded'
   | 'onboarding-ready'
   | 'reports-statement'
+  | 'external-folios'
+  | 'external-synced'
   | 'promo-start-small'
   | 'promo-advisor'
   | 'hero-holdings'

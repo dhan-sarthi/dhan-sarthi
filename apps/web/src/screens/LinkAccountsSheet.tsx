@@ -1,5 +1,7 @@
 /**
- * Linking accounts held at other banks, through the Account Aggregator.
+ * Money held elsewhere: the two kinds of elsewhere, and the way into each.
+ *
+ * ## Accounts, through the Account Aggregator
  *
  * Six calls at IDBI, four steps for the customer: we ask the bank for a consent handle, they
  * approve it at OneMoney, the bank tells us what they decided, and we ask the bank to confirm
@@ -10,14 +12,33 @@
  * live only after 591 has said so, which is why "I have approved it" runs a verification rather
  * than simply marking it done: the approval arrives through the customer's own browser, and a
  * screen that believed it would be a screen that could be lied to.
+ *
+ * ## Investments, through a consolidated account statement
+ *
+ * A consented pull returns other banks' **deposit accounts**. It does not return a portfolio, so
+ * a customer who holds three mutual funds with other fund houses can link every account they own
+ * and this app still cannot see them. That gap is what SmartWealth's CAS flow fills, and
+ * `07-DECISIONS.md` §5 puts it back in scope — as a real flow over a fixture fetch, labelled as
+ * one on every screen. It lives in `screens/external/**`.
+ *
+ * The sheet is where the two meet, because they are one question to the customer: *what do I own
+ * that is not here?* The Dashboard's "Money held elsewhere" promo and the More menu both open
+ * this sheet already, so both now reach both answers without a new destination in the shell.
+ *
+ * The CAS flow is a pushed screen rather than a second sheet — it is four screens with an OTP in
+ * the middle, which is not a thing to do inside a panel. It is rendered here as a full-bleed
+ * layer over `.app` (which is `position: relative`, so `absolute inset-0` is the phone) while the
+ * sheet itself is dismissed underneath it. If the shell ever grows a route for it, the flow
+ * exports cleanly from `screens/external/index.ts` and this becomes a callback.
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowUpRight, Check, Link2, RefreshCw } from 'lucide-react'
+import { ArrowUpRight, Check, Link2, RefreshCw, TrendingUp } from 'lucide-react'
 import type { ConsentRequestResponse } from '@dhan/contracts'
 import { Sheet } from '../components/Sheet.tsx'
 import { Button, Skeleton } from '../components/ui.tsx'
 import { api, isApiError } from '../api/client.ts'
+import { ExternalImport } from './external/index.ts'
 
 const STATUS_COPY: Record<ConsentRequestResponse['status'], { label: string; note: string }> = {
   REQUESTED: {
@@ -48,6 +69,8 @@ export function LinkAccountsSheet({
   const [requests, setRequests] = useState<ConsentRequestResponse[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** The CAS flow is up, over everything. The sheet is closed underneath it. */
+  const [importing, setImporting] = useState(false)
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -105,12 +128,26 @@ export function LinkAccountsSheet({
     }
   }
 
+  /*
+   * The flow takes the phone. `.app` is `position: relative` and the sheet layer above it is
+   * `absolute`, so this sits in the same coordinate space and covers the tab bar with it —
+   * which is what a four-screen flow with an OTP in it needs. z-42 clears the sheet (41) and
+   * stays under the toast (60), because "4 folios added" belongs on top of the success beat.
+   */
+  if (importing) {
+    return (
+      <div className="absolute inset-0 z-[42] flex flex-col bg-ground">
+        <ExternalImport onClose={() => setImporting(false)} onImported={onLinked} />
+      </div>
+    )
+  }
+
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Accounts elsewhere"
-      sub="Link what you hold at other banks, so the advice is about all of your money."
+      title="Money held elsewhere"
+      sub="Two kinds of elsewhere: accounts at other banks, and funds with other fund houses."
       footer={
         <Button full busy={busy === 'start'} onClick={() => void start()}>
           <Link2 size={17} strokeWidth={2.6} />
@@ -118,6 +155,41 @@ export function LinkAccountsSheet({
         </Button>
       }
     >
+      {/*
+       * The second kind of elsewhere, first — because it is the one an aggregator consent will
+       * never reach, and because the promo that opens this sheet says "money", not "accounts".
+       * It says on the row that the fetch behind it is a demonstration, so nobody arrives at the
+       * OTP screen expecting a live pull.
+       */}
+      <button
+        type="button"
+        onClick={() => {
+          setImporting(true)
+          onClose()
+        }}
+        className="ds-press mb-4 mt-1 flex w-full items-start gap-3 rounded-md border-0 bg-tint-sage p-3.5 text-left"
+      >
+        <span
+          aria-hidden="true"
+          className="grid size-10 flex-none place-items-center rounded-sm bg-surface text-brand-deep"
+        >
+          <TrendingUp size={20} strokeWidth={2.1} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold leading-snug text-ink">
+            Funds held with other fund houses
+          </span>
+          <span className="mt-1 block text-[13px] leading-snug text-ink-mid">
+            Import them from a consolidated account statement, so your totals and your plan count
+            them too. The statement in this build is a demonstration fixture.
+          </span>
+        </span>
+      </button>
+
+      <div className="-mx-4 mb-3 bg-ground-deep px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
+        Accounts at other banks
+      </div>
+
       {error ? (
         <p
           role="alert"
