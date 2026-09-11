@@ -34,6 +34,8 @@ import type { Stage } from '@dhan/contracts'
 import { Card, Pill, TextLink } from '../../components/ui.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
 import { approx, inr, monthName } from '../../lib/money.ts'
+import { Art } from '../../components/Art.tsx'
+import type { ArtName } from '../../components/Art.tsx'
 
 /* ---------------------------------------------------------------- Benefit cards */
 
@@ -59,11 +61,14 @@ export interface Benefit {
 export function BenefitCards({
   eyebrow,
   title,
+  art,
   children,
   benefits,
   note,
   action,
 }: {
+  /** A spot illustration for the hero, where the surface has one. */
+  art?: ArtName | undefined
   eyebrow?: string | undefined
   /** The headline. Omit it and pass `children` instead where the head is a figure, not a phrase. */
   title?: string | undefined
@@ -76,6 +81,7 @@ export function BenefitCards({
 }): ReactNode {
   return (
     <Card tint="ink">
+      {art ? <Art name={art} size="md" className="mb-1" /> : null}
       {eyebrow ? (
         <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-on-dark/75">
           {eyebrow}

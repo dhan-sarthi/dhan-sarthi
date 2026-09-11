@@ -1,30 +1,26 @@
 /*
  * Design tokens.
  *
- * The values follow IDBI Bank GO Mobile+, the app this module is meant to live inside, sampled
- * from the current App Store and Play Store captures and cross-checked against the logo SVG:
- * a pure white ground, the brand green #00836c used as a surface and money colour rather than a
- * text ink, IDBI orange #f58220 for every action, mint and peach tints to tell kinds of card
- * apart, ten-pixel tiles, and full pills for buttons. Body text is near-black, never green.
+ * Green and white, and nothing else. The reference this app is built against — HDFC's
+ * SmartWealth — is navy and white and never reaches for a second hue; the chrome, the actions
+ * and the surfaces are all one colour at different weights, and everything that is not that
+ * colour is white, ink, or a state. This file is the same idea in IDBI's green.
  *
- * Three deliberate departures from the bank's own app, all of them contrast.
+ * Sampled from IDBI Bank GO Mobile+, the app this module is meant to live inside: a pure white
+ * ground, the brand green #00836c, ten-pixel tiles, full pills for buttons. Body text is
+ * near-black, never green.
  *
- * Small orange text uses --accent-text; the app's raw #f58220 on white does not pass AA. The
- * same check run the other way was the one this file missed for a while: white on #f58220 is
- * 2.59:1, and that is the label on every primary button in the product. Rather than darken the
- * fill into a brown nobody would call IDBI orange, the label became --on-accent, which is the
- * body ink — 6.5:1 on the same orange, and a stronger-looking button for it. And the dark
- * surfaces — the hero card, the tab bar, the advisor — moved down to --brand-deep and below,
- * because #00836c carries white at only 4.71:1 and every dimmed line on top of it therefore
- * failed. See the contrast note above each group.
+ * The greens are a ladder, and which rung a surface sits on is decided by what has to stay
+ * legible on it — not by decoration. There are no warm tints, no second accent hue and no
+ * decorative background washes anywhere in this file. A card is white; a card that needs to
+ * step forward is --tint-sage; the one hero card per screen is --tint-ink with white on it.
  *
- * And one large number leads each card, because wealth advice is a different job from
- * transacting.
+ * Two colours are not green, and both earn it. --danger is red because a refusal that is not
+ * red is a refusal nobody reads as one, and this product refuses sales. --ink is near-black
+ * because body text is.
  *
- * No web fonts. "Degrade gracefully" is a guardrail, and a demo that must survive a hotel wifi
- * should not block its first paint on fonts.googleapis.com. The system stack is also the only
- * reliable way to render ₹ across platforms; the default Latin subsets of most webfonts do not
- * carry U+20B9. GO Mobile+ itself uses the platform sans.
+ * Every pairing in this file is measured, not assumed; the ratio is written beside the group
+ * it applies to.
  */
 
 :root {
@@ -60,33 +56,38 @@
   --on-dark: #ffffff;
 
   /*
-   * Brand. Green is a surface and money colour; orange is the action colour.
+   * The green ladder. Surface, money, and action are the same hue at different weights.
    *
    * The greens are a ladder, and which rung a surface sits on is decided by what has to be
    * legible on it. --brand carries white at 4.71:1, which is enough for white and nothing else,
    * so it is a chip and an icon colour. Anything that has to hold a paragraph — the hero card,
    * the tab bar, the advisor — is --brand-deep (9.8:1) or below, which leaves room for a
    * second, quieter line on top.
+   *
+   * --accent is the action colour, one step down from --brand so a filled button reads as the
+   * loudest thing on a white card without leaving the hue. It carries white at 5.8:1, which is
+   * why --on-accent is now white: the orange this replaced managed 2.59:1 and had to be
+   * labelled in body ink instead. And because 5.8:1 also clears AA the other way round,
+   * --accent-text is the same value — the split existed only because orange was too weak to be
+   * both a fill and an ink, and green is not.
    */
   --brand: #00836c;
   --brand-deep: #164c3f;
   --brand-night: #0e3329;
-  --accent: #f58220;
-  --accent-soft: #fdf0e8;
-  /* Orange as ink. 5.5:1 on white and ≥4.7:1 on every tint in this file. */
-  --accent-text: #a94f08;
-  /* Ink on a filled orange: 6.5:1, where white was 2.59:1. */
-  --on-accent: #1d1d1d;
+  --accent: #00735d;
+  --accent-soft: #e3f2ed;
+  --accent-text: #00735d;
+  --on-accent: #ffffff;
   --danger: #b3261e;
   --danger-soft: #fbe3e0;
   --good: #00836c;
 
   /* Card tints, straight from the app's tile palette. */
-  --tint-sage: #e0f1eb;
-  --tint-sky: #dff6f3;
-  --tint-clay: #fff3e7;
+  --tint-sage: #eef6f3;
+  --tint-sky: #eef6f3;
+  --tint-clay: #eef6f3;
   --tint-ink: var(--brand-deep);
-  --legend-chip: #e9fcfa;
+  --legend-chip: #eef6f3;
 
   /*
    * Structural colours specific to the GO Mobile+ chrome.
@@ -97,61 +98,47 @@
    * that band at 6.0:1, so the dimming could go and the active tab is told by weight, which is
    * what the bar was always supposed to do.
    */
-  --header-mint: #bce3db;
-  --nav-top: #2f8b78;
+  --header-mint: #dfeee9;
+  --nav-top: #2b8271;
   --nav-bottom: #0a6a58;
-  --hairline: rgb(245 130 32 / 38%);
+  --hairline: rgb(0 115 93 / 26%);
   --hairline-mint: #bbdbd6;
 
   /*
    * Charts.
    *
-   * The first two are GO Mobile+'s own and they chart a single series: --chart-hi is the bar
-   * you are meant to look at, --chart-idle is the track behind it. Neither means anything
-   * beside a second colour, which is the whole gap — donuts and allocation bars need five
-   * hues that are *kinds*, not degrees, and the bank's palette has no answer for that.
+   * The first two chart a single series: --chart-hi is the bar you are meant to look at,
+   * --chart-idle is the track behind it. Donuts and allocation bars need five, and with the
+   * palette down to one hue the five can only be steps of it.
    *
-   * So the ramp below is designed rather than mapped, and its two constraints pull opposite
-   * ways. It has to stay inside a green-and-orange world; and green against orange is one of
-   * the worst pairs there is for the two common colour blindnesses, because both hues
-   * collapse towards the same yellow-brown. A green slice beside an orange one is precisely
-   * the chart a deuteranope cannot read.
+   * That is a real trade and it is worth naming. The ramp this replaced ran green → peacock →
+   * gold → orange and cleared ΔE 20.7 between its worst pair under protanopia. A single-hue
+   * ramp cannot do that: five steps between white and near-black separate by about 1.8–2.1:1
+   * adjacent, and no arrangement of one hue does better. What it buys instead is that the
+   * separation is pure lightness, so it degrades identically for every kind of colour vision
+   * — there is no pair that is fine for most readers and invisible to some, which is the
+   * failure mode a multi-hue ramp actually has.
    *
-   * What resolves it is treating green and orange as the ends rather than the middle. Between
-   * them the ramp goes out the cool side to a peacock rather than through olive, and comes
-   * back on the warm side through a gold — so the sequence carries a lightness ladder
-   * (L* 36 / 55 / 80 / 51 / 78) as well as a hue sweep, and lightness is what survives when
-   * hue does not.
+   * Because the steps are close, a slice is never left to carry its meaning alone: segments
+   * are drawn with a 2px gap, bars sit on --chart-idle, and every slice has a legend row with
+   * a label and a figure. Read the legend, not the wheel.
    *
-   * Checked, not assumed. All ten pairs were simulated for protanopia, deuteranopia and
-   * tritanopia (Machado 2009, severity 1.0, on linear sRGB) and measured with CIEDE2000. The
-   * worst pair anywhere, in any of the three or in normal vision, is ΔE 20.7 — chart-1
-   * against chart-4 under protanopia, which is the green-versus-orange problem surfacing
-   * exactly where it was expected to. SmartWealth's own five bottom out at 18.6 on the same
-   * check. Because *every* pair clears the bar and not only the neighbouring ones, the ramp
-   * is order-independent: a donut re-sorted by weight cannot land two confusable slices
-   * together.
+   * The spread is as wide as the hue allows — L* 15 / 33 / 54 / 74 / 91 — so the ends are
+   * near-black green and near-white green rather than a timid middle.
    *
    * Assign by position, never by meaning. Equity / Debt / Balanced / Commodities / Others
    * takes 1 2 3 4 5; Large / Mid / Small / Others takes 1 2 3 5. Others is always --chart-5.
    * The rule exists because the source app has none: sky is Commodities on its rebalancing
    * screens and Debt on its dashboard, and a hue that means two things is worse than a hue
    * that means nothing.
-   *
-   * chart-3 and chart-5 are light — 1.68:1 and 1.79:1 on white — and that is the deliberate
-   * half of the trade. Pulling the gold down far enough to clear 3:1 puts it back on top of
-   * the orange under deuteranopia, which loses a reader for real. A slice is legible because
-   * of the slice next to it: the boundary against the page is drawn by the 2px gap between
-   * segments and by --chart-idle behind a bar, and no slice is ever the only carrier of its
-   * meaning — every one has a legend row with a label and a figure.
    */
-  --chart-hi: #fa7401;
+  --chart-hi: #00735d;
   --chart-idle: #ececec;
-  --chart-1: #0d5f50;
-  --chart-2: #0a90b4;
-  --chart-3: #f5c04c;
-  --chart-4: #d1520f;
-  --chart-5: #bcc3c4;
+  --chart-1: #022a21;
+  --chart-2: #005a46;
+  --chart-3: #009474;
+  --chart-4: #5cc2a6;
+  --chart-5: #d6ece4;
 
   /* Geometry. Tiles ~10px, inputs and cards 14–20px, every button a full pill. */
   --r-sm: 10px;

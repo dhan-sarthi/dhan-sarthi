@@ -48,6 +48,7 @@ import {
 } from './calendar.ts'
 import { toCommitments } from './model.ts'
 import type { Note } from './model.ts'
+import { Art } from '../../components/Art.tsx'
 
 export function Commitments({
   snapshot,
@@ -273,6 +274,7 @@ function Empty({ snapshot }: { snapshot: Snapshot }): ReactNode {
   return (
     <div className="mt-3">
       <Card tint="clay">
+        <Art name="empty-commitments" size="md" className="mx-auto mb-1" />
         <div className="flex items-start gap-2.5">
           <CalendarX2 size={18} strokeWidth={2.2} className="mt-0.5 flex-none text-accent-text" />
           <div className="min-w-0">

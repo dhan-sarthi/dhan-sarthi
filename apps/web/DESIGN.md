@@ -5,12 +5,12 @@ values below were sampled from GO Mobile+ App Store / Play Store captures and th
 Tokens live in `src/styles/tokens.css` (`:root`) and are exposed to Tailwind v4 through `@theme`
 in `src/styles/app.css`, so every utility named here resolves without configuration.
 
-Three deliberate departures from the bank's own app, all of them contrast: small orange text uses
-`text-accent-text` (#a94f08) rather than the raw #f58220; a filled orange button is labelled
-`text-on-accent` (the body ink, 6.5:1) rather than white, which was 2.59:1; and the dark surfaces
-sit on `brand-deep` or below, because #00836c carries white at only 4.71:1. Plus one that is not:
-one large number leads each card. `tokens.css` states each of them at the group it applies to —
-where this file and that one disagree, `tokens.css` is the value that ships.
+Green and white, and nothing else. The reference this app is built against — HDFC's SmartWealth
+— is navy and white and never reaches for a second hue: chrome, actions and surfaces are one
+colour at different weights, and everything else is white, ink, or a state. This is the same idea
+in IDBI's green. There is no orange, no warm tint and no decorative wash anywhere. Two colours are
+not green and both earn it: `danger` is red because a refusal that is not red is not read as one,
+and `ink` is near-black because body text is. One large number still leads each card.
 
 ## Three gotchas before you write a class
 
@@ -44,23 +44,23 @@ where this file and that one disagree, `tokens.css` is the value that ships.
 | `bg-brand` / `text-brand` | #00836c | Surface and money colour. Carries white at 4.71:1, so: chips, icons, dots. Never body text. |
 | `bg-brand-deep` / `text-brand-deep` | #164c3f | The green that holds a paragraph, and the green that *is* text: totals, quiet links, the raised Ask Uday disc. |
 | `bg-brand-night` | #0e3329 | Bottom stop of the call-screen gradient. |
-| `bg-accent` / `text-accent` | #f58220 | Every action. Fills only — never small text on white. |
-| `text-on-accent` | #1d1d1d | The label on a filled orange. White was 2.59:1 on it; this is 6.5:1. |
-| `bg-accent-soft` | #fdf0e8 | Attention pill background; soft bar fill. |
-| `text-accent-text` | #a94f08 | Small orange text: eyebrows, secondary button labels, attention pills. |
+| `bg-accent` / `text-accent` | #00735d | Every action, and small green text. 5.8:1 on white both ways. |
+| `text-on-accent` | #ffffff | The label on a filled action. 5.8:1 — the orange this replaced managed 2.59:1. |
+| `bg-accent-soft` | #e3f2ed | Attention pill background; soft bar fill. |
+| `text-accent-text` | #00735d | Alias of `accent`. The split existed only because orange could not be both a fill and an ink. |
 | `text-danger` / `bg-danger` | #b3261e | Refusals; the hang-up button. |
 | `bg-danger-soft` | #fbe3e0 | Bad pill background. |
 | `text-good` | #00836c | Alias of brand for "good" values. |
-| `bg-tint-sage` | #e0f1eb | Mint card: money and position. |
-| `bg-tint-sky` | #dff6f3 | Sky card: plans and projections. |
-| `bg-tint-clay` | #fff3e7 | Peach card: the clock, anything wanting attention. |
+| `bg-tint-sage` | #eef6f3 | The one card tint. A card is white; a card that must step forward is this. |
+| `bg-tint-sky` | #eef6f3 | Alias of `tint-sage`. The three tints collapsed to one when the palette did. |
+| `bg-tint-clay` | #eef6f3 | Alias of `tint-sage`. No warm tint exists any more. |
 | `bg-tint-ink` | #164c3f | The one hero card per screen, with `text-on-dark`. Aliases `brand-deep`. |
-| `bg-legend-chip` | #e9fcfa | Neutral pill / section legend chip, with `text-brand-deep`. |
-| `to-header-mint` | #bce3db | Bottom stop of the header slab gradient. |
-| `from-nav-top` / `to-nav-bottom` | #2f8b78 → #0a6a58 | The tab bar gradient. A stop darker than the bank's, so 11px labels clear AA on it. |
-| `bg-chart-hi` | #fa7401 | The one bar you are meant to look at, in a single-series chart. |
+| `bg-legend-chip` | #eef6f3 | Neutral pill / section legend chip, with `text-brand-deep`. |
+| `to-header-mint` | #dfeee9 | Bottom stop of the header slab gradient. |
+| `from-nav-top` / `to-nav-bottom` | #2b8271 → #0a6a58 | The tab bar gradient. The top stop is darker than the bank's so 11px white labels clear AA — measured at 4.63:1, where the previous stop was 4.13:1 and did not. |
+| `bg-chart-hi` | #00735d | The one bar you are meant to look at, in a single-series chart. |
 | `bg-chart-1` … `bg-chart-5` | see Charts | The categorical ramp: donut slices and allocation-bar segments. |
-| `border-hairline` | orange 38% | Action and form cards; secondary button edge uses `border-accent`. |
+| `border-hairline` | green 26% | Action and form cards; secondary button edge uses `border-accent`. |
 | `border-hairline-mint` | #bbdbd6 | Neutral cards, dotted leader rules, header chips, customer rows. |
 | `rounded-sm` / `-md` / `-lg` / `-pill` | 10 / 14 / 20 / 999px | Tiles / cards / header slab / buttons. |
 | `shadow-card` | soft green | Phone shell, header slab. |
@@ -124,7 +124,7 @@ ds-press inline-flex h-10 shrink-0 items-center gap-1 rounded-pill border-0 bg-t
 px-2 font-semibold text-brand-deep underline-offset-2 hover:underline disabled:opacity-60
 md text-[15px] · sm text-sm · flush px-0 (aligns with the paragraph above it)
 ```
-Green, not orange: orange means "this is the action" and a link must not compete with a primary
+A link is `brand-deep`, not `accent`: `accent` means "this is the action" and a link must not compete with a primary
 button. `brand-deep`, not `brand` — 9.8:1 against 4.71:1.
 
 ### ListRow — one row of a list
@@ -196,7 +196,7 @@ fill:    h-full bg-accent        soft: h-full bg-accent-soft     width via style
 
 ### Charts — the categorical ramp
 
-One series is orange in its grey track: `bg-chart-hi` on `bg-chart-idle`. That is the bank's own
+One series is green in its grey track: `bg-chart-hi` on `bg-chart-idle`. That is the bank's own
 chart and it is unchanged. Five *kinds* — asset classes, market caps, anything where the slices
 are categories rather than degrees — use the ramp, which is new. The reasoning and the
 colour-blindness check live in the comment above it in `tokens.css`; what you need at the keyboard
@@ -204,11 +204,11 @@ is below.
 
 | Utility | Hex | On white | Takes | Asset class | Market cap |
 | --- | --- | --- | --- | --- | --- |
-| `chart-1` | #0d5f50 | 7.58:1 | `text-on-dark` | Equity | Large cap |
-| `chart-2` | #0a90b4 | 3.71:1 | `text-ink` (4.54:1) | Debt | Mid cap |
-| `chart-3` | #f5c04c | 1.68:1 | `text-ink` (10.1:1) | Balanced | Small cap |
-| `chart-4` | #d1520f | 4.26:1 | `text-on-dark` (4.26:1 — ≥18px or 14px bold only) | Commodities | — |
-| `chart-5` | #bcc3c4 | 1.79:1 | `text-ink` (9.4:1) | Others | Others |
+| `chart-1` | #022a21 | 17.4:1 | `text-on-dark` | Equity | Large cap |
+| `chart-2` | #005a46 | 8.3:1 | `text-on-dark` | Debt | Mid cap |
+| `chart-3` | #009474 | 3.4:1 | `text-on-dark` (≥18px or 14px bold) | Balanced | Small cap |
+| `chart-4` | #5cc2a6 | 1.9:1 | `text-ink` (8.8:1) | Commodities | — |
+| `chart-5` | #d6ece4 | 1.3:1 | `text-ink` (13.6:1) | Others | Others |
 
 **Assign by position, never by meaning.** Take them in order and give "Others" `chart-5` — so four
 asset classes are 1 2 3 4 and three market caps are 1 2 3. Do not reach for a hue because it feels
@@ -234,7 +234,7 @@ matter, so a donut re-sorted by weight is safe.
 - **Legend is not optional.** `chart-3` and `chart-5` are light on purpose, so a slice is read
   against its neighbours rather than against the page. Every chart gets a legend row — swatch,
   label, figure — and colour is never the only channel.
-- Never use a ramp colour for a control, and never use `bg-accent` for a slice. Orange means
+- Never use a ramp colour for a control, and never use `bg-accent` for a slice. The action green means
   "press this" everywhere else in the app; `chart-4` is deep enough not to be mistaken for it.
 
 ### Tiles — 2-column grid
@@ -267,12 +267,12 @@ quiet:     h-10 rounded-pill border-0 bg-transparent px-2 text-[15px] font-semib
            pill instead: bg-ground-deep text-ink-mid)
 danger:    rounded-pill border-0 bg-danger-soft text-danger        (Button tone; the hang-up
            circle on Ask is the solid bg-danger text-white one)
-on ink:    primary stays orange; secondary becomes border-white/40 text-on-dark bg-transparent
+on ink:    primary stays the action green; secondary becomes border-white/40 text-on-dark bg-transparent
 press:     transition-transform duration-100 active:scale-[0.985]   whitespace-nowrap
 ```
 Never a dark-green filled button.
 
-### Clock (`src/components/Clock.tsx`) — the peach attention card
+### Clock (`src/components/Clock.tsx`) — the attention card
 ```
 card:    mb-3 min-w-0 rounded-md bg-tint-clay p-4 pb-3.5
 eyebrow: text-[11px] font-semibold uppercase tracking-wide text-accent-text
@@ -302,7 +302,7 @@ survives there, and `text-accent` is 2.6:1 on white where `accent-text` is 5.5:1
 ### Ask Uday (call screen)
 Full bleed `bg-gradient-to-b from-brand-deep to-brand-night`; portrait card `rounded-lg shadow-lift`;
 name `text-white text-[22px] font-bold`, bank line `text-white/70`; status pill
-`bg-white/15 text-white`; Talk = primary orange pill full width; mute = `bg-white/20` circle;
+`bg-white/15 text-white`; Talk = primary green pill full width; mute = `bg-white/20` circle;
 end = `bg-danger` circle.
 
 ### Pick screen
@@ -330,3 +330,31 @@ note `text-sm text-ink-soft`.
 - Don't load a web font. The system stack is the only one that renders ₹ everywhere.
 - Don't position the TabBar absolutely; it is a flex sibling of `.scroll`. Don't hand-assemble a
   screen either — `Screen` exists so that ordering cannot be got wrong twice.
+
+## Spot illustration (`src/components/Art.tsx`)
+
+Six marks, one system. Flat vector, the green ladder and nothing else, drawn on transparency:
+
+| Name | Where |
+| --- | --- |
+| `jar-create` | SmartJars, the "set a new target" promo card |
+| `empty-jars` | SmartJars, nothing on the route accumulates yet |
+| `empty-commitments` | Commitments, nothing in the statements repeats yet |
+| `rebalance-balance` | (light grounds — currently unused; keep for a white rebalance surface) |
+| `rebalance-balance-dark` | Rebalancing, the hero on `tint-ink` |
+| `profile-result` | Investment profile, the computed result |
+| `order-recorded` | Order placed |
+
+Rules:
+
+- **Pick by ground.** The marks are drawn in the dark end of the ladder and read on white; they
+  vanish on `tint-ink`. The `-dark` variant is drawn in the light end for that one case. Verified
+  at 0% of pixels below 1.6:1 against `#164c3f`.
+- **Three sizes only** — `sm` 80px, `md` 128px, `lg` 160px. A mark at an arbitrary width on each
+  screen stops reading as a system. The files are 512px square, 2x the largest step.
+- **Always decorative.** Every mark sits beside copy that already says the same thing, so each is
+  `alt=""` and `aria-hidden`. Never let one carry a meaning on its own.
+- **Never a substitute for an empty state's words.** The illustration is why the screen feels
+  finished; the sentence underneath is why it is useful.
+- Files are quantised to a 48-colour palette — flat art, so it is lossless in practice: 4.2 MB of
+  source became 46 KB shipped.

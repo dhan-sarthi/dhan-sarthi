@@ -35,6 +35,7 @@ import { JarCard } from './JarCard.tsx'
 import { JarDetail } from './JarDetail.tsx'
 import { jars, nonJarStages, statusLabel } from './jar.ts'
 import type { Jar } from './jar.ts'
+import { Art } from '../../components/Art.tsx'
 
 const MEANING = {
   reached: 'The pot has as much in it as the target asks for. Nothing further is needed here.',
@@ -167,15 +168,21 @@ export function SmartJars({
       {/* The reference's cream `Create Another SmartJar` card, once there is another to create. */}
       {list.length > 0 ? (
         <Card tint="clay">
-          <h2>Set a new target</h2>
-          {/* Not "your target today is ₹X". Where the plan aims at a floor before the goal, the
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <h2>Set a new target</h2>
+              {/* Not "your target today is ₹X". Where the plan aims at a floor before the goal, the
               goal's own figure and the goal *stage*'s target are two different numbers, and
               quoting one beside a card showing the other reads as an error. The purpose does not
               have that problem. */}
-          <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
-            Name what you are saving for, say when you want it, and see what it costs a month before
-            you commit to anything. Today it is “{view.roadmap.goal.purpose ?? 'your goal'}”.
-          </p>
+              <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
+                Name what you are saving for, say when you want it, and see what it costs a month
+                before you commit to anything. Today it is “
+                {view.roadmap.goal.purpose ?? 'your goal'}”.
+              </p>
+            </div>
+            <Art name="jar-create" size="sm" className="-mr-1 -mt-1" />
+          </div>
           <div className="mt-4">
             <Button onClick={() => setPage('create')}>
               <Plus size={16} strokeWidth={2.6} />
@@ -234,6 +241,7 @@ function Empty({ goal, onCreate }: { goal: string; onCreate: () => void }): Reac
   return (
     <div className="mt-3">
       <Card tint="sky">
+        <Art name="empty-jars" size="md" className="mx-auto mb-1" />
         <h2>Nothing to fill yet</h2>
         <p className="m-0 mt-2 text-[14px] leading-relaxed text-ink-mid">
           A jar is a pot on your route with a number on it. Right now your route has none — either

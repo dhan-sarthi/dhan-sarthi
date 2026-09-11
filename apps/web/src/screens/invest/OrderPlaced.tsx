@@ -26,12 +26,12 @@
  * labelled as ours rather than as an AMC's.
  */
 import type { ReactNode } from 'react'
-import { Check } from 'lucide-react'
 import { Screen } from '../../components/Screen.tsx'
 import { Amount, Button, Card, Head, Leader, TextLink } from '../../components/ui.tsx'
 import { dayMonth, inr, longDate } from '../../lib/money.ts'
 import { settlementOf, totals } from '../../lib/order.ts'
 import type { OrderLine } from '../../lib/order.ts'
+import { Art } from '../../components/Art.tsx'
 
 export function OrderPlaced({
   lines,
@@ -100,12 +100,7 @@ export function OrderPlaced({
     >
       <Card tint="sage">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="ds-pop grid size-12 flex-none place-items-center rounded-pill bg-brand text-on-dark"
-          >
-            <Check size={26} strokeWidth={2.8} />
-          </span>
+          <Art name="order-recorded" size="sm" className="ds-pop -my-1" />
           <div className="min-w-0 flex-1">
             {t.today > 0 ? (
               <>

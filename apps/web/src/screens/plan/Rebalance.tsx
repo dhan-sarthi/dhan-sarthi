@@ -302,6 +302,7 @@ function RebalanceIntro({
     <>
       <div className="mt-3">
         <BenefitCards
+          art="rebalance-balance-dark"
           eyebrow="Rebalancing"
           title="Bring the plan back onto its own figures"
           benefits={[

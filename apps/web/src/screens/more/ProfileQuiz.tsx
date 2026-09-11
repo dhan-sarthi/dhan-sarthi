@@ -31,6 +31,7 @@ import { isApiError } from '../../api/client.ts'
 import { OptionRow, ProfileScale } from './parts.tsx'
 import { EMPTY_ANSWERS, MAX_SCORE, PROFILE_COPY, QUESTIONS, compare, outcomeOf } from './risk.ts'
 import type { Answers, RiskProfile } from './risk.ts'
+import { Art } from '../../components/Art.tsx'
 
 export function ProfileQuiz({
   current,
@@ -234,6 +235,7 @@ function Result({
       }
     >
       <div className="mt-5">
+        <Art name="profile-result" size="md" className="mb-3" />
         <div className="text-[13px] text-ink-soft">Here is your evaluated investment profile</div>
         <h1 className="m-0 mt-1 text-[34px] font-bold leading-tight tracking-tight text-ink">
           {profile}
