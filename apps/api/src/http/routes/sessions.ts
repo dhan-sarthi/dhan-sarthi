@@ -17,6 +17,14 @@ export function sessionsRoutes(r: Registrar, s: AppServices): void {
       body.cif,
       clientHint(request.headers['user-agent'], request.ip),
     )
-    return { token, session: await s.sessions.state(session) }
+    /*
+     * A customer opening this app has been a customer for years, so the session opens with the
+     * months behind it already advised on: the record, the plan versions and the caps are the
+     * engine's own output at each of those months. `seed` never throws — a session with a thinner
+     * past is a far better outcome than a sign-in that fails — and it hands back the row as it
+     * stands, clock returned to where `create` put it.
+     */
+    const seeded = await s.history.seed(session)
+    return { token, session: await s.sessions.state(seeded) }
   })
 }

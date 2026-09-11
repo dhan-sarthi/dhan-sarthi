@@ -137,6 +137,27 @@ function listOf(scopes: readonly ConsentScope[]): string {
 }
 
 /**
+ * When the customer started aiming at this, as against when the plan was last redrawn.
+ *
+ * `suggestGoal` stamps `createdAt` with the as-of date it was called on, which is right the first
+ * time and wrong every time after it: the plan is re-cut whenever the statements move, and each
+ * re-cut was resetting the goal's birthday to today. A customer eight months into saving for
+ * retirement had a retirement goal created this morning, so nothing on any screen could say how
+ * long they had been at it — and the one chart in this app built to answer "where should I be by
+ * now" had no window to measure and always read "on pace".
+ *
+ * Carried forward while the goal is aiming at the same *kind* of thing. The amount and the date
+ * both drift as the statements do — Rohan's retirement number moved ₹5 lakh over eight months
+ * without him touching anything — so equality on those would reset the date almost every month
+ * and mean nothing. A change of kind is the ladder moving the customer on to a different problem,
+ * and that genuinely is a new goal starting today.
+ */
+function sinceFirstProposed(goal: Goal, latest: RoadmapVersion | null): Goal {
+  if (!latest || latest.goal.kind !== goal.kind) return goal
+  return { ...goal, createdAt: latest.goal.createdAt }
+}
+
+/**
  * Why this version differs from the last, from what actually changed between them. Scopes are
  * checked first because they are the most specific thing a reviewer just did; the clock next;
  * the target last, because a target change alone leaves the snapshot untouched.
@@ -217,7 +238,10 @@ export class AdvisoryService {
       stored,
       snapshotSource,
       snapshot: stored.snapshot,
-      goal: suggestGoal(stored.snapshot, session.asOf, session.goalTarget, session.goalBasis),
+      goal: sinceFirstProposed(
+        suggestGoal(stored.snapshot, session.asOf, session.goalTarget, session.goalBasis),
+        latest,
+      ),
       shelfProducts,
       latest,
       ledgerHorizon,

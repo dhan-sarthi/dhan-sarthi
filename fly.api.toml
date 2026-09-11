@@ -23,6 +23,10 @@ primary_region = "bom"
   RUNWAY_DAILY_MINUTE_BUDGET = "240"
   SEED_ANCHOR = "2026-09-01"
   SEED_FORWARD_MONTHS = "18"
+  # Months of use behind a new session, so Record and Plan open with a history rather than at
+  # zero. Each month is a derivation and a write, paid once when the session is created; turn it
+  # down if that first tap starts feeling slow over the pooler.
+  SEED_HISTORY_MONTHS = "8"
 
 [http_service]
   internal_port = 3001

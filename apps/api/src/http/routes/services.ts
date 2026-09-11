@@ -7,6 +7,7 @@ import type { AdvisoryService } from '../../application/advisory.service.ts'
 import type { AvatarSessionService } from '../../application/avatar/avatar-session.service.ts'
 import type { ConversationService } from '../../application/conversation.service.ts'
 import type { DecisionService } from '../../application/decision.service.ts'
+import type { HistoryService } from '../../application/history.service.ts'
 import type { RecordService } from '../../application/record.service.ts'
 import type { SeedInfo } from '../../application/seed-info.ts'
 import type { SessionService } from '../../application/session.service.ts'
@@ -23,6 +24,8 @@ export interface AppServices {
   holdings: HoldingsStore
   /** The Account Aggregator consent flow: the only path to another bank's accounts. */
   aaConsent: AaConsentService
+  /** The months of use laid down behind a session at creation. */
+  history: HistoryService
   /**
    * What the last read off the bank could not map cleanly, or null under a source with no
    * mapping layer. A function rather than a value because it is read at request time.

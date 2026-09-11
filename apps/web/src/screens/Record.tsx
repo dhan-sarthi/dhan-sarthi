@@ -185,14 +185,20 @@ function Decisions({
   return (
     <>
       <div className="mb-3 mt-3 flex flex-wrap gap-2">
+        {/* The chain covers *advice* records — a decision is not hashed, the recommendation it
+            answered is. On a customer whose every recommendation is behavioural there is nothing
+            to chain, and "Chain verified · 0 records" over a page of decisions reads as a broken
+            counter rather than as the truth it is. */}
         {record.chain ? (
-          record.chain.ok ? (
+          !record.chain.ok ? (
+            <Pill tone="bad">Chain broken at {record.chain.brokenAt ?? 'an unknown record'}</Pill>
+          ) : record.chain.length > 0 ? (
             <Pill tone="ok">
               Chain verified · {record.chain.length}{' '}
               {record.chain.length === 1 ? 'record' : 'records'}
             </Pill>
           ) : (
-            <Pill tone="bad">Chain broken at {record.chain.brokenAt ?? 'an unknown record'}</Pill>
+            <Pill>Nothing checked against a product yet</Pill>
           )
         ) : (
           <Pill tone="warn">Chain not checked</Pill>

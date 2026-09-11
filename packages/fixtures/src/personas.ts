@@ -412,6 +412,45 @@ export const ROHAN: PersonaSpec = {
       currentValue: 78_420,
       sipActive: false,
     },
+    /*
+     * Two folios off a consolidated account statement he imported months ago.
+     *
+     * The CAS flow (`apps/web/src/screens/external/`) matches an imported folio back to the
+     * record **by name** — `HoldingSchema` carries no folio number — so these two names are
+     * `CAS_FOLIOS[1]` and `CAS_FOLIOS[2]` in `apps/web/src/screens/external/cas.ts`, character
+     * for character, with that statement's own invested and current figures. `cas.test.ts` in
+     * that folder holds the two files to each other; a rename on either side fails it rather
+     * than silently un-importing a folio.
+     *
+     * **Only the two folios with no mandate.** The other two on that statement run SIPs, and a
+     * declared holding with an active mandate that has no matching ACH debit in the ledger is
+     * two screens disagreeing: Holdings would report ₹7,000 a month going in that Commitments —
+     * which reads the statement — has never seen. Leaving them unimported is also what keeps the
+     * import flow worth opening: there is still something on the statement to bring in.
+     *
+     * They are what gives the Analytics pane a fourth asset class and a portfolio worth cutting
+     * up. Neither breaks the shortfall the Plan screen is built around: ₹1.42 lakh more equity
+     * against a ₹2.20 crore target thirty-one years out moves the required monthly by a few
+     * hundred rupees, and `roadmap.test.ts` holds the route to still being infeasible.
+     */
+    {
+      holdingType: 'MUTUAL_FUND',
+      name: 'Flexi Cap Fund — Regular Growth',
+      assetClass: 'Equity',
+      investedAmount: 120_000,
+      currentValue: 141_750,
+      sipActive: false,
+      heldOutsideIdbi: true,
+    },
+    {
+      holdingType: 'MUTUAL_FUND',
+      name: 'Corporate Bond Fund — Direct Growth',
+      assetClass: 'Debt',
+      investedAmount: 90_000,
+      currentValue: 98_460,
+      sipActive: false,
+      heldOutsideIdbi: true,
+    },
   ],
   // Two dependents and nothing in force. This is what BUNDLED_PROTECTION needs in order to
   // be the rule that fires when the ULIP is proposed.

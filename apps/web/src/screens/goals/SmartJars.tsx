@@ -188,6 +188,7 @@ export function SmartJars({
             <JarCard
               key={jar.id}
               jar={jar}
+              asOf={view.meta.asOf}
               onOpen={() => setOpenJar(jar)}
               onInfo={() => setExplaining(jar)}
             />

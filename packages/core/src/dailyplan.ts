@@ -217,7 +217,7 @@ export function buildDailyPlan(
 
   const insights = findInsights(snapshot)
   const actions = insights
-    .map((insight) => toAction(insight, snapshot, shelf, horizonYears, ratePct))
+    .map((insight) => toAction(insight, snapshot, shelf, horizonYears, ratePct, asOf))
     .filter((a): a is Action => a !== null)
 
   return {
@@ -268,6 +268,7 @@ function toAction(
   shelf: readonly Product[],
   horizonYears: number,
   ratePct: number,
+  asOf: string,
 ): Action | null {
   if (!insight.suggests) return null
 
@@ -275,7 +276,20 @@ function toAction(
     [...shelf].filter(predicate).sort((a, b) => a.minInvestment - b.minInvestment)[0]
 
   const deployable = snapshot.surplus.deployable
-  const id = `${insight.kind}:${insight.suggests}`
+  /*
+   * The plan's date is part of the action's identity, and it has to be.
+   *
+   * An action is a recommendation *on a dated plan*: "add ₹8,200 a month" in March was computed
+   * from March's statements and carries March's figures, and the same sentence in September is a
+   * second recommendation rather than the same one seen again. The audit trail keys a decision on
+   * this id — `UNIQUE (session_id, action_id)` in `0006_app_engine.sql` — so an undated id makes a
+   * customer's whole history collapse to one row per insight: decline the SIP once and the app can
+   * never ask again, and a record covering months can only ever hold four entries.
+   *
+   * Dating it keeps the property that constraint is actually for: two taps on the same card on the
+   * same day are still one decision, because it is still the same plan.
+   */
+  const id = `${asOf}:${insight.kind}:${insight.suggests}`
 
   const base = { id, kind: insight.suggests, evidence: insight.evidence }
 

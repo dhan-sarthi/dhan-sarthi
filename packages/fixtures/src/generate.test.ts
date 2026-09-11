@@ -301,15 +301,24 @@ describe('the customer file', () => {
       assert.notEqual(h.maturityDate, '2026-09-11', `"${h.name}" restates the FD's maturity`)
       assert.ok(h.holdingType !== 'FD' && h.holdingType !== 'RD', `"${h.name}" is a deposit`)
     }
-    // Still nothing in the debt class, because an IDBI term deposit is what would land there.
-    assert.equal(s.holdings.debt, 0)
-    // The flexi-cap the generator rolls forward from his SIP, the NPS and the gold fund.
-    assert.equal(s.holdings.equity, 124_950)
-    assert.equal(s.holdings.total, 346_010)
+    /*
+     * There *is* money in the debt class now, and it is the check that matters most here.
+     *
+     * It is the corporate bond folio off his consolidated statement — a fund, held at another
+     * fund house — and not the ₹2,00,000 term deposit, which is the thing this test exists to
+     * keep out. The two are told apart by the loop above rather than by the class being empty:
+     * "nothing is in Debt" was a proxy for "the FD is not in here", and a proxy stops being true
+     * the moment the customer buys a bond fund.
+     */
+    assert.equal(s.holdings.debt, 98_460)
+    // The flexi-cap the generator rolls forward from his SIP, plus the imported equity folio.
+    assert.equal(s.holdings.equity, 266_700)
+    // Both folios, the NPS and the gold fund on top of that.
+    assert.equal(s.holdings.total, 586_220)
 
     // The figure Overview puts on the card. It read ₹7,67,628 while the FD was counted twice.
     const netWorth = s.balances.total + s.holdings.total - s.debt.total
-    assert.equal(Math.round(netWorth), 788_688)
+    assert.equal(Math.round(netWorth), 1_028_898)
   })
 })
 

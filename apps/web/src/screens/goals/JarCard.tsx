@@ -2,15 +2,22 @@
  * One jar, as a card.
  *
  * The reference's shape, kept: icon tile, name, chevron; a progress bar; the achieved-of-target
- * line; and the status band filling the foot of the card. Three things about it are deliberately
+ * line; and the status band filling the foot of the card. Four things about it are deliberately
  * *not* the reference's.
  *
  * **The bar is orange whatever the status says.** SmartWealth paints the attention jar's fill
  * crimson and the healthy ones blue, which puts the state in two places and, in its own frames,
  * in two places that disagree — every bar in that video is drawn at about 30% regardless of the
  * percentage printed under it. Here the band says the state and the bar says the quantity, and
- * the bar is the app's one progress recipe (`Bar`, `bg-accent` on `bg-chart-idle`) rather than a
- * second one with a colour rule of its own.
+ * the bar keeps the app's one progress recipe rather than growing a colour rule of its own.
+ *
+ * **The bar carries a second mark once there is a calendar to draw it against.** A jar's progress
+ * is only half the reading — 1.2% of a retirement target is fine in month one and a problem in
+ * year ten — so the bar is `PaceBar`, which puts a notch at what the plan asks for by today. It is
+ * measurable at all only because the goal remembers when it was set: a stage is re-laid from today
+ * every time the roadmap is re-cut, so its own `startsOn` says the plan began this morning however
+ * long the customer has actually been at it (`jar.since`). Where there is no elapsed window the
+ * notch is not drawn and this is the plain bar it replaced.
  *
  * **A jar with nothing to measure draws no bar.** The card asks for a fraction it sometimes does
  * not have — how much of a debt has been repaid is not in the snapshot — and a bar at 0% under
@@ -30,7 +37,7 @@
  */
 import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { Bar } from '../../components/ui.tsx'
+import { PaceBar, paceOf } from '../../components/charts/index.ts'
 import { StatusBand } from '../../components/StatusBand.tsx'
 import { approx, monthYear } from '../../lib/money.ts'
 import { STAGE_ICON } from './dreams.ts'
@@ -39,14 +46,28 @@ import type { Jar } from './jar.ts'
 
 export function JarCard({
   jar,
+  asOf,
   onOpen,
   onInfo,
 }: {
   jar: Jar
+  /** The session's today. The notch is where it falls between `jar.since` and `jar.by`. */
+  asOf: string
   onOpen: () => void
   /** The ⓘ on the band. Opens the engine's own sentence for the stage, never a dead end. */
   onInfo: () => void
 }): ReactNode {
+  const pace =
+    jar.achieved === null
+      ? null
+      : paceOf({
+          achieved: jar.achieved,
+          target: jar.target,
+          startsOn: jar.since,
+          completesOn: jar.by,
+          asOf,
+        })
+
   return (
     <section className="mb-3 min-w-0 overflow-hidden rounded-md border border-solid border-hairline-mint bg-surface">
       <div className="p-4">
@@ -92,9 +113,16 @@ export function JarCard({
           <ChevronRight size={18} strokeWidth={2.2} className="flex-none text-ink-faint" />
         </button>
 
-        {jar.fraction === null ? null : (
+        {jar.achieved === null ? null : (
           <div className="mt-3.5">
-            <Bar used={jar.fraction * 100} />
+            <PaceBar
+              achieved={jar.achieved}
+              target={jar.target}
+              startsOn={jar.since}
+              completesOn={jar.by}
+              asOf={asOf}
+              label={`${jar.name}: ${approx(jar.achieved)} of ${approx(jar.target)}. By today the plan asks for ${approx(Math.round((pace?.expected ?? 0) * jar.target))}.`}
+            />
           </div>
         )}
 
@@ -108,6 +136,14 @@ export function JarCard({
             <>
               Achieved <span className="font-semibold text-ink">{approx(jar.achieved)}</span> (
               {share(jar.fraction ?? 0)}) of {approx(jar.target)}
+              {/* What the notch is, in words. Only where there is an elapsed window to measure:
+                  a plan cut this morning asks for nothing yet, and "₹0 by now" on every new jar
+                  would be noise. Stated as the figure rather than as a verdict — two points
+                  either side of the mark is not a customer in trouble, and the band above is
+                  where this app says whether something is wrong. */}
+              {pace !== null && pace.expected > 0 ? (
+                <> · {approx(Math.round(pace.expected * jar.target))} by now</>
+              ) : null}
             </>
           )}
         </p>

@@ -100,8 +100,10 @@ describe('the rate a goal is funded at', () => {
       build(rohan, { ...HOUSE, targetAmount: atHorizonAmount, amountBasis: 'at_horizon' }),
     )
 
-    assert.equal(once, 12_023)
-    assert.equal(discountedTwice, 20_733)
+    // Both net of the equity Rohan already holds, which is why they moved when the folios he
+    // had imported off his consolidated statement went onto his record. The gap is the point.
+    assert.equal(once, 10_513)
+    assert.equal(discountedTwice, 19_653)
     assert.ok(
       discountedTwice > once,
       'a target already in the rupees of 2041 must not be funded as though it were in 2026 rupees',

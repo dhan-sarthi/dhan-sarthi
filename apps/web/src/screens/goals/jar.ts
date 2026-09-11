@@ -42,6 +42,19 @@ export interface Jar {
   monthly: number
   /** When the stage finishes at the present pace. */
   by: string
+  /**
+   * When the customer started on this, which is not the day the plan was last redrawn.
+   *
+   * The goal jar takes `goal.createdAt` — the date the plan first proposed this destination,
+   * carried across every re-cut since — and every other jar takes its stage's own start. That
+   * distinction is what lets the card draw a pace mark: a stage is laid from today each time the
+   * roadmap is cut, so `stage.startsOn` on the live stage is always today and a bar measured
+   * against it can only ever read "on pace", however far behind the customer is.
+   *
+   * It can equal `asOf`, and then there is no elapsed window and the card draws a plain bar. That
+   * is the honest reading on a plan made this morning.
+   */
+  since: string
   /** The customer's actual destination, as against a prerequisite in front of it. */
   isGoal: boolean
   /** Money is going into it now. Core's own rule: the first stage, plus anything ongoing. */
@@ -169,6 +182,7 @@ export function jars(roadmap: Roadmap, snapshot: Snapshot): Jar[] {
             : Math.min(1, achieved / stage.targetAmount),
         monthly: stage.monthly,
         by: stage.completesOn,
+        since: stage.isGoal ? roadmap.goal.createdAt : stage.startsOn,
         isGoal: stage.isGoal,
         running: stage.index === 1 || stage.cadence === 'ongoing',
         dated: stage.kind !== 'clear_debt' || clears(stage, snapshot),

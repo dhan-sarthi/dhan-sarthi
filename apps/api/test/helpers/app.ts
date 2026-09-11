@@ -33,6 +33,17 @@ export function testConfig(env: Record<string, string> = {}): Config {
     NODE_ENV: 'test',
     BANK_SOURCE: 'memory',
     AVATAR_PROVIDER: 'none',
+    /*
+     * A session with no past, unless a test asks for one.
+     *
+     * `SEED_HISTORY_MONTHS` defaults to eight so the app a customer opens has months of advice
+     * behind it, and every one of those months is a real derivation plus a real decision. Under
+     * that default a test asserting "the record starts empty" or "this is roadmap version 1" is
+     * asserting on the seeder rather than on the thing it means to test, and every session
+     * creation in the suite pays for eight derivations. `history.test.ts` turns it on and holds
+     * the seeder to what it claims.
+     */
+    SEED_HISTORY_MONTHS: '0',
     ...env,
   })
 }

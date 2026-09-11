@@ -65,6 +65,15 @@ export interface CasFolio {
  * The fixture statement. Four folios, two fund houses' worth of registrars, three asset classes
  * — enough for the donut on the payoff screen to have something to say, and small enough that a
  * reviewer can check every number on it against the total.
+ *
+ * **Two of them are already on the record.** A customer who has had this app for months imported
+ * their statement months ago, so `ROHAN.holdings` in `packages/fixtures/src/personas.ts` carries
+ * `Flexi Cap Fund — Regular Growth` and `Corporate Bond Fund — Direct Growth` with this
+ * statement's own figures — the landing screen says so, and only the other two would be brought
+ * in. They are the two folios with **no mandate**, deliberately: a declared holding with a live
+ * SIP that no ACH debit in the ledger matches would have the Holdings pane reporting money going
+ * in every month that Commitments has never seen. The match is by name, so `cas.test.ts` beside
+ * this file holds the two lists to each other.
  */
 export const CAS_FOLIOS: readonly CasFolio[] = [
   {

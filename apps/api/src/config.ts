@@ -100,6 +100,16 @@ export const ConfigSchema = z
     SEED_ANCHOR: isoDate.default('2026-09-01'),
     /** Months of ledger seeded past the anchor: the clock's headroom. */
     SEED_FORWARD_MONTHS: z.coerce.number().int().min(0).max(120).default(18),
+    /**
+     * Months of *use* laid down behind a new session: how long this customer has had the app.
+     *
+     * The ledger has always gone back two years; the advice trail started this morning, so Record
+     * opened on "Nothing yet" and Plan on "version 1". `HistoryService` walks a new session back
+     * through this many months and runs the real engine at each one. Zero is a session with no
+     * past — what the tests assert against, and the honest setting over a live bank feed, where
+     * the app genuinely has not advised this customer before.
+     */
+    SEED_HISTORY_MONTHS: z.coerce.number().int().min(0).max(24).default(8),
 
     /** Stamped into engineVersion and the seed run. Set by the image build. */
     GIT_SHA: z.string().optional(),
@@ -207,6 +217,7 @@ export function describeConfig(config: Config): Record<string, unknown> {
     faultInject: config.FAULT_INJECT,
     seedAnchor: config.SEED_ANCHOR,
     seedForwardMonths: config.SEED_FORWARD_MONTHS,
+    seedHistoryMonths: config.SEED_HISTORY_MONTHS,
     gitSha: config.GIT_SHA ?? 'unknown',
   }
 }

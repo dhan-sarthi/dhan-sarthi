@@ -18,8 +18,8 @@ import { CheckCircle2 } from 'lucide-react'
 import type { Projection, Roadmap, Snapshot } from '@dhan/contracts'
 import { Screen } from '../../components/Screen.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
-import { Bar, Button, Card, Head, Leader, Pill } from '../../components/ui.tsx'
-import { GrowthCard } from '../../components/charts/index.ts'
+import { Button, Card, Head, Leader, Pill } from '../../components/ui.tsx'
+import { GrowthCard, PaceBar, paceOf } from '../../components/charts/index.ts'
 import { approx, inr, monthYear } from '../../lib/money.ts'
 import { band } from '../../lib/projection.ts'
 import { STAGE_ICON } from './dreams.ts'
@@ -55,6 +55,18 @@ export function JarDetail({
 }): ReactNode {
   const stage = jar.stage
   const years = monthsBetween(asOf, jar.by) / 12
+  /* Where the plan asks the customer to be by today, from the date the goal was set rather than
+     from the date the roadmap was last cut. See `Jar.since`. */
+  const pace =
+    jar.achieved === null
+      ? null
+      : paceOf({
+          achieved: jar.achieved,
+          target: jar.target,
+          startsOn: jar.since,
+          completesOn: jar.by,
+          asOf,
+        })
   const existing = jar.achieved ?? 0
   /*
    * Only the goal stage can be market-linked. A buffer goes into a sweep-in deposit whatever the
@@ -166,9 +178,22 @@ export function JarDetail({
             </div>
             <p className="m-0 mt-1.5 text-[13px] text-ink-soft">
               of {approx(jar.target)} · {share(jar.fraction ?? 0)}
+              {pace !== null && pace.expected > 0 ? (
+                <> · {approx(Math.round(pace.expected * jar.target))} by now</>
+              ) : null}
             </p>
             <div className="mt-3.5">
-              <Bar used={(jar.fraction ?? 0) * 100} />
+              {/* The same bar the card in the list draws, off the same dates. Two different
+                  progress bars for one jar, one with a pace mark and one without, would have the
+                  detail screen quietly disagreeing with the card that opened it. */}
+              <PaceBar
+                achieved={jar.achieved ?? 0}
+                target={jar.target}
+                startsOn={jar.since}
+                completesOn={jar.by}
+                asOf={asOf}
+                label={`${jar.name}: ${approx(jar.achieved ?? 0)} of ${approx(jar.target)}. By today the plan asks for ${approx(Math.round((pace?.expected ?? 0) * jar.target))}.`}
+              />
             </div>
           </>
         )}

@@ -28,6 +28,7 @@ import type { Goal as CoreGoal, Snapshot as CoreSnapshot } from '@dhan/core'
 import { PRIYA, PRODUCT_SHELF, ROHAN, SUNIL, generateCustomerFile } from '@dhan/fixtures'
 import type { PersonaSpec } from '@dhan/fixtures'
 import type { Roadmap, Snapshot } from '@dhan/contracts'
+import { paceOf } from '../../components/charts/pace.ts'
 import { futureValue, inflated, requiredLumpSum, requiredMonthly } from '../../lib/projection.ts'
 import {
   existingTowards,
@@ -262,9 +263,14 @@ describe('the client mirror of the engine s arithmetic', () => {
      * The defect this screen used to work around, from the screen's side.
      *
      * ₹25,00,000 fifteen years out, inflated by the customer at 5.5% to what the deposit will
-     * actually cost. Funded in real terms it demanded ₹20,733 a month; funded at the nominal
-     * rate — which is what an `at_horizon` target gets — it is ₹12,023. The screen quotes the
+     * actually cost. Funded in real terms it demands ₹19,653 a month; funded at the nominal
+     * rate — which is what an `at_horizon` target gets — it is ₹10,513. The screen quotes the
      * second only because it can now say which money the amount is in.
+     *
+     * Both figures are net of what Rohan already holds in equity, so they moved when the two
+     * folios he had already imported off his consolidated statement went onto his record. The
+     * gap between them is the thing under test and it did not move: funding a target in today's
+     * money at the real rate still asks for close to twice the monthly.
      */
     const atHorizon = inflated(2_500_000, 15, 5.5)
     assert.equal(atHorizon, 5_581_191)
@@ -276,8 +282,9 @@ describe('the client mirror of the engine s arithmetic', () => {
 
     assert.equal(fundingRatePct(stated, 15), 10)
     assert.equal(fundingRatePct(todaysMoney, 15), 4.5)
-    assert.equal(requiredMonthly(atHorizon, 15, fundingRatePct(stated, 15), existing), 12_023)
-    assert.equal(requiredMonthly(atHorizon, 15, fundingRatePct(todaysMoney, 15), existing), 20_733)
+    assert.equal(existing, 266_700)
+    assert.equal(requiredMonthly(atHorizon, 15, fundingRatePct(stated, 15), existing), 10_513)
+    assert.equal(requiredMonthly(atHorizon, 15, fundingRatePct(todaysMoney, 15), existing), 19_653)
   })
 
   it('leaves a goal with no basis on exactly the plan it had', () => {
@@ -328,5 +335,67 @@ describe('the share on the card', () => {
   it('drops it once the number is worth reading whole', () => {
     assert.equal(share(0.254), '25%')
     assert.equal(share(1), '100%')
+  })
+})
+
+describe('when the customer started, as against when the plan was last redrawn', () => {
+  /*
+   * The one thing that decides whether the pace mark on a jar card means anything.
+   *
+   * A roadmap is laid from its as-of date, so every live stage's `startsOn` is today however long
+   * the customer has been at it. The goal's own `createdAt` is carried across re-cuts by the
+   * advisory service, so it is the only date on a view that says when this began — and without it
+   * the bar has a zero-length window behind it and reads "on pace" on a jar whose status band says
+   * "Needs attention".
+   */
+  it('takes the goal jar from the goal, and every other jar from its stage', () => {
+    const [roadmap, snapshot] = plan(ROHAN)
+    const started = '2026-01-01'
+    const withPast = { ...roadmap, goal: { ...roadmap.goal, createdAt: started } }
+
+    for (const jar of jars(withPast, snapshot)) {
+      assert.equal(jar.since, jar.isGoal ? started : jar.stage.startsOn)
+    }
+  })
+
+  it('is what turns "on pace" into the reading the status band already gives', () => {
+    const [roadmap, snapshot] = plan(ROHAN)
+    const goalJar = jars(roadmap, snapshot).find((j) => j.isGoal)
+    assert.ok(goalJar, 'Rohan has no goal jar')
+    assert.ok(goalJar.achieved !== null)
+
+    const reading = (since: string) =>
+      paceOf({
+        achieved: goalJar.achieved ?? 0,
+        target: goalJar.target,
+        startsOn: since,
+        completesOn: goalJar.by,
+        asOf: ASOF,
+      })
+
+    // Cut this morning: no window, so nothing is asked for and the bar reports "On pace" beneath
+    // a status band reading "Needs attention". That contradiction is what this date exists to fix.
+    const today = reading(goalJar.stage.startsOn)
+    assert.equal(goalJar.stage.startsOn, ASOF)
+    assert.equal(today.expected, 0)
+    assert.equal(today.status, 'on')
+    assert.equal(today.shortfall, 0)
+
+    /*
+     * Eight months in, there is a window: the mark lands somewhere on the rail and the card can
+     * print what the plan asks for by now. The verdict does not move and should not — eight
+     * months into a thirty-one-year plan, nine tenths of a point behind is inside the two-point
+     * tolerance, and this app does not tell somebody they are failing over that. What changed is
+     * that there is a reading at all.
+     */
+    const since = reading('2026-01-01')
+    assert.ok(since.expected > 0, 'no elapsed window, so no mark to draw')
+    assert.ok(since.expected < 1)
+    assert.ok(since.shortfall > 0, 'the plan asks for more than is in the pot')
+    assert.equal(since.status, 'on')
+
+    // And far enough in, the same arithmetic does turn: a decade of this pace is not "on pace".
+    const decade = reading('2016-09-01')
+    assert.equal(decade.status, 'behind')
   })
 })

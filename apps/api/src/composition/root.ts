@@ -25,6 +25,7 @@ import { Waitlist } from '../application/avatar/waitlist.ts'
 import { ConversationService } from '../application/conversation.service.ts'
 import { DecisionService } from '../application/decision.service.ts'
 import { engineVersion } from '../application/engine-version.ts'
+import { HistoryService } from '../application/history.service.ts'
 import { RecordService } from '../application/record.service.ts'
 import { SessionService } from '../application/session.service.ts'
 import type { SeedInfo } from '../application/seed-info.ts'
@@ -202,6 +203,17 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     leads: deps.leads,
   })
   const conversation = new ConversationService({ advisory, shelf: deps.shelf, audit: deps.audit })
+  /*
+   * The months behind today. Seeded per session, because a session *is* the customer's use of
+   * this app: the record, the plan versions and the clock all hang off that row.
+   */
+  const history = new HistoryService({
+    advisory,
+    decisions,
+    sessions: deps.sessions,
+    months: config.SEED_HISTORY_MONTHS,
+    log,
+  })
   const records = new RecordService({
     audit: deps.audit,
     snapshots: deps.snapshots,
@@ -286,6 +298,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
 
   const services: AppServices = {
     bank: deps.bank,
+    history,
     profiles: deps.profiles,
     holdings: deps.holdings,
     aaConsent,
