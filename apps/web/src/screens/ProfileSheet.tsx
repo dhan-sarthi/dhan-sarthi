@@ -19,37 +19,7 @@ import { Sheet } from '../components/Sheet.tsx'
 import { Button, Skeleton } from '../components/ui.tsx'
 import { Choice, Field, MoneyInput, Stepper, TextInput } from '../components/Form.tsx'
 import { api, isApiError } from '../api/client.ts'
-
-const EMPLOYMENT = [
-  { id: 'Salaried', label: 'Salaried' },
-  { id: 'Self-employed', label: 'Self-employed' },
-  { id: 'Business', label: 'Business' },
-] as const
-
-/*
- * `Conservative`, not `Careful`.
- *
- * The label used to be friendlier than the value, and the value is the one the customer is read
- * back: `RISK_CEILING` in `packages/core/src/suitability.ts` refuses a product with the sentence
- * "Your profile says Conservative and this is rated Very High". A control that calls it something
- * else is asking someone to recognise a word they were never shown. The fuller screen —
- * More → Investment profile — uses these three names too.
- */
-const RISK = [
-  { id: 'Conservative', label: 'Conservative' },
-  { id: 'Balanced', label: 'Balanced' },
-  { id: 'Growth', label: 'Growth' },
-] as const
-
-const MARITAL = [
-  { id: 'Single', label: 'Single' },
-  { id: 'Married', label: 'Married' },
-] as const
-
-const REGIME = [
-  { id: 'new', label: 'New regime' },
-  { id: 'old', label: 'Old regime' },
-] as const
+import { EMPLOYMENT, MARITAL, REGIME, RISK } from '../lib/profile-options.ts'
 
 type Draft = {
   declaredAnnualIncome: number

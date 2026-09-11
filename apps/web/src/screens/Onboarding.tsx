@@ -26,6 +26,7 @@ import { Choice, Field, MoneyInput, Stepper, TextInput } from '../components/For
 import { api, isApiError } from '../api/client.ts'
 import { approx, inr } from '../lib/money.ts'
 import { useRipple } from '../lib/motion.ts'
+import { EMPLOYMENT, REGIME, RISK } from '../lib/profile-options.ts'
 
 type Step = 'connect' | 'about' | 'own' | 'ready'
 
@@ -101,23 +102,6 @@ const PROBES: readonly Probe[] = [
         : `${f.holdings} ${f.holdings === 1 ? 'thing' : 'things'} already recorded`,
   },
 ]
-
-const EMPLOYMENT = [
-  { id: 'Salaried', label: 'Salaried' },
-  { id: 'Self-employed', label: 'Self-employed' },
-  { id: 'Business', label: 'Business' },
-] as const
-
-const RISK = [
-  { id: 'Conservative', label: 'Conservative' },
-  { id: 'Balanced', label: 'Balanced' },
-  { id: 'Growth', label: 'Growth' },
-] as const
-
-const REGIME = [
-  { id: 'new', label: 'New regime' },
-  { id: 'old', label: 'Old regime' },
-] as const
 
 export function Onboarding({ onDone }: { onDone: () => void }): ReactNode {
   const [step, setStep] = useState<Step>('connect')

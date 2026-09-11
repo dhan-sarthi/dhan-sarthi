@@ -198,14 +198,14 @@ export function monthsBetween(from: string, to: string): number {
   return Math.max(1, b - a)
 }
 
-/** An ISO date `months` after `from`, day held. The client half of core's `addMonths`. */
-export function addMonths(from: string, months: number): string {
-  const y = Number(from.slice(0, 4))
-  const m = Number(from.slice(5, 7)) - 1 + months
-  const year = y + Math.floor(m / 12)
-  const month = ((m % 12) + 12) % 12
-  return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${from.slice(8, 10)}`
-}
+/*
+ * `addMonths` is core's, re-exported so the goals screens keep importing it from here.
+ *
+ * The copy that used to live here held the day literally, so a target set on the 31st came back
+ * as "2026-02-31" — a string no date parser accepts. Core clamps to the month's length, which is
+ * also what `lib/order.ts` and the commitments calendar already relied on.
+ */
+export { addMonths } from '@dhan/core'
 
 /**
  * The rate the plan will fund this target at, once it is saved.

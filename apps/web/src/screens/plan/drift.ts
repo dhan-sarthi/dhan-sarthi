@@ -37,6 +37,7 @@
  */
 import type { ActionKind, Roadmap, Snapshot, Stage } from '@dhan/contracts'
 import type { Slice } from '../../components/charts/index.ts'
+import { inr } from '../../lib/money.ts'
 
 /* ---------------------------------------------------------------- The month */
 
@@ -247,8 +248,6 @@ export interface Drift {
   severity: 'bad' | 'warn'
   stage: Stage | null
 }
-
-const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
 
 /** Monthly interest at the current balance. Core's own test, mirrored — see `jar.ts`. */
 function interestOn(snapshot: Snapshot): number {

@@ -160,22 +160,9 @@ const iso = (y: number, m: number, d: number): string =>
 
 const daysInMonth = (y: number, m: number): number => new Date(Date.UTC(y, m, 0)).getUTCDate()
 
-/**
- * The same date n months on, clamped to the end of a short month.
- *
- * A SIP that starts on the 31st debits on the 28th of February and back on the 31st in March, so
- * the clamp cannot be allowed to walk the date forward permanently — which is what
- * `Date.setMonth` does, turning 31 January into 3 March.
- */
-export function addMonths(isoDate: string, n: number): string {
-  const y = Number(isoDate.slice(0, 4))
-  const m = Number(isoDate.slice(5, 7))
-  const d = Number(isoDate.slice(8, 10))
-  const total = y * 12 + (m - 1) + n
-  const ny = Math.floor(total / 12)
-  const nm = (total % 12) + 1
-  return iso(ny, nm, Math.min(d, daysInMonth(ny, nm)))
-}
+import { addMonths } from '@dhan/core'
+
+export { addMonths }
 
 /** The next time the calendar reads `day`, strictly after `after`. Clamped in a short month. */
 export function nextOnDay(day: number, after: string): string {
