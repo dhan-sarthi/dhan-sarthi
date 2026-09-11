@@ -26,8 +26,17 @@ const EMPLOYMENT = [
   { id: 'Business', label: 'Business' },
 ] as const
 
+/*
+ * `Conservative`, not `Careful`.
+ *
+ * The label used to be friendlier than the value, and the value is the one the customer is read
+ * back: `RISK_CEILING` in `packages/core/src/suitability.ts` refuses a product with the sentence
+ * "Your profile says Conservative and this is rated Very High". A control that calls it something
+ * else is asking someone to recognise a word they were never shown. The fuller screen —
+ * More → Investment profile — uses these three names too.
+ */
 const RISK = [
-  { id: 'Conservative', label: 'Careful' },
+  { id: 'Conservative', label: 'Conservative' },
   { id: 'Balanced', label: 'Balanced' },
   { id: 'Growth', label: 'Growth' },
 ] as const
@@ -211,7 +220,7 @@ export function ProfileSheet({
 
           <Field
             label="How you feel about risk"
-            hint="Careful refuses more than Growth does. It can only ever narrow what you are offered."
+            hint="Conservative caps you at a Moderate riskometer, which refuses most equity funds. Balanced and Growth share the same ceiling. More → Investment profile explains it, and can work it out from six questions."
           >
             <Choice
               options={RISK}

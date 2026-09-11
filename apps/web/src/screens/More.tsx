@@ -1,32 +1,37 @@
 /**
  * More — the fifth tab, and the only screen in the app that is purely a way to somewhere else.
  *
- * SmartWealth's `more-menu` is a flat white list with no cards, grouped by full-bleed tinted
- * section bands, each row a glyph, a title, a sub-label and a chevron. That is the shape here;
- * the bands are `ground-deep` with an eyebrow label, which is where `03-PALETTE-MAP.md` sends
- * their `#F0F5FA` and what this app already uses for a section heading.
+ * This file is now the router and nothing else. The menu itself, the reports flow and the
+ * investment-profile flow live in `screens/more/`, which is where the surface grew to; what stays
+ * here is the one decision the rest of the app depends on — that More is a stack, that its pages
+ * are pushed rather than routed, and that `startOn` is the only way in from outside.
  *
- * What is behind the rows is this app's, not theirs. `06-EXISTING-APP-MAP.md` puts Record,
- * Reports, Family and settings here; Reports and Family do not exist and are not invented. What
- * does exist and had nowhere obvious to live is the profile, the holdings and the account-link
- * consent — all three are sheets that were only reachable from a button halfway down another
- * screen — and the customer picker, which is how a reviewer changes persona.
+ * Four pages, one level deep:
  *
- * Record is *pushed*, not a tab of its own any more, and that push is why `Head` grew a back
- * arrow. It is one level deep and hand-rolled rather than routed: one screen does not need a
- * router, and the day a second one does, this is the state to lift.
+ *   menu     the grouped account list (`screens/more/MoreMenu.tsx`)
+ *   record   the hash-chained advice record — this app's order history, and better
+ *   reports   → statement config → download (`screens/more/Reports.tsx`)
+ *   profile  the risk profile: pick one, or answer six questions
+ *
+ * Still hand-rolled rather than routed. One `useState` holds the whole stack because the stack is
+ * one deep and every page's back button goes to the same place; the day a page needs to push a
+ * page that pushes a page, this is the state to lift into a real router rather than the place to
+ * add a third `page` variable.
+ *
+ * `startOn` is the transaction spine's edge: its success screen offers "see what was recorded",
+ * and More is unmounted while another tab is on screen, so the caller sets the destination and
+ * the tab change mounts it there. `App.tsx` resets it to `menu` on a tab tap, so a later entry is
+ * a fresh one.
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link2, ScrollText, UserRound, UsersRound, Wallet } from 'lucide-react'
 import type { ConsentScope, SessionState, View } from '@dhan/contracts'
-import { Screen } from '../components/Screen.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
-import { Head, ListRow } from '../components/ui.tsx'
 import type { RecordState } from '../lib/record.ts'
 import { Record } from './Record.tsx'
+import { InvestmentProfile, MoreMenu, Reports } from './more/index.ts'
 
-const GLYPH = { size: 20, strokeWidth: 1.9 } as const
+type Page = 'menu' | 'record' | 'reports' | 'profile'
 
 export function More({
   startOn = 'menu',
@@ -45,9 +50,9 @@ export function More({
   /**
    * Which page to open on.
    *
-   * The transaction spine's success screen offers "see what was recorded", and the record is
-   * one level inside this tab. More is unmounted while Discover is on screen, so the caller
-   * sets the destination and the tab change mounts it there — no lifted state, no router.
+   * Only the two the spine knows about. Adding the reports or the profile here would make an
+   * internal page of this tab part of the app's entry surface, which is the opposite of what
+   * keeping the stack local buys.
    */
   startOn?: 'menu' | 'record'
   view: View
@@ -63,7 +68,8 @@ export function More({
   onSwitchCustomer: () => void
   onRefresh: () => Promise<void>
 }): ReactNode {
-  const [page, setPage] = useState<'menu' | 'record'>(startOn)
+  const [page, setPage] = useState<Page>(startOn)
+  const back = (): void => setPage('menu')
 
   if (page === 'record') {
     return (
@@ -75,66 +81,33 @@ export function More({
         busy={busy}
         onConsent={onConsent}
         onEditProfile={onOpenProfile}
-        onBack={() => setPage('menu')}
+        onEditRiskProfile={() => setPage('profile')}
+        onBack={back}
         onRefresh={onRefresh}
       />
     )
   }
 
-  const decisions = record.record?.adviceRecords.length ?? 0
+  if (page === 'reports') {
+    return <Reports view={view} tier={tier} onBack={back} />
+  }
+
+  if (page === 'profile') {
+    return <InvestmentProfile view={view} onBack={back} onSaved={onRefresh} />
+  }
 
   return (
-    <Screen header={<Head title="More" sub={view.snapshot.customer.name} />}>
-      <Section label="Track and manage" />
-      <ListRow
-        icon={<ScrollText {...GLYPH} />}
-        title="Record"
-        sub="Every recommendation, the rules behind it, and your data"
-        badge={decisions}
-        onClick={() => setPage('record')}
-      />
-
-      <Section label="Your details" />
-      <ListRow
-        icon={<UserRound {...GLYPH} />}
-        title="About you"
-        sub="Income, dependants, risk profile, tax regime"
-        onClick={onOpenProfile}
-      />
-      <ListRow
-        icon={<Wallet {...GLYPH} />}
-        title="What you already own"
-        sub="Funds, deposits, PPF and NPS, insurance"
-        onClick={onEditHoldings}
-      />
-      <ListRow
-        icon={<Link2 {...GLYPH} />}
-        title="Linked accounts"
-        sub="Account Aggregator consent, verified against the bank"
-        onClick={onLinkAccounts}
-      />
-
-      <Section label="This demo" />
-      <ListRow
-        icon={<UsersRound {...GLYPH} />}
-        title="Switch customer"
-        sub="Each persona fires a different suitability rule"
-        onClick={onSwitchCustomer}
-      />
-    </Screen>
-  )
-}
-
-/**
- * The full-bleed band between groups.
- *
- * `-mx-4` escapes `.scroll`'s gutter and `px-4` puts the label back on it, which is the whole
- * trick: the band runs edge to edge and its text still lines up with every row above and below.
- */
-function Section({ label }: { label: string }): ReactNode {
-  return (
-    <div className="-mx-4 mt-2 bg-ground-deep px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
-      {label}
-    </div>
+    <MoreMenu
+      view={view}
+      decisions={record.record?.adviceRecords.length ?? 0}
+      onOpenRecord={() => setPage('record')}
+      onOpenReports={() => setPage('reports')}
+      onOpenRiskProfile={() => setPage('profile')}
+      onOpenProfile={onOpenProfile}
+      onEditHoldings={onEditHoldings}
+      onLinkAccounts={onLinkAccounts}
+      onSwitchCustomer={onSwitchCustomer}
+      onRefresh={onRefresh}
+    />
   )
 }

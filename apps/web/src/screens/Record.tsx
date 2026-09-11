@@ -26,7 +26,7 @@ import type {
   View,
 } from '@dhan/contracts'
 import { Pencil, Trash2 } from 'lucide-react'
-import { Button, Card, Eyebrow, Head, Pill, Segments } from '../components/ui.tsx'
+import { Button, Card, Eyebrow, Head, Pill, Segments, TextLink } from '../components/ui.tsx'
 import { Screen } from '../components/Screen.tsx'
 import type { Tier } from '../components/TierBadge.tsx'
 import { api, isApiError } from '../api/client.ts'
@@ -50,6 +50,7 @@ export function Record({
   busy,
   onConsent,
   onEditProfile,
+  onEditRiskProfile,
   onBack,
   onRefresh,
 }: {
@@ -61,6 +62,11 @@ export function Record({
   onConsent: (scope: ConsentScope, granted: boolean) => void
   /** The declared half of the profile is the app's own, so it is editable from where it is shown. */
   onEditProfile: () => void
+  /**
+   * The risk profile has its own screen under More, because it is the one declared fact the rule
+   * book on this screen actually enforces. The rules tab links to it rather than restating it.
+   */
+  onEditRiskProfile: () => void
   /** Back to the More menu. Record is pushed from there rather than being a tab of its own. */
   onBack: () => void
   /** Pull down at the top to re-read the view. */
@@ -85,7 +91,7 @@ export function Record({
       onRefresh={onRefresh}
     >
       {tab === 'decisions' ? <Decisions record={record} view={view} tier={tier} /> : null}
-      {tab === 'rules' ? <Rules view={view} /> : null}
+      {tab === 'rules' ? <Rules view={view} onEditRiskProfile={onEditRiskProfile} /> : null}
       {tab === 'consent' ? (
         <Consent
           view={view}
@@ -363,7 +369,13 @@ function Decisions({
 
 /* ---------------------------------------------------------------- Rules */
 
-function Rules({ view }: { view: View }): ReactNode {
+function Rules({
+  view,
+  onEditRiskProfile,
+}: {
+  view: View
+  onEditRiskProfile: () => void
+}): ReactNode {
   return (
     <>
       <div className="mt-3">
@@ -377,6 +389,27 @@ function Rules({ view }: { view: View }): ReactNode {
           </p>
         </Card>
       </div>
+
+      {/*
+       * The one input to this rule book that is the customer's own.
+       *
+       * Everything else the rules read is derived from the statement. `RISK_CEILING` reads a value
+       * the customer declared, so the screen that lists the rules is the right place to show what
+       * it is currently set to and to offer the way to change it.
+       */}
+      <Card tint="clay">
+        <h2>Your risk profile: {view.snapshot.customer.riskProfile}</h2>
+        <p className={BODY}>
+          RISK_CEILING below reads this, and nothing else in the rule book comes from you rather
+          than from your statement. Narrowing it refuses more; widening it never adds a
+          recommendation.
+        </p>
+        <div className="mt-1.5">
+          <TextLink flush size="sm" onClick={onEditRiskProfile}>
+            Change it, or answer six questions
+          </TextLink>
+        </div>
+      </Card>
 
       <Eyebrow>
         {view.rules.length} {view.rules.length === 1 ? 'rule' : 'rules'} · earliest failure wins
