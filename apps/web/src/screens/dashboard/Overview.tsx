@@ -385,8 +385,8 @@ function Hero({ portfolio }: { portfolio: Portfolio }): ReactNode {
       ) : null}
       <p className="mb-0 mt-3 text-xs leading-relaxed text-ink-soft">
         {portfolio.unpriced > 0 && portfolio.gain !== null
-          ? `Values you entered — IDBI sends no holdings feed. ${portfolio.unpriced} carry no invested amount, so sit outside the gain.`
-          : 'Values you entered — IDBI sends no holdings feed, so no live price.'}
+          ? `These are the values you entered — IDBI sends no holdings feed. ${portfolio.unpriced} carry no invested amount, so they sit outside the gain.`
+          : 'These are the values you entered, not a live price — IDBI sends no holdings feed.'}
       </p>
     </Card>
   )
