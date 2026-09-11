@@ -42,6 +42,7 @@ export function More({
   busy,
   onConsent,
   onOpenProfile,
+  onOpenFamily,
   onEditHoldings,
   onLinkAccounts,
   onSwitchCustomer,
@@ -62,6 +63,7 @@ export function More({
   busy: boolean
   onConsent: (scope: ConsentScope, granted: boolean) => void
   onOpenProfile: () => void
+  onOpenFamily: () => void
   onEditHoldings: () => void
   onLinkAccounts: () => void
   /** Back to the picker. The app has no sign-in; a persona *is* the session. */
@@ -104,6 +106,7 @@ export function More({
       onOpenReports={() => setPage('reports')}
       onOpenRiskProfile={() => setPage('profile')}
       onOpenProfile={onOpenProfile}
+      onOpenFamily={onOpenFamily}
       onEditHoldings={onEditHoldings}
       onLinkAccounts={onLinkAccounts}
       onSwitchCustomer={onSwitchCustomer}

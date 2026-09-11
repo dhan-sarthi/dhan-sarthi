@@ -42,6 +42,7 @@ import { Pick } from './screens/Pick.tsx'
 import { Plan } from './screens/Plan.tsx'
 import { SmartJars } from './screens/goals/index.ts'
 import { Commitments } from './screens/commitments/Commitments.tsx'
+import { Family } from './screens/family/index.ts'
 import { Onboarding } from './screens/Onboarding.tsx'
 import type { HoldingsSource } from './screens/dashboard/portfolio.ts'
 import { offlineAsk, serverAsk } from './lib/ask.ts'
@@ -63,6 +64,8 @@ export function App(): ReactNode {
   const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | 'goal' | null>(null)
   /** The commitments surface is a push, not a pane: it owns a calendar and a detail stack. */
   const [commitments, setCommitments] = useState(false)
+  /** The household is a push too: it owns a tab row and a stack of its own. */
+  const [family, setFamily] = useState(false)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   /*
    * First run, per customer, decided once and held here.
@@ -189,6 +192,29 @@ export function App(): ReactNode {
 
   // A push over the shell: it owns a calendar and a detail stack, so it takes the whole screen
   // and the tab bar stays put underneath it.
+  if (family) {
+    return (
+      <div className="app">
+        {badge}
+        <Family
+          view={view}
+          holdings={holdings}
+          onBack={() => setFamily(false)}
+          onRefresh={refreshView}
+        />
+        <TabBar
+          active={tab}
+          onChange={(id) => {
+            setFamily(false)
+            setTab(id)
+            setMorePage('menu')
+            if (id === 'more') void record.refresh()
+          }}
+        />
+      </div>
+    )
+  }
+
   if (commitments) {
     return (
       <div className="app">
@@ -335,6 +361,7 @@ export function App(): ReactNode {
           busy={m.busy}
           onConsent={(scope, granted) => void m.setConsent(scope, granted)}
           onOpenProfile={() => setSheet('profile')}
+          onOpenFamily={() => setFamily(true)}
           onEditHoldings={() => setSheet('holdings')}
           onLinkAccounts={() => setSheet('link')}
           onSwitchCustomer={clearSession}

@@ -68,6 +68,7 @@ import {
   ScrollText,
   SlidersHorizontal,
   UserRound,
+  Users,
   UsersRound,
   Wallet,
 } from 'lucide-react'
@@ -90,6 +91,7 @@ export function MoreMenu({
   decisions,
   onOpenRecord,
   onOpenReports,
+  onOpenFamily,
   onOpenRiskProfile,
   onOpenProfile,
   onEditHoldings,
@@ -102,6 +104,7 @@ export function MoreMenu({
   decisions: number
   onOpenRecord: () => void
   onOpenReports: () => void
+  onOpenFamily: () => void
   onOpenRiskProfile: () => void
   onOpenProfile: () => void
   onEditHoldings: () => void
@@ -130,6 +133,17 @@ export function MoreMenu({
           title="Reports"
           sub="Transaction and holding statements"
           onClick={onOpenReports}
+        />
+        {/* The reference's `My Family` sits in this group, and its absence here used to be
+            honest: there was no household in the data model. There is one now — the customer's
+            own figures are real and the rest of the household is declared demo people, which the
+            surface says on every screen it has. The sub-label says it here too, before the tap. */}
+        <ListRow
+          tall
+          icon={<Users {...GLYPH} />}
+          title="My family"
+          sub="Household wealth · demo members"
+          onClick={onOpenFamily}
         />
       </Group>
 
