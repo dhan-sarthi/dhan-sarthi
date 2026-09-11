@@ -100,6 +100,9 @@ export function CommitmentDetail({
    * and never two, and stacking three here would put a fence across the middle of the screen.
    * Whatever does not fit in it is a sentence in the evidence card further down.
    */
+  /* Whether the rise gets the foot. If it does, the evidence card does not repeat it: the tag,
+     the band and a paragraph would be the same finding three times on one screen. */
+  const riseInFoot = !c.conflict && c.note === null && rise !== null
   const foot = c.conflict ? (
     <StatusBand
       flush
@@ -122,7 +125,8 @@ export function CommitmentDetail({
   ) : rise ? (
     <StatusBand flush tone="warn" label={`The price went up in ${monthYear(rise.on)}`}>
       · {inr(rise.from)} to {inr(rise.to)}, which is {inr((rise.to - rise.from) * 12)} a year you
-      did not agree to.
+      did not agree to. Nobody sends a letter about that; it is found by comparing one charge to the
+      last.
     </StatusBand>
   ) : (
     <StatusBand flush tone={status.tone} label={status.note}>
@@ -220,10 +224,11 @@ export function CommitmentDetail({
             : ` with the amount moving by about ${String(Math.round(s.amountVariation * 100))}%`}
           .
         </p>
-        {rise ? (
+        {rise && !riseInFoot ? (
           <p className="m-0 mt-2.5 text-sm leading-relaxed text-ink-mid">
-            The price stepped from {inr(rise.from)} to {inr(rise.to)} in {monthYear(rise.on)}.
-            Nobody sends a letter about that; it is found by comparing one charge to the last.
+            The price stepped from {inr(rise.from)} to {inr(rise.to)} in {monthYear(rise.on)} —{' '}
+            {inr((rise.to - rise.from) * 12)} a year you did not agree to. Nobody sends a letter
+            about that; it is found by comparing one charge to the last.
           </p>
         ) : null}
         <div className="mt-3.5">
