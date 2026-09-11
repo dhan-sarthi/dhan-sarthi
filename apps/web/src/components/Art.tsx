@@ -14,6 +14,20 @@ import type { ReactNode } from 'react'
  *
  * Sized in three steps rather than freely: a mark that appears at an arbitrary width on each
  * screen stops reading as a system. The files are 512px square, which is 2x the largest step.
+ *
+ * ## The other two registries, because this is not the only place a mark lives
+ *
+ * This file is the *spot illustrations* — the large ones, `public/art`, 80 to 160px. There are
+ * two more sets and neither belongs here, so if you are looking for a mark and it is not in the
+ * union below:
+ *
+ * - **`public/icons`** — the illustrated icons, 224px files drawn to read at 56. Fourteen product
+ *   categories keyed in `screens/invest/categories.ts`, ten `goal-*` keyed in
+ *   `screens/goals/dreams.ts`, two `measure-*` in `screens/plan/parts.tsx`. Referenced by file
+ *   stem rather than through a component, because the container differs at every placement.
+ * - **`screens/invest/SchemeMark.tsx`** — the seven issuer marks, drawn in code from tokens
+ *   because they render at 40 and 44px, which is below where a resampled painting holds. Its
+ *   `DEVICE` record is the manifest. `DESIGN.md` § Drawn marks has the table and the rules.
  */
 const SIZE = { sm: 'size-20', md: 'size-32', lg: 'size-40' } as const
 

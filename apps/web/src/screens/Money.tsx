@@ -23,9 +23,10 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { CategoryCap, SpendCategory, Snapshot, Transaction } from '@dhan/contracts'
-import { ArrowDownLeft, ArrowUpRight, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { Amount, Bar, Button, Card, Eyebrow, Leader, Skeleton, Tile } from '../components/ui.tsx'
 import { Screen } from '../components/Screen.tsx'
+import { SpendGlyph } from '../components/SpendGlyph.tsx'
 import type { ScreenChrome } from '../components/Screen.tsx'
 import { TransactionSheet } from './TransactionSheet.tsx'
 import { CapSheet } from './CapSheet.tsx'
@@ -458,22 +459,18 @@ function Recent({
             onPointerDown={ripple}
             onClick={() => onOpenLine(t)}
           >
-            {/* The category's initial when there is a category worth abbreviating. A screen of
-                identical "T"s says nothing, so a nameless row gets the direction instead. */}
+            {/* The category, as a glyph. It was the category's *initial* until a screen of these
+                showed what a closed set of fifteen does to one letter: Transport, Transfers and
+                Food & dining are all `T`, so a third of the list disagreed with itself. A line
+                that names nobody has no category to draw and gets the direction instead. */}
             <span
-              className={`grid size-8 flex-none place-items-center rounded-pill text-[11px] font-bold ${
+              className={`grid size-8 flex-none place-items-center rounded-pill ${
                 t.txnType === 'CREDIT'
                   ? 'bg-tint-sage text-brand-deep'
                   : 'bg-ground-deep text-ink-mid'
               }`}
             >
-              {isNamed(t) ? (
-                t.spendCategory[0]
-              ) : t.txnType === 'CREDIT' ? (
-                <ArrowDownLeft size={15} strokeWidth={2.6} />
-              ) : (
-                <ArrowUpRight size={15} strokeWidth={2.6} />
-              )}
+              <SpendGlyph category={isNamed(t) ? t.spendCategory : null} direction={t.txnType} />
             </span>
             <span className="min-w-0 flex-1">
               <b className="block truncate text-[14.5px] font-bold text-ink">{merchantOf(t)}</b>

@@ -15,10 +15,11 @@
  */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowUpRight, ChevronDown, UserRound } from 'lucide-react'
+import { ChevronDown, UserRound } from 'lucide-react'
 import type { Action, Insight, LeadOutcomeResponse, Snapshot, View } from '@dhan/contracts'
 import { Amount, Bar, Button, Card, Eyebrow, Leader, Pill, Tile } from '../components/ui.tsx'
 import { Screen } from '../components/Screen.tsx'
+import { SpendGlyph } from '../components/SpendGlyph.tsx'
 import type { ScreenChrome } from '../components/Screen.tsx'
 import { isNamed, merchantOf } from '../lib/merchant.ts'
 import { approx, dayMonth, inr } from '../lib/money.ts'
@@ -253,20 +254,18 @@ export function Today({
                 .reverse()
                 .map((t) => (
                   <div className="flex items-center gap-3 py-[11px]" key={t.txnId}>
-                    {/* Same rule as the full list on Money: the category's initial where
-                          there is a name to go with it, the direction where the line names
-                          nobody, and the narration in place of a category that is only a
-                          fallback. */}
+                    {/* Same rule as the full list on Money: the category as a glyph where there
+                          is a name to go with it, the direction where the line names nobody, and
+                          the narration in place of a category that is only a fallback. */}
                     <span
-                      className={`grid size-8 shrink-0 place-items-center rounded-pill text-xs font-bold ${
+                      className={`grid size-8 shrink-0 place-items-center rounded-pill ${
                         isNamed(t) ? 'bg-tint-sage text-brand-deep' : 'bg-ground-deep text-ink-mid'
                       }`}
                     >
-                      {isNamed(t) ? (
-                        t.spendCategory[0]
-                      ) : (
-                        <ArrowUpRight size={15} strokeWidth={2.6} />
-                      )}
+                      <SpendGlyph
+                        category={isNamed(t) ? t.spendCategory : null}
+                        direction={t.txnType}
+                      />
                     </span>
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-[15px] font-semibold text-ink">

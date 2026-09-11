@@ -21,7 +21,7 @@
  */
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChartColumn, ChevronDown, ChevronUp, Landmark, PiggyBank } from 'lucide-react'
+import { ChartColumn, ChevronDown, ChevronUp, Landmark, PiggyBank, ShieldCheck } from 'lucide-react'
 import { Sheet } from '../../components/Sheet.tsx'
 import { IconButton } from '../../components/ui.tsx'
 import { useRipple } from '../../lib/motion.ts'
@@ -34,8 +34,10 @@ const GLYPH: Record<GroupId, ReactNode> = {
   funds: <ChartColumn size={22} strokeWidth={1.9} />,
   deposits: <Landmark size={22} strokeWidth={1.9} />,
   retirement: <PiggyBank size={22} strokeWidth={1.9} />,
-  /* Cover never reaches this surface — a sum assured is not capital — but the record is total. */
-  cover: <PiggyBank size={22} strokeWidth={1.9} />,
+  /* Cover never reaches this surface — a sum assured is not capital — but the record is total,
+     and it takes the same shield the dashboard's own Holdings gives it. The piggy bank that used
+     to be here was `retirement`'s, so the two screens named the same taxonomy differently. */
+  cover: <ShieldCheck size={22} strokeWidth={1.9} />,
 }
 
 const ALL = 'all'

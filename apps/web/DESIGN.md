@@ -74,6 +74,7 @@ and `ink` is near-black because body text is. One large number still leads each 
 | `from-nav-top` / `to-nav-bottom` | #2b8271 → #0a6a58 | The tab bar gradient. The top stop is darker than the bank's so 11px white labels clear AA — measured at 4.63:1, where the previous stop was 4.13:1 and did not. |
 | `bg-chart-hi` | #00735d | The one bar you are meant to look at, in a single-series chart. |
 | `bg-chart-1` … `bg-chart-5` | see Charts | The categorical ramp: donut slices and allocation-bar segments. |
+| `fill-art-gold` / `-coral` / `-sky` / `-violet` | #e0a33a / #e2705a / #4aa8d8 / #8a6fd0 | **Illustration only.** One accent per drawn mark, about a tenth of the artwork. Never a surface, a control, a chip, a slice or an ink. |
 | `border-hairline` | green 26% | Action and form cards; secondary button edge uses `border-accent`. |
 | `border-hairline-mint` | #bbdbd6 | Neutral cards, dotted leader rules, header chips, customer rows. |
 | `rounded-sm` / `-md` / `-lg` / `-pill` | 10 / 14 / 20 / 999px | Tiles / cards / header slab / buttons. |
@@ -442,3 +443,49 @@ rather than in a hole cut through the outline — see the note in `screens/goals
 generate a `dark`-kind variant of an icon that already exists; light the container instead.
 
 Files are 224px (4x the 56px render) quantised to 64 colours: 21 MB of source, 125 KB shipped.
+
+## Drawn marks (`screens/invest/SchemeMark.tsx`)
+
+The third tier, under the spot illustrations and the illustrated icons: **a mark drawn in code,
+from tokens, for a tile too small to resample a painting into.**
+
+Seven of them, one per issuer on IDBI's shelf, in the square where an AMC logo would go. They
+replace the two- and three-letter monograms — `LIC`, `UTI`, `NB`, `GI`, `PFR` — that stood there
+while the app waited for assets it is never going to have, because a bank does not put other
+companies' brand assets in its own app. So each draws **the kind of institution**, never the
+institution: a seat of state, a bank house, a life cover, a health cover, a pension seal, and two
+different growth devices for the two fund houses.
+
+| Mark | Issuer | Device | Accent |
+| --- | --- | --- | --- |
+| `GovernmentMark` | Government of India | domed state house under a pennant | gold |
+| `BankMark` | IDBI Bank | pediment on three columns | sky |
+| `LifeCoverMark` | LIC of India | an open umbrella | coral |
+| `HealthCoverMark` | Niva Bupa | a cross on a shield | coral |
+| `AuthorityMark` | PFRDA | a sealed medallion on ribbons | violet |
+| `FundStackMark` | LIC Mutual Fund | a coin stack under a rising arrow | gold |
+| `FundGrowthMark` | UTI Mutual Fund | a stair of bars under a marker | sky |
+
+Rules, and they are the illustrated-icons rules with one addition:
+
+- **Same language as the files.** Filled shapes only, the green ladder for the body, one accent
+  per mark from the four above as a highlight of roughly a tenth of the artwork, no black. A fund
+  row and the Discover grid above it must not read as two apps.
+- **Drawn in code because of the size.** The files in `public/icons` are drawn to read at 56px;
+  this tile renders at **40 and 44**, and the mark inside it at 34. A 224px painting resampled to
+  34 keeps the parts that make it busy and loses the shading that makes it look painted.
+  `screens/more/MoreMenu.tsx` refused the illustrated set at 34px for that reason and was right.
+  Below about 34px, stop drawing and use a lucide glyph — see `components/SpendGlyph.tsx`, which
+  is 32px and correctly a glyph.
+- **Silhouette is the identifier, not detail and not hue.** The seven are a dome, a pediment, a
+  canopy, a shield, a medallion, a stack and a stair, and no two share an outline. Two marks
+  already share every one of the four accents, so a hue distinguishes nothing. If a new mark will
+  not resolve at 40, take internal parts out before anything else.
+- **Verified at the shipping size**, on real rows in the running app at 430x932, not in a preview
+  at 4x. All seven resolve; the accents survive at two to four pixels because each is a compact
+  solid — a disc, a flag, a cross, a pair of ribbons, an arrowhead — never a thin highlight.
+- **An issuer with no device keeps the monogram.** The fallback stays so the shelf can grow
+  without this file being touched, and matching is on the exact name: a substring rule would give
+  a bank's fund arm the wrong institution, which is worse than initials.
+
+Weight: nothing. They are markup, and they scale, so there is no 2x asset and no download.

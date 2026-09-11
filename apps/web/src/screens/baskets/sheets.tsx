@@ -19,6 +19,7 @@ import type { ShelfProduct } from '@dhan/contracts'
 import { Sheet } from '../../components/Sheet.tsx'
 import { Choice, Field, MoneyInput } from '../../components/Form.tsx'
 import { Button, ListRow } from '../../components/ui.tsx'
+import { SchemeGlyph } from '../invest/SchemeMark.tsx'
 import { dayMonth, inr } from '../../lib/money.ts'
 import { SIP_DAYS, nextOnDay } from '../../lib/order.ts'
 import type { OrderLine } from '../../lib/order.ts'
@@ -169,6 +170,10 @@ export function AddScheme({
           options.map((p) => (
             <ListRow
               key={p.productId}
+              /* The issuer's mark, the same one the shelf and the basket lines carry. This was
+                 the one list of products in the app with nothing in the leading slot, which read
+                 as a settings menu of scheme names beside four lists that read as a shelf. */
+              icon={<SchemeGlyph manufacturer={p.manufacturer} />}
               title={p.name}
               sub={`${p.riskometer} risk · ${lockLabel(p.lockInYears)} · from ${inr(p.minInvestment)}`}
               onClick={() => onPick(p)}

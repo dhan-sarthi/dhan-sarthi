@@ -54,6 +54,13 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  /* Illustration accents. Named through --color-* so `fill-art-gold` resolves for a drawn
+     mark; see the note in tokens.css for where they may and may not appear. */
+  --color-art-gold: var(--art-gold);
+  --color-art-coral: var(--art-coral);
+  --color-art-sky: var(--art-sky);
+  --color-art-violet: var(--art-violet);
+
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-lg: var(--r-lg);

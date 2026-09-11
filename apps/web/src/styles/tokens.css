@@ -152,6 +152,25 @@
   --chart-4: #5cc2a6;
   --chart-5: #d6ece4;
 
+  /*
+   * Illustration accents — the four hues the drawn marks are allowed, and nowhere else.
+   *
+   * These are not new colour. `DESIGN.md` § Illustrated icons has named gold, coral, sky and
+   * violet since the fourteen category icons were generated, and every one of those PNGs already
+   * carries one of them: the chrome is one green, and the illustration is where a bank is allowed
+   * to be warm. What is new is only that a mark can now be *drawn in code* — `screens/invest/
+   * SchemeMark.tsx` draws seven — and a drawn mark needs the accent as a token instead of a hex
+   * baked into a raster.
+   *
+   * The rule that keeps them from leaking: an accent is a highlight on an illustration, roughly a
+   * tenth of the artwork, and it is never a surface, a control, a chip, a chart slice or an ink.
+   * A fifth accent is a design decision, not an implementation detail.
+   */
+  --art-gold: #e0a33a;
+  --art-coral: #e2705a;
+  --art-sky: #4aa8d8;
+  --art-violet: #8a6fd0;
+
   /* Geometry. Tiles ~10px, inputs and cards 14–20px, every button a full pill. */
   --r-sm: 10px;
   --r-md: 14px;
