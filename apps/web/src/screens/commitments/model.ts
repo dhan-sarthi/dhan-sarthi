@@ -28,6 +28,7 @@
  */
 import { addDays } from '@dhan/core'
 import type { Series, Snapshot } from '@dhan/contracts'
+import type { BandTone } from '../../components/StatusBand.tsx'
 import { prettyMerchant } from '../../lib/merchant.ts'
 import { occurrences } from './calendar.ts'
 import type { Schedule } from './calendar.ts'
@@ -240,42 +241,43 @@ export interface StatusCopy {
   label: string
   /** Where it came from, said out loud. */
   note: string
-  band: string
+  tone: BandTone
   pill: 'plain' | 'warn' | 'bad' | 'ok'
 }
 
 /**
- * The four status treatments, on IDBI tokens.
+ * The four status treatments, as tones on the shared `StatusBand` rather than class strings.
  *
  * `03-PALETTE-MAP.md` sends On Track to `legend-chip`/`good`, In Process and Paused to
- * `accent-soft`/`accent-text`, and Needs Attention to `danger-soft`/`danger`. Lapsed is the
- * fourth and has no row in that table because the reference has no such state: it is neutral
- * `ground-deep`, deliberately quieter than the other three, because it is an observation rather
- * than something anybody chose.
+ * `accent-soft`/`accent-text`, and Needs Attention to `danger-soft`/`danger`, which is what the
+ * band's `good` / `warn` / `bad` are. Lapsed is the fourth and has no row in that table because
+ * the reference has no such state: it takes `quiet`, the neutral `ground-deep` tone, deliberately
+ * quieter than the other three because it is an observation rather than something anybody chose.
+ * That tone exists on the band *for* this row — it is the one status here the reference never had.
  */
 export const STATUS: Record<CommitmentStatus, StatusCopy> = {
   live: {
     label: 'Live',
     note: 'charging on schedule',
-    band: 'bg-legend-chip text-brand-deep',
+    tone: 'good',
     pill: 'plain',
   },
   lapsed: {
     label: 'Gone quiet',
     note: 'nothing has been charged for two cycles',
-    band: 'bg-ground-deep text-ink-mid',
+    tone: 'quiet',
     pill: 'plain',
   },
   paused: {
     label: 'Paused',
     note: 'your note — the bank has not been told',
-    band: 'bg-accent-soft text-accent-text',
+    tone: 'warn',
     pill: 'warn',
   },
   stopped: {
     label: 'Stopped',
     note: 'your note — the bank has not been told',
-    band: 'bg-danger-soft text-danger',
+    tone: 'bad',
     pill: 'bad',
   },
 }

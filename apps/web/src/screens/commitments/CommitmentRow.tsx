@@ -10,11 +10,16 @@
  * Two things change.
  *
  * The status is a **band clipped to the card's bottom edge** rather than only a chip floating in
- * the padding. `COMPONENT-GAP.md` calls `StatusBand` out as the more distinctive and probably the
- * more used of the two treatments and as net-new here; the reference uses it on its SmartJar
- * cards and, oddly, not on the SIP rows. It earns its place here because the band is where the
- * *provenance* goes — "charging on schedule" is something we observed and "your note" is
- * something you told us, and those two cannot look the same.
+ * the padding — `components/StatusBand.tsx`, which this row was hand-rolling until the three
+ * copies of it were folded together. The reference uses the band on its SmartJar cards and,
+ * oddly, not on the SIP rows. It earns its place here because the band is where the *provenance*
+ * goes — "charging on schedule" is something we observed and "your note" is something you told
+ * us, and those two cannot look the same. `quiet` is on the shared component for this screen:
+ * a mandate that has gone silent is an observation, not a verdict, and none of the reference's
+ * three tints says that. The fold cost one detail — the warning triangle that used to lead the
+ * conflict band. It was decoration with no accessible name, and a leading glyph would have been
+ * an option no other caller of the band wants; the red tint is not the only channel here,
+ * because the sentence beside it says the whole thing in words.
  *
  * And the `Recommended` ribbon does not survive. In the reference it is on roughly half the rows
  * and means the distributor would like to sell you this; on a debit already leaving your account
@@ -22,7 +27,8 @@
  * screen, which the engine finds and the reference could not: a fixed price that stepped up.
  */
 import type { ReactNode } from 'react'
-import { AlertTriangle, TrendingUp } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
+import { StatusBand } from '../../components/StatusBand.tsx'
 import { Amount, Pill } from '../../components/ui.tsx'
 import { useRipple } from '../../lib/motion.ts'
 import { dayMonth, inr } from '../../lib/money.ts'
@@ -102,27 +108,22 @@ export function CommitmentRow({
         </div>
       </div>
 
-      {/* The band. Status on the left, where it came from on the right — a fact the engine read
-          off the ledger, or a note this screen is holding for you and has not sent anywhere. */}
-      <div
-        className={`flex items-center justify-between gap-2 rounded-b-md px-4 py-2 text-[12.5px] font-semibold ${
-          c.conflict ? 'bg-danger-soft text-danger' : status.band
-        }`}
-      >
-        {c.conflict ? (
-          <span className="flex min-w-0 items-center gap-1.5">
-            <AlertTriangle size={13} strokeWidth={2.6} className="flex-none" />
-            <span className="truncate">
-              You marked this {c.status}, and it charged again on {dayMonth(s.lastSeen)}
-            </span>
-          </span>
-        ) : (
-          <>
-            <span className="truncate">{status.note}</span>
-            <span className="flex-none font-normal opacity-80">{inr(c.annualCost)} a year</span>
-          </>
-        )}
-      </div>
+      {/* The band, which is the shared `StatusBand` at `flush`: this card is its own button, so
+          the band is a sibling at the edge rather than the last child of a padded body, and it
+          carries no control of its own — an ⓘ here would be a button inside a button. What it
+          says is where the status came from: a fact the engine read off the ledger, or a note
+          this screen is holding for you and has not sent anywhere. */}
+      {c.conflict ? (
+        <StatusBand
+          flush
+          tone="bad"
+          label={`You marked this ${c.status}, and it charged again on ${dayMonth(s.lastSeen)}`}
+        />
+      ) : (
+        <StatusBand flush tone={status.tone} label={status.note}>
+          · {inr(c.annualCost)} a year
+        </StatusBand>
+      )}
     </button>
   )
 }

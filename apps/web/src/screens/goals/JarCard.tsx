@@ -111,8 +111,10 @@ export function JarCard({
         flush
         tone={statusTone(jar.status)}
         label={statusLabel(jar.status)}
-        onInfo={onInfo}
-        infoLabel={`Why ${jar.name} is ${statusLabel(jar.status).toLowerCase()}`}
+        action={{
+          info: `Why ${jar.name} is ${statusLabel(jar.status).toLowerCase()}`,
+          onClick: onInfo,
+        }}
       />
     </section>
   )

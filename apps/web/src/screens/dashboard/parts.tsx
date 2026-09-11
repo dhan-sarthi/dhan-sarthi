@@ -4,14 +4,15 @@
  * Everything here is a SmartWealth shape drawn in IDBI's palette through `03-PALETTE-MAP.md` —
  * no hex from a screen spec reaches this file. Where the reference's component already exists in
  * `components/ui.tsx` or `components/charts/`, it is used rather than re-cut: `Card`, `Amount`,
- * `Pill`, `ListRow`, `Button`, `TextLink`, `SegmentedBar`, `LegendRow`, `DonutChart` and
- * `BarList` all come from there. What is left is the four shapes the reference has that this app
- * did not: the stat card with three lines, the band welded to a card's bottom edge, the
- * collapsible section header, and the exposure table.
+ * `Pill`, `ListRow`, `Button`, `TextLink`, `SegmentedBar`, `LegendRow`, `DonutChart`,
+ * `BarList` and `StatusBand` all come from there. What is left is the three shapes the reference
+ * has that this app did not: the stat card with three lines, the collapsible section header, and
+ * the exposure table.
  *
  * They are here rather than in `components/` because one surface is not a system. If a second
- * screen wants any of them, that is the moment to lift it — `COMPONENT-GAP.md` keeps `StatusBand`
- * open on exactly those terms.
+ * screen wants any of them, that is the moment to lift it. The band welded to a card's bottom
+ * edge was the fourth and is the worked example: three surfaces cut one each, so it went to
+ * `components/StatusBand.tsx` and this file's copy went with it.
  */
 import type { ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
@@ -61,45 +62,6 @@ export function StatBox({
         <Amount value={value} size="md" fit />
       </div>
       <div className="truncate text-xs text-ink-soft">{caption}</div>
-    </div>
-  )
-}
-
-/* ---------------------------------------------------------------- Band */
-
-/*
- * The strip welded to the bottom of a card, sharing its corner radius.
- *
- * SmartWealth's is a full-bleed vivid blue with a bare action word on the right — its
- * "67 unmapped investments found · Review". The palette map sends its action blue to `--accent`,
- * but a solid orange strip across the foot of every card would read as a row of buttons; the
- * attention pairing (`accent-soft` with `accent-text`) is what IDBI uses for "this needs you"
- * everywhere else, and it is what `RibbonTab` and `InfoBanner` already chose for the same colour.
- *
- * The negative margins are how it reaches the card's edges from inside `Card`'s own 16px
- * padding. `rounded-b-md` matches the card, so the two corners are one shape.
- */
-export function Band({
-  children,
-  action,
-  onAction,
-}: {
-  children: ReactNode
-  action?: string | undefined
-  onAction?: (() => void) | undefined
-}): ReactNode {
-  return (
-    <div className="-mx-4 -mb-4 mt-4 flex items-center gap-3 rounded-b-md bg-accent-soft px-4 py-2.5">
-      <span className="min-w-0 flex-1 text-[13px] leading-snug text-accent-text">{children}</span>
-      {action !== undefined ? (
-        <button
-          type="button"
-          onClick={onAction}
-          className="ds-press h-8 shrink-0 whitespace-nowrap rounded-pill border-0 bg-transparent px-2 text-[13px] font-bold text-accent-text underline-offset-2 hover:underline"
-        >
-          {action}
-        </button>
-      ) : null}
     </div>
   )
 }

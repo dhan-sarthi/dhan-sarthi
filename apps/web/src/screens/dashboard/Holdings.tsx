@@ -42,8 +42,9 @@ import {
   TextLink,
   Tile,
 } from '../../components/ui.tsx'
+import { StatusBand } from '../../components/StatusBand.tsx'
 import { dayMonth, inr, monthYear } from '../../lib/money.ts'
-import { Band, CardHead, Columns, Empty } from './parts.tsx'
+import { CardHead, Columns, Empty } from './parts.tsx'
 import type { Group, GroupId, Position } from './portfolio.ts'
 import type { PortfolioState } from './usePortfolio.ts'
 
@@ -347,10 +348,15 @@ function GroupCard({
           imported holdings it could not map; ours names the rows whose cost was never entered,
           which is why the group above cannot quote a gain on all of it. */}
       {!cover && group.unpriced > 0 ? (
-        <Band action="Add it" onAction={onEditHoldings}>
-          {group.unpriced} {group.unpriced === 1 ? 'entry has' : 'entries have'} no invested amount
-          recorded, so {group.unpriced === 1 ? 'it is' : 'they are'} outside the gain.
-        </Band>
+        <StatusBand
+          tone="warn"
+          label={`${group.unpriced} ${
+            group.unpriced === 1 ? 'entry has' : 'entries have'
+          } no invested amount recorded,`}
+          action={{ label: 'Add it', onClick: onEditHoldings }}
+        >
+          so {group.unpriced === 1 ? 'it is' : 'they are'} outside the gain.
+        </StatusBand>
       ) : null}
     </Card>
   )

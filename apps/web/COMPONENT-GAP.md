@@ -8,10 +8,13 @@ This file says, for each of them, whether we already have it. Every verdict was 
 reading the component, not by matching a filename — `Leader` sounds nothing like `LegendRow` and
 is nearly it; `Tile` sounds like `IconTile` and is not it at all.
 
-**9 exist. 13 have something close that needs extending. 11 are net-new.**
+**9 exist. 13 have something close that needs extending. 11 are net-new.** That was step 1's
+census and it stays as written: it is the measurement the build list came from, not a status
+board.
 
 Rows marked **Built** were closed by a later step and say which. Everything else still reads as
-step 1 left it.
+step 1 left it. The list at the foot of this file is the one to trust for what is left — it is
+re-checked against the tree rather than inferred from the rows above it.
 
 Verdicts mean:
 
@@ -61,7 +64,7 @@ screen, which is exactly why it needs extracting.
 | SmartWealth | Verdict | What we have | What it needs |
 | --- | --- | --- | --- |
 | `ListRow` | **Extend** — canonical one exists | `ListRow` in `ui.tsx` (step 2, at 68px, built for the More menu) | The component is there; the two copies are **not** collapsed onto it yet. Statement rows in `Recent` (`src/screens/Money.tsx`) and `ProbeRow` in `src/screens/Onboarding.tsx` still hand-roll it at ~54px. Lift them when the screen they are on is next touched. |
-| `StatCard` | **Exists** | `Tile` in `ui.tsx` — `Amount size="md" fit`, label under, alternates sage/clay, turns white inside a tinted card | Nothing. This is StatCard with a better name. |
+| `StatCard` | **Exists** | `Tile` in `ui.tsx` — `Amount size="md" fit`, label under, alternates sage/clay, turns white inside a tinted card | Nothing. This is StatCard with a better name. Step 4 needed a three-line version — label, a masked identifier or count, figure, caption — and wrote `StatBox` in `src/screens/dashboard/parts.tsx` rather than growing `Tile` a middle slot, because a middle slot changes the thing every other screen uses `Tile` for. See the foot of this file. |
 | `FundRow` | **New** | nothing — `AccountCard` (`src/screens/Money.tsx`) is a card, not a row | Fund logo, name, category chip, NAV, return %, chevron. Build it on the extracted `ListRow`; it is the row every fund list in Discover is made of. **Step 3 deliberately did not**: the shelf list into the transaction spine (`src/screens/invest/ShelfList.tsx`) is the canonical `ListRow`, because this app computes no NAV, no returns and no rating, and five invented metrics a row is not density. Step 5 owns it, with the data. |
 | `GoalCard` | **Extend** | `StageCard` in `src/screens/Plan.tsx` (pills, title, expand-for-why) and the goal summary block in `src/screens/GoalSheet.tsx` (target, by-year, monthly, reachable) | Neither has a progress ring or the status footer band. Merge the two and add both. |
 | `ProgressBar` | **Exists** | `Bar` in `ui.tsx` — 8px, `bg-chart-idle` track, two segments, animated on `transform` not `width` | Exists for one-or-two segments. Allocation bars need *n* segments from the chart ramp — add a `segments` variant rather than a second component, and read the comment above `Bar` first: the reason it positions absolutely instead of flexing is a bug that drew every bar at `u²/100`. |
@@ -76,7 +79,7 @@ screen, which is exactly why it needs extracting.
 | --- | --- | --- | --- |
 | `StatusPill` | **Exists** | `Pill` in `ui.tsx` — `plain` / `warn` / `bad` / `ok`, which map onto SmartWealth's On Track / In Process / Needs Attention / Success | Nothing. But see the note below: SmartWealth's *primary* status treatment is a band, not a pill. |
 | `TagChip` | **Exists** | `Pill tone="plain"` | Nothing. |
-| `RibbonBadge` | **New** | nothing | "Recommended" as a corner tab clipped into a card's top-left edge, not a badge floating in the padding. `accent-soft` fill with `accent-text` ink is the IDBI reading of their gold; do not add a gold token for it. |
+| `RibbonBadge` | **Built** (step 4) | `RibbonTab` in `src/components/charts/AllocationCard.tsx`, with two callers: the allocation card and `AddSchemeInvest` | Nothing but a home. It is the corner tab clipped into the card's top edge rather than a badge floating in the padding, `accent-soft` with `accent-text` ink as the IDBI reading of their gold, and no gold token was added. It sits in `charts/` because that card wanted it first and its own comment says it belongs in Signals; move it when a third caller turns up. |
 | `InfoBanner` | **Built** (step 3) | `src/components/InfoBanner.tsx`; `OfflineBadge` is now three lines on top of it | Three tones (clay / sage / danger), each pairing the tint with the ink that clears AA on it, plus an optional inline action. It goes in `Screen`'s `notice` slot. `mostlyNameless` in `src/screens/Money.tsx` is still a second, inline instance and should be lifted when that screen is next touched. |
 | `PromoCard` | **New** | nothing | |
 | `PromoBanner` | **New** | nothing | Distinct from `PromoCard`: full-bleed, in the scroll, usually a carousel. |
@@ -90,9 +93,30 @@ screen, which is exactly why it needs extracting.
 `02-DESIGN-SYSTEM.md` names these under "patterns worth stealing" rather than as components, but
 they are components once you build them, and all three are net-new here.
 
-- **`StatusBand`** — the full-bleed tinted strip clipped to a card's *footer*, which is how
-  SmartWealth actually shows state down a list. `Pill` is the floating version and we have it;
-  the band we do not. This is the more distinctive of the two and probably the more used.
+- **`StatusBand`** — **Built by step 4**, as `src/components/StatusBand.tsx`. The full-bleed
+  tinted strip clipped to a card's *footer*, which is how SmartWealth actually shows state down a
+  list; `Pill` is the floating version and we already had it. It was right that this would be the
+  more used of the two — step 4 cut it **three times in parallel** before anyone noticed, once
+  per surface, and the three are now one:
+
+  ```
+  StatusBand: tone  good | warn | bad | quiet | solid
+              label   the state, in a few words, in semibold
+              children  the rest of the sentence, regular, wrapping under it
+              action  { label, onClick } a word · { info, onClick } the ⓘ — one slot
+              live    role=status, for a band that changes while somebody types
+              flush   the band is already at the edge, so cancel no padding
+  ```
+
+  `quiet` (`ground-deep` / `ink-mid`) is the one tone the palette map has no row for: the
+  commitments list needed a state nobody *chose* — a mandate that has simply gone silent — and
+  that has to be quieter than the three that are verdicts. The single `action` slot is what the
+  fold actually bought: the jars wanted the reference's ⓘ, the Holdings pane wanted its bare
+  action word ("67 unmapped investments found · Review"), and those are the same slot in two
+  presentations rather than two props. What did **not** fold is a leading glyph — the warning
+  triangle the commitments band used to draw is gone, because it had no accessible name and no
+  second caller, and its red tint is not the only channel when the sentence beside it says the
+  whole thing in words.
 - **`AmountInWords`** — **Built by step 3**, as `words` and `inWords` in `src/lib/money.ts` plus a
   line of markup in `AddSchemeInvest`. Indian grouping, not western: 1,22,841 is "One Lakh Twenty
   Two Thousand Eight Hundred Forty One", never "One Hundred Twenty Two Thousand …", and past
@@ -105,6 +129,25 @@ they are components once you build them, and all three are net-new here.
   `flex-none` header at all — the card has to hang out of `.scroll`, which clips it — so the bar
   moves inside the scroller and scrolls away, which is what the reference does. `Discover` is the
   only screen taking it today.
+
+## Four more the list of 33 misses, and one screen has all of them
+
+Step 4's Dashboard needed four shapes that are in neither the 33 nor `components/`. They are
+**built**, in `src/screens/dashboard/parts.tsx`, and that file's header states the terms they are
+held on: one surface is not a system, so a shape stays local until a second screen wants it.
+`StatusBand` is the worked example of those terms being met — it began as a fifth entry in that
+file, three surfaces each cut their own, and it is now `components/StatusBand.tsx` with every copy
+deleted. Lift any of these the moment a second screen reaches for it. Do not copy one.
+
+| Built | What it is |
+| --- | --- |
+| `StatBox` | The reference's stat card: label, a masked identifier or a count, a big figure, a caption, in `tint-sky` or `tint-sage`. The three-line `Tile`, and see the `StatCard` row above for why `Tile` was not grown into it. |
+| `RowCard` | A white card whose whole content is one `ListRow`. `Card`'s own 16px padding around a 68px row makes it 100px tall; this gives the row side padding and nothing else. |
+| `Section` | The analytics accordion: a full-bleed `ground-deep` header row, the section's own figure on the right of a collapsed one, and a `0fr → 1fr` grid transition that animates to a height nobody had to measure. Closed content is `inert`, not merely clipped. |
+| `ExposureTable` | `Securities Exposure (Top 5)` as a real `<table>`. It is tabular data with column headers, and the markup is the only thing that tells a screen reader that "Equity" is the *type* of the row above it. |
+
+`Columns`, `CardHead` and `Empty` share that file and are one screen's furniture rather than
+candidates for `components/`.
 
 ## Order
 
@@ -127,8 +170,14 @@ independently and should be, before any screen is built on a copy of it.
 Step 2 took the chrome half of that column — `AppBar`, `BottomNav`, `SegmentedTabs`,
 `StickyFooterBar` — plus `IconButton` and `TextLink`, whose five and three copies are now one
 each. Step 3 took `Checkbox`, `OtpInput`, `InfoBanner` and `AmountInWords`, which is everything
-the transaction spine needed that did not already exist.
+the transaction spine needed that did not already exist. Step 4 took the chart chain, `StatusBand`
+and `RibbonBadge`, and left four Dashboard-local shapes on the terms in the section above.
 
 What is still open in **Extend**: `FilterChipRow`, `RiskSlider`, `GoalCard`, `ProfileCard`, and
 the two `ListRow` copies that a canonical `ListRow` now exists to absorb. Still **New**:
-`StatusBar`, `FundRow`, `PromoCard`, `PromoBanner`, `IconTile`, `RatingStar` and `StatusBand`.
+`StatusBar`, `FundRow`, `PromoCard`, `PromoBanner`, `IconTile` and `RatingStar` — six, not eight.
+That list is checked against the tree rather than carried forward: nothing under `src/` names any
+of the six outside a comment pointing back at this file. `StatusBand` and `RibbonBadge` came off
+it in step 4, and `StatusBand` is the reason to read this file before building anything on a
+copy — four surfaces went up in parallel, three of them drew the same band, and none of the three
+knew the other two existed.
