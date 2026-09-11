@@ -152,6 +152,17 @@
   /* The app is a phone. On a desktop it stays a phone, centred. */
   --app-max: 430px;
 
+  /*
+   * The diamond lattice the reference watermarks its stat cards with.
+   *
+   * Inline SVG rather than a file: it is nine path commands, it tints itself from the ink it is
+   * drawn in, and a background-image request for 200 bytes is a request that should not exist.
+   * Deliberately at the edge of visible — it is texture, and a watermark you can read is a
+   * pattern competing with the figure on top of it. The first pass was drawn at 8.5% on an 18px
+   * tile and read as crosshatch on screen; 4.2% on a 24px tile is the version you stop noticing.
+   */
+  --lattice: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 0.5 23.5 12 12 23.5 0.5 12Z' fill='none' stroke='%23164c3f' stroke-opacity='0.042' stroke-width='1'/%3E%3C/svg%3E");
+
   --shadow-card: 0 1px 2px rgb(0 131 108 / 6%), 0 6px 18px rgb(0 131 108 / 8%);
   --shadow-lift: 0 2px 6px rgb(0 131 108 / 10%), 0 14px 32px rgb(0 131 108 / 14%);
 

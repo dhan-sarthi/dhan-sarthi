@@ -50,18 +50,28 @@ export function StatBox({
 }): ReactNode {
   return (
     <div
-      className={`flex min-w-0 flex-col gap-0.5 overflow-hidden rounded-md p-3.5 ${
+      className={`relative flex min-w-0 flex-col gap-0.5 overflow-hidden rounded-md p-3.5 ${
         tone === 'sky' ? 'bg-tint-sky' : 'bg-tint-sage'
       }`}
     >
-      <div className="truncate text-[13px] font-semibold text-ink-mid">{label}</div>
-      {meta !== undefined ? (
-        <div className="truncate text-[13px] tabular-nums text-ink-soft">{meta}</div>
-      ) : null}
-      <div className="mt-1.5">
-        <Amount value={value} size="md" fit />
+      {/* The reference watermarks these two cards with a diamond lattice in their lower-right
+          corner. It is texture and nothing else: `aria-hidden`, behind the content, and faint
+          enough that the figure never competes with it. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-1 -right-1 size-24 rounded-tl-lg"
+        style={{ backgroundImage: 'var(--lattice)' }}
+      />
+      <div className="relative">
+        <div className="truncate text-[13px] font-semibold text-ink-mid">{label}</div>
+        {meta !== undefined ? (
+          <div className="truncate text-[13px] tabular-nums text-ink-soft">{meta}</div>
+        ) : null}
+        <div className="mt-1.5">
+          <Amount value={value} size="md" fit />
+        </div>
+        <div className="truncate text-xs text-ink-soft">{caption}</div>
       </div>
-      <div className="truncate text-xs text-ink-soft">{caption}</div>
     </div>
   )
 }

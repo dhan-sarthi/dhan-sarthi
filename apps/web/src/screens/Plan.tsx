@@ -157,6 +157,7 @@ export function Plan({
       {/* ------------------------------------------------ Destination */}
       <div className="mt-3">
         <BenefitCards
+          art="hero-plan"
           eyebrow="Where you are going"
           benefits={[
             {

@@ -344,13 +344,17 @@ Six marks, one system. Flat vector, the green ladder and nothing else, drawn on 
 | `rebalance-balance-dark` | Rebalancing, the hero on `tint-ink` |
 | `profile-result` | Investment profile, the computed result |
 | `order-recorded` | Order placed |
+| `hero-holdings` | Dashboard · Overview, beside the "What you hold" total |
+| `hero-plan` | Plan, the "Where you are going" hero |
 
 Rules:
 
 - **Pick by ground.** The marks are drawn in the dark end of the ladder and read on white; they
   vanish on `tint-ink`. The `-dark` variant is drawn in the light end for that one case. Verified
   at 0% of pixels below 1.6:1 against `#164c3f`.
-- **Three sizes only** — `sm` 80px, `md` 128px, `lg` 160px. A mark at an arbitrary width on each
+- **The two `hero-` marks are landscape** and sized by height (80px), not by the square steps.
+  They sit *beside* a headline number rather than above copy, so they find their own width.
+- **Three sizes only** for the square marks — `sm` 80px, `md` 128px, `lg` 160px. A mark at an arbitrary width on each
   screen stops reading as a system. The files are 512px square, 2x the largest step.
 - **Always decorative.** Every mark sits beside copy that already says the same thing, so each is
   `alt=""` and `aria-hidden`. Never let one carry a meaning on its own.

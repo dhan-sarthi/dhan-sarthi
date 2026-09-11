@@ -17,6 +17,12 @@ import type { ReactNode } from 'react'
  */
 const SIZE = { sm: 'size-20', md: 'size-32', lg: 'size-40' } as const
 
+/*
+ * The two hero marks are landscape and sit beside a headline number rather than above copy, so
+ * they are sized by height and left to find their own width. Everything else is square.
+ */
+const WIDE = new Set<ArtName>(['hero-holdings', 'hero-plan'])
+
 export type ArtName =
   | 'jar-create'
   | 'empty-jars'
@@ -25,6 +31,8 @@ export type ArtName =
   | 'rebalance-balance-dark'
   | 'profile-result'
   | 'order-recorded'
+  | 'hero-holdings'
+  | 'hero-plan'
 
 export function Art({
   name,
@@ -45,7 +53,7 @@ export function Art({
       decoding="async"
       width={512}
       height={512}
-      className={`${SIZE[size]} flex-none select-none object-contain ${className}`}
+      className={`${WIDE.has(name) ? 'h-20 w-auto' : SIZE[size]} flex-none select-none object-contain ${className}`}
     />
   )
 }

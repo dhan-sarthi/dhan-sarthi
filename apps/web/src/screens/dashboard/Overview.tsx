@@ -53,6 +53,7 @@ import { inr } from '../../lib/money.ts'
 import { Empty, RowCard, StatBox } from './parts.tsx'
 import type { Portfolio } from './portfolio.ts'
 import type { PortfolioState } from './usePortfolio.ts'
+import { Art } from '../../components/Art.tsx'
 
 export function Overview({
   snapshot,
@@ -236,9 +237,17 @@ function Hero({ portfolio }: { portfolio: Portfolio }): ReactNode {
   const up = (portfolio.gain ?? 0) >= 0
   return (
     <Card>
-      <div className="text-[15px] font-medium text-ink-soft">What you hold</div>
-      <div className="mb-1 mt-2">
-        <Amount value={portfolio.total} size="xl" />
+      {/* The reference puts an illustration in this card beside the figure, and it is most of why
+          the card reads as designed rather than as a number in a box. Ours is `items-end` so the
+          mark sits on the same baseline as the total instead of floating beside its label. */}
+      <div className="flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[15px] font-medium text-ink-soft">What you hold</div>
+          <div className="mb-1 mt-2">
+            <Amount value={portfolio.total} size="xl" />
+          </div>
+        </div>
+        <Art name="hero-holdings" className="-mb-1 -mr-1" />
       </div>
       {portfolio.gain !== null ? (
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
