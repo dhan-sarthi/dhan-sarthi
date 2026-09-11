@@ -123,6 +123,18 @@ const SOURCE_LABEL: Record<AdviceRecord['source'], string> = {
   api: 'Checked by API',
 }
 
+/**
+ * Where the ledger behind a record came from, in the words the More menu's footer already uses.
+ *
+ * Real provenance, and it belongs on an audit record — but it was rendering `Seed memory-0`,
+ * eight characters of an internal run id, on a customer's screen. Over IDBI's own feed the
+ * `Read from IDBI` chip says this instead and this one is not drawn.
+ */
+const LEDGER_SOURCE: Record<string, string> = {
+  memory: 'Synthetic ledger',
+  postgres: 'Seeded database',
+}
+
 function Decisions({
   record,
   view,
@@ -203,12 +215,13 @@ function Decisions({
         ) : (
           <Pill tone="warn">Chain not checked</Pill>
         )}
-        {/* The seed run identifies the generated ledger, so it means something under the
-            fixtures and the seeded database and nothing at all over a bank feed — where it was
-            still being printed as "Seed memory-f", eight characters of an id describing data
-            that is not on this screen. */}
+        {/* Where the ledger behind this record came from.
+            It is real provenance and belongs on an audit record, but it was printing
+            `Seed memory-0` — eight characters of an internal run id, on a customer's screen.
+            The same source is already named in words two screens away in the More menu, so it
+            is named in words here. Over a bank feed the chip below says so instead. */}
         {rec.provenance && view.meta.source !== 'idbi-sandbox' ? (
-          <Pill>Seed {rec.provenance.seedRunId.slice(0, 8)}</Pill>
+          <Pill>{LEDGER_SOURCE[view.meta.source] ?? 'Synthetic ledger'}</Pill>
         ) : null}
         {view.meta.source === 'idbi-sandbox' ? <Pill>Read from IDBI</Pill> : null}
       </div>
