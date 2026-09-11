@@ -28,6 +28,23 @@
  * The lavender panel (`#F2EDFD`) has no row in `03-PALETTE-MAP.md`. It is a schedule and a
  * projection, which is what `--tint-sky` is for in `DESIGN.md`, so it is a sky card rather than
  * a new token.
+ *
+ * ## What the parity pass changed, after putting the running screen beside frames 06–10
+ *
+ * Everything above was built to the measurements and none of it was looked at. Four things came
+ * out of looking:
+ *
+ * - **The app bar is green.** The overlap is the reference's signature move on this screen and it
+ *   was invisible here: a white card hanging 48px into a white-to-mint gradient overlaps nothing.
+ *   `03-PALETTE-MAP.md` §2 says the navy bar is load-bearing and that the trick "must be rebuilt,
+ *   not recoloured" against `--brand` green. `Head tone="brand"` is that rebuild.
+ * - **The ribbon is on the corner**, not on the text gutter — the spec says flush to the card's
+ *   edge and the frame shows it.
+ * - **The toggle is a centred pill**, 242×43 in the frame, not a full-width track. See
+ *   `Segments variant="switch"`.
+ * - **The form rows are 66px, not 56px**, and the card holds them with no padding of its own, so
+ *   the Lump sum tab's single Folio row is a 66px strip rather than a 100px card with one line in
+ *   it. That is why this screen builds the form card by hand instead of using `Card`.
  */
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -154,7 +171,15 @@ export function AddSchemeInvest({
     <Screen
       scrollHeader
       overlap
-      header={<Head onBack={onBack} backLabel="Back to the shelf" title="Add scheme" overlap />}
+      header={
+        <Head
+          onBack={onBack}
+          backLabel="Back to the shelf"
+          title="Add scheme"
+          overlap
+          tone="brand"
+        />
+      }
       footer={
         <Button full disabled={below} onClick={() => onCommit(line)}>
           {editing ? 'Save changes' : 'Add to order'}
@@ -217,7 +242,7 @@ export function AddSchemeInvest({
     >
       {/* nth-child(2) of the content wrapper, which is what `overlap` pulls up into the slab. */}
       <Card tint="white">
-        {planned ? <RibbonTab>In your plan</RibbonTab> : null}
+        {planned ? <RibbonTab corner>In your plan</RibbonTab> : null}
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h2>{product.name}</h2>
@@ -257,7 +282,7 @@ export function AddSchemeInvest({
         ) : null}
       </Card>
 
-      {cover ? null : <Segments options={MODES} value={mode} onChange={setMode} />}
+      {cover ? null : <Segments variant="switch" options={MODES} value={mode} onChange={setMode} />}
 
       <AmountField
         label={recurring ? copy.amount : 'Lump sum amount'}
@@ -267,37 +292,42 @@ export function AddSchemeInvest({
         below={below}
       />
 
-      <Card tint="white">
-        <div className="divide-y divide-solid divide-hairline-mint">
-          {recurring ? (
-            <>
-              <Row
-                label={copy.first}
-                value={longDate(startDate)}
-                icon={<CalendarDays size={18} strokeWidth={2} />}
-                onClick={() => setSheet('date')}
-              />
-              <Row
-                label={`No. of ${copy.count.toLowerCase()}`}
-                value={installments === null ? 'Until I stop' : String(installments)}
-                /* Only when there is something to say. "Until I stop" is already the value on
-                   the right, and repeating it in the helper wrapped the row onto three lines. */
-                help={last ? `Last one on ${longDate(last)}` : undefined}
-                icon={<SquarePen size={18} strokeWidth={2} />}
-                onClick={() => setSheet('count')}
-              />
-            </>
-          ) : null}
-          <Row
-            label="Folio"
-            value={folio === 'new' ? 'New folio' : 'Existing folio'}
-            icon={<ChevronDown size={18} strokeWidth={2} />}
-            onClick={() => setSheet('folio')}
-          />
-        </div>
-      </Card>
+      {/* Not `Card`: the rows carry the height, so the card carries no vertical padding of its
+          own. With `p-4` the Lump sum tab's single Folio row sat in a 100px box with 34px of air
+          above and below it, where the frame shows a 52px strip. */}
+      <section className="mb-3 min-w-0 divide-y divide-solid divide-hairline-mint rounded-md border border-solid border-hairline bg-surface px-4">
+        {recurring ? (
+          <>
+            <Row
+              label={copy.first}
+              value={longDate(startDate)}
+              icon={<CalendarDays size={18} strokeWidth={2} />}
+              onClick={() => setSheet('date')}
+            />
+            <Row
+              label={`No. of ${copy.count.toLowerCase()}`}
+              value={installments === null ? 'Until I stop' : String(installments)}
+              /* Only when there is something to say. "Until I stop" is already the value on
+                 the right, and repeating it in the helper wrapped the row onto three lines. */
+              help={last ? `Last one on ${longDate(last)}` : undefined}
+              icon={<SquarePen size={18} strokeWidth={2} />}
+              onClick={() => setSheet('count')}
+            />
+          </>
+        ) : null}
+        <Row
+          label="Folio"
+          value={folio === 'new' ? 'New folio' : 'Existing folio'}
+          icon={<ChevronDown size={18} strokeWidth={2} />}
+          onClick={() => setSheet('folio')}
+        />
+      </section>
 
-      <Card tint="sky">
+      {/* The reference's lavender panel: three ruled columns over a hairline, then the settlement
+          line centred under it. In the frame it is anchored to the bottom of the screen and
+          clipped by it, because that screen has no CTA; this one does, so the panel is a panel
+          and the sticky footer is the bottom edge. */}
+      <section className="mb-3 min-w-0 rounded-md bg-tint-sky px-4 pb-3.5 pt-3">
         {recurring ? (
           <div className="mb-3 grid grid-cols-3 divide-x divide-solid divide-hairline-mint border-0 border-b border-solid border-hairline-mint pb-3">
             <Column label={copy.first} value={dayMonth(startDate)} />
@@ -311,7 +341,7 @@ export function AddSchemeInvest({
         <p className="m-0 text-center text-[12.5px] leading-relaxed text-ink-soft">
           {SETTLEMENT[settlementOf(product.category)]}
         </p>
-      </Card>
+      </section>
     </Screen>
   )
 }
@@ -344,10 +374,13 @@ function AmountField({
 }): ReactNode {
   const shown = value > 0 ? new Intl.NumberFormat('en-IN').format(Math.round(value)) : ''
   return (
-    <section className="mb-3 mt-5 text-center">
+    <section className="mb-5 mt-1 text-center">
       <div className="text-sm text-ink-soft">{label}</div>
-      <div className="mx-auto mt-1.5 flex w-fit items-baseline justify-center gap-1 border-0 border-b-[1.5px] border-solid border-hairline pb-1 focus-within:border-accent-text">
-        <span className="text-[20px] font-bold text-ink-soft">₹</span>
+      {/* The ₹ is 0.7em and the same ink as the digits, not a small grey prefix. In the frame the
+          rupee sign is part of the figure — `₹2,416` is one word at one weight — and shrinking it
+          into the label colour turns the number into a form field again. */}
+      <div className="mx-auto mt-2 flex w-fit items-baseline justify-center border-0 border-b-[1.5px] border-solid border-hairline pb-1.5 focus-within:border-accent-text">
+        <span className="mr-[0.06em] text-[27px] font-bold leading-none text-ink">₹</span>
         <input
           aria-label={label}
           inputMode="numeric"
@@ -358,11 +391,11 @@ function AmountField({
             const digits = e.target.value.replace(/\D/g, '').slice(0, 9)
             onChange(digits === '' ? 0 : Number(digits))
           }}
-          className="min-w-0 border-0 bg-transparent text-center text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink outline-none placeholder:text-ink-faint"
+          className="min-w-0 border-0 bg-transparent text-center text-[38px] font-bold leading-none tracking-tight tabular-nums text-ink outline-none placeholder:text-ink-faint"
           style={{ width: `${Math.max(3, shown.length || 1)}ch` }}
         />
       </div>
-      <p className="mb-0 mt-2.5 text-[13px] leading-snug text-ink-soft">{inWords(value)}</p>
+      <p className="mb-0 mt-3 text-[13px] leading-snug text-ink-soft">{inWords(value)}</p>
       <p
         className={`mb-0 mt-1 text-xs ${below ? 'font-semibold text-danger' : 'text-ink-soft'}`}
         role={below ? 'alert' : undefined}
@@ -397,7 +430,9 @@ function Row({
       {icon ? <span className="flex-none text-accent-text">{icon}</span> : null}
     </>
   )
-  const cls = 'flex min-h-[56px] w-full items-center gap-3 border-0 bg-transparent py-3 text-left'
+  /* 66px, which is what the frame measures the three rows at (a 200px card, three ways). At 56
+     the value, the helper line and the trailing glyph were touching their own dividers. */
+  const cls = 'flex min-h-[66px] w-full items-center gap-3 border-0 bg-transparent py-3 text-left'
   if (!onClick) return <div className={cls}>{body}</div>
   return (
     <button type="button" className={`ds-press ${cls}`} onClick={onClick}>

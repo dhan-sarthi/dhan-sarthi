@@ -37,11 +37,31 @@ import { DonutChart } from './DonutChart.tsx'
 import { LegendRow } from './LegendRow.tsx'
 import { collapse, RAMP, series, type Slice } from './series.ts'
 
-/** The corner tab. Belongs in Signals eventually; it lives here because this card needs it. */
-export function RibbonTab({ children }: { children: ReactNode }): ReactNode {
+/**
+ * The corner tab. Belongs in Signals eventually; it lives here because this card needs it.
+ *
+ * `corner` is the geometry the reference actually draws, which the first pass missed by reading
+ * "badge" and stopping there: `10-diy-otp/04-add-scheme-invest.md` measures the `Recommended` tab
+ * as *flush into the card's top-left corner* — "it sits on the card's edge, not inside its
+ * padding". Inset by the card's 16px gutter it reads as a chip someone left at the top of the
+ * card; flush to the corner, carrying the card's own radius on that corner, it reads as a ribbon
+ * stuck to the card, which is the whole point of the shape.
+ */
+export function RibbonTab({
+  children,
+  corner = false,
+}: {
+  children: ReactNode
+  /** Pull the tab out to the card's top-left corner instead of leaving it on the text gutter. */
+  corner?: boolean
+}): ReactNode {
   return (
-    <div className="-mt-4 mb-3">
-      <span className="inline-flex rounded-b-sm bg-accent-soft px-2.5 pb-1.5 pt-2 text-[11px] font-bold leading-none text-accent-text">
+    <div className={corner ? '-ml-4 -mt-4 mb-3' : '-mt-4 mb-3'}>
+      <span
+        className={`inline-flex bg-accent-soft px-2.5 pb-1.5 pt-2 text-[11px] font-bold leading-none text-accent-text ${
+          corner ? 'rounded-br-sm rounded-tl-md' : 'rounded-b-sm'
+        }`}
+      >
         {children}
       </span>
     </div>

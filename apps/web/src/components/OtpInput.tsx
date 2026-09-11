@@ -63,7 +63,16 @@ export function OtpInput({
 
   return (
     <div className="relative">
-      <div className="mx-auto flex max-w-[352px] gap-2" aria-hidden="true">
+      {/*
+       * `justify-between` with fixed square cells, not `flex-1` with a gap.
+       *
+       * Both specs measure the boxes as ~48-52pt *squares* "evenly spaced across the full
+       * content width", and on the reference's 390pt phone those two facts happen to agree. On
+       * a 430pt one they do not: six flexible cells across a 398px gutter are 60x48 letterboxes.
+       * So the cell keeps its square and the row spends the slack on the gaps, which is the
+       * shape in the frame rather than the arithmetic behind it.
+       */}
+      <div className="flex justify-between gap-1.5" aria-hidden="true">
         {Array.from({ length }, (_, i) => {
           const digit = value[i] ?? ''
           const focused = i === active && !disabled
@@ -75,7 +84,7 @@ export function OtpInput({
           return (
             <span
               key={i}
-              className={`grid h-12 flex-1 place-items-center rounded-sm border-[1.5px] border-solid bg-surface text-[20px] font-semibold tabular-nums text-ink transition-colors duration-150 ${border} ${
+              className={`grid aspect-square w-[52px] min-w-0 shrink place-items-center rounded-sm border-[1.5px] border-solid bg-surface text-[21px] font-semibold tabular-nums text-ink transition-colors duration-150 ${border} ${
                 disabled ? 'opacity-55' : ''
               }`}
             >
@@ -104,7 +113,7 @@ export function OtpInput({
         aria-invalid={invalid}
         value={value}
         onChange={handle}
-        className="absolute inset-0 h-12 w-full cursor-pointer rounded-sm border-0 bg-transparent text-transparent caret-transparent outline-none selection:bg-transparent"
+        className="absolute inset-0 h-full w-full cursor-pointer rounded-sm border-0 bg-transparent text-transparent caret-transparent outline-none selection:bg-transparent"
       />
     </div>
   )

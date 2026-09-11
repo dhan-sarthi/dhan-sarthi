@@ -121,6 +121,13 @@ export function Card({
  * once the row can be scrolled out from under it.
  *
  * The pill stays for switches *inside* a card, where three short words do fit.
+ *
+ * `variant="switch"` is the third: SmartWealth's `Monthly SIP | Lump sum` control, measured at
+ * 242×43 and *centred* rather than run to the gutters, with a full-pill track and a full-pill
+ * thumb. It is not the `pill` variant recoloured. A full-width 14px-radius track reads as a
+ * screen-level tab row — "which part of this page am I on" — where a narrow centred pill reads
+ * as one question with two answers, which is what choosing between a SIP and a lump sum is.
+ * IDBI's own buttons are full pills, so the reference's radius and this app's agree here.
  */
 export function Segments<T extends string>({
   options,
@@ -131,12 +138,42 @@ export function Segments<T extends string>({
   options: readonly { id: T; label: string }[]
   value: T
   onChange: (id: T) => void
-  variant?: 'pill' | 'underline'
+  variant?: 'pill' | 'underline' | 'switch'
 }): ReactNode {
   const index = Math.max(
     0,
     options.findIndex((o) => o.id === value),
   )
+  if (variant === 'switch') {
+    return (
+      <div
+        className="relative mx-auto my-5 flex w-fit max-w-full flex-none rounded-pill border border-solid border-hairline-mint bg-surface p-1"
+        role="tablist"
+      >
+        <span
+          aria-hidden="true"
+          className="absolute bottom-1 top-1 rounded-pill bg-accent transition-transform duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)]"
+          style={{
+            width: `calc((100% - 8px) / ${options.length})`,
+            left: 4,
+            transform: `translateX(${index * 100}%)`,
+          }}
+        />
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="tab"
+            className="relative z-[1] h-[35px] min-w-[120px] flex-1 truncate rounded-pill border-0 bg-transparent px-3 text-[15px] font-semibold text-ink-mid transition-colors duration-200 aria-selected:text-on-accent"
+            aria-selected={o.id === value}
+            onClick={() => onChange(o.id)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
   if (variant === 'underline') {
     return (
       <div
@@ -587,6 +624,14 @@ export function ListRow({
  * the first card of the screen is pulled up into it, so the header reads as a backdrop the
  * content sits on rather than a band above it. It only works when the header scrolls with the
  * content — see the note in `Screen` — which is why the prop is here and the mechanics are not.
+ *
+ * `tone="brand"` is the slab in green, and it exists only because `overlap` needs it.
+ * `03-PALETTE-MAP.md` §2 is explicit: SmartWealth's navy bar is *load-bearing* — the overlap
+ * reads because a white card is hanging into a dark band — and "the overlap-the-header trick
+ * still works against `--brand` green, but it must be rebuilt, not recoloured". On the mint slab
+ * a white card overlapping a near-white gradient is invisible, which is exactly what the first
+ * pass shipped. Green is therefore not decoration here; it is the thing that makes the card read
+ * as overlapping anything. Use it with `overlap`, and nowhere else.
  */
 export function Head({
   title,
@@ -596,6 +641,7 @@ export function Head({
   backLabel = 'Back',
   greeting,
   overlap = false,
+  tone = 'slab',
 }: {
   title: string
   sub?: string
@@ -608,10 +654,18 @@ export function Head({
   greeting?: boolean
   /** Grow the slab so the screen's first card can be pulled up into it. */
   overlap?: boolean
+  /** `brand` paints the slab green so an overlapping white card has something to overlap. */
+  tone?: 'slab' | 'brand'
 }): ReactNode {
-  const slab = `flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint px-4 pt-4 shadow-card ${
-    overlap ? 'pb-[68px]' : 'pb-4'
-  }`
+  const dark = tone === 'brand'
+  const ground = dark
+    ? 'bg-gradient-to-br from-brand to-brand-deep'
+    : 'bg-gradient-to-b from-white to-header-mint'
+  const slab = `flex flex-none items-start justify-between gap-3 rounded-b-lg ${ground} px-4 pt-4 shadow-card ${
+    dark ? 'text-on-dark' : ''
+  } ${overlap ? 'pb-[68px]' : 'pb-4'}`
+  const titleInk = dark ? 'text-on-dark' : 'text-ink'
+  const subInk = dark ? 'text-white/75' : 'text-ink-mid'
   const actions = right ? <div className="flex flex-none items-center gap-2">{right}</div> : null
 
   if (onBack || greeting) {
@@ -619,7 +673,7 @@ export function Head({
       <header className={`${slab} items-center`}>
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {onBack ? (
-            <IconButton label={backLabel} tone="bordered" onClick={onBack}>
+            <IconButton label={backLabel} tone={dark ? 'ghost' : 'bordered'} onClick={onBack}>
               <ArrowLeft size={18} strokeWidth={2.3} />
             </IconButton>
           ) : (
@@ -630,11 +684,11 @@ export function Head({
               {initials(title)}
             </span>
           )}
-          <div key={title} className="ds-screen min-w-0">
-            <h1 className="m-0 truncate text-[20px] font-semibold leading-tight text-ink">
+          <div key={title} className={`ds-screen min-w-0 ${dark ? '-ml-1' : ''}`}>
+            <h1 className={`m-0 truncate text-[20px] font-semibold leading-tight ${titleInk}`}>
               {greeting ? `Hi, ${title}` : title}
             </h1>
-            {sub ? <p className="mb-0 mt-0.5 truncate text-[13px] text-ink-mid">{sub}</p> : null}
+            {sub ? <p className={`mb-0 mt-0.5 truncate text-[13px] ${subInk}`}>{sub}</p> : null}
           </div>
         </div>
         {actions}
@@ -649,11 +703,11 @@ export function Head({
           this a tab change swapped "Today" for "Money" mid-frame while everything under it
           animated. Short: this runs on every tap of the bar. */}
       <div key={title} className="ds-screen min-w-0">
-        <h1 className="m-0 text-[26px] font-semibold leading-tight text-ink">{title}</h1>
+        <h1 className={`m-0 text-[26px] font-semibold leading-tight ${titleInk}`}>{title}</h1>
         {/* --ink-mid, not --ink-soft. The slab fades to mint under this line, and the soft grey
             reads 4.41:1 against it — the one place in the app where a background gradient, not a
             flat tint, is what pushes a colour under AA. */}
-        {sub ? <p className="mb-0 mt-1 text-sm text-ink-mid">{sub}</p> : null}
+        {sub ? <p className={`mb-0 mt-1 text-sm ${subInk}`}>{sub}</p> : null}
       </div>
       {actions}
     </header>

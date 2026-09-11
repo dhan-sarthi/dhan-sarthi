@@ -91,7 +91,7 @@ and `ink` is near-black because body text is. One large number still leads each 
 
 ## Component recipes (the exact strings in `src/components/ui.tsx`)
 
-### Head — the app bar. Three variants, one slab
+### Head — the app bar. Three variants, one slab, and one tone
 ```
 slab:    flex flex-none items-start justify-between gap-3 rounded-b-lg bg-gradient-to-b from-white to-header-mint px-4 pt-4 pb-4 shadow-card
 default: h1 m-0 text-[26px] font-semibold leading-tight text-ink
@@ -101,9 +101,19 @@ back:    items-center · IconButton tone="bordered" with ArrowLeft 18/2.3 · h1 
 greeting: items-center · size-10 rounded-pill bg-tint-sage text-[15px] font-bold text-brand-deep
          initials disc · h1 "Hi, <name>" at 20px
 overlap: pb-[68px] instead of pb-4, for the card that starts up inside the slab
+tone=brand: bg-gradient-to-br from-brand to-brand-deep, text-on-dark on the slab, sub at
+         white/75, back arrow as IconButton tone="ghost". Pair it with `overlap`.
 ```
 Trailing actions (`right`) are 0–2 `IconButton`s; `Head` lays them out in a
 `flex flex-none items-center gap-2`. Do not wrap them yourself.
+
+**`tone="brand"` exists for `overlap` and for nothing else.** SmartWealth's navy bar is
+load-bearing — the overlapping card reads because it is a white card hanging into a dark band —
+and `03-PALETTE-MAP.md` §2 says the trick "still works against `--brand` green, but it must be
+rebuilt, not recoloured". On the mint slab a white card overlapping a white-to-mint gradient
+overlaps nothing visible, which is what the first build of `add-scheme-invest` shipped. Green is
+therefore the mechanism, not a decoration: use it where a card comes up into the bar, and leave
+every other screen on the mint slab.
 
 ### IconButton — a glyph with a tap target
 ```
@@ -168,6 +178,14 @@ pill (default, 2–3 cells, an in-screen switch)
 track: mx-4 my-3 flex flex-none rounded-md bg-ground-deep p-1        role=tablist
 pill:  absolute bottom-1 top-1 rounded-sm bg-accent, one span that slides on transform
 cell:  relative z-[1] h-10 min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent px-1 text-sm font-semibold text-ink-mid transition-colors duration-200 aria-selected:text-on-accent
+
+switch (2 cells, one question with two answers — `Monthly SIP | Lump sum`)
+track: mx-auto my-5 w-fit rounded-pill border border-solid border-hairline-mint bg-surface p-1
+pill:  absolute bottom-1 top-1 rounded-pill bg-accent, the same sliding span
+cell:  relative z-[1] h-[35px] min-w-[120px] flex-1 rounded-pill … text-[15px] font-semibold
+       aria-selected:text-on-accent
+Measured at 242x43 in the source and *centred*, not run to the gutters. A full-width 14px track
+reads as "which part of this page am I on"; a narrow centred pill reads as a choice.
 
 underline (4 cells, SmartWealth's screen-level tab row)
 row:   flex flex-none overflow-x-auto border-0 border-b-[1.5px] border-solid border-hairline-mint bg-surface px-4

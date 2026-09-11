@@ -162,8 +162,15 @@ export function CartReview({
           </div>
         </div>
       ) : (
-        /* Full-bleed white blocks on a grey ground: the gap band between items is the ground
-           showing through, which is how the reference separates them. */
+        /*
+         * Full-bleed white blocks on a grey ground, all the way down.
+         *
+         * This is the reference's rhythm and the first pass only had half of it: the line items
+         * were banded and everything after them — add-more, the balance strip, the terms — floated
+         * back onto the page gutter, so the screen changed structure halfway. In frame 11 every
+         * section is a white slab with an `#F2F5FA` band between it and the next, right down to
+         * the terms row above the sticky bar. One grey ground, white blocks on it, 8px apart.
+         */
         <div className="-mx-4 space-y-2 bg-ground-deep py-2">
           {lines.map((line) => (
             <Item
@@ -174,37 +181,35 @@ export function CartReview({
               onRemove={() => onRemove(line.id)}
             />
           ))}
+
+          <div className="bg-surface px-4 py-3">
+            <button
+              type="button"
+              onClick={onAddMore}
+              className="ds-press flex h-12 w-full items-center justify-center gap-1.5 rounded-pill border-[1.5px] border-dashed border-accent bg-legend-chip px-4 text-[15px] font-semibold text-accent-text"
+            >
+              <Plus size={17} strokeWidth={2.6} />
+              Add another scheme
+            </button>
+          </div>
+
+          {available ? (
+            <div className="bg-legend-chip px-4 py-2.5 text-center text-[13px] font-semibold text-brand-deep">
+              Available in {available.masked}: {inr(available.amount)}
+            </div>
+          ) : null}
+
+          <div className="bg-surface px-4 py-1">
+            <Checkbox checked={terms} onChange={onSetTerms} disabled={placing}>
+              I accept the{' '}
+              <span className="font-semibold text-brand-deep underline underline-offset-2">
+                terms and conditions
+              </span>{' '}
+              and the commission structure that applies to this transaction.
+            </Checkbox>
+          </div>
         </div>
       )}
-
-      {lines.length > 0 ? (
-        <button
-          type="button"
-          onClick={onAddMore}
-          className="ds-press mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-pill border-[1.5px] border-dashed border-accent bg-ground-deep px-4 text-[15px] font-semibold text-accent-text"
-        >
-          <Plus size={17} strokeWidth={2.6} />
-          Add another scheme
-        </button>
-      ) : null}
-
-      {available ? (
-        <div className="-mx-4 mt-4 bg-legend-chip px-4 py-2 text-center text-[13px] font-semibold text-brand-deep">
-          Available in {available.masked}: {inr(available.amount)}
-        </div>
-      ) : null}
-
-      {lines.length > 0 ? (
-        <div className="mt-2">
-          <Checkbox checked={terms} onChange={onSetTerms} disabled={placing}>
-            I accept the{' '}
-            <span className="font-semibold text-brand-deep underline underline-offset-2">
-              terms and conditions
-            </span>{' '}
-            and the commission structure that applies to this transaction.
-          </Checkbox>
-        </div>
-      ) : null}
     </Screen>
   )
 }
@@ -263,8 +268,14 @@ function Item({
         <TextLink flush size="sm" onClick={onEdit}>
           Edit details
         </TextLink>
-        <IconButton label={`Remove ${line.name}`} size="sm" tone="danger" onClick={onRemove}>
-          <Trash2 size={16} strokeWidth={2.1} />
+        {/*
+         * Not the danger tone. In frame 11 the trash is the same blue as `Edit Details` beside
+         * it — the two are a pair of equal actions on the line, and a red disc made removing a
+         * line the loudest thing on a screen whose actual refusal, when there is one, is the
+         * gate. Red stays for that.
+         */}
+        <IconButton label={`Remove ${line.name}`} size="sm" tone="ghost" onClick={onRemove}>
+          <Trash2 size={17} strokeWidth={2} className="text-brand-deep" />
         </IconButton>
       </div>
     </article>
