@@ -46,30 +46,32 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Action, DecisionKind, ShelfProduct, Stage, Verdict, View } from '@dhan/contracts'
-import {
-  ArrowRight,
-  ChartPie,
-  CheckCircle2,
-  Info,
-  Scale,
-  ShieldCheck,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, Info, Wallet } from 'lucide-react'
 import { AllocationCompare } from '../../components/charts/index.ts'
 import { Checkbox, Field, MoneyInput } from '../../components/Form.tsx'
 import { Screen } from '../../components/Screen.tsx'
 import { Sheet } from '../../components/Sheet.tsx'
 import { StatusBand } from '../../components/StatusBand.tsx'
-import { Button, Card, Eyebrow, Head, Leader, Pill, TextLink } from '../../components/ui.tsx'
+import {
+  Button,
+  Card,
+  Eyebrow,
+  Head,
+  IconButton,
+  Leader,
+  Pill,
+  TextLink,
+} from '../../components/ui.tsx'
+import { Art } from '../../components/Art.tsx'
 import { approx, inr, monthYear } from '../../lib/money.ts'
 import { futureValue, requiredLumpSum, requiredMonthly } from '../../lib/projection.ts'
 /* The rate the engine will actually fund this target at, mirrored once in `goals/jar.ts` and
    proved against core there. Re-deriving it here would be a third copy of one branch, and the
    screen quoting a different monthly than the plan is the exact failure that comment warns of. */
 import { fundingRatePct } from '../goals/jar.ts'
+import { STAGE_ICON } from '../goals/dreams.ts'
 import { Invest } from '../invest/Invest.tsx'
-import { BenefitCards, ChangeBand, Constituent, MeasureRow } from './parts.tsx'
+import { CartRow, ChangeBand, Constituent, MeasureHead, MeasureRow, TargetCard } from './parts.tsx'
 import {
   changesFor,
   changeTotals,
@@ -123,6 +125,7 @@ export function Rebalance({
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set())
   const [buying, setBuying] = useState<ShelfProduct | null>(null)
   const [explaining, setExplaining] = useState<Drift | null>(null)
+  const [learning, setLearning] = useState(false)
 
   const drifts = useMemo(() => detectDrift(roadmap, snapshot), [roadmap, snapshot])
   const sellable = useMemo(() => new Set(view.shelf.map((p) => p.productId)), [view.shelf])
@@ -157,19 +160,31 @@ export function Rebalance({
     else setStep('intro')
   }
 
-  const header = (
+  /*
+   * Two bars, because the source has two.
+   *
+   * `02-rebalance-intro` has **no app bar at all** — a back arrow sits directly on the hero's
+   * gradient, there is no title and no right action, and the dark region runs from the top of the
+   * screen to a straight edge where the white sheet begins. `03`, `04` and `05` all have the same
+   * solid bar instead: back arrow, left-aligned `Portfolio Rebalancing`, circular ⓘ at the right.
+   *
+   * So the intro's header *is* its hero (`IntroHero`), and the three steps under it take `Head`'s
+   * back variant with the ⓘ wired to the explainer the source never shows the destination of.
+   */
+  const bar = (sub: string): ReactNode => (
     <Head
       title="Rebalancing"
-      sub={
-        step === 'add'
-          ? 'Add more'
-          : step === 'align'
-            ? 'Realign what is moving'
-            : step === 'review'
-              ? 'What would change'
-              : (roadmap.goal.purpose ?? 'Your plan')
-      }
+      sub={sub}
       onBack={back}
+      right={
+        <IconButton
+          label="What rebalancing means in this app"
+          tone="bordered"
+          onClick={() => setLearning(true)}
+        >
+          <Info size={18} strokeWidth={2.2} />
+        </IconButton>
+      }
     />
   )
 
@@ -197,15 +212,69 @@ export function Rebalance({
     </Sheet>
   )
 
+  /*
+   * `Learn More` on the source's hero, and the ⓘ on the three bars after it. Neither destination
+   * appears in any frame — `02-rebalance-intro.md` and `03` both record it as unknown — so this
+   * is designed, and what it says is the one thing a customer of *this* app has to know before
+   * reading anything else on the screen: what is being compared, and what is not.
+   */
+  const explainer = (
+    <Sheet open={learning} title="What rebalancing means here" onClose={() => setLearning(false)}>
+      <p className="m-0 text-[15px] leading-relaxed text-ink-mid">
+        Your plan was built from twelve months of your statements. Rebalancing is the check that the
+        plan and the statements still agree: what the roadmap asks your money to do each month,
+        against what your account shows it actually doing.
+      </p>
+      <p className="m-0 mt-3 text-[15px] leading-relaxed text-ink-mid">
+        There are only ever two answers. Put more in, or move what is already moving.
+      </p>
+      <div className="mt-4 rounded-md bg-tint-sage p-4">
+        <p className="m-0 text-[14px] font-semibold leading-snug text-ink">What this does not do</p>
+        <p className="mb-0 mt-1.5 text-[13.5px] leading-relaxed text-ink-mid">
+          It does not compare what is inside your funds. That needs a look-through into every scheme
+          you hold, a live price for each one and a model portfolio to measure against, and this app
+          has none of the three. Nothing here will tell you that you are 10% overweight in equity,
+          because it would be guessing.
+        </p>
+      </div>
+      <p className={`${NOTE} mb-0 mt-4`}>
+        Anything this proposes to buy goes through the same suitability rules as every other order
+        in the app, on the same figures. A rule that says no stops the purchase and shows you the
+        rule.
+      </p>
+    </Sheet>
+  )
+
+  const after = (
+    <>
+      {sheet}
+      {explainer}
+    </>
+  )
+
   if (step === 'intro') {
+    /*
+     * `scrollHeader` + `overlap`, and here the overlap is not a card hanging into the bar — it is
+     * the hero *continuing* it. `Screen`'s `-mt-12` pulls the dark panel up over the slab's own
+     * rounded bottom corners so the two paint as one region with a straight edge at the bottom,
+     * which is what every frame of `02-rebalance-intro` shows. `IntroHero` carries both halves,
+     * so there is no seam between two gradients to line up.
+     */
     return (
-      <Screen header={header} after={sheet}>
-        <RebalanceIntro
-          drifts={drifts}
-          roadmap={view.roadmap}
-          onPick={setStep}
-          onExplain={setExplaining}
-        />
+      <Screen
+        scrollHeader
+        header={<IntroHero onBack={onBack} onLearn={() => setLearning(true)} />}
+        after={after}
+        footer={
+          drifts.length > 0 ? (
+            <Button full onClick={() => setStep('review')}>
+              Continue
+              <ArrowRight size={17} strokeWidth={2.4} />
+            </Button>
+          ) : undefined
+        }
+      >
+        <RebalanceIntro drifts={drifts} roadmap={view.roadmap} onPick={setStep} />
       </Screen>
     )
   }
@@ -215,8 +284,8 @@ export function Rebalance({
       <AddMore
         view={view}
         drifts={driftFor(drifts, 'add')}
-        header={header}
-        after={sheet}
+        header={bar('Add more')}
+        after={after}
         monthly={{ on: wantsMonthly, value: extraMonthly }}
         lump={{ on: wantsLump, value: lumpSum }}
         onMonthly={(on, value) => {
@@ -228,6 +297,7 @@ export function Rebalance({
           setLumpSum(value)
         }}
         onExplain={setExplaining}
+        onLearn={() => setLearning(true)}
         onNext={() => setStep('review')}
       />
     )
@@ -238,8 +308,8 @@ export function Rebalance({
       <Realign
         view={view}
         drifts={driftFor(drifts, 'realign')}
-        header={header}
-        after={sheet}
+        header={bar('Realign what is moving')}
+        after={after}
         onExplain={setExplaining}
         onNext={() => setStep('review')}
       />
@@ -250,8 +320,8 @@ export function Rebalance({
     <Review
       changes={changes}
       kept={kept}
-      header={header}
-      after={sheet}
+      header={bar('What would change')}
+      after={after}
       roadmap={view.roadmap}
       onToggle={(id, on) =>
         setExcluded((prev) => {
@@ -273,23 +343,84 @@ export function Rebalance({
 /* ---------------------------------------------------------------- Intro */
 
 /**
- * The landing screen: what a rebalance is, and the two measures.
+ * The hero, which on this screen is also the app bar.
  *
- * `02-rebalance-intro`'s shape — dark hero, white sheet with two measure rows, one action at the
- * foot — with the source's decorative see-saw illustration dropped. There is no IDBI counterpart
- * for it and drawing one would be inventing brand assets; the benefit sub-cards carry the same
- * "here is what this does" job with real content in them.
+ * Measured off `02-rebalance-intro` frames 04, 21, 22 and 24, which all agree: a dark region
+ * about 40% of the screen tall running edge to edge and up behind the status bar, a ghost back
+ * arrow at the top left and nothing else in that row, a ~90px flat illustration, a two-line bold
+ * white title, and one caption line ending in an inline link. The bottom edge is straight — no
+ * curve, no shadow — and the white sheet starts flush against it.
+ *
+ * The navy becomes IDBI's own dark gradient (`brand` → `brand-deep`, the same one `Head
+ * tone="brand"` paints), which `03-PALETTE-MAP.md` §2 authorises for exactly this: the bar being
+ * dark is load-bearing here, because the whole shape is a dark band with a white sheet cut into
+ * it. The first pass drew this as a rounded `tint-ink` card floating on white, which is a card,
+ * not a hero.
+ *
+ * The illustration is `rebalance-balance-dark`, drawn in the light end of the green ladder for a
+ * dark ground — the one variant `Art` keeps for this case, at `sm` (80px) rather than the 128px
+ * step, because the frames put it at about 90.
+ */
+function IntroHero({ onBack, onLearn }: { onBack: () => void; onLearn: () => void }): ReactNode {
+  return (
+    <div className="bg-gradient-to-br from-brand to-brand-deep px-4 pb-8 pt-4 text-on-dark">
+      <IconButton label="Back" tone="ghost" onClick={onBack}>
+        <ArrowLeft size={18} strokeWidth={2.3} />
+      </IconButton>
+      {/* `md`, not `sm`. The frames put the mark at about 100px against a 415px-wide screen and
+          `Art` has three steps only — 80 reads as an afterthought in a band this tall, 128 is the
+          one that holds it. */}
+      <Art name="rebalance-balance-dark" size="md" className="mt-4" />
+      <h1 className="m-0 mt-5 text-[26px] font-semibold leading-[1.18] text-on-dark">
+        Rebalance to keep
+        <br />
+        your plan on track
+      </h1>
+      <p className="mb-0 mt-3 text-[13.5px] leading-snug text-white/75">
+        What is rebalancing? Why does it matter?{' '}
+        {/* The source's periwinkle-on-navy link. There is no link token for a dark ground and
+            adding one is a palette decision, so this is `on-dark` at full weight with the
+            underline doing the work — the only thing on the caption line that is not 75%. */}
+        <button
+          type="button"
+          onClick={onLearn}
+          className="border-0 bg-transparent p-0 text-[13.5px] font-semibold text-on-dark underline underline-offset-2"
+        >
+          Learn more
+        </button>
+      </p>
+    </div>
+  )
+}
+
+/** The first sentence of a finding, which is the one carrying its figures. */
+function lead(detail: string): string {
+  return /^[\s\S]*?[.!?](?=\s|$)/.exec(detail)?.[0] ?? detail
+}
+
+/**
+ * The white sheet: one bold line, then the two measures.
+ *
+ * `02-rebalance-intro` is a single non-scrolling screen and its body is exactly this — a heading
+ * and two `MeasureRow`s with air between them, then the sticky `Continue`. The first pass hung a
+ * findings list under it, which put the same drift on the screen three times: once in the row
+ * that leads with it, once in the card below, and once again on the measure screen the row opens.
+ * Every finding is on the measure that fixes it (`AddMore` and `Realign` both end in "Why this
+ * measure"), so nothing is lost by letting the landing screen be a landing screen.
+ *
+ * The rows are pressable and the source's are not — the source has one `Continue` for two
+ * measures and its own flow file lists "which measure does it start?" as unresolved. `Continue`
+ * is still here and goes straight to the reviewed set, which is what it has to mean once the two
+ * detours have their own entrances.
  */
 function RebalanceIntro({
   drifts,
   roadmap,
   onPick,
-  onExplain,
 }: {
   drifts: readonly Drift[]
   roadmap: View['roadmap']
   onPick: (step: Step) => void
-  onExplain: (drift: Drift) => void
 }): ReactNode {
   const add = driftFor(drifts, 'add')
   const realign = driftFor(drifts, 'realign')
@@ -300,91 +431,42 @@ function RebalanceIntro({
 
   return (
     <>
-      <div className="mt-3">
-        <BenefitCards
-          art="rebalance-balance-dark"
-          eyebrow="Rebalancing"
-          title="Bring the plan back onto its own figures"
-          benefits={[
-            {
-              icon: <Scale size={18} strokeWidth={2} />,
-              title: 'Two measures',
-              body: 'Put more in, or move what is already moving. There is no third answer.',
-            },
-            {
-              icon: <ShieldCheck size={18} strokeWidth={2} />,
-              title: 'Checked, then placed',
-              body: 'Anything this proposes to buy runs past the suitability rules first.',
-            },
-          ]}
-          note={
-            drifts.length === 1
-              ? 'One thing on your plan has moved away from what it was built on.'
-              : `${drifts.length} things on your plan have moved away from what it was built on.`
-          }
-        />
-      </div>
-
-      <p className="mb-1 mt-6 text-[15px] font-semibold leading-snug text-ink">
+      <p className="mb-0 mt-5 text-[16px] font-semibold leading-snug text-ink">
         Your plan can be brought back on track by taking the following measures
       </p>
+      <p className="mb-0 mt-1.5 text-[13px] leading-snug text-ink-soft">
+        {drifts.length === 1
+          ? 'One thing has moved away from what version '
+          : `${drifts.length} things have moved away from what version `}
+        {roadmap.version} of this plan was built on.
+      </p>
 
-      <div className="divide-y divide-solid divide-hairline-mint">
+      {/* No dividers, ~40px of air. `space-y-4` plus each row's own `py-3` is the 40 the frames
+          show; a `divide-y` between them was a settings list wearing two illustrations. */}
+      <div className="mt-4 space-y-4">
         <MeasureRow
-          tone="clay"
-          icon={<TrendingUp size={21} strokeWidth={2} />}
+          measure="add"
           title="Making additional investments"
           body={
             add.length > 0
-              ? (add[0]?.detail ?? '')
+              ? lead(add[0]?.detail ?? '')
               : 'Nothing here needs more money. The arithmetic reaches your target at the pace the plan is already running.'
           }
           figure={add.length > 1 ? `${add.length} findings` : undefined}
           onPick={add.length > 0 ? () => onPick('add') : undefined}
         />
         <MeasureRow
-          tone="sage"
-          icon={<ChartPie size={21} strokeWidth={2} />}
+          measure="align"
           title="Realigning what is moving"
           body={
             realign.length > 0
-              ? (realign[0]?.detail ?? '')
+              ? lead(realign[0]?.detail ?? '')
               : 'Your money is going where the plan puts it. Nothing to move.'
           }
           figure={realign.length > 1 ? `${realign.length} findings` : undefined}
           onPick={realign.length > 0 ? () => onPick('align') : undefined}
         />
       </div>
-
-      <Eyebrow>Everything we found</Eyebrow>
-      {drifts.map((d) => (
-        <Card key={d.id}>
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Pill tone={d.severity === 'bad' ? 'bad' : 'warn'}>
-              {d.severity === 'bad' ? 'Needs attention' : 'Worth watching'}
-            </Pill>
-            <Pill>{d.measure === 'add' ? 'Add more' : 'Realign'}</Pill>
-          </div>
-          <h2>{d.title}</h2>
-          <p className="mb-0 mt-2 text-sm leading-relaxed text-ink-mid">{d.detail}</p>
-          {d.planned !== null || d.observed !== null ? (
-            <div className="mt-3">
-              {d.planned !== null ? (
-                <Leader label="The plan asks for" value={inr(d.planned)} filled />
-              ) : null}
-              {d.observed !== null ? (
-                <Leader label="Your statements show" value={inr(d.observed)} />
-              ) : null}
-            </div>
-          ) : null}
-          <div className="-mb-1.5 mt-1.5">
-            <TextLink size="sm" flush onClick={() => onExplain(d)}>
-              <Info size={15} strokeWidth={2.4} />
-              What this is read from
-            </TextLink>
-          </div>
-        </Card>
-      ))}
     </>
   )
 }
@@ -475,6 +557,7 @@ function AddMore({
   onMonthly,
   onLump,
   onExplain,
+  onLearn,
   onNext,
 }: {
   view: View
@@ -486,6 +569,8 @@ function AddMore({
   onMonthly: (on: boolean, value: number) => void
   onLump: (on: boolean, value: number) => void
   onExplain: (drift: Drift) => void
+  /** The `Know More` the source hangs off the recommendation sentence. */
+  onLearn: () => void
   onNext: () => void
 }): ReactNode {
   const { roadmap, snapshot } = view
@@ -524,6 +609,7 @@ function AddMore({
           lump={lump}
           onMonthly={onMonthly}
           onLump={onLump}
+          onLearn={onLearn}
         />
       ) : (
         <>
@@ -537,6 +623,7 @@ function AddMore({
             lump={lump}
             onMonthly={onMonthly}
             onLump={onLump}
+            onLearn={onLearn}
           />
           {/* Only here. The debt branch projects no corpus and quotes no assumed return — an
               illustration disclaimer over an amortisation schedule says the arithmetic above it
@@ -567,32 +654,24 @@ function AddMore({
   )
 }
 
-/** The measure header — `03-rebalance-additional-investment`'s 64px glyph over a bold title. */
-function MeasureHead({
-  title,
-  sub,
-  band,
-}: {
-  title: string
-  sub: string
-  band?: ReactNode
-}): ReactNode {
+/**
+ * The illustrated mark for a stage, at the 40px the source's `GoalCard` puts its jar icon at.
+ *
+ * The same file `screens/goals/**` draws from, so a stage wears one picture across the app rather
+ * than an illustration on its jar card and a stroke glyph here. `DESIGN.md`: the app frames the
+ * icon, the file does not, so the tile is `TargetCard`'s and this is only the image.
+ */
+function StageMark({ kind }: { kind: Stage['kind'] }): ReactNode {
   return (
-    <div className="mt-3">
-      <section className="mb-3 min-w-0 overflow-hidden rounded-md border border-solid border-hairline-mint bg-surface">
-        <div className="p-4">
-          <span
-            aria-hidden="true"
-            className="grid size-11 place-items-center rounded-sm bg-tint-clay text-accent-text"
-          >
-            <TrendingUp size={22} strokeWidth={2} />
-          </span>
-          <h2 className="mt-3 text-[18px] font-semibold leading-tight text-ink">{title}</h2>
-          <p className="m-0 mt-1.5 text-sm leading-relaxed text-ink-soft">{sub}</p>
-        </div>
-        {band}
-      </section>
-    </div>
+    <img
+      src={`/icons/${STAGE_ICON[kind] ?? 'goal-wealth'}.png`}
+      alt=""
+      width={224}
+      height={224}
+      loading="lazy"
+      decoding="async"
+      className="size-8 select-none object-contain"
+    />
   )
 }
 
@@ -620,30 +699,61 @@ function AmountRows({
   lumpHint: string
 }): ReactNode {
   return (
-    <div className="mt-3">
-      <Checkbox checked={monthly.on} onChange={(on) => onMonthly(on, monthly.value)}>
-        Add to the monthly amount
-      </Checkbox>
-      <div className={monthly.on ? '' : 'pointer-events-none opacity-45'}>
-        <Field label={monthlyLabel} hint={monthlyHint}>
-          <MoneyInput
-            value={monthly.value}
-            ariaLabel={monthlyLabel}
-            onChange={(n) => onMonthly(monthly.on, n)}
-          />
-        </Field>
-      </div>
+    <div className="mt-4">
+      <AmountRow
+        on={monthly.on}
+        onToggle={(v) => onMonthly(v, monthly.value)}
+        label={monthlyLabel}
+        hint={monthlyHint}
+      >
+        <MoneyInput
+          value={monthly.value}
+          ariaLabel={monthlyLabel}
+          onChange={(n) => onMonthly(monthly.on, n)}
+        />
+      </AmountRow>
+      <AmountRow
+        on={lump.on}
+        onToggle={(v) => onLump(v, lump.value)}
+        label={lumpLabel}
+        hint={lumpHint}
+      >
+        <MoneyInput value={lump.value} ariaLabel={lumpLabel} onChange={(n) => onLump(lump.on, n)} />
+      </AmountRow>
+    </div>
+  )
+}
 
-      <Checkbox checked={lump.on} onChange={(on) => onLump(on, lump.value)}>
-        Add a one-off amount
-      </Checkbox>
-      <div className={lump.on ? '' : 'pointer-events-none opacity-45'}>
-        <Field label={lumpLabel} hint={lumpHint}>
-          <MoneyInput
-            value={lump.value}
-            ariaLabel={lumpLabel}
-            onChange={(n) => onLump(lump.on, n)}
-          />
+/**
+ * One `CheckboxAmountField` — the checkbox in the left gutter, the field beside it.
+ *
+ * The frames are unambiguous and the first pass had it stacked: `03`'s two amount rows put a
+ * 24px filled checkbox in the *margin* at the field's vertical centre, with the field taking the
+ * rest of the width and its helper line under it. Stacked, the checkbox's own label had to invent
+ * words ("Add to the monthly amount") that the field's label already said — two labels for one
+ * control, which is how a form starts reading as a questionnaire.
+ */
+function AmountRow({
+  on,
+  onToggle,
+  label,
+  hint,
+  children,
+}: {
+  on: boolean
+  onToggle: (next: boolean) => void
+  label: string
+  hint: string
+  children: ReactNode
+}): ReactNode {
+  return (
+    <div className="flex items-start gap-2">
+      <div className="mt-[30px] flex-none">
+        <Checkbox checked={on} onChange={onToggle} label={`Include ${label.toLowerCase()}`} />
+      </div>
+      <div className={`min-w-0 flex-1 ${on ? '' : 'pointer-events-none opacity-45'}`}>
+        <Field label={label} hint={hint}>
+          {children}
         </Field>
       </div>
     </div>
@@ -669,6 +779,7 @@ function GrowthTopUp({
   lump,
   onMonthly,
   onLump,
+  onLearn,
 }: {
   view: View
   stage: Stage
@@ -679,6 +790,7 @@ function GrowthTopUp({
   lump: { on: boolean; value: number }
   onMonthly: (on: boolean, value: number) => void
   onLump: (on: boolean, value: number) => void
+  onLearn: () => void
 }): ReactNode {
   const { roadmap, snapshot } = view
   const years = Math.max(0.25, Math.round((stage.monthsToComplete / 12) * 100) / 100)
@@ -703,13 +815,33 @@ function GrowthTopUp({
     existing,
   )
 
+  /* `Achieved ₹11L (40%) out of ₹27.5L`, the source's caption, over the same fraction it draws
+     as a bar. `existing` is the pot the stage is filling — holdings for the growth stage,
+     reachable balances for the buffer — so the percentage is a real one and not a bar width. */
+  const achievedPct = target > 0 ? Math.round((existing / target) * 100) : 0
+
   return (
     <>
       <MeasureHead
-        title="Additional investment"
-        sub={`${approx(target)} by ${monthYear(stage.completesOn)}${
-          stage.kind === 'grow' ? '' : ' — the emergency buffer'
-        }.`}
+        measure="add"
+        title="Additional investment required"
+        body={
+          missPct > 0
+            ? `At the pace this plan is running you land about ${missPct}% short of what this step is for.`
+            : 'This step reaches its target at the pace the plan is already running. Anything you add here brings the date forward.'
+        }
+      />
+
+      <TargetCard
+        icon={<StageMark kind={stage.kind} />}
+        name={
+          stage.kind === 'build_buffer'
+            ? 'Emergency buffer'
+            : (roadmap.goal.purpose ?? 'Your target')
+        }
+        when={monthYear(stage.completesOn)}
+        progress={{ pct: achievedPct, tone: missPct > 0 ? 'bad' : 'good' }}
+        caption={`Achieved ${approx(existing)} (${achievedPct}%) out of ${approx(target)}`}
         band={
           missPct > 0 ? (
             <StatusBand flush tone="bad" label="With what is going in now,">
@@ -737,10 +869,16 @@ function GrowthTopUp({
               Reset
             </TextLink>
           </div>
+          {/* The source ends this sentence in an inline `Know More`; its destination is never
+              filmed, so ours opens the same explainer the bar's ⓘ does — which is where "at
+              10.5%" and "what this cannot see" are actually written down. */}
           <p className="m-0 mt-1.5 text-sm leading-relaxed text-ink-soft">
             {neededMonthly > 0
               ? `${inr(neededMonthly)} a month more, or about ${approx(neededLump)} in one go, closes the gap at ${ratePct}%.`
-              : `Nothing more is needed at ${ratePct}%.`}
+              : `Nothing more is needed at ${ratePct}%.`}{' '}
+            <TextLink size="sm" flush onClick={onLearn}>
+              Know more
+            </TextLink>
           </p>
 
           <AmountRows
@@ -794,6 +932,7 @@ function DebtTopUp({
   lump,
   onMonthly,
   onLump,
+  onLearn,
 }: {
   view: View
   stage: Stage
@@ -801,6 +940,7 @@ function DebtTopUp({
   lump: { on: boolean; value: number }
   onMonthly: (on: boolean, value: number) => void
   onLump: (on: boolean, value: number) => void
+  onLearn: () => void
 }): ReactNode {
   const { snapshot } = view
   const rate = snapshot.debt.highestRate
@@ -816,8 +956,23 @@ function DebtTopUp({
   return (
     <>
       <MeasureHead
-        title="Additional repayment"
-        sub={`${inr(balance)} outstanding at ${rate}%, which accrues ${inr(interest)} a month in interest alone.`}
+        measure="add"
+        title="Additional repayment required"
+        body={`This balance accrues ${inr(interest)} a month in interest alone, and what the plan can put against it does not yet beat that.`}
+      />
+
+      {/*
+        No progress bar, and that is a refusal rather than an omission. The source draws one on
+        every goal card because a jar always has an amount achieved out of a target. A card
+        balance does not: the app can see what is outstanding today and has no record of the
+        principal it started at, so a "% repaid" would be a fraction with an invented denominator.
+        The caption carries what is actually known.
+      */}
+      <TargetCard
+        icon={<StageMark kind={stage.kind} />}
+        name="The expensive debt"
+        when={`At ${rate}% a year`}
+        caption={`${inr(balance)} outstanding, accruing ${inr(interest)} a month`}
         band={
           months === null ? (
             <StatusBand flush tone="bad" label="At this payment the balance grows.">
@@ -847,7 +1002,10 @@ function DebtTopUp({
           </div>
           <p className="m-0 mt-1.5 text-sm leading-relaxed text-ink-soft">
             {inr(inThree)} a month clears it inside three years —{' '}
-            {inr(Math.max(0, inThree - stage.monthly))} more than the plan can currently find.
+            {inr(Math.max(0, inThree - stage.monthly))} more than the plan can currently find.{' '}
+            <TextLink size="sm" flush onClick={onLearn}>
+              Know more
+            </TextLink>
           </p>
 
           <AmountRows
@@ -923,22 +1081,14 @@ function Realign({
         </Button>
       }
     >
-      <div className="mt-3">
-        <Card>
-          <span
-            aria-hidden="true"
-            className="grid size-11 place-items-center rounded-sm bg-tint-sage text-brand-deep"
-          >
-            <ChartPie size={22} strokeWidth={2} />
-          </span>
-          <h2 className="mt-3">Realign your month</h2>
-          <p className="m-0 mt-2 text-sm leading-relaxed text-ink-soft">
-            This is not a comparison of what is inside your funds — there is no price feed in this
-            app and nothing here will pretend otherwise. It is where your money goes each month:
-            what the plan asks for, against what your statements show.
-          </p>
-        </Card>
-      </div>
+      {/* `04-rebalance-align-portfolio` opens on the glyph, the title and the paragraph, on the
+          page ground — no card. Boxing it made the screen open on two stacked cards with nothing
+          telling you which screen you were on. */}
+      <MeasureHead
+        measure="align"
+        title="Align your month"
+        body="This is not a comparison of what is inside your funds — there is no price feed in this app and nothing here will pretend otherwise. It is where your money goes each month: what the plan asks for, against what your statements show."
+      />
 
       {income.amount <= 0 ? (
         <Card tint="clay">
@@ -1058,6 +1208,9 @@ function Review({
   const freeing = changeTotals(kept.filter((c) => c.group === 'stop')).monthly
   const oneOff = changeTotals(kept).oneOff
   const groups = (['start', 'stop'] as const).filter((g) => changes.some((c) => c.group === g))
+  /* Which sections are folded. The source's chevron is up in every frame, so expanded is the
+     state it ships in and this set starts empty. */
+  const [collapsed, setCollapsed] = useState<ReadonlySet<'start' | 'stop'>>(new Set())
 
   return (
     <Screen
@@ -1110,29 +1263,48 @@ function Review({
         </div>
       ) : null}
 
-      {groups.map((group) => {
-        const rows = changes.filter((c) => c.group === group)
-        const live = rows.filter((c) => kept.includes(c))
-        return (
-          <div key={group}>
-            <ChangeBand
-              tone={group}
-              label={groupLabel(group, rows.length)}
-              total={inr(changeTotals(live).monthly)}
-            />
-            {rows.map((c) => (
-              <ChangeRow
-                key={c.id}
-                change={c}
-                on={kept.includes(c)}
-                onToggle={(on) => onToggle(c.id, on)}
-                onBuy={onBuy}
-                {...(decisions ? { decisions } : {})}
+      {/* The bands and their rows are one continuous full-bleed column, as every cart frame
+          draws it: the band is flush on the row under it and the rows are parted by a band of
+          page grey. The first pass put inset rounded cards under a full-bleed band, which reads
+          as two unrelated lists rather than as a section and its members. */}
+      <div className="mt-1">
+        {groups.map((group) => {
+          const rows = changes.filter((c) => c.group === group)
+          const live = rows.filter((c) => kept.includes(c))
+          const open = collapsed.has(group) === false
+          return (
+            <div key={group}>
+              <ChangeBand
+                tone={group}
+                label={groupLabel(group, rows.length)}
+                total={inr(changeTotals(live).monthly)}
+                open={open}
+                onToggle={() =>
+                  setCollapsed((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(group)) next.delete(group)
+                    else next.add(group)
+                    return next
+                  })
+                }
               />
-            ))}
-          </div>
-        )
-      })}
+              {open
+                ? rows.map((c, i) => (
+                    <ChangeRow
+                      key={c.id}
+                      change={c}
+                      on={kept.includes(c)}
+                      last={i === rows.length - 1}
+                      onToggle={(on) => onToggle(c.id, on)}
+                      onBuy={onBuy}
+                      {...(decisions ? { decisions } : {})}
+                    />
+                  ))
+                : null}
+            </div>
+          )
+        })}
+      </div>
 
       <p className={`${NOTE} mt-5`}>
         The source app this screen is modelled on ends at a cart with no submit button — its own
@@ -1148,12 +1320,14 @@ function Review({
 function ChangeRow({
   change,
   on,
+  last,
   onToggle,
   onBuy,
   decisions,
 }: {
   change: Change
   on: boolean
+  last: boolean
   onToggle: (on: boolean) => void
   onBuy: (productId: string) => void
   decisions?: RebalanceDecisions | undefined
@@ -1180,79 +1354,76 @@ function ChangeRow({
   const decided = action ? decisions?.decided.has(action.id) === true : false
 
   return (
-    <section
-      className={`mb-3 min-w-0 overflow-hidden rounded-md border border-solid border-hairline-mint bg-surface ${
-        on ? '' : 'opacity-60'
-      }`}
-    >
-      <div className="px-4 pb-1 pt-2">
+    <CartRow
+      dim={!on}
+      last={last}
+      head={
         <Checkbox checked={on} onChange={onToggle}>
-          <span className="text-[15px] font-semibold text-ink">{change.label}</span>
+          <span className="text-[15px] font-semibold leading-snug text-ink">{change.label}</span>
         </Checkbox>
-      </div>
-
-      <p className="m-0 px-4 pb-3 pl-[calc(16px+20px+12px)] text-[13px] leading-snug text-ink-soft">
-        {change.detail}
-      </p>
-
-      {/* The same strip the stage cards use, and the same component: two lists of figures on one
-          flow at two type sizes is exactly what a shared cell prevents. Cells that would restate
-          the line above them are dropped rather than filled with an em dash — the instruction
-          already carries the amount, and `Into` would print a product name the label just said. */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-0 border-y border-solid border-hairline-mint px-4 py-3">
-        <Constituent label="Each month" value={change.monthly > 0 ? inr(change.monthly) : '—'} />
-        {change.oneOff > 0 ? <Constituent label="Once" value={inr(change.oneOff)} /> : null}
-        {change.productName && !change.label.includes(change.productName) ? (
-          <Constituent wrap label="Into" value={change.productName} />
-        ) : null}
-      </div>
-
-      <div className="px-4 py-3">
-        <p className="m-0 text-[12.5px] leading-snug text-ink-soft">{change.terminusNote}</p>
-        {on && change.terminus === 'spine' && change.productId ? (
-          <div className="mt-3">
-            <Button tone="secondary" size="sm" onClick={() => onBuy(change.productId as string)}>
-              <Wallet size={15} strokeWidth={2.4} />
-              Set this up
-            </Button>
-          </div>
-        ) : null}
-        {on && change.terminus === 'self_report' ? (
-          action && decisions ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {decided ? (
-                <Pill tone="ok">Recorded</Pill>
-              ) : (
-                <>
-                  <Button
-                    tone="secondary"
-                    size="sm"
-                    disabled={!decisions.enabled || decisions.busy}
-                    onClick={() => decisions.onDecide(action, 'did_it')}
-                  >
-                    I did it
-                  </Button>
-                  <Button
-                    tone="quiet"
-                    size="sm"
-                    disabled={!decisions.enabled || decisions.busy}
-                    onClick={() => decisions.onDecide(action, 'deferred')}
-                  >
-                    Not now
-                  </Button>
-                </>
-              )}
+      }
+      detail={change.detail}
+      /* The same strip the stage cards use, and the same component: two lists of figures on one
+         flow at two type sizes is exactly what a shared cell prevents. Cells that would restate
+         the line above them are dropped rather than filled with an em dash — the instruction
+         already carries the amount, and `Into` would print a product name the label just said. */
+      figures={
+        <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+          <Constituent label="Each month" value={change.monthly > 0 ? inr(change.monthly) : '—'} />
+          {change.oneOff > 0 ? <Constituent label="Once" value={inr(change.oneOff)} /> : null}
+          {change.productName && !change.label.includes(change.productName) ? (
+            <Constituent wrap label="Into" value={change.productName} />
+          ) : null}
+        </div>
+      }
+      foot={
+        <>
+          <p className="m-0 text-[12.5px] leading-snug text-ink-soft">{change.terminusNote}</p>
+          {on && change.terminus === 'spine' && change.productId ? (
+            <div className="mt-3">
+              <Button tone="secondary" size="sm" onClick={() => onBuy(change.productId as string)}>
+                <Wallet size={15} strokeWidth={2.4} />
+                Set this up
+              </Button>
             </div>
-          ) : (
-            /* The line above already says the app records the decision rather than the money;
-               this only says where. Two paragraphs both explaining "nothing to place" was one
-               paragraph too many. */
-            <p className={`${NOTE} mb-0 mt-2`}>
-              Record it on Today, where the plan reads it back into the next version.
-            </p>
-          )
-        ) : null}
-      </div>
-    </section>
+          ) : null}
+          {on && change.terminus === 'self_report' ? (
+            action && decisions ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {decided ? (
+                  <Pill tone="ok">Recorded</Pill>
+                ) : (
+                  <>
+                    <Button
+                      tone="secondary"
+                      size="sm"
+                      disabled={!decisions.enabled || decisions.busy}
+                      onClick={() => decisions.onDecide(action, 'did_it')}
+                    >
+                      I did it
+                    </Button>
+                    <Button
+                      tone="quiet"
+                      size="sm"
+                      disabled={!decisions.enabled || decisions.busy}
+                      onClick={() => decisions.onDecide(action, 'deferred')}
+                    >
+                      Not now
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : (
+              /* The line above already says the app records the decision rather than the money;
+                 this only says where. Two paragraphs both explaining "nothing to place" was one
+                 paragraph too many. */
+              <p className={`${NOTE} mb-0 mt-2`}>
+                Record it on Today, where the plan reads it back into the next version.
+              </p>
+            )
+          ) : null}
+        </>
+      }
+    />
   )
 }

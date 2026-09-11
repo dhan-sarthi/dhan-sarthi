@@ -200,11 +200,18 @@ export function monthPair(
   const live = (list: Slice[]): Slice[] => list.filter((s) => keep.has(s.label as MonthSlice))
   const total = (list: Slice[]): number => list.reduce((n, s) => n + s.value, 0)
   const kept = { planned: live(planned), observed: live(observed) }
-  return {
-    ...kept,
-    whole: Math.max(income, total(kept.planned), total(kept.observed)),
-    income,
-  }
+  const whole = Math.max(income, total(kept.planned), total(kept.observed))
+  /*
+   * Whole percentages in the legend, which is what `04-rebalance-align-portfolio` prints — `85%`,
+   * `10%`, `5%`. `series()`'s default runs to two decimals because a *quantity* series has to add
+   * up, and it produced `56.15%` beside `6.1%` here: two different precisions on one card, both
+   * of them claiming to know a month's spending to the paisa. These are rupees off a statement
+   * divided by an income, so the second decimal is arithmetic, not information. `Slice.display`
+   * is the seam the chart already provides for exactly this, so nothing shared changes.
+   */
+  const shown = (list: Slice[]): Slice[] =>
+    list.map((s) => ({ ...s, display: `${whole > 0 ? Math.round((s.value / whole) * 100) : 0}%` }))
+  return { planned: shown(kept.planned), observed: shown(kept.observed), whole, income }
 }
 
 /* ---------------------------------------------------------------- Drift */

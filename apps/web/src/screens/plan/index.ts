@@ -9,7 +9,16 @@
  */
 export { Rebalance } from './Rebalance.tsx'
 export type { RebalanceDecisions } from './Rebalance.tsx'
-export { BenefitCards, ChangeBand, Constituent, MeasureRow, StageCard } from './parts.tsx'
+export {
+  BenefitCards,
+  CartRow,
+  ChangeBand,
+  Constituent,
+  MeasureHead,
+  MeasureRow,
+  StageCard,
+  TargetCard,
+} from './parts.tsx'
 export type { Benefit } from './parts.tsx'
 export {
   changesFor,
