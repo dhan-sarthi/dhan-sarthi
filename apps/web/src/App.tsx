@@ -53,6 +53,9 @@ export function App(): ReactNode {
   const vs = useView(stored)
   const record = useRecord(stored, vs.tier)
   const [tab, setTab] = useState<TabId>('dashboard')
+  /* Which page More opens on. The spine's success screen routes to the record, and More is
+     unmounted when it does, so the destination has to be set before the tab changes. */
+  const [morePage, setMorePage] = useState<'menu' | 'record'>('menu')
   const [sheet, setSheet] = useState<'profile' | 'holdings' | 'link' | 'goal' | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   /*
@@ -195,7 +198,19 @@ export function App(): ReactNode {
           leave it: that is what replays the entrance stagger, and what makes each screen's own
           state — a sub-tab, an open sheet, a scroll position — start clean on the way back in. */}
       {tab === 'discover' ? (
-        <Discover shelfSize={view.shelf.length} onAsk={() => setTab('ask')} />
+        <Discover
+          view={view}
+          /* The gate the transaction spine runs on. Same call the advisor's product check
+             makes: `/suitability/evaluate` on the server tier, which writes the advice
+             record, and the lazy offline chunk otherwise. */
+          evaluate={askBackend.evaluate}
+          onAsk={() => setTab('ask')}
+          onSeeRecord={() => {
+            setMorePage('record')
+            setTab('more')
+            void record.refresh()
+          }}
+        />
       ) : null}
 
       {tab === 'dashboard' ? (
@@ -240,6 +255,7 @@ export function App(): ReactNode {
 
       {tab === 'more' ? (
         <More
+          startOn={morePage}
           view={view}
           record={record}
           session={vs.session}
@@ -260,6 +276,8 @@ export function App(): ReactNode {
         active={tab}
         onChange={(id) => {
           setTab(id)
+          // A tab tap is a fresh entry into More, not a return to wherever the spine sent it.
+          setMorePage('menu')
           // A product check in Ask writes an advice record too; More re-reads on entry so the
           // paper trail behind it is never a step behind what the reviewer just did.
           if (id === 'more') void record.refresh()

@@ -34,7 +34,7 @@ screen, which is exactly why it needs extracting.
 | `StatusBar` | **New** | nothing | The 34pt OS band. On web this is `env(safe-area-inset-top)` padding on the shell, not a component with content. `TabBar` and `Sheet` already handle the bottom inset; the top is unhandled. |
 | `SegmentedTabs` | **Built** (step 2) | `Segments` in `ui.tsx`, `variant="pill" \| "underline"` | The underline row scrolls and sizes cells to their text, so four labels fit a 375px phone; its indicator is a border per cell rather than a sliding span, which cannot be measured in a scroller. Dashboard uses it; Record keeps the pill. |
 | `FilterChipRow` | **Extend** | the category filter in `Recent` (`src/screens/Money.tsx`) — horizontally scrolling `aria-pressed` pills, orange when on | Working code, never extracted. Lift it verbatim; it is already the right shape. |
-| `StickyFooterBar` | **Built** (step 2) | `Screen`'s `footer` prop (`src/components/Screen.tsx`), same recipe as `Sheet`'s | Nothing. Unused until the transaction spine, which is what it was lifted for. |
+| `StickyFooterBar` | **Built** (step 2) | `Screen`'s `footer` prop (`src/components/Screen.tsx`), same recipe as `Sheet`'s | Nothing. Step 3 is its first caller — every screen of the transaction spine hangs its CTA off it, which is what it was lifted for. |
 
 ## Actions — 3 exist · 2 extend · 0 new  ·  *both extends built by step 2*
 
@@ -51,8 +51,8 @@ screen, which is exactly why it needs extracting.
 | SmartWealth | Verdict | What we have | What it needs |
 | --- | --- | --- | --- |
 | `OutlinedTextField` | **Exists** | `TextInput` + `Field` + `MoneyInput` in `src/components/Form.tsx` — 48px, hairline border, `focus:border-accent`, label and hint | Nothing. `MoneyInput` already groups Indian digits as you type. |
-| `Checkbox` | **New** | nothing. `Choice` is a `role="radio"` group; the consent control in `src/screens/Record.tsx` is a `role="switch"` pill | A real checkbox. The OTP and cart-review screens need one for terms. |
-| `OtpInput` | **New** | nothing | Six boxed digits, auto-advance, paste-the-whole-code, resend timer. The transaction spine dead-ends here, so it is early in the build order. |
+| `Checkbox` | **Built** (step 3) | `Checkbox` in `src/components/Form.tsx` | Nothing. The whole row is the target rather than the 20px box, because a 20px tap target is one a thumb misses. Used for the cart's terms line and its per-line include control. |
+| `OtpInput` | **Built** (step 3) | `src/components/OtpInput.tsx` | Nothing. **One** `<input maxLength={6} autoComplete="one-time-code">` laid transparently over six presentational cells — six real inputs breaks paste, SMS autofill and backspace, and announces six unlabelled fields. The digits are shown rather than masked; the source's `*` is a mock artefact and its own spec says so. |
 | `RiskSlider` | **Extend** | a bare `<input type="range">` in two places: `src/screens/Plan.tsx` (assumed return) and `src/screens/GoalSheet.tsx` (target amount, `h-11` for thumb reach) | Both already use `accent-accent`. Wrap once, with ticks, end labels and a value read-out. Keep the 44px minimum. |
 | `BottomSheet` | **Exists** | `src/components/Sheet.tsx` | Nothing — and do not reimplement it. It has the scrim, Escape, a real Tab trap, focus return, and an exit animation that survives unmount. Every editing surface in SmartWealth is a sheet; they all get this one. |
 
@@ -62,7 +62,7 @@ screen, which is exactly why it needs extracting.
 | --- | --- | --- | --- |
 | `ListRow` | **Extend** — canonical one exists | `ListRow` in `ui.tsx` (step 2, at 68px, built for the More menu) | The component is there; the two copies are **not** collapsed onto it yet. Statement rows in `Recent` (`src/screens/Money.tsx`) and `ProbeRow` in `src/screens/Onboarding.tsx` still hand-roll it at ~54px. Lift them when the screen they are on is next touched. |
 | `StatCard` | **Exists** | `Tile` in `ui.tsx` — `Amount size="md" fit`, label under, alternates sage/clay, turns white inside a tinted card | Nothing. This is StatCard with a better name. |
-| `FundRow` | **New** | nothing — `AccountCard` (`src/screens/Money.tsx`) is a card, not a row | Fund logo, name, category chip, NAV, return %, chevron. Build it on the extracted `ListRow`; it is the row every fund list in Discover is made of. |
+| `FundRow` | **New** | nothing — `AccountCard` (`src/screens/Money.tsx`) is a card, not a row | Fund logo, name, category chip, NAV, return %, chevron. Build it on the extracted `ListRow`; it is the row every fund list in Discover is made of. **Step 3 deliberately did not**: the shelf list into the transaction spine (`src/screens/invest/ShelfList.tsx`) is the canonical `ListRow`, because this app computes no NAV, no returns and no rating, and five invented metrics a row is not density. Step 5 owns it, with the data. |
 | `GoalCard` | **Extend** | `StageCard` in `src/screens/Plan.tsx` (pills, title, expand-for-why) and the goal summary block in `src/screens/GoalSheet.tsx` (target, by-year, monthly, reachable) | Neither has a progress ring or the status footer band. Merge the two and add both. |
 | `ProgressBar` | **Exists** | `Bar` in `ui.tsx` — 8px, `bg-chart-idle` track, two segments, animated on `transform` not `width` | Exists for one-or-two segments. Allocation bars need *n* segments from the chart ramp — add a `segments` variant rather than a second component, and read the comment above `Bar` first: the reason it positions absolutely instead of flexing is a bug that drew every bar at `u²/100`. |
 | `DonutChart` | **New** | nothing. The only SVG in the tree is three icons in `src/screens/Ask.tsx` | SVG arcs, `stroke-chart-N`, `fill="none"`, 2° gaps, centre slot for a total. See the Charts section of `DESIGN.md`. |
@@ -77,7 +77,7 @@ screen, which is exactly why it needs extracting.
 | `StatusPill` | **Exists** | `Pill` in `ui.tsx` — `plain` / `warn` / `bad` / `ok`, which map onto SmartWealth's On Track / In Process / Needs Attention / Success | Nothing. But see the note below: SmartWealth's *primary* status treatment is a band, not a pill. |
 | `TagChip` | **Exists** | `Pill tone="plain"` | Nothing. |
 | `RibbonBadge` | **New** | nothing | "Recommended" as a corner tab clipped into a card's top-left edge, not a badge floating in the padding. `accent-soft` fill with `accent-text` ink is the IDBI reading of their gold; do not add a gold token for it. |
-| `InfoBanner` | **Extend** | `src/components/OfflineBadge.tsx` — full-width `tint-clay` strip, message, inline action button | Structurally exactly an InfoBanner, hardwired to one message. Generalise it: tone (clay / sage / danger-soft), text, optional action. `mostlyNameless` in `src/screens/Money.tsx` is a second, inline instance. |
+| `InfoBanner` | **Built** (step 3) | `src/components/InfoBanner.tsx`; `OfflineBadge` is now three lines on top of it | Three tones (clay / sage / danger), each pairing the tint with the ink that clears AA on it, plus an optional inline action. It goes in `Screen`'s `notice` slot. `mostlyNameless` in `src/screens/Money.tsx` is still a second, inline instance and should be lifted when that screen is next touched. |
 | `PromoCard` | **New** | nothing | |
 | `PromoBanner` | **New** | nothing | Distinct from `PromoCard`: full-bleed, in the scroll, usually a carousel. |
 | `IconTile` | **New** | nothing. `Tile` is a value-and-label stat tile, not a launcher | Glyph over a short label, in a 3- or 4-up grid. The 32px category disc in `Recent` is the glyph half of it. |
@@ -93,9 +93,12 @@ they are components once you build them, and all three are net-new here.
 - **`StatusBand`** — the full-bleed tinted strip clipped to a card's *footer*, which is how
   SmartWealth actually shows state down a list. `Pill` is the floating version and we have it;
   the band we do not. This is the more distinctive of the two and probably the more used.
-- **`AmountInWords`** — every money input shows `₹2,416` large with
-  `Rupees Two Thousand Four Hundred Sixteen Only` under it. `src/lib/money.ts` has `inr`, `parts`
-  and `approx` but no number-to-words, so this is a lib function plus a line of markup.
+- **`AmountInWords`** — **Built by step 3**, as `words` and `inWords` in `src/lib/money.ts` plus a
+  line of markup in `AddSchemeInvest`. Indian grouping, not western: 1,22,841 is "One Lakh Twenty
+  Two Thousand Eight Hundred Forty One", never "One Hundred Twenty Two Thousand …", and past
+  ninety-nine crore it keeps counting crores rather than reaching for arab. It is not decoration —
+  ₹50,000 and ₹5,00,000 look alike at a glance and read nothing alike, and this is the only place
+  a customer catches the extra zero.
 - **The card that overlaps the header** — a layout affordance rather than a component, but it is
   what makes SmartWealth's chrome read as a backdrop. **Built by step 2** as `Screen`'s
   `scrollHeader` + `overlap`, against the IDBI header slab. It could not be done with a
@@ -123,5 +126,9 @@ independently and should be, before any screen is built on a copy of it.
 
 Step 2 took the chrome half of that column — `AppBar`, `BottomNav`, `SegmentedTabs`,
 `StickyFooterBar` — plus `IconButton` and `TextLink`, whose five and three copies are now one
-each. What is still open in **Extend**: `FilterChipRow`, `RiskSlider`, `GoalCard`, `ProfileCard`,
-`InfoBanner`, and the two `ListRow` copies that a canonical `ListRow` now exists to absorb.
+each. Step 3 took `Checkbox`, `OtpInput`, `InfoBanner` and `AmountInWords`, which is everything
+the transaction spine needed that did not already exist.
+
+What is still open in **Extend**: `FilterChipRow`, `RiskSlider`, `GoalCard`, `ProfileCard`, and
+the two `ListRow` copies that a canonical `ListRow` now exists to absorb. Still **New**:
+`StatusBar`, `FundRow`, `PromoCard`, `PromoBanner`, `IconTile`, `RatingStar` and `StatusBand`.

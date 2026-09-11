@@ -10,7 +10,7 @@
  */
 import { useId } from 'react'
 import type { ReactNode } from 'react'
-import { Minus, Plus } from 'lucide-react'
+import { Check, Minus, Plus } from 'lucide-react'
 import { useRipple } from '../lib/motion.ts'
 import { IconButton } from './ui.tsx'
 
@@ -65,6 +65,55 @@ export function Choice<T extends string>({
         </button>
       ))}
     </div>
+  )
+}
+
+/**
+ * A box you tick.
+ *
+ * The app had no checkbox at all: `Choice` is a `role="radio"` group and the consent control on
+ * Record is a `role="switch"` pill, and neither of those is the control for "I accept these
+ * terms" — a switch reads as a setting you can come back to, and a radio has to have a sibling.
+ * The cart's terms line and its per-line include control both need this one.
+ *
+ * The whole row is the target, not the 20px box: the box is what a 20px box has to be to look
+ * right beside 13px copy, and a 20px tap target is one a thumb misses. The label is inside the
+ * button, so it is the accessible name and there is nothing to associate by id.
+ */
+export function Checkbox({
+  checked,
+  onChange,
+  disabled,
+  children,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  disabled?: boolean
+  children: ReactNode
+}): ReactNode {
+  const ripple = useRipple()
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      disabled={disabled === true}
+      onPointerDown={ripple}
+      onClick={() => onChange(!checked)}
+      className="ds-press flex min-h-[44px] w-full items-start gap-3 rounded-sm border-0 bg-transparent px-0 py-2 text-left disabled:opacity-55"
+    >
+      <span
+        aria-hidden="true"
+        className={`mt-px grid size-5 flex-none place-items-center rounded-[6px] transition-colors duration-150 ${
+          checked
+            ? 'border-0 bg-accent text-on-accent'
+            : 'border-[1.5px] border-solid border-hairline bg-surface text-transparent'
+        }`}
+      >
+        <Check size={13} strokeWidth={3.2} />
+      </span>
+      <span className="min-w-0 flex-1 text-[13.5px] leading-snug text-ink-mid">{children}</span>
+    </button>
   )
 }
 

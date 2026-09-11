@@ -29,6 +29,7 @@ import { Record } from './Record.tsx'
 const GLYPH = { size: 20, strokeWidth: 1.9 } as const
 
 export function More({
+  startOn = 'menu',
   view,
   record,
   session,
@@ -41,6 +42,14 @@ export function More({
   onSwitchCustomer,
   onRefresh,
 }: {
+  /**
+   * Which page to open on.
+   *
+   * The transaction spine's success screen offers "see what was recorded", and the record is
+   * one level inside this tab. More is unmounted while Discover is on screen, so the caller
+   * sets the destination and the tab change mounts it there — no lifted state, no router.
+   */
+  startOn?: 'menu' | 'record'
   view: View
   record: RecordState
   session: SessionState | null
@@ -54,7 +63,7 @@ export function More({
   onSwitchCustomer: () => void
   onRefresh: () => Promise<void>
 }): ReactNode {
-  const [page, setPage] = useState<'menu' | 'record'>('menu')
+  const [page, setPage] = useState<'menu' | 'record'>(startOn)
 
   if (page === 'record') {
     return (
