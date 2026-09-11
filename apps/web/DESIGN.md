@@ -12,7 +12,7 @@ in IDBI's green. There is no orange, no warm tint and no decorative wash anywher
 not green and both earn it: `danger` is red because a refusal that is not red is not read as one,
 and `ink` is near-black because body text is. One large number still leads each card.
 
-## Three gotchas before you write a class
+## Four gotchas before you write a class
 
 1. **`tokens.css` is imported unlayered**, so any legacy class (`.card`, `.btn`, `.pill`, ...)
    beats a Tailwind utility on the same element. Never mix a legacy class with utilities —
@@ -24,7 +24,14 @@ and `ink` is near-black because body text is. One large number still leads each 
    Leave those — they are correct, just belt and braces — and keep writing an explicit
    `border-solid` beside a width, because a border that silently draws as `none` is the one
    mistake here nobody spots in review.
-3. **`.ds-press` sets `overflow: hidden`.** It has to, to keep the ripple inside the pill, and it
+3. **`min-h-full` does nothing inside `Screen`.** Its `ds-enter` wrapper is auto-height, so a
+   percentage min-height resolves against the *content*, not the scroller — measured 764px inside
+   a 792px scroller, which left 28px of white phone above the tab bar on a full-bleed dark
+   surface. A surface that must paint to the bottom uses a `sticky top-0` zero-height layer
+   carrying an `h-svh` panel behind the content; `screens/goals/JarCatalogue.tsx` is the worked
+   example.
+
+4. **`.ds-press` sets `overflow: hidden`.** It has to, to keep the ripple inside the pill, and it
    clips anything reaching past the control's edge just as happily. A count badge on a corner, a
    raised card, the advisor disc: none of them can be a *child* of the pressable element. Make
    them a sibling and give the pressable one `relative z-[1]`.
