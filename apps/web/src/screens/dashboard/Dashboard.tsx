@@ -15,8 +15,9 @@
  * Spending, and it carries both: one pill switch inside the pane, because the reference's own
  * analytics tab does exactly this — a screen-level tab row with a filter row under it.
  *
- * If a jars surface is ever wanted here, `jars` is the seam: pass a node and a fifth cell
- * appears between Overview and Holdings. Nothing else in this file has to move.
+ * If a jars surface is ever wanted here, `jars` is the seam: pass a render prop and a fifth cell
+ * appears between Overview and Holdings, drawing its own screen out of this one's chrome the way
+ * every other pane does. Nothing else in this file has to move.
  *
  * ## What is drawn once, here
  *
@@ -97,8 +98,15 @@ export function Dashboard({
   holdings: HoldingsSource
   caps: readonly CategoryCap[]
   capsEnabled: boolean
-  /** Given, a `SmartJars` pane appears second. The seam for whoever owns goals. */
-  jars?: ReactNode
+  /**
+   * Given, a `SmartJars` pane appears second — the seam for whoever owns goals.
+   *
+   * A render prop rather than a node, because a pane of this surface draws its own `Screen` out
+   * of the chrome handed to it, exactly as `Today` and `Money` do below. `SmartJars` already
+   * takes an optional `chrome` for this; wiring it is `<Dashboard jars={(chrome) => <SmartJars
+   * chrome={chrome} … />} />` and nothing in here has to move.
+   */
+  jars?: (chrome: ScreenChrome) => ReactNode
   onDecide: (action: Action, kind: DecisionKind) => void
   onAsk: () => void
   onOpenProfile: () => void
@@ -209,6 +217,8 @@ export function Dashboard({
     )
   }
 
+  if (pane === 'jars' && jars !== undefined) return jars(chrome)
+
   if (pane === 'spending') {
     return (
       <Money
@@ -234,7 +244,6 @@ export function Dashboard({
 
   return (
     <Screen {...chrome} onRefresh={onRefresh}>
-      {pane === 'jars' ? jars : null}
       {pane === 'holdings' ? (
         <Holdings
           snapshot={view.snapshot}
