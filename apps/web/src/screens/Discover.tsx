@@ -25,6 +25,7 @@ import { Button, Card, Head } from '../components/ui.tsx'
 import { Invest } from './invest/Invest.tsx'
 import { plannedIds } from './invest/planned.ts'
 import { ShelfList } from './invest/ShelfList.tsx'
+import { CategoryGrid } from './invest/CategoryGrid.tsx'
 
 export function Discover({
   view,
@@ -41,6 +42,7 @@ export function Discover({
   /* The spine takes the screen once it opens, and holds the basket for as long as it is up.
      There is no cart on the server to hold it instead. */
   const [buying, setBuying] = useState<ShelfProduct | null>(null)
+  const [category, setCategory] = useState<string | null>(null)
 
   if (buying) {
     return (
@@ -60,6 +62,8 @@ export function Discover({
       overlap
       header={<Head title="Discover" sub="What IDBI can put you into" overlap />}
     >
+      <CategoryGrid shelf={view.shelf} selected={category} onSelect={setCategory} />
+
       <Card tint="sky">
         <h2>Checked before it is placed</h2>
         <p className="m-0 mt-1.5 text-sm leading-relaxed text-ink-mid">
@@ -84,7 +88,11 @@ export function Discover({
         </div>
       </Card>
 
-      <ShelfList shelf={view.shelf} planned={plannedIds(view.roadmap)} onPick={setBuying} />
+      <ShelfList
+        shelf={category === null ? view.shelf : view.shelf.filter((p) => p.category === category)}
+        planned={plannedIds(view.roadmap)}
+        onPick={setBuying}
+      />
     </Screen>
   )
 }

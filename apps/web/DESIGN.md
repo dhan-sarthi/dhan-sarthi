@@ -358,3 +358,28 @@ Rules:
   finished; the sentence underneath is why it is useful.
 - Files are quantised to a 48-colour palette — flat art, so it is lossless in practice: 4.2 MB of
   source became 46 KB shipped.
+
+## Category icons (`public/icons`, used by `screens/invest/CategoryGrid.tsx`)
+
+Fourteen illustrated product-category icons, one per category the shelf carries, rendered at 56px
+in the Discover grid.
+
+**They carry more colour than the rest of the app, and that is the rule, not an exception.** The
+chrome is one green; the illustration is where a bank is allowed to be warm. The reference makes
+the same split — SmartWealth's brand is navy and white, and its Explore grid is gold, coral, green
+and violet. An app whose *icons* are monochrome reads as a wireframe however good its tokens are.
+
+What keeps fourteen of them looking like one set:
+
+- **Green is the constant.** Every icon is built from the green ladder (`#164c3f` → `#d6ece4`).
+- **One accent per icon, and only as a highlight** — roughly a tenth of the artwork. The four
+  accents in use are gold `#e0a33a`, coral `#e2705a`, sky `#4aa8d8`, violet `#8a6fd0`. Adding a
+  fifth is a design decision, not an implementation detail.
+- **No black.** The darkest value is `#0d3b30`.
+- Filled, softly dimensional, chunky enough to read at 56px. No gloss, no hard gradient, no
+  drop shadow.
+
+The app frames them; the file does not. Icons are drawn on transparency with no tile, circle or
+card behind them, because `CategoryGrid` and `ListRow` supply that.
+
+Files are 224px (4x the 56px render) quantised to 64 colours: 11.8 MB of source, 69 KB shipped.
