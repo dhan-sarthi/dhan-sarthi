@@ -281,8 +281,8 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       measure: 'realign',
       title: 'A repayment is behind',
       detail:
-        `A repayment on record was missed. Until it clears, the suitability rules refuse every ` +
-        `investment on the shelf — so clearing it is the only thing that moves this plan.`,
+        `A repayment on record was missed, and until it clears the suitability rules refuse ` +
+        `every investment on the shelf.`,
       planned: null,
       observed: null,
       severity: 'bad',
@@ -303,8 +303,8 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
         title: 'The balance is growing',
         detail:
           `${inr(snapshot.debt.total)} at ${snapshot.debt.highestRate}% accrues ` +
-          `${inr(interest)} a month; the plan can put ${inr(paying)} against it. The balance ` +
-          `rises at that pace, so there is no payoff date.`,
+          `${inr(interest)} a month against ${inr(paying)} going in, so the balance rises and ` +
+          `there is no payoff date.`,
         planned: paying,
         observed: interest,
         severity: 'bad',
@@ -325,8 +325,8 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
         `${snapshot.customer.dependents} ` +
         `${snapshot.customer.dependents === 1 ? 'person depends' : 'people depend'} on your ` +
         `income and ${inr(snapshot.protection.gap)} of cover is not in force. ` +
-        `${cover.productName ?? 'The policy'} is ${inr(cover.monthly)} a month, and it is the ` +
-        `one step here that cannot be caught up on later.`,
+        `${cover.productName ?? 'The policy'} is ${inr(cover.monthly)} a month and cannot be ` +
+        `caught up on later.`,
       planned: cover.monthly,
       observed: null,
       severity: 'bad',
@@ -345,15 +345,17 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       // A buffer short of its *target* is the ordinary state of a plan that is working; short of
       // three months is the state the gate refuses to sell past. Two different sentences.
       title: covered < 3 ? 'The buffer is below the floor' : 'The buffer is still filling',
+      // The second branch's clause is not exposition: this drift reports `observed: null`, and
+      // without the reason a reader would take the blank as nothing having gone in.
       detail:
-        `${inr(snapshot.balances.total)} is reachable, which covers about ${covered} ` +
-        `${covered === 1 ? 'month' : 'months'} of your outgoings against a target of ` +
+        `${inr(snapshot.balances.total)} reachable covers about ${covered} ` +
+        `${covered === 1 ? 'month' : 'months'} against a target of ` +
         `${snapshot.buffer.targetMonths}. ` +
         (covered < 3
-          ? `Below three the suitability rules will not sell you anything with a lock-in, so ` +
-            `this is what the rest of the route is waiting on.`
-          : `Money going in here does not leave the bank, so your statements cannot show it ` +
-            `arriving — the balance is the only evidence there is.`),
+          ? `Below three the rules will not sell you anything with a lock-in, so the rest of ` +
+            `the route waits on this.`
+          : `Money going in here never leaves the bank, so the balance is the only evidence ` +
+            `there is.`),
       planned: buffer.monthly,
       observed: null,
       severity: covered < 3 ? 'bad' : 'warn',
@@ -411,7 +413,7 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
       detail:
         `The route commits ${inr(roadmap.monthlyCommitment)} a month; your statements leave ` +
         `${inr(snapshot.surplus.deployable)} spare after commitments, everyday spending and ` +
-        `one-off costs. It was cut against a different month than the one you are having.`,
+        `one-off costs.`,
       planned: roadmap.monthlyCommitment,
       observed: snapshot.surplus.deployable,
       severity: 'bad',
@@ -442,8 +444,7 @@ export function detectDrift(roadmap: Roadmap, snapshot: Snapshot): Drift[] {
         (worst && worst.changePct > 0
           ? `, most of it ${worst.category.toLowerCase()} — ${inr(worst.prior)} to ` +
             `${inr(worst.recent)}.`
-          : `.`) +
-        ` That came out of what the plan had to work with.`,
+          : `.`),
       planned: null,
       observed: trend.monthly,
       severity: 'warn',

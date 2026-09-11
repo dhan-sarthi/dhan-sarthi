@@ -289,9 +289,8 @@ function toAction(
           ...base,
           label: `Sweep ${inr(amount)} into a deposit`,
           detail:
-            `Moves the part of your balance you never touch into ${product.name} at about ` +
-            `${product.indicativeReturn ?? 6.8}%. It comes straight back the day you need it — ` +
-            `no lock-in, no risk, no new paperwork.`,
+            `Into ${product.name} at about ${product.indicativeReturn ?? 6.8}%. It comes back ` +
+            `the day you need it — no lock-in, no risk.`,
           amount,
           productId: product.productId,
           productName: product.name,
@@ -320,8 +319,8 @@ function toAction(
               ? `Add ${inr(amount)} a month to your SIP`
               : `Start ${inr(amount)} a month`,
           detail:
-            `Into ${product.name}. Set it for the day after your salary lands, so it goes before ` +
-            `you can spend it.`,
+            `Into ${product.name}, dated the day after your salary lands so it goes before you ` +
+            `can spend it.`,
           amount,
           productId: product.productId,
           productName: product.name,
@@ -354,9 +353,7 @@ function toAction(
         {
           ...base,
           label: `Take ${inr(product.coverAmount ?? 0)} of cover for ${inr(product.minInvestment)} a month`,
-          detail:
-            `${product.name}. Pure cover — no maturity value, nothing to cash in, which is exactly ` +
-            `why it is this cheap.`,
+          detail: `${product.name}. Pure cover — no maturity value, which is why it is this cheap.`,
           amount: product.minInvestment,
           productId: product.productId,
           productName: product.name,
@@ -398,9 +395,7 @@ function toAction(
       return {
         ...base,
         label: `Cap ${target} at ${inr(cap)} a month`,
-        detail:
-          `Back to what it was three months ago, not to nothing. I will tell you when you are ` +
-          `close, and you can change it any time.`,
+        detail: `Back to what it was three months ago, not to nothing — and you can change it any time.`,
         amount: 0,
         verdictId: null,
         ...(saved > 0
@@ -419,9 +414,7 @@ function toAction(
       return {
         ...base,
         label: 'Review your subscriptions',
-        detail:
-          'I have listed what each one actually costs you a year. I cannot tell which you still ' +
-          'use — that part is yours.',
+        detail: 'I have listed what each costs a year. Which you still use is yours to say.',
         amount: 0,
         verdictId: null,
       }
@@ -431,9 +424,7 @@ function toAction(
       return {
         ...base,
         label: `Put everything spare against the ${snapshot.debt.highestRate}% balance`,
-        detail:
-          `Before anything else. It is the highest guaranteed return available to you and it is ` +
-          `not an investment.`,
+        detail: `The highest guaranteed return available to you, and it comes before anything else.`,
         amount: Math.max(0, deployable),
         verdictId: null,
       }

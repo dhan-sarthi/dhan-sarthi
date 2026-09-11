@@ -17,7 +17,6 @@
  */
 import type { ActionKind } from './actions.ts'
 import type { Snapshot } from './derive.ts'
-import { compoundedValueOf } from './projection.ts'
 import { subscriptions } from './recurring.ts'
 
 export type InsightKind =
@@ -92,8 +91,8 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       severity: 'urgent',
       headline: 'There is a missed loan repayment on your record.',
       detail:
-        'Until it is cleared I cannot recommend putting money anywhere else. The mark it leaves ' +
-        'on your credit file will cost you more, for longer, than anything I could earn you.',
+        'Until it clears I cannot recommend putting money anywhere else — the mark on your ' +
+        'credit file costs more, for longer, than anything I could earn you.',
       monthlyValue: 0,
       evidence: [
         `${s.debt.monthlyOutgo ? `EMI outgo ${inr(s.debt.monthlyOutgo)}/month` : ''}`,
@@ -109,9 +108,8 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       severity: 'urgent',
       headline: `${inr(s.debt.total)} at ${s.debt.highestRate}% is costing you ${inr(interest)} a month in interest alone.`,
       detail:
-        `Nothing on the shelf returns ${s.debt.highestRate}% a year. Every rupee that goes here ` +
-        `beats every rupee that goes anywhere else — it is the highest-return investment ` +
-        `available to you, and it is not an investment.`,
+        `Nothing on the shelf returns ${s.debt.highestRate}% a year, so paying this down beats ` +
+        `every investment available to you.`,
       monthlyValue: interest,
       evidence: [
         `Outstanding ${inr(s.debt.total)} at ${s.debt.highestRate}% p.a.`,
@@ -136,11 +134,14 @@ export function findInsights(snapshot: Snapshot): Insight[] {
             `on your income and there is no life cover in force.`
           : `Your life cover is about ${inr(s.protection.gap)} short of what ` +
             `${s.protection.dependents === 1 ? 'your dependent' : 'your dependents'} would need.`,
+      // Ten-times-income is a rule of thumb and has to say so: it is an indicative requirement,
+      // not a computed need, and a figure this size presented as a calculation would be a claim
+      // the data cannot carry. The "cannot be caught up on later" clause is why this outranks
+      // everything below it, so it survives the cut too.
       detail:
-        `A rule of thumb puts the cover needed at around ten times annual income — about ` +
-        `${inr(s.protection.lifeCoverNeeded)} for you, against ` +
-        `${inr(s.protection.lifeCoverInForce)} in force. Term cover is the cheapest way to buy ` +
-        `the difference and the only thing on this list that cannot be caught up on later.`,
+        `Ten times income is the rule of thumb: ${inr(s.protection.lifeCoverNeeded)} against ` +
+        `${inr(s.protection.lifeCoverInForce)} in force. Term is the cheapest way to close it ` +
+        `and cannot be caught up on later.`,
       monthlyValue: 0,
       evidence: [
         `${s.protection.dependents} ${s.protection.dependents === 1 ? 'dependent' : 'dependents'} on record`,
@@ -162,8 +163,8 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       severity: 'important',
       headline: `Your savings cover about ${s.buffer.monthsCovered} months of your outgoings.`,
       detail:
-        'Below three months, one bad month becomes a loan. It is also the reason nothing with a ' +
-        'lock-in can be recommended to you yet — that is a rule, not a preference.',
+        'Below three, one bad month becomes a loan — and nothing with a lock-in can be ' +
+        'recommended until you are past it.',
       monthlyValue: 0,
       evidence: [
         `Reachable savings ${inr(s.balances.total)}`,
@@ -185,9 +186,7 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       headline:
         `Your ${loanType.toLowerCase()} finishes in ${monthsLeft} ` +
         `${monthsLeft === 1 ? 'month' : 'months'} — that is ${inr(emiAmount)} a month freed up.`,
-      detail:
-        `Money that appears without warning gets spent. Route it before it arrives and you will ` +
-        `not miss it, because you are not missing it now.`,
+      detail: `Route it before it arrives and you will not miss it — you are not missing it now.`,
       monthlyValue: emiAmount,
       evidence: [
         `${loanType}: ${monthsLeft} instalments remaining`,
@@ -206,10 +205,10 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       headline:
         `${inr(s.balances.idleFloor)} has sat in your savings account for ` +
         `${s.balances.idleMonths} months without once being needed.`,
-      detail:
-        'A savings account pays about 2.7% and prices are rising faster than that, so money ' +
-        'left there quietly loses value. This is not about risk — a sweep-in deposit keeps it ' +
-        'reachable any day.',
+      // Both halves are load-bearing: 2.7% against rising prices is the evidence that idle
+      // money is losing value, and "comes back any day" is why a sweep-in is suggested to
+      // someone whose buffer may still be thin.
+      detail: '2.7% in savings, under inflation, so it loses value. A sweep-in comes back any day.',
       monthlyValue: Math.round((s.balances.idleFloor * 0.04) / 12),
       evidence: [
         `Twelve-month minimum balance: ${inr(s.balances.idleFloor)}`,
@@ -228,8 +227,8 @@ export function findInsights(snapshot: Snapshot): Insight[] {
           `${series.merchant ?? series.key} went from ${inr(change.from)} to ${inr(change.to)} ` +
           `in ${spokenMonth(change.on)}.`,
         detail:
-          `That is ${inr((change.to - change.from) * 12)} a year you did not agree to. Worth ` +
-          `deciding again rather than by default.`,
+          `${inr((change.to - change.from) * 12)} a year you did not agree to — worth deciding ` +
+          `again rather than by default.`,
         monthlyValue: change.to - change.from,
         evidence: [
           `Charged ${inr(change.from)} until ${change.on}`,
@@ -247,11 +246,10 @@ export function findInsights(snapshot: Snapshot): Insight[] {
     out.push({
       kind: 'subscription_review',
       severity: 'opportunity',
-      headline: `${subs.length} subscriptions are costing you ${inr(annual)} a year.`,
-      // The honest framing. We cannot know which they have stopped using, so we ask.
-      detail:
-        'Nobody cancels ₹1,499 a month. Rather more people cancel ₹17,988 a year. I do not know ' +
-        'which of these you still use — you do.',
+      headline: `${subs.length} subscriptions cost you ${inr(annual)} a year.`,
+      // The honest framing, and the whole of what is left to say: a statement carries no usage
+      // data, so the one thing this card must not imply is that we know which are dead.
+      detail: 'I cannot see which of these you still use — you can.',
       monthlyValue: Math.round(annual / 12),
       evidence: subs.map(
         (x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`,
@@ -266,11 +264,11 @@ export function findInsights(snapshot: Snapshot): Insight[] {
     out.push({
       kind: 'category_drift',
       severity: 'opportunity',
-      headline: `${trend.category} is up ${pct(trend.changePct)} over the last three months.`,
-      detail:
-        `${inr(trend.prior)} a month became ${inr(trend.recent)}. Nothing dramatic happened — ` +
-        `it just drifted, which is how it usually goes. Capping it back is ${inr(extra)} a month, ` +
-        `and over thirty years that is ${inr(compoundedValueOf(extra, 30))}.`,
+      headline: `${trend.category} is up ${pct(trend.changePct)} in three months.`,
+      // The thirty-year figure went with the exposition, and it was the right one to lose: it
+      // was the only projection in this file printed without its rate beside it, which is the
+      // one thing `projection.ts` insists on. The card keeps the two months and the cause.
+      detail: `${inr(trend.prior)} a month became ${inr(trend.recent)} — no single event, just drift.`,
       monthlyValue: extra,
       evidence: [
         `Three months to ${s.asOf}: ${inr(trend.recent)}/month`,
@@ -289,9 +287,9 @@ export function findInsights(snapshot: Snapshot): Insight[] {
         `${habit.merchant ?? habit.key} ${habit.timesPerMonth} times a month — ` +
         `${inr(habit.annualTotal)} a year.`,
       // Cleo's research finding: the damage is the small repeat purchase, not the impulse buy.
-      detail:
-        `Typically ${inr(habit.typicalAmount)} at a time, which is why it does not feel like ` +
-        `anything. Added up it is the largest single thing you could change.`,
+      // "The largest single thing you could change" went with it — this is the top habit by
+      // spend, which is not the same claim and was not one the ranking could support.
+      detail: `Typically ${inr(habit.typicalAmount)} at a time, which is why it does not feel like anything.`,
       monthlyValue: Math.round(habit.monthlyAverage * 0.3),
       evidence: [
         `${habit.occurrences} transactions since ${habit.firstSeen}`,

@@ -357,16 +357,17 @@ export function buildRoadmap(
       label: habitless
         ? 'Find the first thing to spare'
         : `Free up about ${inr(recoverable)} a month`,
+      // Both branches keep the two facts a stage this early cannot do without: there is
+      // nothing spare, and — in the habitless case — the reason no habit is named is that the
+      // statement is unreadable, not that the customer has none.
       why: habitless
-        ? `Right now everything that comes in goes out, so there is nothing to put anywhere ` +
-          `yet — and nothing in this statement is recognisable enough for me to point at a ` +
-          `habit and say "start there". Tell me one regular outgoing you could live without ` +
-          `and the rest of this plan has somewhere to begin.`
-        : `Right now everything that comes in goes out, so there is nothing to put anywhere. ` +
+        ? `Everything that comes in goes out, and no habit here is recognisable enough to ` +
+          `name. Tell me one outgoing you could drop and the plan has a start.`
+        : `Everything that comes in goes out. ` +
           `${targets.map((h) => h.merchant ?? h.key).join(' and ')} ` +
-          `${targets.length === 1 ? 'costs' : 'cost'} about ` +
-          `${inr(targets.reduce((s, h) => s + h.monthlyAverage, 0))} a month between them. ` +
-          `Cutting that by not quite half is the whole plan starting.`,
+          `${targets.length === 1 ? 'costs' : 'cost'} ` +
+          `${inr(targets.reduce((s, h) => s + h.monthlyAverage, 0))} a month between them; ` +
+          `cutting that by not quite half funds everything below.`,
       productId: null,
       productName: null,
       monthly: 0,
@@ -409,14 +410,17 @@ export function buildRoadmap(
       push({
         kind: 'get_cover',
         label: `${term.name} — ${inr(term.minInvestment)} a month`,
+        // "There is nothing in force" was the old wording and it was wrong for anyone holding
+        // a policy too small for their dependents — the stage fires on a *gap*, not on an
+        // absence. The gap figure says the same thing and is true either way.
         why:
-          `${snapshot.customer.dependents} ${snapshot.customer.dependents === 1 ? 'person' : 'people'} ` +
-          `depend on your income and there is nothing in force. This is the cheapest thing on ` +
-          `this list and the only one that cannot be caught up on later.` +
+          `${snapshot.customer.dependents} ` +
+          `${snapshot.customer.dependents === 1 ? 'person depends' : 'people depend'} on your ` +
+          `income and ${inr(snapshot.protection.gap)} of cover is missing — the cheapest step ` +
+          `here, and the only one that cannot be caught up on later.` +
           (closesGap
             ? ''
-            : ` It does not close the whole gap — ${inr(snapshot.protection.gap)} would — but it ` +
-              `is what is affordable today, and something in force beats the right amount later.`),
+            : ` This does not close it all, but something in force beats the right amount later.`),
         productId: term.productId,
         productName: term.name,
         monthly: term.minInvestment,
@@ -470,14 +474,15 @@ export function buildRoadmap(
       label: viable
         ? `Clear ${inr(principal)} at ${rate}% — about ${months} months`
         : `${inr(principal)} at ${rate}% will not clear at ${inr(available)} a month`,
+      // The infeasible branch keeps all four of its figures: the interest, what the plan can
+      // pay, what three years would take, and the difference. They are why the stage carries no
+      // completion date, and a shorter sentence that dropped them would leave that unexplained.
       why: viable
-        ? `Nothing on the shelf returns ${rate}% a year, so every rupee that goes here beats ` +
-          `every rupee that goes anywhere else. This is the highest-return investment available ` +
-          `to you and it is not an investment.`
-        : `The interest alone is ${inr(interest)} a month. At ${inr(available)} the balance ` +
-          `grows, so there is no date I can give you — it is not a slow plan, it is not a plan. ` +
-          `Clearing it inside three years needs about ${inr(needed)} a month, which means finding ` +
-          `${inr(Math.max(0, needed - available))} more before anything else on this list happens.`,
+        ? `Nothing on the shelf returns ${rate}% a year, so paying this down beats every ` +
+          `investment available to you.`
+        : `Interest alone is ${inr(interest)} a month, so at ${inr(available)} the balance grows ` +
+          `and there is no date to give. Clearing it inside three years needs about ` +
+          `${inr(needed)} a month — ${inr(Math.max(0, needed - available))} more than there is.`,
       productId: null,
       productName: null,
       monthly: available,
@@ -498,9 +503,8 @@ export function buildRoadmap(
       kind: 'clear_debt',
       label: 'Bring the missed instalment up to date',
       why:
-        `There is a repayment on record that was missed. Until that is cleared I cannot ` +
-        `recommend putting money anywhere else — and the mark it leaves on your credit file ` +
-        `will cost you more, for longer, than anything I could have earned you this year.`,
+        `A repayment on record was missed. Until it clears I can recommend nothing else, and ` +
+        `the mark on your credit file costs more, for longer, than anything I could earn you.`,
       productId: null,
       productName: null,
       monthly: 0,
@@ -528,9 +532,9 @@ export function buildRoadmap(
       kind: 'build_buffer',
       label: `${inr(bufferTarget)} within reach — ${opts.bufferFloorMonths} months of your outgoings`,
       why:
-        `You have ${inr(bufferHave)} reachable, which covers about ` +
-        `${snapshot.buffer.monthsCovered} months. Below three, one bad month becomes a loan — ` +
-        `and it is the reason nothing with a lock-in can be recommended before this.`,
+        `${inr(bufferHave)} reachable covers about ${snapshot.buffer.monthsCovered} months. ` +
+        `Below three, nothing with a lock-in can be recommended — and one bad month becomes ` +
+        `a loan.`,
       productId: vehicle?.productId ?? null,
       productName: vehicle?.name ?? null,
       monthly: available,
@@ -590,14 +594,12 @@ export function buildRoadmap(
         ? `${inr(needed)} a month at an assumed ${rate}% gets you there. ${DISCLAIMER}`
         : available > 0
           ? `${inr(needed)} a month would be needed and there is ${inr(available)} spare. ` +
-            `We can extend the date, lower the target, or find the difference in your ` +
-            `spending — and I would rather show you that than pretend the number works.`
+            `Extend the date, lower the target, or find the difference in your spending.`
           : // Nothing spare and nothing readable are different situations, and "there is ₹0
             // spare" says the first while meaning the second. A statement with no recognisable
             // income has no surplus to report either way.
-            `${inr(needed)} a month would be needed. I cannot see what you have spare, because ` +
-            `nothing in this statement is recognisable as income or as a regular outgoing. ` +
-            `Tell me what comes in and this becomes a real number.`,
+            `${inr(needed)} a month would be needed. Nothing here is recognisable as income or ` +
+            `as a regular outgoing, so I cannot see what is spare — tell me what comes in.`,
       productId: vehicle?.productId ?? null,
       productName: vehicle?.name ?? null,
       monthly: affordable,
