@@ -6,6 +6,13 @@
  * that stop at the column edge and never run under the chart. The analytics build of the same
  * card adds a title and a divider above the split; `title` is that.
  *
+ * `icon` is the rest of that head, and the frames are unambiguous about it: every chart card on
+ * `14-analytics` opens with a **46px rounded icon tile** carrying a line-art glyph, then the
+ * title at 18px bold, then the divider. A bare `<h2>` was the first pass reading "title" in the
+ * spec and stopping there — the tile is what makes four cards in a column read as one family
+ * rather than four headings. Ours is 40px in `legend-chip` with `brand-deep` ink, which is the
+ * tile `ListRow` and the dashboard's own card heads already draw.
+ *
  * The donut does not shrink — a squashed ring is worse than a clipped label, so the legend
  * truncates instead. 95px is the default and fits any phone; `donutSize={138}`, the measured
  * analytics chart, wants 360px of viewport or more.
@@ -72,6 +79,8 @@ export function AllocationCard({
   slices,
   total,
   title,
+  icon,
+  note,
   ribbon,
   max = RAMP,
   donutSize = 95,
@@ -83,6 +92,10 @@ export function AllocationCard({
   total?: number | undefined
   /** A card header above the split, with a divider under it. */
   title?: string | undefined
+  /** The glyph in the head's tile. Given one, the head becomes the reference's tile + title row. */
+  icon?: ReactNode | undefined
+  /** A quiet second line under the title. Only drawn with an `icon`. */
+  note?: string | undefined
   /** The corner tab: `Recommended` on the upper card of an `AllocationCompare`. */
   ribbon?: string | undefined
   max?: number | undefined
@@ -98,12 +111,31 @@ export function AllocationCard({
   return (
     <Card>
       {ribbon !== undefined && <RibbonTab>{ribbon}</RibbonTab>}
-      {title !== undefined && (
-        <>
-          <h2>{title}</h2>
-          <div className="mb-1 mt-3 border-b border-solid border-hairline-mint" />
-        </>
-      )}
+      {title !== undefined &&
+        (icon === undefined ? (
+          <>
+            <h2>{title}</h2>
+            <div className="mb-1 mt-3 border-b border-solid border-hairline-mint" />
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="grid size-10 flex-none place-items-center rounded-sm bg-legend-chip text-brand-deep"
+              >
+                {icon}
+              </span>
+              <span className="min-w-0 flex-1">
+                <h2 className="truncate">{title}</h2>
+                {note !== undefined && (
+                  <span className="mt-0.5 block truncate text-[13px] text-ink-soft">{note}</span>
+                )}
+              </span>
+            </div>
+            <div className="mb-1 mt-3.5 border-b border-solid border-hairline-mint" />
+          </>
+        ))}
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1 divide-y divide-solid divide-hairline-mint">
           {resolved.empty ? (

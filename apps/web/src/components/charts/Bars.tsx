@@ -87,7 +87,12 @@ export function SegmentedBar({
  * A stack of independent progress bars — the source's Sector Allocation card.
  *
  * 12px tracks with pill ends, label and bold figure on the line above each, and the fill colour
- * cycling by row. Colour here is rhythm, not identity: the rows are independent magnitudes and
+ * cycling by row. The row pitch is **69px** — `02-analytics-debt-mf.md` measures label tops at
+ * y 373 / 442 / 511 — which is a good deal airier than it looks like it should be on paper and
+ * is most of why the source's bar cards read as charts rather than as a settings list. The first
+ * build had it at 57 and the difference is visible with the two frames side by side.
+ *
+ * Colour here is rhythm, not identity: the rows are independent magnitudes and
  * each one names itself, so a seventh row reusing the first row's green costs nothing. Grey stays
  * reserved for "Others" wherever it appears, which is the same rule the donut runs.
  *
@@ -124,7 +129,7 @@ export function BarList({
         const others = isOthers(row)
         const tone: Tone = others ? RAMP : named(n++)
         return (
-          <div key={`${i}-${row.label}`} className="pt-3.5 first:pt-0">
+          <div key={`${i}-${row.label}`} className="pt-5 first:pt-0">
             <div className="flex items-baseline gap-3 text-[15px] leading-snug">
               <span className="min-w-0 flex-1 truncate text-ink-mid">{row.label}</span>
               <span className="shrink-0 font-semibold tabular-nums text-ink">
@@ -132,7 +137,7 @@ export function BarList({
               </span>
             </div>
             <div
-              className="relative mt-2.5 h-3 overflow-hidden rounded-pill bg-chart-idle"
+              className="relative mt-4 h-3 overflow-hidden rounded-pill bg-chart-idle"
               role="presentation"
             >
               <span
