@@ -65,10 +65,10 @@ export function TabBar({
   const ripple = useRipple()
   return (
     <nav
-      className="grid min-h-[68px] flex-none grid-cols-5 rounded-t-lg bg-gradient-to-b from-nav-top to-nav-bottom pb-[env(safe-area-inset-bottom,0px)] text-white"
+      className="grid min-h-[68px] flex-none grid-cols-5 rounded-t-md bg-gradient-to-b from-nav-top to-nav-bottom px-1 pb-[env(safe-area-inset-bottom,0px)] text-white"
       aria-label="Sections"
     >
-      {TABS.map((t) => {
+      {TABS.map((t, i) => {
         const Glyph = t.glyph
         const isActive = t.id === active
 
@@ -103,15 +103,36 @@ export function TabBar({
         }
 
         return (
-          <div key={t.id} className="relative flex min-w-0">
+          <div
+            key={t.id}
+            /* The raised card rises 8px out of a bar with a 20px top radius, so on the first and
+               last column its outer corner escapes the curve and reads as a white shape leaving
+               the bar. SmartWealth never hits this — its raised card is the centre of three tabs.
+               With five, either end can be active, so the two that can pull their card in far
+               enough to clear the radius. The middle three keep the whole column, which is where
+               the longest label lives.
+
+               The bar's own top radius is `md` (14px) rather than `lg` (20px) for the same
+               reason: 12px of edge inset plus the bar's 4px padding is 16px, and a 20px corner
+               left a 4px sliver of card outside the curve. Shrinking the corner was cheaper than
+               taking another 8px off every column. */
+            data-edge={i === 0 ? 'left' : i === TABS.length - 1 ? 'right' : undefined}
+            className="relative flex min-w-0"
+          >
             {/* The lifted card. A sibling of the button so it can reach 8px above the bar, and
                 `pointer-events-none` so the press still lands on the button underneath it.
-                It spans the full column: at five columns the longest label ("Dashboard", 61px)
-                is wider than a column inset by 8px on a 320px screen, and the text spilled past
-                the card onto the green. The label drops to 10px below 360px for the same reason. */}
+                It spans the full column, because at five columns the longest label
+                ("Dashboard", 61px) is wider than a column inset by 8px on a 320px screen and the
+                text spilled past the card onto the green. The label also drops to 10px below
+                360px for that reason.
+
+                Full-column width is only safe because the bar carries `px-1`. Without it the
+                first and last columns start on the bar's own edge, and a card that rises 8px out
+                of a 20px rounded corner fills the notch the radius leaves and breaks the bar's
+                silhouette. The padding keeps every column inside the curve. */}
             <span
               aria-hidden="true"
-              className={`pointer-events-none absolute inset-x-0 -top-2 bottom-1 rounded-lg bg-surface shadow-lift transition-all duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)] ${
+              className={`pointer-events-none absolute inset-x-0 -top-2 bottom-1 rounded-lg bg-surface shadow-lift [[data-edge=left]_&]:left-3 [[data-edge=right]_&]:right-3 transition-all duration-200 ease-[cubic-bezier(0.22,0.8,0.3,1)] ${
                 isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
               }`}
             />
