@@ -28,7 +28,7 @@ import type {
 import { Pencil, Trash2 } from 'lucide-react'
 import { Button, Card, Eyebrow, Head, Pill, Segments, TextLink } from '../components/ui.tsx'
 import { Screen } from '../components/Screen.tsx'
-import type { Tier } from '../components/TierBadge.tsx'
+import type { Tier } from '../lib/availability.ts'
 import { api, isApiError } from '../api/client.ts'
 import { clearSession } from '../api/session.ts'
 import { dayMonth, inr } from '../lib/money.ts'

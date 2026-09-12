@@ -28,7 +28,7 @@ import type { QueuePlace } from '../lib/avatar.ts'
 import { inr } from '../lib/money.ts'
 import { useRipple } from '../lib/motion.ts'
 import { QueueCard } from '../components/QueueCard.tsx'
-import type { Tier } from '../components/TierBadge.tsx'
+import type { Tier } from '../lib/availability.ts'
 
 /** While in line, availability is re-read this often so the queue length and minutes stay honest. */
 const WAITING_POLL_MS = 5_000

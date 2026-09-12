@@ -26,7 +26,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ConsentScope, SessionState, View } from '@dhan/contracts'
-import type { Tier } from '../components/TierBadge.tsx'
+import type { Tier } from '../lib/availability.ts'
 import type { RecordState } from '../lib/record.ts'
 import { Record } from './Record.tsx'
 import { InvestmentProfile, MoreMenu, Reports } from './more/index.ts'

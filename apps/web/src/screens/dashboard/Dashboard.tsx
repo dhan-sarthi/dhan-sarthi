@@ -41,7 +41,7 @@ import type {
 import { DataSourceRibbon } from '../../components/DataSourceRibbon.tsx'
 import { Screen } from '../../components/Screen.tsx'
 import type { ScreenChrome } from '../../components/Screen.tsx'
-import type { Tier } from '../../components/TierBadge.tsx'
+import type { Tier } from '../../lib/availability.ts'
 import { Head, IconButton, Segments } from '../../components/ui.tsx'
 import { dayMonth } from '../../lib/money.ts'
 import type { DecisionKind } from '../../lib/mutations.ts'

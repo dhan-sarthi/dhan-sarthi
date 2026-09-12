@@ -48,7 +48,7 @@ import { Screen } from '../../components/Screen.tsx'
 import { Art } from '../../components/Art.tsx'
 import { Card, Head } from '../../components/ui.tsx'
 import { useRipple } from '../../lib/motion.ts'
-import type { Tier } from '../../components/TierBadge.tsx'
+import type { Tier } from '../../lib/availability.ts'
 import { ReportForm } from './ReportForm.tsx'
 import type { ReportKind } from './reports.ts'
 

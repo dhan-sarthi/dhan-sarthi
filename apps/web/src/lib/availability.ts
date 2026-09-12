@@ -1,11 +1,20 @@
 /**
  * Whether Uday can take a call right now. Public and cheap, so it is read before the Call
- * button is drawn: a reviewer who sees "Talk to Uday" and gets a busy signal has been misled by
- * the screen, and the fallback ladder is supposed to be honest before the tap, not after.
+ * button is drawn: someone who sees "Talk to Uday" and gets a busy signal has been misled by the
+ * screen, and the fallback ladder is supposed to be honest before the tap, not after.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AvatarAvailability } from '@dhan/contracts'
 import { api } from '../api/client.ts'
+
+/**
+ * Which rung of the advisor's fallback ladder is carrying the session.
+ *
+ *   live      the avatar can take a call
+ *   text      the same engine, typed — Uday is busy, unconfigured, or out of minutes
+ *   offline   the simulation in this browser; nothing is recorded
+ */
+export type Tier = 'live' | 'text' | 'offline'
 
 export interface AvailabilityState {
   /** Null until read, or when the read failed — in which case there is no call to offer. */
