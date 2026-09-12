@@ -100,7 +100,7 @@ export function Pick(): ReactNode {
           children of the scroller and run their own ladder. */}
       <div className="ds-rise">
         <p className="m-0 mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-accent-text">
-          IDBI Innovate 2026 · Team Atomic
+          IDBI Bank · Dhan Sarthi
         </p>
 
         <h1 className="m-0 mb-3 text-[30px] font-bold leading-tight text-ink">
@@ -119,8 +119,8 @@ export function Pick(): ReactNode {
           under every source, and Today's ribbon names the source exactly.
         */}
         <p className="m-0 mb-7 text-sm leading-normal text-ink-soft">
-          Pick one. Every figure is computed from that customer’s own statements, none of it written
-          by hand.
+          Choose an account to open. Every figure inside is computed from that account’s own
+          statements, none of it written by hand.
         </p>
       </div>
 
@@ -200,9 +200,17 @@ export function Pick(): ReactNode {
         </button>
       ))}
 
+      {/*
+        This screen is standing in for a sign-in that does not exist yet.
+        `createSession` is `auth: 'none'` and takes a bare CIF — no password, no OTP, no second
+        factor — so anyone holding a customer number can open that customer's whole financial
+        history. That is the single largest thing between this build and a real one, and it is
+        named here rather than dressed up as a login, because a password field with nothing
+        behind it would be worse than an honest chooser.
+      */}
       <p className="m-0 mt-6 text-sm leading-normal text-ink-soft">
-        No real customers. Each reviewer gets their own session on the advisor service; this browser
-        keeps only its token.
+        Opening an account here does not ask for a password yet. Nothing is stored in this browser
+        but the session token.
       </p>
     </div>
   )
