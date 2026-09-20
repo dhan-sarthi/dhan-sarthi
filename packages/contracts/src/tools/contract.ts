@@ -1,9 +1,9 @@
 /**
- * The shape of one Runway tool.
+ * The shape of one tool.
  *
  * A tool is how the model asks us something it may not decide for itself. The argument and
  * result schemas are zod so the RPC handler can parse what the model sent (bad arguments become
- * a result the model can read, never an exception) and so the JSON Schema Runway needs can be
+ * a result the model can read, never an exception) and so the JSON Schema a provider needs can be
  * generated rather than hand-kept.
  */
 import type { z } from 'zod'

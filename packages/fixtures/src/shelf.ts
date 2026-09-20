@@ -116,7 +116,7 @@ export const PRODUCT_SHELF: readonly Product[] = [
   /* Distributed — protection --------------------------------------------- */
   {
     productId: 'LIC_TERM_201',
-    name: 'LIC Term Assurance — ₹1 crore cover',
+    name: 'LIC Term Assurance, ₹1 crore cover',
     category: 'Term Insurance',
     riskometer: 'Low',
     minInvestment: TERM_PREMIUM_MONTHLY_AGE_29,
@@ -133,7 +133,7 @@ export const PRODUCT_SHELF: readonly Product[] = [
   },
   {
     productId: 'NIVA_HEALTH_202',
-    name: 'Niva Bupa ReAssure — ₹10 lakh family floater',
+    name: 'Niva Bupa ReAssure, ₹10 lakh family floater',
     category: 'Health Insurance',
     riskometer: 'Low',
     minInvestment: 1_450,
@@ -147,7 +147,7 @@ export const PRODUCT_SHELF: readonly Product[] = [
   },
   {
     productId: 'GOI_PMJJBY_203',
-    name: 'PMJJBY — ₹2 lakh life cover',
+    name: 'PMJJBY, ₹2 lakh life cover',
     category: 'Government Insurance',
     riskometer: 'Low',
     minInvestment: Math.round(GOVT_COVER.pmjjbyAnnual / 12),
@@ -162,7 +162,7 @@ export const PRODUCT_SHELF: readonly Product[] = [
   },
   {
     productId: 'GOI_PMSBY_204',
-    name: 'PMSBY — ₹2 lakh accident cover',
+    name: 'PMSBY, ₹2 lakh accident cover',
     category: 'Government Insurance',
     riskometer: 'Low',
     minInvestment: Math.max(1, Math.round(GOVT_COVER.pmsbyAnnual / 12)),
@@ -178,7 +178,7 @@ export const PRODUCT_SHELF: readonly Product[] = [
   /* Distributed — long-horizon government schemes ------------------------- */
   {
     productId: 'PFRDA_NPS_301',
-    name: 'National Pension System — Tier I',
+    name: 'National Pension System, Tier I',
     category: 'NPS',
     riskometer: 'Moderately High',
     minInvestment: 500,

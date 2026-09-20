@@ -70,7 +70,7 @@ describe('the route registry', () => {
     assert.throws(() => routeById('nope' as never), /no route/)
   })
 
-  it('has the 42 routes of the API surface', () => {
+  it('has the 51 routes of the API surface', () => {
     // 28 before the IDBI integration; six for the two blocks no bank endpoint carries, and
     // six for the Account Aggregator consent flow — four the app drives and two the bank
     // posts at us.
@@ -78,20 +78,30 @@ describe('the route registry', () => {
     // and `/holdings` holds what the customer already owns, because IDBI's catalogue has no
     // operation for either and advice cannot be given without them.
     // The forty-second is the category cap, which is a decision about the future: no bank
-    // endpoint anywhere carries what somebody meant to spend.
-    assert.equal(ROUTES.length, 42)
+    // endpoint anywhere carries what somebody meant to spend. The forty-fourth is the limit
+    // on everything, for the same reason — a budget is a thing a customer chooses, and no
+    // statement records a choice.
+    // The last seven are the savings pot and the spending challenge, which sit on the session
+    // for exactly that reason: a hack that rounds every purchase up, and a ceiling somebody
+    // put on their own takeaway for four weeks, are both decisions, and a bank records the
+    // spending rather than the intention behind it. Three carry the pot — read it, set one
+    // hack, put money in by hand — and four carry the challenge: the view, a quote for the
+    // limits on offer that writes nothing at all, the start, and the surrender.
+    assert.equal(ROUTES.length, 51)
   })
 })
 
-describe('the Runway tools', () => {
-  it('serialises every tool to a backend_rpc definition with an object schema', () => {
+describe('the tool definitions', () => {
+  // Nothing here asserts a provider's wire shape: no discriminator, no parameter flattening,
+  // no webhook url. Those live with the adapter that invents them — Runway's `backend_rpc` is
+  // pinned in `apps/api/test/avatar/runway-tool-body.test.ts`.
+  it('serialises every tool to a definition with an object schema', () => {
     const defs = toolJsonSchemas()
     assert.deepEqual(
       defs.map((d) => d.name),
       ['check_suitability', 'query_spend', 'get_plan'],
     )
     for (const d of defs) {
-      assert.equal(d.type, 'backend_rpc')
       assert.equal(d.parameters['type'], 'object')
       assert.equal(d.parameters['additionalProperties'], false)
       assert.equal('$schema' in d.parameters, false)

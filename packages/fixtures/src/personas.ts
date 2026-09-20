@@ -7,7 +7,7 @@
  * prototype's fixture quoted an outflow of ₹49,600 in the demo script while the transactions
  * summed to ₹51,630, and nobody could see it until someone added them up.
  *
- * Three customers, chosen so a different suitability rule fires for each. A shelf of
+ * Four customers, chosen so a different suitability rule fires for each. A shelf of
  * suitable products cannot demonstrate suitability, and neither can one customer.
  *
  * The realism pass added the facts a *rail* needs rather than the facts a story needs: the
@@ -15,7 +15,7 @@
  * the creditor name a NACH mandate is registered under. None of it changes who these people
  * are; all of it is what makes the statement they generate look like one.
  */
-import type { Account, Customer, Holding, SpendCategory } from '@dhan/core'
+import type { Account, Customer, Holding, Institution, SpendCategory } from '@dhan/core'
 import {
   CARD_FINANCE_RATE_PA,
   GOVT_COVER,
@@ -114,6 +114,87 @@ export interface PayeeSpec {
   remark?: string
 }
 
+/* ------------------------------------------------------------------ *
+ * Accounts at other banks
+ * ------------------------------------------------------------------ */
+
+/**
+ * The banks a persona can hold an account at.
+ *
+ * IDBI is the only one with `isHome`. Everything else is visible only through an Account
+ * Aggregator consent, and the screens have to be able to say which is which without
+ * comparing strings.
+ */
+export const IDBI: Institution = { name: 'IDBI Bank', ifscPrefix: 'IBKL', isHome: true }
+export const HDFC: Institution = { name: 'HDFC Bank', ifscPrefix: 'HDFC', isHome: false }
+export const KOTAK: Institution = { name: 'Kotak Mahindra Bank', ifscPrefix: 'KKBK', isHome: false }
+export const ICICI: Institution = { name: 'ICICI Bank', ifscPrefix: 'ICIC', isHome: false }
+
+/** A one-off on a satellite account: a bonus landing, a car sold, a transfer out. */
+export interface SatelliteLump {
+  monthsAgo: number
+  day: number
+  amount: number
+  type: 'CREDIT' | 'DEBIT'
+  narration: string
+  category: SpendCategory
+  mode: 'NEFT' | 'IMPS' | 'UPI' | 'CHQ'
+  /** Money moved to another account the same customer owns, not spent. */
+  isSelfTransfer?: boolean
+}
+
+/**
+ * A bank account the customer holds somewhere other than their primary one.
+ *
+ * The point of this type is that a satellite carries **real flows**, not a declared balance.
+ * A household account that pays the rent has rent debits in it; an account nobody has touched
+ * for fourteen months has nothing in it but the interest the bank credited. Declaring the
+ * balance instead would put a number on the aggregation screen that no statement supports,
+ * which is the exact failure `packages/fixtures` exists to prevent.
+ *
+ * Routing is by category, and a category may be claimed by at most one satellite — anything
+ * unclaimed stays on the primary account. That is checked in the tests rather than trusted.
+ */
+export interface SatelliteSpec {
+  accountNumberMasked: string
+  institution: Institution
+  accountType: 'Savings' | 'Current'
+  accountOpeningDate: string
+  /** The home branch. Must begin with the institution's own prefix. */
+  branchIfsc: string
+  /** Which spend categories this account carries. Empty means it carries only its own lumps. */
+  carries: readonly SpendCategory[]
+  /**
+   * Routed flows stop this many months before the anchor, and the account goes quiet.
+   *
+   * This is what makes a dormant account *look* dormant on its own statement rather than
+   * merely being asserted to be: the lines stop, and the only thing after them is the
+   * quarterly interest the bank paid into it regardless.
+   */
+  quietAfterMonthsAgo?: number
+  lumps?: readonly SatelliteLump[]
+  /**
+   * A standing transfer from the primary account into this one, every month.
+   *
+   * An account that pays the rent has to be *funded*, or its balance runs to a large negative
+   * number and the solved opening balance quietly absorbs it. Modelling the transfer instead
+   * produces both halves of one movement — a debit on the primary, a credit here — which is
+   * what the customer's own two statements show and what makes the aggregate net to zero.
+   */
+  monthlyFunding?: { amount: number; day: number }
+  /**
+   * The balance this account must show at the anchor.
+   *
+   * The opening balance is **solved** from this rather than declared: whatever the flows and
+   * lumps come to, the opening balance is set so the ledger closes on exactly this figure. A
+   * balance and the statement behind it therefore cannot disagree, which is the property the
+   * whole aggregation screen rests on.
+   */
+  balanceAtAnchor: number
+  /** Annual savings rate, for the interest the bank credits each quarter. */
+  interestRate: number
+}
+
 /** A one-off that a real life contains and a clean fixture never does. */
 export interface LumpSpec {
   /** How the money left. A hospital bill is a card swipe or a bank transfer, never a UPI
@@ -190,6 +271,13 @@ export interface PersonaSpec {
   openingBalance: number
   /** Deposits and other accounts. Savings balances are derived from the ledger, not set here. */
   extraAccounts: Account[]
+  /**
+   * Bank accounts held elsewhere, each with its own ledger.
+   *
+   * Absent means the customer banks in one place, which is what every persona meant before
+   * aggregation was the product's pitch.
+   */
+  satellites?: readonly SatelliteSpec[]
   holdings: Holding[]
   /** Protection in force. An empty array is the setup for the whole protection story. */
   policies: Holding[]
@@ -398,7 +486,7 @@ export const ROHAN: PersonaSpec = {
       // 80CCD(2) only: he is on the new regime, where the employer's contribution is the one
       // NPS deduction still available, so a voluntary Tier-I for the tax break would be wrong.
       holdingType: 'NPS',
-      name: 'NPS Tier-I — Acme corporate scheme',
+      name: 'NPS Tier-I, Acme corporate scheme',
       assetClass: 'Hybrid',
       investedAmount: 118_800,
       currentValue: 142_640,
@@ -415,12 +503,17 @@ export const ROHAN: PersonaSpec = {
     /*
      * Two folios off a consolidated account statement he imported months ago.
      *
-     * The CAS flow (`apps/web/src/screens/external/`) matches an imported folio back to the
-     * record **by name** — `HoldingSchema` carries no folio number — so these two names are
-     * `CAS_FOLIOS[1]` and `CAS_FOLIOS[2]` in `apps/web/src/screens/external/cas.ts`, character
-     * for character, with that statement's own invested and current figures. `cas.test.ts` in
-     * that folder holds the two files to each other; a rename on either side fails it rather
-     * than silently un-importing a folio.
+     * The CAS flow matched an imported folio back to the record **by name** — `HoldingSchema`
+     * still carries no folio number — so these two names were `CAS_FOLIOS[1]` and
+     * `CAS_FOLIOS[2]` in `apps/web/src/screens/external/cas.ts`, character for character, with
+     * that statement's own invested and current figures, and a `cas.test.ts` beside them held
+     * the two files to each other.
+     *
+     * That screen, its fixture and that test went with `apps/web` on 20 September 2026
+     * (`docs/architecture/adr/ADR-0001.md`). **The names below are now unpinned**: nothing in the
+     * tree asserts them against a statement any more, and `apps/mobile` has no CAS import yet.
+     * Match-by-name is still the only join available, so whoever rebuilds that flow should
+     * restore a test like it rather than trust these strings to have stayed put.
      *
      * **Only the two folios with no mandate.** The other two on that statement run SIPs, and a
      * declared holding with an active mandate that has no matching ACH debit in the ledger is
@@ -435,7 +528,7 @@ export const ROHAN: PersonaSpec = {
      */
     {
       holdingType: 'MUTUAL_FUND',
-      name: 'Flexi Cap Fund — Regular Growth',
+      name: 'Flexi Cap Fund - Regular Growth',
       assetClass: 'Equity',
       investedAmount: 120_000,
       currentValue: 141_750,
@@ -444,7 +537,7 @@ export const ROHAN: PersonaSpec = {
     },
     {
       holdingType: 'MUTUAL_FUND',
-      name: 'Corporate Bond Fund — Direct Growth',
+      name: 'Corporate Bond Fund - Direct Growth',
       assetClass: 'Debt',
       investedAmount: 90_000,
       currentValue: 98_460,
@@ -457,7 +550,7 @@ export const ROHAN: PersonaSpec = {
   policies: [],
   pitch: '29, Indore. ₹85,000 a month, two dependents, no life cover.',
   demonstrates:
-    'BUNDLED_PROTECTION — the ULIP refusal, plus idle surplus and a forgotten subscription',
+    'BUNDLED_PROTECTION: the ULIP refusal, plus idle surplus and a forgotten subscription',
 }
 
 /* ------------------------------------------------------------------ *
@@ -605,7 +698,7 @@ export const PRIYA: PersonaSpec = {
   holdings: [
     {
       holdingType: 'NPS',
-      name: 'NPS Tier-I — Zeta corporate scheme',
+      name: 'NPS Tier-I, Zeta corporate scheme',
       assetClass: 'Hybrid',
       investedAmount: 285_600,
       currentValue: 331_100,
@@ -613,7 +706,7 @@ export const PRIYA: PersonaSpec = {
     },
     {
       holdingType: 'PPF',
-      name: 'Public Provident Fund — opened 2019',
+      name: 'Public Provident Fund, opened 2019',
       assetClass: 'Debt',
       investedAmount: 105_000,
       currentValue: 118_260,
@@ -623,8 +716,8 @@ export const PRIYA: PersonaSpec = {
     },
   ],
   policies: [],
-  pitch: '34, Kochi. ₹1.4 lakh a month — and a credit card at 34.8%.',
-  demonstrates: 'HIGH_INTEREST_DEBT — the advisor refuses to invest anything at all',
+  pitch: '34, Kochi. ₹1.4 lakh a month, and a credit card at 34.8%.',
+  demonstrates: 'HIGH_INTEREST_DEBT: the advisor refuses to invest anything at all',
 }
 
 /* ------------------------------------------------------------------ *
@@ -768,7 +861,7 @@ export const SUNIL: PersonaSpec = {
   holdings: [
     {
       holdingType: 'PPF',
-      name: 'Public Provident Fund — Nagpur GPO',
+      name: 'Public Provident Fund, Nagpur GPO',
       assetClass: 'Debt',
       investedAmount: 216_000,
       currentValue: 284_300,
@@ -794,7 +887,7 @@ export const SUNIL: PersonaSpec = {
   policies: [
     {
       holdingType: 'INSURANCE',
-      name: 'PMJJBY — Pradhan Mantri Jeevan Jyoti Bima Yojana',
+      name: 'PMJJBY, Pradhan Mantri Jeevan Jyoti Bima Yojana',
       assetClass: 'Protection',
       investedAmount: GOVT_COVER.coverAmount,
       currentValue: 0,
@@ -802,7 +895,7 @@ export const SUNIL: PersonaSpec = {
     },
     {
       holdingType: 'INSURANCE',
-      name: 'PMSBY — Pradhan Mantri Suraksha Bima Yojana (accident)',
+      name: 'PMSBY, Pradhan Mantri Suraksha Bima Yojana (accident)',
       assetClass: 'Protection',
       investedAmount: GOVT_COVER.coverAmount,
       currentValue: 0,
@@ -810,14 +903,591 @@ export const SUNIL: PersonaSpec = {
     },
   ],
   pitch: '47, Nagpur. Shop owner, income different every month, four dependents.',
-  demonstrates: 'MISSED_REPAYMENT and RISK_CEILING — a Conservative profile equity cannot serve',
+  demonstrates: 'MISSED_REPAYMENT and RISK_CEILING: a Conservative profile equity cannot serve',
 }
 
-export const PERSONAS: readonly PersonaSpec[] = [ROHAN, PRIYA, SUNIL]
+/* ------------------------------------------------------------------ *
+ * Karan — the demo customer. Four banks, nine investments, no cover.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The persona the product is demonstrated on.
+ *
+ * The other three exist to exercise one suitability rule each and are not shown in the app.
+ * Karan has to carry all nine on his own, and the way he does it is by being *fragmented*
+ * rather than by being broke: his money is spread across four banks and three investment
+ * platforms, and nobody — himself included — has ever seen it on one screen.
+ *
+ * The arithmetic closes in a loop, which is the whole reason the story works:
+ *
+ *   he spends more than he earns        → the card balance grows every month
+ *   the card balance is at 34.8%        → it outranks every investment on the shelf
+ *   ₹8.2 lakh sits idle at 3% elsewhere → the expensive debt is indefensible, not unlucky
+ *   clearing it frees the deficit       → which is what moves retirement from 61 to 52
+ *
+ * Nothing in that chain is asserted. Every link is arithmetic over a ledger a reviewer can
+ * open, which is what `packages/fixtures` is for.
+ */
+export const KARAN: PersonaSpec = {
+  slug: 'karan',
+  seed: 19960212,
+  employer: { name: 'Northwind Systems India Pvt Ltd', ifsc: 'HDFC0000523' },
+  accountNumberMasked: 'XXXXXXXXXXXX3308',
+  cardLast4: '7714',
+  coverReference: '500110099431',
+  // None. The whole protection story rests on the register being genuinely thin, and the
+  // ULIP in `policies` is the only thing in it.
+  govtCover: [],
+  customer: {
+    cif: 'IDBI0003308471',
+    custId: 'demo-karan',
+    custName: 'Karan Deshpande',
+    dateOfBirth: '1996-02-12',
+    gender: 'Male',
+    maritalStatus: 'Married',
+    // Aanya is two, and his mother in Nashik is the second. Both are load-bearing: the
+    // protection gap is computed against dependents, not against marital status.
+    dependents: 2,
+    employmentType: 'Salaried',
+    declaredAnnualIncome: 3_200_000,
+    city: 'Pune',
+    stateCode: '27',
+    preferredLanguage: 'en-IN',
+    // Last assessed in 2021 and never revisited. Stale on purpose: RISK_CEILING needs
+    // something to measure a Very High product against, and the staleness is itself the
+    // prompt to re-profile.
+    riskProfile: 'Balanced',
+    kycStatus: 'Verified',
+    customerSince: '2019-06-03',
+    taxRegime: 'new',
+  },
+  // ₹32L CTC, less employer PF and tax under the new regime, credited on the 1st.
+  income: { amount: 192_000, day: 1, variancePct: 0, splits: 1 },
+  // Paid out of the joint account, not this one. `satellites` routes it.
+  rent: {
+    amount: 42_000,
+    day: 2,
+    payee: { name: 'Sanjeev Kulkarni', ifsc: 'BKID0000712', remark: 'RENT' },
+  },
+  utilities: true,
+  obligations: [
+    {
+      payee: { name: 'Shubhangi Deshpande', ifsc: 'MAHB0000418', remark: 'FAMILY' },
+      category: 'Transfers',
+      amount: 15_000,
+      day: 8,
+    },
+    {
+      payee: { name: 'Little Wings Daycare', ifsc: 'ICIC0000104', remark: 'FEES' },
+      category: 'Education',
+      amount: 12_000,
+      day: 5,
+    },
+    {
+      // The PPF contribution. A transfer, not a mandate — which is why it is here and not in
+      // `sips`, and why missing a month costs nothing.
+      payee: { name: 'PPF ACCOUNT 4471902', ifsc: 'IBKL0000105', remark: 'PPF' },
+      category: 'Investment',
+      amount: 5_000,
+      day: 15,
+    },
+  ],
+  subscriptions: [
+    {
+      merchant: 'Netflix',
+      amount: NETFLIX_TIERS.premium,
+      day: 6,
+      category: 'Entertainment',
+      startsMonthsAgo: 22,
+      priceHistory: [
+        { fromMonthsAgo: 22, amount: NETFLIX_TIERS.standard },
+        { fromMonthsAgo: 7, amount: NETFLIX_TIERS.premium },
+      ],
+    },
+    { merchant: 'Spotify', amount: 119, day: 12, category: 'Entertainment', startsMonthsAgo: 20 },
+    {
+      merchant: 'Amazon Prime',
+      // The dictionary reads Amazon as Shopping, and it is right to: the same mandate name
+      // covers a delivery subscription. The persona follows the categoriser rather than the
+      // categoriser being bent to the persona.
+      amount: 299,
+      day: 14,
+      category: 'Shopping',
+      startsMonthsAgo: 18,
+    },
+    {
+      merchant: 'YouTube Premium',
+      amount: 149,
+      day: 23,
+      category: 'Entertainment',
+      startsMonthsAgo: 13,
+    },
+    { merchant: 'Google One', amount: 130, day: 21, category: 'Shopping', startsMonthsAgo: 19 },
+    // The three nobody cancelled. Live mandates with no activity around them, which is the
+    // only form of "forgotten" a bank statement can actually evidence.
+    {
+      merchant: 'Hotstar',
+      amount: 299,
+      day: 9,
+      category: 'Entertainment',
+      startsMonthsAgo: 15,
+      forgotten: true,
+    },
+    {
+      merchant: 'Audible',
+      amount: 166,
+      day: 17,
+      category: 'Entertainment',
+      startsMonthsAgo: 11,
+      forgotten: true,
+    },
+    {
+      merchant: 'Golds Gym',
+      amount: 1_599,
+      day: 3,
+      category: 'Health',
+      startsMonthsAgo: 16,
+      forgotten: true,
+    },
+  ],
+  emis: [
+    {
+      lender: 'IDBI Bank',
+      creditor: 'IDBI BANK RETAIL ASSETS',
+      mandateBank4: 'IBKL',
+      loanType: 'Car Loan',
+      amount: 18_500,
+      day: 7,
+      rate: 9.4,
+      remainingMonths: 35,
+      elapsedMonths: 25,
+      // March 2026. Presented against an account that could not carry it, returned, charged for,
+      // and paid by hand twelve days later — which is what the ledger shows.
+      //
+      // `dpd` is set beside it because nothing downstream reads the ledger for this.
+      // `derive.ts:596` is `file.liabilities.some((l) => l.dpdStatus > 0)`, so a bounce visible
+      // in the statement and absent from the liability record is a customer two screens would
+      // describe differently. The earlier comment here claimed the opposite and was wrong.
+      returnedMonthsAgo: 6,
+      dpd: 12,
+    },
+    {
+      lender: 'IDBI Bank',
+      creditor: 'IDBI BANK CARDS',
+      mandateBank4: 'IBKL',
+      loanType: 'Credit Card',
+      amount: 12_000,
+      day: 18,
+      rate: CARD_FINANCE_RATE_PA,
+      remainingMonths: 16,
+      elapsedMonths: 11,
+      isRevolving: true,
+      cardLast4: '7714',
+    },
+  ],
+  sips: [
+    {
+      // Bought well, through somebody else, and left alone. The do-not-churn case.
+      scheme: 'Parag Parikh Flexi Cap Fund',
+      clearer: 'INDIAN CLEARING CORP',
+      amount: 12_000,
+      day: 5,
+      startsMonthsAgo: 23,
+      assetClass: 'Equity',
+      heldOutsideIdbi: true,
+    },
+    {
+      scheme: 'Axis Bluechip Fund',
+      clearer: 'INDIAN CLEARING CORP',
+      amount: 8_000,
+      day: 8,
+      startsMonthsAgo: 20,
+      assetClass: 'Equity',
+      heldOutsideIdbi: true,
+    },
+    {
+      // The overlap. Bought through IDBI two years after the Axis one, and holding
+      // substantially the same companies.
+      scheme: 'ICICI Prudential Bluechip Fund',
+      clearer: 'NPCI NACH',
+      amount: 7_000,
+      day: 10,
+      startsMonthsAgo: 18,
+      assetClass: 'Equity',
+    },
+    {
+      scheme: 'SBI Small Cap Fund',
+      clearer: 'INDIAN CLEARING CORP',
+      amount: 8_000,
+      day: 12,
+      startsMonthsAgo: 8,
+      assetClass: 'Equity',
+      heldOutsideIdbi: true,
+    },
+  ],
+  discretionary: {
+    monthlyBudget: 47_000,
+    mix: {
+      Groceries: 36,
+      'Food & dining': 27,
+      Shopping: 17,
+      Transport: 13,
+      Entertainment: 4,
+      Health: 3,
+    },
+    paydayBias: 0.58,
+    // Higher than the other three: a household on this income puts the weekly shop and the
+    // fuel on a card, which is what keeps the UPI count inside NPCI's published band. Drop it
+    // and he makes seventy small payments a month, which no onboarded user does.
+    cardShare: 0.75,
+  },
+  drift: { category: 'Food & dining', overMonths: 18, endMultiplier: 1.58 },
+  lumps: [
+    {
+      rail: 'neft',
+      payee: { name: 'HDFC Life Insurance', ifsc: 'HDFC0000060', remark: 'ULIP PREMIUM' },
+      category: 'Insurance',
+      amount: 45_000,
+      monthsAgo: 19,
+      day: 22,
+    },
+    {
+      rail: 'neft',
+      payee: { name: 'HDFC Life Insurance', ifsc: 'HDFC0000060', remark: 'ULIP PREMIUM' },
+      category: 'Insurance',
+      amount: 45_000,
+      monthsAgo: 7,
+      day: 22,
+    },
+    {
+      rail: 'pos',
+      payee: { name: 'Vijay Sales' },
+      category: 'Shopping',
+      mcc: '5732',
+      amount: 78_400,
+      monthsAgo: 13,
+      day: 19,
+    },
+    {
+      rail: 'ecom',
+      payee: { name: 'MakeMyTrip' },
+      category: 'Shopping',
+      mcc: '4722',
+      amount: 46_500,
+      monthsAgo: 10,
+      day: 7,
+    },
+    {
+      rail: 'pos',
+      payee: { name: 'Sahyadri Hospital' },
+      category: 'Health',
+      mcc: '8062',
+      amount: 42_800,
+      monthsAgo: 4,
+      day: 16,
+    },
+  ],
+  openingBalance: 80_000,
+  extraAccounts: [],
+
+  /*
+   * The three accounts IDBI cannot see.
+   *
+   * Between them they hold 73% of his cash, and the aggregation screen exists to put that
+   * number in front of him for the first time. Each carries real flows rather than a declared
+   * balance — the joint account pays the rent because the rent debits are in it.
+   */
+  satellites: [
+    {
+      // The previous employer's salary account. A 2024 bonus and the proceeds of his old car
+      // went in, the salary stopped when he changed jobs, and nobody has touched it since.
+      // Earning 3% while a card at 34.8% goes unpaid is the single most expensive fact in
+      // this file, and it is invisible until all four accounts are on one screen.
+      accountNumberMasked: 'XXXXXXXXXXXX2188',
+      institution: HDFC,
+      accountType: 'Savings',
+      accountOpeningDate: '2018-07-19',
+      branchIfsc: 'HDFC0000045',
+      carries: [],
+      quietAfterMonthsAgo: 14,
+      lumps: [
+        {
+          monthsAgo: 20,
+          day: 28,
+          amount: 420_000,
+          type: 'CREDIT',
+          narration:
+            'NEFT/HDFCN52025012845/NORTHWIND SYSTEMS INDIA PVT LTD/HDFC0000523/SALARY JAN 2025',
+          category: 'Income',
+          mode: 'NEFT',
+        },
+        {
+          monthsAgo: 16,
+          day: 11,
+          amount: 310_000,
+          type: 'CREDIT',
+          narration: 'IMPS/P2A/611904428871/RAHUL JOSHI/HDFC0000712/CAR SALE',
+          category: 'Transfers',
+          mode: 'IMPS',
+        },
+        {
+          monthsAgo: 15,
+          day: 24,
+          amount: 150_000,
+          type: 'DEBIT',
+          narration: 'IMPS/P2A/611952200417/SELF/IBKL0000105/TRANSFER',
+          category: 'Transfers',
+          mode: 'IMPS',
+          isSelfTransfer: true,
+        },
+      ],
+      balanceAtAnchor: 820_000,
+      interestRate: 3.0,
+    },
+    {
+      // The household account, joint with Ananya. Funded from the salary account on the 2nd
+      // and spent down over the month, which is why its balance is small and its statement
+      // is the busiest of the four.
+      accountNumberMasked: 'XXXXXXXXXXXX4477',
+      institution: ICICI,
+      accountType: 'Savings',
+      accountOpeningDate: '2021-06-15',
+      branchIfsc: 'ICIC0000104',
+      carries: ['Rent & bills', 'Groceries', 'Education', 'Health'],
+      monthlyFunding: { amount: 79_000, day: 2 },
+      balanceAtAnchor: 95_000,
+      interestRate: 3.0,
+    },
+    {
+      // The spending account. A digital-first account he moved his UPI to, kept deliberately
+      // near empty, and where every subscription now debits from.
+      accountNumberMasked: 'XXXXXXXXXXXX6031',
+      institution: KOTAK,
+      accountType: 'Savings',
+      accountOpeningDate: '2023-04-02',
+      branchIfsc: 'KKBK0001762',
+      carries: ['Food & dining', 'Entertainment', 'Transport'],
+      monthlyFunding: { amount: 22_500, day: 3 },
+      balanceAtAnchor: 12_000,
+      interestRate: 3.5,
+    },
+  ],
+
+  /*
+   * What he owns beyond the four SIPs, which the generator rolls forward from `sips` and
+   * which are therefore deliberately absent here.
+   *
+   * The nine stocks are the second finding on the portfolio screen: ₹7.6 lakh of direct
+   * equity, 61% of its value in two names, most of it bought in the back half of 2021 and
+   * never looked at since. They are not a moral failing and the app does not treat them as
+   * one — but concentration that large, in a portfolio its owner has not opened in four
+   * years, is a fact he is entitled to be told.
+   */
+  holdings: [
+    {
+      holdingType: 'EPF',
+      name: 'Employees’ Provident Fund',
+      assetClass: 'Debt',
+      investedAmount: 980_000,
+      currentValue: 980_000,
+      sipActive: false,
+      custodian: 'EPFO',
+    },
+    {
+      holdingType: 'NPS',
+      name: 'NPS Tier-I, Northwind corporate scheme',
+      assetClass: 'Hybrid',
+      investedAmount: 185_000,
+      currentValue: 210_000,
+      sipActive: false,
+      custodian: 'Protean CRA',
+    },
+    {
+      holdingType: 'PPF',
+      name: 'Public Provident Fund, opened 2019',
+      assetClass: 'Debt',
+      investedAmount: 420_000,
+      currentValue: 460_000,
+      sipActive: true,
+      sipAmount: 5_000,
+      sipDebitDay: 15,
+      interestRate: PPF_RATE_PA,
+      maturityDate: '2034-03-31',
+      custodian: 'IDBI Bank',
+    },
+    // ---- The demat. Nine positions, one platform, four years of not looking. ----
+    {
+      holdingType: 'EQUITY',
+      name: 'One 97 Communications (Paytm)',
+      assetClass: 'Equity',
+      ticker: 'PAYTM',
+      isin: 'INE982J01020',
+      units: 250,
+      avgCost: 1_420,
+      investedAmount: 355_000,
+      currentValue: 174_000,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-11-18',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Yes Bank',
+      assetClass: 'Equity',
+      ticker: 'YESBANK',
+      isin: 'INE528G01035',
+      units: 12_000,
+      avgCost: 16.8,
+      investedAmount: 201_600,
+      currentValue: 216_000,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-09-06',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Eternal (Zomato)',
+      assetClass: 'Equity',
+      ticker: 'ETERNAL',
+      isin: 'INE758T01015',
+      units: 200,
+      avgCost: 125,
+      investedAmount: 25_000,
+      currentValue: 48_000,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-07-27',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Tata Motors',
+      assetClass: 'Equity',
+      ticker: 'TATAMOTORS',
+      isin: 'INE155A01022',
+      units: 60,
+      avgCost: 455,
+      investedAmount: 27_300,
+      currentValue: 42_000,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-10-12',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Infosys',
+      assetClass: 'Equity',
+      ticker: 'INFY',
+      isin: 'INE009A01021',
+      units: 25,
+      avgCost: 1_480,
+      investedAmount: 37_000,
+      currentValue: 40_000,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2022-01-19',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'IRCTC',
+      assetClass: 'Equity',
+      ticker: 'IRCTC',
+      isin: 'INE335Y01020',
+      units: 45,
+      avgCost: 820,
+      investedAmount: 36_900,
+      currentValue: 31_500,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-10-29',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Vedanta',
+      assetClass: 'Equity',
+      ticker: 'VEDL',
+      isin: 'INE205A01025',
+      units: 130,
+      avgCost: 245,
+      investedAmount: 31_850,
+      currentValue: 57_200,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-08-16',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Suzlon Energy',
+      assetClass: 'Equity',
+      ticker: 'SUZLON',
+      isin: 'INE040H01021',
+      units: 3_000,
+      avgCost: 8.9,
+      investedAmount: 26_700,
+      currentValue: 19_500,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-12-03',
+    },
+    {
+      holdingType: 'EQUITY',
+      name: 'Reliance Power',
+      assetClass: 'Equity',
+      ticker: 'RPOWER',
+      isin: 'INE614G01033',
+      units: 2_000,
+      avgCost: 11.2,
+      investedAmount: 22_400,
+      currentValue: 11_000,
+      sipActive: false,
+      custodian: 'Zerodha',
+      heldOutsideIdbi: true,
+      purchasedOn: '2021-12-21',
+    },
+  ],
+
+  /*
+   * The protection register, and the reason the whole thing is a story.
+   *
+   * One entry, and it is not term cover. ₹4.5 lakh of sum assured against two dependents and
+   * ₹32 lakh of income is 0.14 times annual income, where the conventional floor is ten —
+   * so he is, to any reasonable reading, uninsured. He does not know that: he has been paying
+   * ₹45,000 a year for seven years and believes it is his life insurance. BUNDLED_PROTECTION
+   * exists for exactly this, and the honest sentence is that the product is a savings plan
+   * with a small policy attached, returning 4.1% over seven years.
+   */
+  policies: [
+    {
+      holdingType: 'INSURANCE',
+      name: 'HDFC Life Click 2 Wealth, ULIP',
+      assetClass: 'Protection',
+      investedAmount: 270_000,
+      currentValue: 320_000,
+      sumAssured: 450_000,
+      annualPremium: 45_000,
+      sipActive: false,
+      custodian: 'HDFC Life',
+      heldOutsideIdbi: true,
+      purchasedOn: '2019-08-22',
+    },
+  ],
+  pitch: '30, Pune. Four banks, nine investments, and no idea they add up.',
+  demonstrates:
+    'HIGH_INTEREST_DEBT and BUNDLED_PROTECTION, against a ₹5 crore goal AFFORDABILITY refuses.',
+}
+
+export const PERSONAS: readonly PersonaSpec[] = [KARAN, ROHAN, PRIYA, SUNIL]
 
 export function personaBySlug(slug: string): PersonaSpec {
   const found = PERSONAS.find((p) => p.slug === slug)
   if (!found)
-    throw new Error(`no persona "${slug}" — have ${PERSONAS.map((p) => p.slug).join(', ')}`)
+    throw new Error(`no persona "${slug}"; have ${PERSONAS.map((p) => p.slug).join(', ')}`)
   return found
 }

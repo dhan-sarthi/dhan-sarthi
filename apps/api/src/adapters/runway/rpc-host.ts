@@ -17,7 +17,13 @@ import { AvatarProviderError } from '../../application/avatar/provider-error.ts'
 import type { Logger } from '../../infra/logger.ts'
 import { silentLogger } from '../../infra/logger.ts'
 import { isTimeout, withTimeout } from '../../infra/timeout.ts'
-import type { AvatarCredential, AvatarRpcHost, RpcHandle, ToolHandlers } from '../../ports/index.ts'
+import type {
+  AvatarCredential,
+  AvatarRpcHost,
+  CallLiveness,
+  RpcHandle,
+  ToolHandlers,
+} from '../../ports/index.ts'
 
 export interface RunwayRpcHostOptions {
   baseUrl: string
@@ -91,13 +97,18 @@ export class RunwayRpcHost implements AvatarRpcHost {
     }
 
     this.handlers.set(runwaySessionId, handler)
-    return {
-      runwaySessionId,
-      openedAt: new Date(),
-      get connected() {
-        return handler.connected
-      },
-    }
+    return { runwaySessionId, openedAt: new Date() }
+  }
+
+  /**
+   * The SDK's own view of the room, read off the handler this process still holds. A handle we
+   * have closed, or never opened, is `unknown` rather than `gone`: it is not evidence about the
+   * call, only about our bookkeeping.
+   */
+  async liveness(handle: RpcHandle): Promise<CallLiveness> {
+    const handler = this.handlers.get(handle.runwaySessionId)
+    if (!handler) return 'unknown'
+    return handler.connected ? 'connected' : 'gone'
   }
 
   async close(handle: RpcHandle): Promise<void> {

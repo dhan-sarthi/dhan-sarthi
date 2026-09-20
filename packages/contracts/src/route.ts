@@ -3,7 +3,7 @@
  *
  * A route is data: method, path, who may call it, what it takes, what it returns and with which
  * status. `http/register.ts` in the API reads this to validate in and out; the OpenAPI document,
- * the contract tests and the web client are all derived from the same rows. Nothing about a
+ * the contract tests and the mobile client are all derived from the same rows. Nothing about a
  * route exists anywhere else.
  */
 import type { z } from 'zod'

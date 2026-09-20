@@ -71,7 +71,7 @@ const SCOPES: ReadonlySet<string> = new Set<ConsentScope>([
 
 /** How long a customer's rows are trusted in process. Long enough to serve a demo, short enough to notice a reseed. */
 const DEFAULT_CACHE_TTL_MS = 60_000
-/** Three personas at a handful of clock positions each; the ledger is ~300 KB a file. */
+/** Four personas at a handful of clock positions each; the ledger is ~300 KB a file. */
 const BLOCKS_CACHE_SIZE = 32
 
 /* ------------------------------------------------------------------ *

@@ -2,9 +2,9 @@
  * The avatar call, from tap to teardown.
  *
  * The grant runs in this order and no other: budget → reap → claim lease → brief →
- * createSession → waitUntilReady → RpcHost.open → consume → persist → grant. The RPC host joins
- * the room BEFORE `/consume` is ever called, and the lifecycle state machine makes consuming
- * from any state but `gated` a thrown error. A rejected open cancels, releases and answers 502
+ * createSession → awaitIssuable → RpcHost.open → issueGrant → persist → grant. The tool gate is
+ * made answerable BEFORE the grant is ever issued, and the lifecycle state machine makes
+ * issuing from any state but `gated` a thrown error. A rejected open cancels, releases and answers 502
  * `gate_unavailable`: an ungated session is never issued, and the text tier takes over.
  *
  * Three things this has to get right, none of them optional:
@@ -84,9 +84,17 @@ const LEASE_GRACE_SECONDS = 45
 const READY_TIMEOUT_MS = 45_000
 /** The worker needs about five seconds after READY before it publishes a decodable frame. */
 const EXPECT_VIDEO_AFTER_MS = 5_000
-/** How often live calls are checked for a room that closed under them, and how long a handle must stay disconnected before the call is torn down. */
+/** How often live calls are checked for a call that ended under them. */
 const DISCONNECT_SWEEP_MS = 2_000
-const DISCONNECT_GRACE_MS = 5_000
+/**
+ * How long the evidence must keep saying `gone` before the call is torn down.
+ *
+ * Fifteen seconds rather than five, because the sweep is no longer a synchronous read of a
+ * held connection: under Anam it is an HTTP round trip plus up to the transport's cache TTL of
+ * staleness, and a transient disconnect Anam reports an outcome for would otherwise be enough
+ * to kill a call that is reconnecting.
+ */
+const DISCONNECT_GRACE_MS = 15_000
 
 const BUSY_MESSAGE = 'Uday is with another customer right now.'
 
@@ -104,6 +112,13 @@ export class AvatarSessionService {
   private readonly sweeper: NodeJS.Timeout | null
   /** First moment each live call's handle was seen disconnected, by runway session id. */
   private readonly disconnectedSince = new Map<string, number>()
+  /**
+   * Whether a sweep is still running. The interval fires unconditionally and the sweep now
+   * blocks on network I/O under Anam — an HTTP round trip per call, up to eight seconds — so
+   * without this a slow list endpoint has three sweeps in flight at once, each issuing its own
+   * request against the endpoint whose rate limit the page cache exists to respect.
+   */
+  private sweeping = false
   private draining = false
 
   constructor(deps: AvatarServiceDeps) {
@@ -118,9 +133,13 @@ export class AvatarSessionService {
     })
     this.sweeper = this.configured
       ? setInterval(() => {
-          this.sweepDisconnected().catch((err: Error) =>
-            deps.log.error({ err: err.message }, 'disconnect sweep failed'),
-          )
+          if (this.sweeping) return
+          this.sweeping = true
+          this.sweepDisconnected()
+            .catch((err: Error) => deps.log.error({ err: err.message }, 'disconnect sweep failed'))
+            .finally(() => {
+              this.sweeping = false
+            })
         }, DISCONNECT_SWEEP_MS)
       : null
     this.sweeper?.unref()
@@ -197,7 +216,12 @@ export class AvatarSessionService {
 
   /* The grant ----------------------------------------------------------------- */
 
-  async start(session: Session, ticket?: string): Promise<AvatarGrant> {
+  /**
+   * @param topic  The finding the customer tapped "Talk me through this" on, if any. Steers
+   *               the opening line only — see `buildBrief`, where every figure still comes
+   *               from the View or a tool result.
+   */
+  async start(session: Session, ticket?: string, topic?: string | null): Promise<AvatarGrant> {
     this.assertUsable()
     const {
       provider,
@@ -266,7 +290,7 @@ export class AvatarSessionService {
       lifecycle.to('creating')
       const view = await advisory.view(session)
       const trail = await audit.listForSession(session.id)
-      const brief = buildBrief(view, trail.decisions, view.shelfProducts)
+      const brief = buildBrief(view, trail.decisions, view.shelfProducts, topic)
 
       const { runwaySessionId } = await provider.createSession(cred, {
         personality: brief.personality,
@@ -277,13 +301,11 @@ export class AvatarSessionService {
       call.runwaySessionId = runwaySessionId
       await leases.attach(cred.label, runwaySessionId)
 
-      const { sessionKey } = await provider.waitUntilReady(cred, runwaySessionId, {
-        timeoutMs: READY_TIMEOUT_MS,
-      })
+      await provider.awaitIssuable(cred, runwaySessionId, { timeoutMs: READY_TIMEOUT_MS })
       lifecycle.to('ready')
       const readyAt = clock.now().toISOString()
 
-      // The gate joins the room here. Only once it has may the browser be given the room.
+      // The gate is made answerable here. Only once it is may the browser be given anything.
       const handlers = makeToolHandlers({
         view,
         shelf,
@@ -303,7 +325,7 @@ export class AvatarSessionService {
       const rpcConnectedAt = clock.now().toISOString()
 
       lifecycle.assertConsumable()
-      const grant = await provider.consume(runwaySessionId, sessionKey)
+      const grant = await provider.issueGrant(cred, runwaySessionId)
       lifecycle.to('granted')
       const grantedAt = clock.now().toISOString()
 
@@ -324,6 +346,9 @@ export class AvatarSessionService {
         'avatar session granted',
       )
       return {
+        // The one provider fact the client is told, and the only reason it needs one: the two
+        // providers speak different wire protocols. Everything else here is provider-agnostic.
+        transport: provider.transport,
         url: grant.url,
         token: grant.token,
         runwaySessionId,
@@ -479,6 +504,10 @@ export class AvatarSessionService {
   private async teardown(call: LiveCall, reason: AvatarEndReason): Promise<void> {
     const { provider, rpc, leases, audit, clock, waitlist, live, log } = this.deps
     live.take(call.runwaySessionId)
+    // The sweep only revisits calls still in `live`, so an entry left here for a call that has
+    // just left it is never collected. Every path out of a call goes through teardown, so this
+    // is the one place that can be sure.
+    this.disconnectedSince.delete(call.runwaySessionId)
     call.lifecycle.tryTo(reason === 'reaped' ? 'reaped' : 'ended')
 
     if (call.handle) await rpc.close(call.handle).catch(() => {})
@@ -504,20 +533,34 @@ export class AvatarSessionService {
   }
 
   /**
-   * A room that closed under a live call leaves our handle disconnected: the worker died,
-   * Runway ended the session because no customer joined within its ~20 s, or the customer's
-   * tab was killed and the worker gave up. The first live call through this build showed the
-   * cost of not watching for it — the browser's own request timeout abandoned a grant, Runway
-   * failed the session 18 s later, and the lease stayed held for the whole cap plus grace
-   * while the slot looked busy to everyone else. This frees it seconds after the room goes,
-   * charges the minutes actually run rather than the cap, and still fetches the transcript.
-   * A short grace period keeps a LiveKit reconnect from being mistaken for the end.
+   * A call that has ended under us: the worker died, the provider ended the session because no
+   * customer joined within its window, or the customer's tab was killed. The first live call
+   * through this build showed the cost of not watching for it — the browser's own request
+   * timeout abandoned a grant, Runway failed the session 18 s later, and the lease stayed held
+   * for the whole cap plus grace while the slot looked busy to everyone else. Worse, the reaper
+   * that eventually freed it charged the full cap against the daily minute budget rather than
+   * the minutes actually run. This frees the slot shortly after the call goes, charges what it
+   * cost, and still fetches the transcript.
+   *
+   * The evidence is three-valued and each provider answers from its own. Runway reads the
+   * LiveKit connection this process holds, synchronously. Anam has no pushed signal, so its
+   * gate polls `GET /v1/sessions` for our `clientLabel` and reads the row's reported outcome.
+   * Where neither can say — no row, an unreadable one, a transport failure — the answer is
+   * `unknown`, and the grace below is what makes acting on `gone` safe: the first `gone` only
+   * records a timestamp, any other reading clears it, and teardown needs `gone` sustained.
    */
   async sweepDisconnected(): Promise<void> {
     const now = this.deps.clock.now().getTime()
     for (const call of this.deps.live.all()) {
       const id = call.runwaySessionId
-      if (!call.handle || call.handle.connected) {
+      if (!call.handle) {
+        this.disconnectedSince.delete(id)
+        continue
+      }
+      const state = await this.deps.rpc.liveness(call.handle)
+      // `unknown` is not `gone`. With no evidence the call is dead, the beacon and the reaper
+      // are the backstop; tearing down on a shrug would kill live calls.
+      if (state !== 'gone') {
         this.disconnectedSince.delete(id)
         continue
       }
@@ -527,7 +570,7 @@ export class AvatarSessionService {
       this.disconnectedSince.delete(id)
       this.deps.log.warn(
         { runwaySessionId: id, label: call.cred.label, state: call.lifecycle.state },
-        'avatar room closed under a live call; releasing the slot',
+        'the call has ended under us; releasing the slot',
       )
       await this.teardown(call, 'reaped')
     }
@@ -566,11 +609,11 @@ export class AvatarSessionService {
       reconciliation && coverage
         ? `Gate fired ${coverage.fired}/${coverage.expected} · ${reconciliation.verified.length}/${calls.length} tool calls verified against the provider transcript` +
           (coverage.misses.length > 0
-            ? ` — ${coverage.misses.join(', ')} named without a check`
+            ? `. ${coverage.misses.join(', ')} named without a check`
             : '')
         : record.transcriptStatus === 'pending'
-          ? `Transcript pending — our own tool ledger shown (${calls.length} calls)`
-          : `Transcript unavailable — our own tool ledger shown (${calls.length} calls)`
+          ? `Transcript pending. Our own tool ledger shown (${calls.length} calls)`
+          : `Transcript unavailable. Our own tool ledger shown (${calls.length} calls)`
 
     return {
       runwaySessionId,

@@ -17,6 +17,7 @@
  * That is not defensiveness for its own sake. Without it, anyone who can guess a consent handle
  * could post an approval and cause the app to pull a customer's statements.
  */
+import type { ConsentRequestResponse } from '@dhan/contracts'
 import { Forbidden, NotFound, ValidationFailed } from './errors.ts'
 import type { Clock } from '../ports/index.ts'
 import type {
@@ -51,6 +52,39 @@ export interface InboundNotification {
   raw: unknown
 }
 
+/**
+ * The stored record as the wire sees it: everything except `cif`, which the caller already
+ * knows because they had to be that customer to get here, and the raw notification bodies,
+ * which are the audit trail's business and not the app's.
+ *
+ * This lives here rather than in the route file on purpose. The four reads below are the whole
+ * of what a caller may know about a consent request, so the response type IS this module's
+ * interface; hand-copying ten fields in `http/routes/consent-aa.ts` made the route the place
+ * that decided it, and made the http layer import a port type to see the shape it was copying
+ * from — which `route-handlers-do-not-name-ports` in .dependency-cruiser.cjs now forbids.
+ */
+function present(record: ConsentRequestRecord): ConsentRequestResponse {
+  return {
+    consentHandle: record.consentHandle,
+    status: record.status,
+    redirectionUrl: record.redirectionUrl,
+    consentId: record.consentId,
+    validFrom: record.validFrom,
+    validTo: record.validTo,
+    events: record.events.map((e) => ({
+      eventType: e.eventType,
+      eventStatus: e.eventStatus,
+      eventMessage: e.eventMessage,
+      consentId: e.consentId,
+      sessionId: e.sessionId,
+      linkRefNumbers: [...e.linkRefNumbers],
+      receivedAt: e.receivedAt,
+    })),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  }
+}
+
 export class AaConsentService {
   private readonly d: AaConsentServiceDeps
 
@@ -63,7 +97,7 @@ export class AaConsentService {
    *
    * 590 may notify the customer, so this is not a read and is never called to warm a cache.
    */
-  async start(cif: string): Promise<ConsentRequestRecord> {
+  async start(cif: string): Promise<ConsentRequestResponse> {
     const { consentHandle, status } = await this.d.gateway.requestConsent(cif)
     this.d.log.info({ cif, consentHandle, bankStatus: status }, 'raised an AA consent request')
     await this.d.store.open({ consentHandle, cif, status: 'REQUESTED' })
@@ -72,16 +106,18 @@ export class AaConsentService {
     // worth keeping, because the customer can be sent again without re-notifying them.
     try {
       const url = await this.d.gateway.consentRedirectUrl(consentHandle, this.d.redirectUrl)
-      return this.d.store.update(consentHandle, {
-        status: 'AWAITING_APPROVAL',
-        redirectionUrl: url,
-      })
+      return present(
+        await this.d.store.update(consentHandle, {
+          status: 'AWAITING_APPROVAL',
+          redirectionUrl: url,
+        }),
+      )
     } catch (err) {
       this.d.log.warn(
         { cif, consentHandle, err: err instanceof Error ? err.message : String(err) },
         'the consent handle was raised but no redirection URL could be built',
       )
-      return this.d.store.update(consentHandle, { status: 'REQUESTED' })
+      return present(await this.d.store.update(consentHandle, { status: 'REQUESTED' }))
     }
   }
 
@@ -128,7 +164,7 @@ export class AaConsentService {
   async returned(
     cif: string,
     payload: { ecres: string; resdate: string; fi: string },
-  ): Promise<ConsentRequestRecord> {
+  ): Promise<ConsentRequestResponse> {
     const decrypted = await this.d.gateway.decryptConsentCallback(payload)
     const handle = decrypted.consentHandle
     if (handle === null) {
@@ -151,7 +187,7 @@ export class AaConsentService {
    * read, and re-reading it is how a consent that was revoked on the customer's phone stops
    * being one the app will pull under.
    */
-  async verify(cif: string, consentHandle: string): Promise<ConsentRequestRecord> {
+  async verify(cif: string, consentHandle: string): Promise<ConsentRequestResponse> {
     const record = await this.d.store.find(consentHandle)
     if (record === null) throw new NotFound(`No consent request ${consentHandle}.`)
     if (record.cif !== '' && record.cif !== cif) {
@@ -169,19 +205,21 @@ export class AaConsentService {
 
     if (matched === undefined) {
       this.d.log.info({ cif, consentHandle }, 'the bank reports no consent for this handle yet')
-      return record
+      return present(record)
     }
 
     const active = (matched.status ?? '').toUpperCase() === 'ACTIVE'
-    return this.d.store.update(consentHandle, {
-      status: active ? 'ACTIVE' : 'CLOSED',
-      consentId: matched.consentId,
-      ...(matched.createdAt === null ? {} : { validFrom: matched.createdAt }),
-    })
+    return present(
+      await this.d.store.update(consentHandle, {
+        status: active ? 'ACTIVE' : 'CLOSED',
+        consentId: matched.consentId,
+        ...(matched.createdAt === null ? {} : { validFrom: matched.createdAt }),
+      }),
+    )
   }
 
   /** Every request raised for a customer, newest first. */
-  list(cif: string): Promise<ConsentRequestRecord[]> {
-    return this.d.store.forCustomer(cif)
+  async list(cif: string): Promise<ConsentRequestResponse[]> {
+    return (await this.d.store.forCustomer(cif)).map(present)
   }
 }

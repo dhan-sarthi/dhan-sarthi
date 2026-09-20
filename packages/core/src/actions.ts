@@ -32,23 +32,6 @@ export type ActionKind =
   /** The escape hatch that keeps the whole thing defensible. */
   | 'talk_to_rm'
 
-/** Whether an action moves money, changes a limit, or is something the customer does. */
-export const ACTION_EFFECT: Record<ActionKind, 'money' | 'limit' | 'behaviour' | 'referral'> = {
-  open_sweep_in: 'money',
-  start_ssp: 'money',
-  move_to_liquid_fund: 'money',
-  start_sip: 'money',
-  increase_sip: 'money',
-  pause_sip: 'money',
-  buy_term_cover: 'money',
-  enrol_pmjjby: 'money',
-  buy_health_cover: 'money',
-  pay_down_card: 'money',
-  cancel_subscription: 'behaviour',
-  set_category_cap: 'limit',
-  talk_to_rm: 'referral',
-}
-
 export interface Action {
   id: string
   kind: ActionKind
@@ -58,6 +41,21 @@ export interface Action {
   detail: string
   /** Monthly rupees, or the one-off amount for a transfer. Zero for behavioural actions. */
   amount: number
+  /**
+   * How `amount` is meant to be read, and the reason this field exists at all.
+   *
+   * The suitability gate runs twice on a money action: once here, when the action is
+   * proposed, and again in the decision route when the customer accepts it. AFFORDABILITY
+   * checks a monthly commitment against `surplus.deployable` and a lump sum against the
+   * balance, so the two runs only agree if both know which one this is. They did not: the
+   * cadence was passed at proposal time and then thrown away, so accepting "move your
+   * ₹2,00,000 maturing deposit into a sweep-in" was re-read as "commit ₹2,00,000 a month"
+   * and refused every time. The product's own headline recommendation refused itself.
+   *
+   * Optional, defaulting to `monthly`, which is the stricter of the two: an action written
+   * before this field existed keeps exactly the behaviour it had.
+   */
+  cadence?: 'monthly' | 'lump_sum'
   productId?: string
   productName?: string
   /**

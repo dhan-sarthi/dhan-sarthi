@@ -30,6 +30,8 @@ export type InsightKind =
   | 'missed_repayment'
   | 'buffer_thin'
   | 'habit_cost'
+  | 'deposit_maturing'
+  | 'human_handoff'
 
 export interface Insight {
   kind: InsightKind
@@ -39,14 +41,39 @@ export interface Insight {
   headline: string
   /** The reasoning, for "why this?". */
   detail: string
-  /** Rupees a month this is worth, where it is worth anything. Used for ranking. */
+  /** Rupees a month this is worth, where it is worth anything. The last tiebreak, never the first. */
   monthlyValue: number
+  /**
+   * Days until this stops being actionable, where it has a date at all.
+   *
+   * A dated event is not more *important* than the waterfall — it is only actionable now. A
+   * deposit renews on its maturity date whether or not anyone looked; term cover can be bought
+   * next week. That asymmetry is the whole reason a deadline jumps the queue.
+   */
+  deadlineDays?: number
   /** The transactions or derived facts behind it. Never a restatement of the headline. */
   evidence: string[]
   suggests: ActionKind | null
 }
 
 const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
+
+/**
+ * A large round figure the way it is said, not the way it is stored.
+ *
+ * `inr` is right for a balance, which has to be exact. A **cover amount** is not a balance: it is
+ * a round target, and `₹1,00,00,000` is eight digits a customer has to count before they know
+ * whether it says one crore or ten. It appeared that way in the decision record, where six months
+ * of history put it on screen twice, and nobody reading that list is auditing the zeroes.
+ */
+const spoken = (n: number): string => {
+  const abs = Math.abs(n)
+  const trim = (v: number): string => String(Number(v.toFixed(2)))
+  if (abs >= 1_00_00_000) return `₹${trim(n / 1_00_00_000)} crore`
+  if (abs >= 1_00_000) return `₹${trim(n / 1_00_000)} lakh`
+  return inr(n)
+}
+
 const pct = (n: number): string => `${Math.round(Math.abs(n) * 100)}%`
 
 const MONTHS = [
@@ -72,6 +99,10 @@ const MONTHS = [
 const spokenMonth = (iso: string): string =>
   `${MONTHS[Number(iso.slice(5, 7)) - 1] ?? iso.slice(0, 7)} ${iso.slice(0, 4)}`
 
+/** "11 September". A maturity date is a day, not a month, because the customer has to act by it. */
+const spokenDate = (iso: string): string =>
+  `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1] ?? iso.slice(5, 7)}`
+
 /**
  * Everything worth saying about this customer today, most valuable first.
  *
@@ -89,31 +120,41 @@ export function findInsights(snapshot: Snapshot): Insight[] {
     out.push({
       kind: 'missed_repayment',
       severity: 'urgent',
-      headline: 'There is a missed loan repayment on your record.',
+      headline: 'You have a missed loan repayment on record.',
       detail:
-        'Until it clears I cannot recommend putting money anywhere else — the mark on your ' +
-        'credit file costs more, for longer, than anything I could earn you.',
+        'Clear it before anything else. A mark on your credit file costs you more, ' +
+        'and for longer, than any return I could find you.',
       monthlyValue: 0,
       evidence: [
-        `${s.debt.monthlyOutgo ? `EMI outgo ${inr(s.debt.monthlyOutgo)}/month` : ''}`,
+        `${s.debt.monthlyOutgo ? `${inr(s.debt.monthlyOutgo)} a month in EMIs` : ''}`,
       ].filter(Boolean),
       suggests: 'talk_to_rm',
     })
   }
 
   if (s.debt.hasHighInterest) {
-    const interest = Math.round((s.debt.total * s.debt.highestRate) / 100 / 12)
+    /*
+     * The expensive balance, not every balance.
+     *
+     * This used `debt.total` against `highestRate`, which is the card's rate applied to the whole
+     * book. Karan carries ₹1,86,240 on a card at 34.8% and ₹6,28,075 of loans well under half
+     * that, and the card was reported as costing him ₹23,615 a month when it costs ₹5,401 — a
+     * figure 4.4x too large, quoted on the one card that claims to be the honest one. It is also
+     * what made the action unactionable: an ₹8,14,315 balance on a card the customer could pay
+     * off this year reads as a debt nobody can touch. `highInterestTotal` is the field that
+     * exists for exactly this, and the suitability gate has always used it.
+     */
+    const balance = s.debt.highInterestTotal
+    const interest = Math.round((balance * s.debt.highestRate) / 100 / 12)
     out.push({
       kind: 'expensive_debt',
       severity: 'urgent',
-      headline: `${inr(s.debt.total)} at ${s.debt.highestRate}% is costing you ${inr(interest)} a month in interest alone.`,
-      detail:
-        `Nothing on the shelf returns ${s.debt.highestRate}% a year, so paying this down beats ` +
-        `every investment available to you.`,
+      headline: `${inr(balance)} at ${s.debt.highestRate}% costs you ${inr(interest)} a month.`,
+      detail: `Nothing you can invest in returns ${s.debt.highestRate}%. Clear this first.`,
       monthlyValue: interest,
       evidence: [
-        `Outstanding ${inr(s.debt.total)} at ${s.debt.highestRate}% p.a.`,
-        `Interest accruing ${inr(interest)}/month`,
+        `${inr(balance)} outstanding at ${s.debt.highestRate}% a year`,
+        `${inr(interest)} a month in interest`,
       ],
       suggests: 'pay_down_card',
     })
@@ -132,24 +173,24 @@ export function findInsights(snapshot: Snapshot): Insight[] {
         s.protection.lifeCoverInForce <= 0
           ? `${s.protection.dependents} ${s.protection.dependents === 1 ? 'person depends' : 'people depend'} ` +
             `on your income and there is no life cover in force.`
-          : `Your life cover is about ${inr(s.protection.gap)} short of what ` +
+          : `Your life cover is about ${spoken(s.protection.gap)} short of what ` +
             `${s.protection.dependents === 1 ? 'your dependent' : 'your dependents'} would need.`,
       // Ten-times-income is a rule of thumb and has to say so: it is an indicative requirement,
       // not a computed need, and a figure this size presented as a calculation would be a claim
       // the data cannot carry. The "cannot be caught up on later" clause is why this outranks
       // everything below it, so it survives the cut too.
       detail:
-        `Ten times income is the rule of thumb: ${inr(s.protection.lifeCoverNeeded)} against ` +
-        `${inr(s.protection.lifeCoverInForce)} in force. Term is the cheapest way to close it ` +
-        `and cannot be caught up on later.`,
+        `The rule of thumb is ten times income — ${spoken(s.protection.lifeCoverNeeded)}, against ` +
+        `${spoken(s.protection.lifeCoverInForce)} you hold now. Term cover is the cheapest fix, ` +
+        `and it gets dearer every year you wait.`,
       monthlyValue: 0,
       evidence: [
-        `${s.protection.dependents} ${s.protection.dependents === 1 ? 'dependent' : 'dependents'} on record`,
-        `Life cover in force: ${inr(s.protection.lifeCoverInForce)}`,
-        `Indicative requirement (10x annual income): ${inr(s.protection.lifeCoverNeeded)}`,
+        `${s.protection.dependents} ${s.protection.dependents === 1 ? 'person depends' : 'people depend'} on you`,
+        `${inr(s.protection.lifeCoverInForce)} of cover today`,
+        `${inr(s.protection.lifeCoverNeeded)} needed — ten times your income`,
         s.income.monthly > 0
-          ? `Annual income observed in the statement: ${inr(s.income.monthly * 12)}`
-          : `Annual income as declared, since no salary credit was recognisable: ${inr(s.customer.declaredMonthlyIncome * 12)}`,
+          ? `${inr(s.income.monthly * 12)} a year, from your statement`
+          : `${inr(s.customer.declaredMonthlyIncome * 12)} a year, as you told us — no salary found in the statement`,
       ],
       suggests: 'buy_term_cover',
     })
@@ -163,13 +204,12 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       severity: 'important',
       headline: `Your savings cover about ${s.buffer.monthsCovered} months of your outgoings.`,
       detail:
-        'Below three, one bad month becomes a loan — and nothing with a lock-in can be ' +
-        'recommended until you are past it.',
+        'Under three months, one bad month turns into a loan. Nothing locked-in until you are past it.',
       monthlyValue: 0,
       evidence: [
-        `Reachable savings ${inr(s.balances.total)}`,
-        `Monthly outflow ${inr(s.commitments.total + s.discretionary.monthly)}`,
-        `Shortfall to a ${s.buffer.targetMonths}-month buffer: ${inr(s.buffer.shortfall)}`,
+        `${inr(s.balances.total)} you can reach today`,
+        `${inr(s.commitments.total + s.discretionary.monthly)} goes out every month`,
+        `${inr(s.buffer.shortfall)} short of ${s.buffer.targetMonths} months' cover`,
       ],
       suggests: 'open_sweep_in',
     })
@@ -184,15 +224,48 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       kind: 'emi_ending',
       severity: 'important',
       headline:
-        `Your ${loanType.toLowerCase()} finishes in ${monthsLeft} ` +
-        `${monthsLeft === 1 ? 'month' : 'months'} — that is ${inr(emiAmount)} a month freed up.`,
-      detail: `Route it before it arrives and you will not miss it — you are not missing it now.`,
+        `Your ${loanType.toLowerCase()} ends in ${monthsLeft} ` +
+        `${monthsLeft === 1 ? 'month' : 'months'}. That frees ${inr(emiAmount)} a month.`,
+      detail: `Claim it before the first month lands and you will never miss it.`,
       monthlyValue: emiAmount,
       evidence: [
-        `${loanType}: ${monthsLeft} instalments remaining`,
-        `EMI ${inr(emiAmount)}/month ends ${monthsLeft} months from now`,
+        `${monthsLeft} instalments left on your ${loanType.toLowerCase()}`,
+        `${inr(emiAmount)} a month, free from then on`,
       ],
       suggests: s.commitments.investments > 0 ? 'increase_sip' : 'start_sip',
+    })
+  }
+
+  /*
+   * A deposit maturing is the mirror of an EMI ending, and the more valuable of the two.
+   *
+   * An EMI ending is a windfall the customer can miss. A deposit maturing is a decision that
+   * gets made *for* them: left alone it auto-renews at the counter rate, and after tax and
+   * inflation that is a real loss on money they already own. Doing nothing is the expensive
+   * option — which is precisely when advice is worth paying for, and precisely what no bank
+   * bothers to tell anyone, because the silent renewal is the profitable outcome.
+   */
+  if (s.balances.maturingSoon) {
+    const { amount, daysLeft, maturityDate, interestRate } = s.balances.maturingSoon
+    out.push({
+      kind: 'deposit_maturing',
+      severity: 'important',
+      headline:
+        `Your ${inr(amount)} deposit matures on ${spokenDate(maturityDate)}, ` +
+        `${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `${daysLeft} days away`}.`,
+      detail:
+        'Do nothing and it auto-renews at the counter rate, which loses money after tax ' +
+        'and inflation. Deciding now costs you nothing.',
+      // A rough spread against a better home for the money, monthly. Used only to break ties
+      // inside one rung of the waterfall, never shown to the customer as a promise.
+      monthlyValue: Math.round((amount * 0.015) / 12),
+      deadlineDays: daysLeft,
+      evidence: [
+        `${inr(amount)} deposit, matures ${maturityDate}`,
+        interestRate === null ? 'Renewal rate unknown' : `Currently earning ${interestRate}%`,
+        `${daysLeft} days from today`,
+      ],
+      suggests: 'open_sweep_in',
     })
   }
 
@@ -202,17 +275,16 @@ export function findInsights(snapshot: Snapshot): Insight[] {
     out.push({
       kind: 'idle_cash',
       severity: 'opportunity',
-      headline:
-        `${inr(s.balances.idleFloor)} has sat in your savings account for ` +
-        `${s.balances.idleMonths} months without once being needed.`,
+      headline: `${inr(s.balances.idleFloor)} has sat untouched in savings for ${s.balances.idleMonths} months.`,
       // Both halves are load-bearing: 2.7% against rising prices is the evidence that idle
       // money is losing value, and "comes back any day" is why a sweep-in is suggested to
       // someone whose buffer may still be thin.
-      detail: '2.7% in savings, under inflation, so it loses value. A sweep-in comes back any day.',
+      detail:
+        'Savings pays 2.7%, below inflation, so it loses value sitting there. A sweep-in still comes back any day.',
       monthlyValue: Math.round((s.balances.idleFloor * 0.04) / 12),
       evidence: [
-        `Twelve-month minimum balance: ${inr(s.balances.idleFloor)}`,
-        `Held above one month of outgoings for ${s.balances.idleMonths} consecutive months`,
+        `${inr(s.balances.idleFloor)} — your lowest balance in twelve months`,
+        `Never dipped below it in ${s.balances.idleMonths} months`,
       ],
       suggests: 'open_sweep_in',
     })
@@ -226,14 +298,12 @@ export function findInsights(snapshot: Snapshot): Insight[] {
         headline:
           `${series.merchant ?? series.key} went from ${inr(change.from)} to ${inr(change.to)} ` +
           `in ${spokenMonth(change.on)}.`,
-        detail:
-          `${inr((change.to - change.from) * 12)} a year you did not agree to — worth deciding ` +
-          `again rather than by default.`,
+        detail: `${inr((change.to - change.from) * 12)} a year extra that you never agreed to.`,
         monthlyValue: change.to - change.from,
         evidence: [
-          `Charged ${inr(change.from)} until ${change.on}`,
-          `Charged ${inr(change.to)} since`,
-          `${series.occurrences} charges detected on day ${series.dayOfMonth ?? '?'} of the month`,
+          `${inr(change.from)} a month until ${change.on}`,
+          `${inr(change.to)} a month since`,
+          `${series.occurrences} charges, on the ${series.dayOfMonth ?? '?'} of each month`,
         ],
         suggests: 'cancel_subscription',
       })
@@ -249,10 +319,10 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       headline: `${subs.length} subscriptions cost you ${inr(annual)} a year.`,
       // The honest framing, and the whole of what is left to say: a statement carries no usage
       // data, so the one thing this card must not imply is that we know which are dead.
-      detail: 'I cannot see which of these you still use — you can.',
+      detail: 'I cannot tell which of these you still use. You can.',
       monthlyValue: Math.round(annual / 12),
       evidence: subs.map(
-        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`,
+        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)} a month, ${inr(x.annualCost)} a year`,
       ),
       suggests: 'cancel_subscription',
     })
@@ -268,11 +338,11 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       // The thirty-year figure went with the exposition, and it was the right one to lose: it
       // was the only projection in this file printed without its rate beside it, which is the
       // one thing `projection.ts` insists on. The card keeps the two months and the cause.
-      detail: `${inr(trend.prior)} a month became ${inr(trend.recent)} — no single event, just drift.`,
+      detail: `${inr(trend.prior)} a month became ${inr(trend.recent)}. Nothing big happened — it just crept up.`,
       monthlyValue: extra,
       evidence: [
-        `Three months to ${s.asOf}: ${inr(trend.recent)}/month`,
-        `The three months before that: ${inr(trend.prior)}/month`,
+        `Last three months: ${inr(trend.recent)} a month`,
+        `The three before that: ${inr(trend.prior)} a month`,
       ],
       suggests: 'set_category_cap',
     })
@@ -284,24 +354,104 @@ export function findInsights(snapshot: Snapshot): Insight[] {
       kind: 'habit_cost',
       severity: 'opportunity',
       headline:
-        `${habit.merchant ?? habit.key} ${habit.timesPerMonth} times a month — ` +
+        `${habit.merchant ?? habit.key}, ${habit.timesPerMonth} times a month. ` +
         `${inr(habit.annualTotal)} a year.`,
       // Cleo's research finding: the damage is the small repeat purchase, not the impulse buy.
       // "The largest single thing you could change" went with it — this is the top habit by
       // spend, which is not the same claim and was not one the ranking could support.
-      detail: `Typically ${inr(habit.typicalAmount)} at a time, which is why it does not feel like anything.`,
+      detail: `Usually ${inr(habit.typicalAmount)} at a time. Small enough that it never feels like much.`,
       monthlyValue: Math.round(habit.monthlyAverage * 0.3),
       evidence: [
-        `${habit.occurrences} transactions since ${habit.firstSeen}`,
-        `Typical ${inr(habit.typicalAmount)}, ${habit.timesPerMonth}x/month`,
-        `${inr(habit.monthlyAverage)}/month, ${inr(habit.annualTotal)}/year`,
+        `${habit.occurrences} times since ${habit.firstSeen}`,
+        `Usually ${inr(habit.typicalAmount)}, ${habit.timesPerMonth} times a month`,
+        `${inr(habit.monthlyAverage)} a month, ${inr(habit.annualTotal)} a year`,
       ],
       suggests: 'set_category_cap',
     })
   }
 
-  const order: Record<Insight['severity'], number> = { urgent: 0, important: 1, opportunity: 2 }
-  return out.sort(
-    (a, b) => order[a.severity] - order[b.severity] || b.monthlyValue - a.monthlyValue,
-  )
+  /*
+   * The escape hatch, always on the list and always last.
+   *
+   * Thirteen actions is a closed vocabulary, and a closed vocabulary needs a door: the honest
+   * answer to a question outside it is a person, not a worse answer inside it. `decisions.md`
+   * calls `talk_to_rm` "the escape hatch that keeps the whole thing defensible", and a bank
+   * reads an advisor that knows the edge of its own competence very differently from one that
+   * answers everything.
+   *
+   * It fires for every customer so the request always has an action id to be recorded against,
+   * which is what puts a callback on the same append-only trail as every other decision. Last in
+   * the waterfall, so it can never displace advice the engine actually has.
+   */
+  out.push({
+    kind: 'human_handoff',
+    severity: 'opportunity',
+    headline: 'You can talk to a person about any of this.',
+    detail: 'Some questions need human judgement. A call is free and changes nothing here.',
+    monthlyValue: 0,
+    evidence: [`Requested from the app on ${s.asOf}`],
+    suggests: 'talk_to_rm',
+  })
+
+  return rank(out)
+}
+
+/**
+ * The waterfall from `docs/product/problem.md`, as code.
+ *
+ * Retail financial planning is close to a deterministic sequence, and the sequence *is* the
+ * product: clear expensive debt, hold a cushion, cover the people who depend on you, and only
+ * then deploy what is left.
+ *
+ * This ordering used to be `monthlyValue` descending inside a severity band, and that inverted
+ * the waterfall in the one case it most matters: `protection_gap` and `emi_ending` are both
+ * `important`, so a ₹8,200 SIP increase outranked a ₹985 term policy for a customer with two
+ * dependents and no cover in force. Ranking advice by the size of the cheque is how every bank
+ * mis-sells; refusing to is the entire claim this product makes.
+ */
+const WATERFALL: Record<InsightKind, number> = {
+  missed_repayment: 0,
+  expensive_debt: 1,
+  buffer_thin: 2,
+  protection_gap: 3,
+  deposit_maturing: 4,
+  emi_ending: 5,
+  idle_cash: 6,
+  price_increase: 7,
+  subscription_review: 8,
+  category_drift: 9,
+  habit_cost: 10,
+  human_handoff: 11,
+}
+
+const SEVERITY: Record<Insight['severity'], number> = { urgent: 0, important: 1, opportunity: 2 }
+
+/**
+ * Inside this many days a dated event jumps the waterfall.
+ *
+ * Fourteen, not thirty: the claim being made is "this stops being available", and a month out
+ * that is not yet true. Term cover bought next week is the same policy; a deposit renewed next
+ * week is a different deposit.
+ */
+const DEADLINE_WINDOW_DAYS = 14
+
+/** Most worth saying first. Pure, total, and the same for the same input. */
+function rank(insights: readonly Insight[]): Insight[] {
+  const due = (i: Insight): boolean =>
+    i.deadlineDays !== undefined && i.deadlineDays <= DEADLINE_WINDOW_DAYS
+
+  return [...insights].sort((a, b) => {
+    // Urgent still interrupts. A missed repayment outranks any deadline, because nothing else
+    // can be recommended while it stands.
+    if (SEVERITY[a.severity] !== SEVERITY[b.severity]) {
+      return SEVERITY[a.severity] - SEVERITY[b.severity]
+    }
+    // Then a live deadline, soonest first.
+    if (due(a) !== due(b)) return due(a) ? -1 : 1
+    if (due(a) && due(b)) return (a.deadlineDays ?? 0) - (b.deadlineDays ?? 0)
+    // Then the waterfall.
+    if (WATERFALL[a.kind] !== WATERFALL[b.kind]) return WATERFALL[a.kind] - WATERFALL[b.kind]
+    // Rupees only as a last resort, and only inside one rung.
+    return b.monthlyValue - a.monthlyValue
+  })
 }

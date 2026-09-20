@@ -4,7 +4,13 @@
  * gate cannot join is a session that must never be issued.
  */
 import { AvatarProviderError } from '../../application/avatar/provider-error.ts'
-import type { AvatarCredential, AvatarRpcHost, RpcHandle, ToolHandlers } from '../../ports/index.ts'
+import type {
+  AvatarCredential,
+  AvatarRpcHost,
+  CallLiveness,
+  RpcHandle,
+  ToolHandlers,
+} from '../../ports/index.ts'
 
 export class NullRpcHost implements AvatarRpcHost {
   async open(
@@ -16,6 +22,11 @@ export class NullRpcHost implements AvatarRpcHost {
   }
 
   async close(_handle: RpcHandle): Promise<void> {}
+
+  /** Honest: this host never opens anything, so it has nothing to report. */
+  async liveness(_handle: RpcHandle): Promise<CallLiveness> {
+    return 'unknown'
+  }
 
   openCount(): number {
     return 0

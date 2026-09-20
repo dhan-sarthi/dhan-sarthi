@@ -18,6 +18,7 @@ import type {
   Account,
   Customer,
   Holding,
+  Institution,
   LiabilityContract,
   Product,
   SipContract,
@@ -25,7 +26,7 @@ import type {
 } from '@dhan/core'
 import { addMonths } from './calendar.ts'
 import { generateLedger, liabilityContract, sipContract } from './generate.ts'
-import { PERSONAS, branchIfscFor } from './personas.ts'
+import { IDBI, PERSONAS, branchIfscFor } from './personas.ts'
 import type { PersonaSpec } from './personas.ts'
 import { PRODUCT_SHELF } from './shelf.ts'
 
@@ -65,6 +66,14 @@ export interface SeedAccountRow {
   interestRate?: number
   maturityDate?: string
   isPrimary: boolean
+  /**
+   * Which bank holds it. Absent means IDBI.
+   *
+   * A row with an institution that is not IDBI's is a satellite: it has its own ledger inside
+   * `transactions`, and its balance is arithmetic over that ledger exactly as the primary's
+   * is — not a declared figure like a deposit's.
+   */
+  institution?: Institution
 }
 
 export interface SeedLiabilityRow extends LiabilityContract {
@@ -99,7 +108,8 @@ export interface SeedBundle {
   demonstrates: string
   /**
    * Position on the picker, 1-based. Explicit rather than derived from a name or a cif, because
-   * the picker tells a story in this order: the headline customer first, then the two refusals.
+   * the picker tells a story in this order: the headline customer first, then the three narrower
+   * refusals behind him.
    */
   displayOrder: number
   consent: SeedConsent
@@ -141,7 +151,10 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
     demonstrates: spec.demonstrates,
     displayOrder: index === -1 ? PERSONAS.length + 1 : index + 1,
     consent: {
-      consentId: `CONS_SYN_${index === -1 ? spec.slug.toUpperCase() : index + 1}`,
+      // Keyed on the slug, not on the persona's position. A consent artefact identifies a
+      // customer, and deriving it from an array index meant adding a persona silently
+      // renumbered everybody behind them — including in audit rows already written.
+      consentId: `CONS_SYN_${spec.slug.toUpperCase()}`,
       purpose: 'Wealth advisory',
       scopes: [...SEED_SCOPES],
       status: 'ACTIVE',
@@ -155,8 +168,36 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
         accountOpeningDate: spec.customer.customerSince,
         branchIfsc: branchIfscFor(spec),
         openingBalance: spec.openingBalance,
+        institution: IDBI,
         isPrimary: true,
       },
+      /*
+       * The accounts held elsewhere, each with the opening balance the generator solved for
+       * it. Recovered from the ledger rather than declared, for the same reason the balance
+       * is: the two cannot then disagree.
+       */
+      ...(spec.satellites ?? []).map((sat): SeedAccountRow => {
+        const own = transactions.filter((t) => t.accountNumberMasked === sat.accountNumberMasked)
+        const first = own[0]
+        const opening =
+          first === undefined
+            ? 0
+            : Math.round(
+                ((first.balanceAfterTxn ?? 0) -
+                  (first.txnType === 'CREDIT' ? 1 : -1) * first.txnAmount) *
+                  100,
+              ) / 100
+        return {
+          accountNumberMasked: sat.accountNumberMasked,
+          accountType: sat.accountType,
+          accountOpeningDate: sat.accountOpeningDate,
+          branchIfsc: sat.branchIfsc,
+          openingBalance: opening,
+          interestRate: sat.interestRate,
+          institution: sat.institution,
+          isPrimary: false,
+        }
+      }),
       ...spec.extraAccounts.map((a): SeedAccountRow => ({
         accountNumberMasked: a.accountNumberMasked,
         accountType: a.accountType,

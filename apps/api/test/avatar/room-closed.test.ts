@@ -3,6 +3,10 @@
  * vanished, or the worker dying — frees the slot within seconds and charges the minutes actually
  * run, rather than holding the credential until the lease expires at the cap. Reproduces what
  * the third live call showed (docs/engineering/avatar-live-call.md).
+ *
+ * The grace the sweep demands is fifteen seconds, not five: the liveness read is now a
+ * three-valued question a provider may answer over the network, so `gone` has to be sustained
+ * across more than one round trip before a call is torn down.
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -50,7 +54,13 @@ describe('a room that closes under a live call', () => {
       assert.equal(rpc.openCount(), 1)
       assert.equal(provider.cancelled.length, 0)
 
+      // Still inside the fifteen-second grace: one more `gone` reading is not enough.
       root.clock.advance(6_000)
+      await root.services.avatar.sweepDisconnected()
+      assert.equal(rpc.openCount(), 1)
+      assert.equal(provider.cancelled.length, 0)
+
+      root.clock.advance(10_000)
       await root.services.avatar.sweepDisconnected()
       assert.deepEqual(provider.cancelled, [grant.runwaySessionId])
       assert.equal(rpc.openCount(), 0)
@@ -68,8 +78,8 @@ describe('a room that closes under a live call', () => {
       })
       const { session } = record.json<AvatarCallRecord>()
       assert.equal(session.endReason, 'reaped')
-      // 96 s of call, not the 600 s cap.
-      assert.equal(session.minutesCharged, 1.6)
+      // 106 s of call, not the 600 s cap.
+      assert.equal(session.minutesCharged, 1.8)
 
       // Ending from the browser afterwards is harmless.
       const end = await root.app.inject({

@@ -29,7 +29,7 @@ const TURNS: ConversationTurn[] = [
         result: {
           verdict: 'BLOCKED',
           product: 'LIC Market Plus ULIP',
-          alternative: { name: 'LIC Term Assurance — ₹1 crore cover' },
+          alternative: { name: 'LIC Term Assurance, ₹1 crore cover' },
         },
       },
     ],
@@ -56,7 +56,7 @@ async function seeded() {
     result: {
       verdict: 'BLOCKED',
       product: 'LIC Market Plus ULIP',
-      alternative: { name: 'LIC Term Assurance — ₹1 crore cover' },
+      alternative: { name: 'LIC Term Assurance, ₹1 crore cover' },
     },
     adviceRecordId: null,
     latencyMs: 12,

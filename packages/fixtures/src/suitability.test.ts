@@ -4,10 +4,19 @@
  * These are the compliance story, so they are tested against derived customers rather than hand
  * built inputs — a rule that only fires on a literal somebody wrote to make it fire has not been
  * shown to work.
+ *
+ * `@dhan/core/src/suitability.test.ts` is the other half and neither replaces the other. It
+ * asks whether each rule does what its `description` says, one flipped fact at a time against a
+ * base snapshot on which every rule passes — which is the question a compliance officer asks,
+ * and which a persona cannot answer because several rules are live at once. This file asks
+ * whether the gate reaches the right verdict for a customer who actually exists. Run both.
+ *
+ * These stay here because they need the generator, which imports `@dhan/core`; the reasons that
+ * cycle cannot be broken are in CONTRIBUTING.md under "Where tests live".
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, evaluate, ruleBook } from '@dhan/core'
+import { buildDailyPlan, derive, evaluate, ruleBook } from '@dhan/core'
 import type { Snapshot } from '@dhan/core'
 import { generateCustomerFile } from './generate.ts'
 import { PRIYA, ROHAN, SUNIL } from './personas.ts'
@@ -200,5 +209,59 @@ describe('the rule book', () => {
         )
       }
     }
+  })
+})
+
+describe('the gate agrees with itself', () => {
+  /*
+   * The gate runs twice on every money action: once when the daily plan proposes it, and
+   * again in the decision route when the customer accepts. Those two runs read the same
+   * snapshot, so they must reach the same verdict — and for a while they did not.
+   *
+   * AFFORDABILITY measures a monthly commitment against `surplus.deployable` and a one-off
+   * transfer against the balance. `buildDailyPlan` knew which was which and passed it; the
+   * Action it returned then dropped the distinction, so the decision route re-read a
+   * ₹2,00,000 transfer of a maturing deposit as ₹2,00,000 a month and refused it. The
+   * product's own headline recommendation refused itself when you said yes to it.
+   */
+  it('carries the cadence on a lump-sum action, so accepting it is not re-read as monthly', () => {
+    const file = generateCustomerFile(ROHAN, OPTS)
+    const snapshot = derive(file, ASOF)
+    const plan = buildDailyPlan(snapshot, null, file.transactions, PRODUCT_SHELF, ASOF)
+
+    const sweep = [plan.primary, ...plan.secondary].find(
+      (a) => a !== null && a.kind === 'open_sweep_in',
+    )
+    assert.ok(sweep, 'Rohan has a maturing deposit, so a sweep-in should be proposed')
+    assert.equal(sweep.cadence, 'lump_sum')
+
+    // Exactly what the decision route now does with it.
+    const onAccept = evaluate({
+      product: productById(sweep.productId!),
+      snapshot,
+      amount: sweep.amount,
+      cadence: sweep.cadence ?? 'monthly',
+      goal: null,
+      alternatives: PRODUCT_SHELF,
+    })
+    assert.equal(onAccept.verdict, 'PASS')
+
+    // And the bug, stated as a test: without the cadence the same accept is refused.
+    const withoutCadence = evaluate({
+      product: productById(sweep.productId!),
+      snapshot,
+      amount: sweep.amount,
+      goal: null,
+      alternatives: PRODUCT_SHELF,
+    })
+    assert.equal(withoutCadence.verdict, 'BLOCKED')
+    assert.equal(withoutCadence.ruleId, 'AFFORDABILITY')
+  })
+
+  it('still refuses a monthly commitment that is genuinely unaffordable', () => {
+    // The fix must not turn AFFORDABILITY off. A real monthly overreach is still blocked.
+    const v = check(snap(ROHAN), 'IDBI_SSP_002', 60_000)
+    assert.equal(v.verdict, 'BLOCKED')
+    assert.equal(v.ruleId, 'AFFORDABILITY')
   })
 })

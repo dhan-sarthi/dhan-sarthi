@@ -15,6 +15,16 @@
  * A date of birth is here for a narrower reason. The bank does send one, for the customers it
  * holds a record or a consented pull for — but not for all of them, and age gates suitability.
  * So it is accepted as a declared fallback and the bank's own value always wins.
+ *
+ * One adapter today, `InMemoryDeclaredProfiles`: built for the generated sources inside
+ * `adapters/memory/generated-source.ts` and, for IDBI's hand-written seeds, in
+ * composition/profiles.ts. The second is a Postgres sibling — composition/profiles.ts already
+ * says where it goes, and apps/api/migrations/0005_bank.sql already has the columns
+ * (`declared_annual_income`, `risk_profile`, `marital_status`). Until it lands the interface is
+ * still load-bearing, because two of its three callers are forbidden from naming the class:
+ * application/profile.service.ts by `application-never-imports-adapters-or-http`, and
+ * adapters/idbi-sandbox/bank-data.idbi-sandbox.ts by `adapters-do-not-import-each-other`
+ * (.dependency-cruiser.cjs).
  */
 import type { Customer } from '@dhan/core'
 import type { IsoDate } from '@dhan/contracts'

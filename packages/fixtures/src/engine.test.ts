@@ -265,7 +265,31 @@ describe('the snapshot', () => {
     for (const spec of PERSONAS) {
       const file = generateCustomerFile(spec, OPTS)
       const s = derive(file, ASOF)
-      const actual = (s.balances.savings - spec.openingBalance) / 24
+
+      /*
+       * Opening cash across *every* savings account, not just the primary one.
+       *
+       * `balances.savings` sums all of them, so comparing it against one account's opening
+       * balance measures the other three accounts' entire existence as growth. A satellite's
+       * opening balance is solved by the generator rather than declared, so it is recovered
+       * from its own first row: the balance after it, less the movement that produced it.
+       */
+      let opening = 0
+      const seen = new Set<string>()
+      for (const t of file.transactions) {
+        const key = t.accountNumberMasked ?? spec.accountNumberMasked
+        if (seen.has(key)) continue
+        seen.add(key)
+        if (key === spec.accountNumberMasked) {
+          opening += spec.openingBalance
+          continue
+        }
+        const account = file.accounts.find((a) => a.accountNumberMasked === key)
+        if (account?.accountType !== 'Savings' && account?.accountType !== 'Current') continue
+        opening += (t.balanceAfterTxn ?? 0) - (t.txnType === 'CREDIT' ? 1 : -1) * t.txnAmount
+      }
+
+      const actual = (s.balances.savings - opening) / 24
 
       if (s.surplus.deployable === 0) continue
       const ratio = s.surplus.deployable / Math.max(1, actual)

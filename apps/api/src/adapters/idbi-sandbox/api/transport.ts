@@ -7,7 +7,9 @@
  * missing, so it is reported that way rather than as an auth failure nobody can fix by adding
  * a header. And the gateway answers `access-control-allow-origin: *`, so a browser on any
  * origin could read customer data straight from IDBI with no credential at all — which is why
- * this transport lives on the server and `apps/web` never learns the base URL.
+ * this transport lives on the server and the base URL is never handed to a client. That was
+ * argued when the client was a browser app; it binds no less now that it is `apps/mobile`,
+ * whose bundle is just as readable and which reaches this data only through `apps/api`.
  *
  * `x-atlas-request-id` and `x-atlas-trace-id` came back on all thirty-nine captured responses
  * and are the two things IDBI support asks for, so every call logs them, failures included.

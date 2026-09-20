@@ -50,6 +50,22 @@ describe('architecture', () => {
     assert.deepEqual(offenders, [])
   })
 
+  /**
+   * `route-handlers-do-not-name-ports` stops a handler importing a port, but services.ts is
+   * exempt from it — so the one place a port can still reach the route layer is the service
+   * bag itself. Two are there and both are argued for in that file's doc comment. A third
+   * should be a decision someone makes, not a line that slips in, so the names are pinned.
+   */
+  it('lets only the two argued-for ports onto AppServices', () => {
+    const services = readFileSync(join(API_SRC, 'http/routes/services.ts'), 'utf8')
+    const imported = [...services.matchAll(/^import type \{([^}]+)\} from '(?:\.\.\/)+ports\//gm)]
+      .flatMap((m) => (m[1] ?? '').split(','))
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0)
+      .sort()
+    assert.deepEqual(imported, ['AvatarToolWebhook', 'ProductShelfPort'])
+  })
+
   it('keeps every port file free of runtime imports', () => {
     const ports = walk(join(API_SRC, 'ports'))
     for (const file of ports) {

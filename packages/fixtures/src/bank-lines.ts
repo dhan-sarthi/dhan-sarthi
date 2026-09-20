@@ -71,6 +71,15 @@ export interface BankLineOptions {
   coverReference: string
   /** The date a NACH mandate came back unpaid, if one ever did. */
   nachReturnOn: string | null
+  /**
+   * A flat annual savings rate, for an account held at another bank.
+   *
+   * Absent means IDBI's own marginal slabs, which is what every persona's primary account
+   * uses. A satellite cannot: the slabs are IDBI's published card, and crediting HDFC's
+   * balance at IDBI's rates would put a number on the aggregation screen that HDFC's own
+   * statement would contradict.
+   */
+  savingsRatePa?: number
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
@@ -114,10 +123,12 @@ function dailyClosingBalances(
  *
  * Marginally rather than as a single rate on the whole balance: the first lakh earns 2.50%
  * whatever sits above it. Applying the top slab to the entire balance would overpay every
- * customer with more than ₹1 lakh, which is two of the three personas.
+ * customer with more than ₹1 lakh, which all four personas are at some point in the ledger
+ * (peak balances: Karan ₹8,57,003, Rohan ₹4,92,820, Sunil ₹2,47,677, Priya ₹1,92,239).
  */
-function dailyInterest(balance: number): number {
+function dailyInterest(balance: number, flatRatePa?: number): number {
   if (balance <= 0) return 0
+  if (flatRatePa !== undefined) return (balance * flatRatePa) / 100 / INTEREST_DAY_COUNT
   let remaining = balance
   let floor = 0
   let interest = 0
@@ -207,7 +218,7 @@ export function bankGeneratedLines(
     let interest = 0
     let days = 0
     for (let day = from; day <= quarter; day = addDays(day, 1)) {
-      interest += dailyInterest(balances.get(day) ?? 0)
+      interest += dailyInterest(balances.get(day) ?? 0, options.savingsRatePa)
       days += 1
     }
 

@@ -1,13 +1,24 @@
 /**
- * The realtime avatar provider: create, wait, consume, cancel, and read the transcript after.
+ * The realtime avatar provider: reserve a call, wait until it is worth issuing, issue it, cancel
+ * it, and read the transcript after.
  *
- * Implemented by `adapters/runway/provider.ts` (over `adapters/runway/transport.ts`, with
- * AbortSignal timeouts and a circuit breaker), `adapters/null/avatar-provider.null.ts` (every
- * call fails with `not_configured`; `AVATAR_PROVIDER=none` or `AVATAR_ENABLED=false`) and the
- * test double `FakeAvatarProvider` (scripted READY / queued-for-the-window / FAILED; counts
- * `consume()` calls so the open-before-consume ordering can be asserted).
+ * The step count is the adapter's business, not the caller's. Runway reserves a worker and polls
+ * it to READY; Anam mints a token in one call and has nothing to wait for. Whatever an adapter
+ * learns while waiting that it needs at issue time it keeps to itself — the caller holds only
+ * `runwaySessionId`.
+ *
+ * Implemented by `adapters/runway/provider.ts` and `adapters/anam/provider.ts` (each over its
+ * own transport, with AbortSignal timeouts and a circuit breaker),
+ * `adapters/null/avatar-provider.null.ts` (every call fails with `not_configured`;
+ * `AVATAR_PROVIDER=none` or `AVATAR_ENABLED=false`) and the test double `FakeAvatarProvider` (scripted READY / queued-for-the-window / FAILED; counts
+ * `issueGrant()` calls so the open-before-issue ordering can be asserted).
  */
-import type { BreakerState, ConversationTurn, RunwayToolDefinition } from '@dhan/contracts'
+import type {
+  AvatarTransport,
+  BreakerState,
+  ConversationTurn,
+  ToolDefinition,
+} from '@dhan/contracts'
 
 export interface AvatarCredential {
   key: string
@@ -21,7 +32,11 @@ export interface AvatarSessionOptions {
   personality: string
   /** At most 2,000 characters. */
   startScript: string
-  tools: RunwayToolDefinition[]
+  /**
+   * What the model must ask us before it can answer, in nobody's wire shape. Each adapter
+   * renders these into its own body — Runway's `backend_rpc` rows, Anam's webhooks.
+   */
+  tools: ToolDefinition[]
   /** The per-call cap: min(RUNWAY_MAX_SESSION_SECONDS, budget left). Billing runs from creation. */
   maxSeconds: number
 }
@@ -38,20 +53,39 @@ export interface AvatarProviderFailure extends Error {
 }
 
 export interface AvatarProvider {
+  /**
+   * Which client SDK this provider's grants are for. The one provider fact that reaches the
+   * browser, because the two speak different wire protocols; everything else about a call is
+   * identical, and a screen never learns which provider it is talking to.
+   */
+  readonly transport: AvatarTransport
   /** Unbilled. The honest answer to "does this credential work?" and the breaker's half-open probe. */
   probe(cred: AvatarCredential): Promise<{ ok: boolean; character: string | null }>
   createSession(
     cred: AvatarCredential,
     opts: AvatarSessionOptions,
   ): Promise<{ runwaySessionId: string }>
-  /** `queued: true` is not a failure. Only FAILED, CANCELLED and the timeout end the wait. */
-  waitUntilReady(
+  /**
+   * Block until the call is worth issuing, or fail. How many round trips that takes is the
+   * adapter's business: Runway polls a worker to READY, Anam has nothing to wait for and
+   * returns at once.
+   *
+   * `queued: true` is not a failure. Only FAILED, CANCELLED and the timeout end the wait.
+   */
+  awaitIssuable(
     cred: AvatarCredential,
     runwaySessionId: string,
     opts: { timeoutMs: number },
-  ): Promise<{ sessionKey: string }>
-  /** One shot. Legal only after the RPC host is open; the lifecycle state machine enforces it. */
-  consume(runwaySessionId: string, sessionKey: string): Promise<{ url: string; token: string }>
+  ): Promise<void>
+  /**
+   * Hand the browser what it needs to connect. Legal only once the tool gate is open; the
+   * lifecycle state machine enforces it. May be one-shot. `url` is empty where the provider
+   * has no room to join and the client reads the grant's `transport` instead.
+   */
+  issueGrant(
+    cred: AvatarCredential,
+    runwaySessionId: string,
+  ): Promise<{ url: string; token: string }>
   /** Stop the worker and the billing. Safe on an already-dead session. */
   cancel(cred: AvatarCredential, runwaySessionId: string): Promise<void>
   /** Null when the provider has no turns yet; the caller retries with backoff. */

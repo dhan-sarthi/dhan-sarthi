@@ -185,7 +185,7 @@ export const OPERATIONS: readonly IdbiOperation[] = [
     paging: 'none',
     variants: [],
     purpose:
-      'Nominally the rate card. In this sandbox it returns the whole per-customer record — 106 keys across every domain, the CIBIL and CKYC blocks included — so it doubles as the one call that shows what the fixture holds.',
+      'Nominally the rate card. In this sandbox it returns the whole per-customer record: 106 keys across every domain, the CIBIL and CKYC blocks included — so it doubles as the one call that shows what the fixture holds.',
   },
   {
     code: '441',

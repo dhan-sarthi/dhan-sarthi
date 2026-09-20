@@ -11,7 +11,7 @@ export const listCustomersRoute = defineRoute({
   method: 'GET',
   path: '/api/v1/customers',
   summary:
-    'The picker. Every synthetic customer with the story they demonstrate. Disabled (503) under a host-identity adapter, where the host app says who the customer is.',
+    'The picker. Every synthetic customer with the story they demonstrate. 503 when the source has no pickable customers, which is the shape a host app that names the customer itself would leave.',
   auth: 'none',
   rateLimit: { max: 60, window: '1 minute', keyBy: 'ip' },
   response: {

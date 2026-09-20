@@ -4,7 +4,7 @@
  * These live here rather than in `@dhan/core` for the reason `engine.test.ts` gives: core may
  * not depend on the fixtures, and a roadmap asserted against a literal snapshot is a roadmap
  * asserted against whatever the literal happened to say. Every case below is built over a real
- * derived customer, then nudged one field at a time where a branch needs a condition the three
+ * derived customer, then nudged one field at a time where a branch needs a condition the four
  * personas do not currently supply.
  *
  * What each group is protecting, in one line each:
@@ -14,6 +14,10 @@
  * - **a balance the payment does not beat** — no payoff date, on it or on anything behind it
  * - **which stage the plan is on** — an array position, said out loud, plus a way to ask the
  *   question against a clock rather than against the day the plan was cut
+ *
+ * `@dhan/core/src/roadmap.test.ts` now covers the same branches against literals, one condition
+ * at a time. Both are wanted: a literal proves the branch, a persona proves the combination.
+ * CONTRIBUTING.md, "Where tests live", records why this file cannot move.
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -217,7 +221,9 @@ describe('a debt the payment does not clear', () => {
       roadmap.shortfallMonthly,
       paymentToClear(debt.targetAmount, priya.debt.highestRate, 36) - debt.monthly,
     )
-    assert.equal(roadmap.shortfallMonthly, 20_305)
+    // Was ₹20,305 when the stage sized itself at every rupee she owes. Sizing it at the
+    // balances actually charging 34.8% is both smaller and correct.
+    assert.equal(roadmap.shortfallMonthly, 7_997)
   })
 
   it('still dates a debt the payment does beat', () => {

@@ -20,7 +20,7 @@
  * Every call carries a deadline and runs under the circuit breaker. A 4xx is Runway refusing a
  * request, not the line being down, so it does not count against the breaker.
  */
-import type { RunwayToolDefinition } from '@dhan/contracts'
+import type { ToolDefinition } from '@dhan/contracts'
 import { CircuitBreaker } from '../../infra/circuit.ts'
 import { withTimeout } from '../../infra/timeout.ts'
 import type { AvatarCredential } from '../../ports/index.ts'
@@ -61,11 +61,12 @@ export interface RunwayToolBody {
 }
 
 /**
- * The contracts package emits JSON Schema, which is the shape the brief assumed; the spike
- * showed Runway's documented body is a flat parameter list. Flatten here so the contract stays
- * a schema and only this file knows Runway's wire form.
+ * The contracts package emits a provider-neutral definition carrying JSON Schema, which is the
+ * shape the brief assumed; the spike showed Runway's documented body is a flat parameter list
+ * under a `backend_rpc` discriminator. Both of those are Runway's words, so both are added here
+ * and nowhere else: the contract stays a schema and only this file knows Runway's wire form.
  */
-export function toRunwayToolBody(def: RunwayToolDefinition): RunwayToolBody {
+export function toRunwayToolBody(def: ToolDefinition): RunwayToolBody {
   const properties = (def.parameters['properties'] ?? {}) as Record<string, Record<string, unknown>>
   const required = new Set((def.parameters['required'] as string[] | undefined) ?? [])
 
@@ -179,7 +180,7 @@ export class RunwayTransport {
     opts: {
       personality?: string
       startScript?: string
-      tools?: RunwayToolDefinition[]
+      tools?: ToolDefinition[]
       maxDuration?: number
     },
   ): Promise<string> {

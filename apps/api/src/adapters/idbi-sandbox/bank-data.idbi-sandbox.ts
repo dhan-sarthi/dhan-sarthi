@@ -30,6 +30,7 @@ import type { Consent, CustomerSummary, IsoDate, LedgerHorizon } from '@dhan/con
 import {
   ConsentInactive,
   Forbidden,
+  IncompleteProfile,
   NotAvailableFromBank,
   NotFound,
   Unavailable,
@@ -463,7 +464,8 @@ export function toDomainError(err: unknown, cif: string): Error {
   if (err instanceof ProfileIncomplete) {
     // Not the bank's fault and not an outage: the app is missing something only the customer
     // can supply, and the route should say which field.
-    return new Forbidden(
+    return new IncompleteProfile(
+      err.missing,
       `The profile for cif ${cif} is missing ${err.missing.join(', ')}. ` +
         'Advice needs it, so ask the customer and PATCH /api/v1/profile before retrying.',
     )

@@ -91,9 +91,50 @@ export interface Transaction {
   merchantName?: string
   /** The payee's virtual payment address on a UPI line — `swiggy.rzp@icici`. */
   counterpartyVpa?: string
+  /**
+   * Which account carried this line.
+   *
+   * Absent means the customer's primary account, which is what every ledger written before
+   * a customer could have four of them meant. A statement is per-account at the bank and
+   * only becomes one stream when something aggregates it, so anything that reads
+   * `balanceAfterTxn` as a running total has to group by this first — four interleaved
+   * ledgers have four running balances, not one.
+   */
+  accountNumberMasked?: string
+  /**
+   * Both legs of a movement between two accounts the same customer owns.
+   *
+   * Money leaving one of a customer's accounts for another has not been spent, earned or
+   * saved — it has moved. Counting it is the single largest error an aggregated view can
+   * make: a customer who sweeps ₹1 lakh a month into a household account looks, to anything
+   * summing debits, like a customer spending ₹1 lakh a month more than they earn.
+   *
+   * A single bank genuinely cannot know this, which is why it is optional and why nothing
+   * depends on it being present. An aggregator can: it holds both sides, and matching a
+   * debit to the credit that lands the same day for the same amount on another account of
+   * the same customer is what earns the flag.
+   */
+  isSelfTransfer?: boolean
 }
 
 export type AccountType = 'Savings' | 'Current' | 'FD' | 'RD' | 'PPF' | 'NPS'
+
+/**
+ * The bank an account is held at.
+ *
+ * IDBI can see its own accounts on 394 and 365. Everything else arrives only through an
+ * Account Aggregator consent, which is why `isHome` is a property of the data rather than a
+ * string comparison at each call site: the screens have to say where a figure came from, and
+ * "we can see this" is a different claim from "you told us this".
+ */
+export interface Institution {
+  /** As the customer would say it — `HDFC Bank`. */
+  name: string
+  /** The four letters that open every IFSC it issues — `IBKL`, `HDFC`, `KKBK`, `ICIC`. */
+  ifscPrefix: string
+  /** True for IDBI, and for nothing else. */
+  isHome: boolean
+}
 
 /** API 394. */
 export interface Account {
@@ -126,6 +167,20 @@ export interface Account {
    */
   effectiveAvailableBalance?: number
   lienAmount?: number
+  /**
+   * Which bank holds it. Absent means IDBI, which is what every account meant before a
+   * customer could hold one anywhere else.
+   */
+  institution?: Institution
+  /**
+   * The last transaction the *customer* initiated, as opposed to interest the bank credited
+   * or a charge it levied.
+   *
+   * Dormant and quiet are different states and only this field separates them. An account
+   * with a balance and no customer activity for fourteen months is the finding; an account
+   * with the same balance that the customer used last week is just an account.
+   */
+  lastCustomerActivity?: string
 }
 
 export type RiskProfile = 'Conservative' | 'Balanced' | 'Growth'
@@ -169,7 +224,7 @@ export interface Liability {
 }
 
 export interface Holding {
-  holdingType: 'MUTUAL_FUND' | 'FD' | 'RD' | 'INSURANCE' | 'NPS' | 'PPF'
+  holdingType: 'MUTUAL_FUND' | 'FD' | 'RD' | 'INSURANCE' | 'NPS' | 'PPF' | 'EQUITY' | 'EPF'
   name: string
   assetClass: 'Equity' | 'Debt' | 'Hybrid' | 'Protection' | 'Gold'
   investedAmount: number
@@ -181,6 +236,40 @@ export interface Holding {
   interestRate?: number
   /** True where the customer bought it elsewhere. We do not churn what someone else sold well. */
   heldOutsideIdbi?: boolean
+  /**
+   * Who actually holds it — `Zerodha`, `Groww`, `IDBI`, `EPFO`.
+   *
+   * Not decoration: a consolidated portfolio screen has to say which platform a line came
+   * from, because that is the first thing a customer checks it against. It is also the
+   * honest form of `heldOutsideIdbi`, which can only say "somewhere else".
+   */
+  custodian?: string
+  /**
+   * The exchange symbol, for direct equity. `INFY`, `HDFCBANK`.
+   *
+   * Present only on `EQUITY`. A mutual fund has no ticker, and giving it one would let a
+   * screen render a fund as if the customer could watch it move intraday.
+   */
+  ticker?: string
+  /** ISIN, for unambiguous matching and the overlap calculation. */
+  isin?: string
+  /** Units held. Fractional on funds, whole on equity. */
+  units?: number
+  /** Average cost per unit. `units * avgCost` must equal `investedAmount`. */
+  avgCost?: number
+  /**
+   * When it was bought. A holding bought at the top of a cycle and never reviewed is a
+   * finding; the same holding bought last month is not.
+   */
+  purchasedOn?: string
+  /**
+   * Sum assured, for a policy. Separate from `currentValue` because a ULIP has both and
+   * conflating them is exactly the confusion the product exists to undo — ₹3.2 lakh of fund
+   * value is not ₹3.2 lakh of cover.
+   */
+  sumAssured?: number
+  /** Annual premium, for a policy. Counted in committed monthly cash flow at a twelfth. */
+  annualPremium?: number
 }
 
 /** SEBI's six-band riskometer, plus Low for protection products that carry no market risk. */

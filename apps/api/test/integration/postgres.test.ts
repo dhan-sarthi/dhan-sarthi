@@ -13,7 +13,8 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type pg from 'pg'
-import { derive } from '@dhan/core'
+import { EMPTY_SAVE_STATE, derive, idFor } from '@dhan/core'
+import type { SaveState } from '@dhan/core'
 import { PERSONAS, generateCustomerFile, seedBundles } from '@dhan/fixtures'
 import { FixedClock } from '../../src/adapters/clock/fixed-clock.ts'
 import { seedContentHash as memorySeedHash } from '../../src/adapters/memory/bank-data.memory.ts'
@@ -37,7 +38,7 @@ import type { Config } from '../../src/config.ts'
 import { migrate } from '../../src/db/migrate.ts'
 import { PG, createPool, pgCode } from '../../src/db/pool.ts'
 import { seedContentHash as postgresSeedHash } from '../../src/db/seed-bundle.ts'
-import type { AdviceRecordInput } from '../../src/ports/index.ts'
+import type { AdviceRecordInput, StoredChallenge } from '../../src/ports/index.ts'
 import { bankDataPortContract } from '../ports/bank-data.contract.test.ts'
 
 const ROHAN_CIF = 'IDBI0009182731'
@@ -128,7 +129,7 @@ describe(
       assert.ok(again.alreadyApplied >= 8)
     })
 
-    it('seeds the three personas and reproduces the headline numbers', () => {
+    it('seeds the four personas and reproduces the headline numbers', () => {
       assert.deepEqual(
         report.personas.map((p) => p.slug),
         PERSONAS.map((p) => p.slug),
@@ -245,6 +246,10 @@ describe(
         assert.deepEqual(created.caps, [])
         assert.deepEqual(created.scopeOverrides, [])
         assert.equal(created.goalTarget, null)
+        // save_state defaults to '{}' in 0011 and normalises on the way out, so a session that
+        // has never saved reads as the empty pot rather than as a hole.
+        assert.deepEqual(created.save, EMPTY_SAVE_STATE)
+        assert.equal(created.challenge, null)
 
         assert.equal((await sessions.getByTokenHash(tokenHash))?.id, sessionId)
         assert.equal(await sessions.getByTokenHash(sha256Hex('nope')), null)
@@ -265,6 +270,61 @@ describe(
         assert.equal(moved.asOf, '2026-10-01')
         assert.equal(moved.goalTarget, 500_000)
         assert.deepEqual(moved.caps, [{ category: 'Food & dining', monthlyLimit: 5_000 }])
+
+        // The two jsonb columns 0011 added, through the same patch-and-re-read the caps line
+        // above proves: a column missing from SESSION_COLUMNS costs nothing at write time and
+        // arrives undefined on every read, so the round trip has to be the assertion.
+        const pot: SaveState = {
+          hacks: {
+            ...EMPTY_SAVE_STATE.hacks,
+            roundups: { enabled: true, toNearest: 10 },
+            swearJar: { enabled: true, merchant: 'Swiggy', perSpend: 50 },
+          },
+          deposits: [
+            {
+              id: idFor('roundups', 'txn-9001'),
+              atSim: '2026-09-30',
+              amount: 7,
+              source: 'roundups',
+              note: 'Rounded up Swiggy',
+            },
+            {
+              id: idFor('manual', 'key-1'),
+              atSim: '2026-10-01',
+              amount: 2_500,
+              source: 'manual',
+              note: 'Added to your goal',
+            },
+          ],
+          accruedTo: '2026-10-01',
+        }
+        const challenge: StoredChallenge = {
+          id: 'chal-swiggy-1',
+          kind: 'merchant',
+          name: 'Swiggy',
+          limit: 1_500,
+          days: 14,
+          startDate: '2026-10-01',
+          createdAt: clock.now().toISOString(),
+        }
+        const saved = await sessions.patch(sessionId, { save: pot, challenge }, 2)
+        assert.ok(saved)
+        assert.equal(saved.version, 3)
+        assert.deepEqual(saved.save, pot)
+        assert.deepEqual(saved.challenge, challenge)
+
+        const reread = await sessions.getById(sessionId)
+        assert.deepEqual(reread?.save, pot)
+        assert.deepEqual(reread?.challenge, challenge)
+        // Rupees inside jsonb bypass pool.ts's numeric parser and come back as JSON numbers.
+        assert.equal(typeof reread?.save.deposits[0]?.amount, 'number')
+        assert.equal(reread?.save.deposits[1]?.amount, 2_500)
+
+        // Ending a challenge is a null, not an omission; the pot is left alone by the same patch.
+        const ended = await sessions.patch(sessionId, { challenge: null }, 3)
+        assert.ok(ended)
+        assert.equal(ended.challenge, null)
+        assert.deepEqual(ended.save, pot)
 
         await sessions.putIdempotent(sessionId, 'key-1', {
           requestHash: sha256Hex('body'),
@@ -401,7 +461,7 @@ describe(
           sessionId,
           subjectId,
           snapshotId,
-          consentId: 'CONS_SYN_1',
+          consentId: 'CONS_SYN_ROHAN',
           source: 'screen',
           actionId: 'act-1',
           actionKind: 'buy_term_cover',
@@ -457,7 +517,7 @@ describe(
           `INSERT INTO app.audit_records
              (id, subject_id, session_id, seq, snapshot_id, consent_id, source, verdict, recorded,
               engine_version, at_sim, prev_hash, record_hash, created_at)
-           VALUES (gen_random_uuid(), $1, $2, 3, $3, 'CONS_SYN_1', 'api', 'PASS', 'forged', 'x', $4,
+           VALUES (gen_random_uuid(), $1, $2, 3, $3, 'CONS_SYN_ROHAN', 'api', 'PASS', 'forged', 'x', $4,
                    repeat('0', 64), repeat('f', 64), now())`,
           [subjectId, sessionId, snapshotId, options.anchor],
         )

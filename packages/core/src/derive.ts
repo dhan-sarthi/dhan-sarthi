@@ -16,6 +16,8 @@
  * single day.
  */
 import { categorize } from './categorize.ts'
+import { creditFacts } from './credit.ts'
+import type { CreditFacts } from './credit.ts'
 import { addMonths, daysBetween, monthKey, nextPayDay, ymd } from './dates.ts'
 import { commitments, detectHabits, detectRecurring, seriesKey } from './recurring.ts'
 import type { Habit, Series } from './recurring.ts'
@@ -116,6 +118,23 @@ export interface BalanceFacts {
   idleFloor: number
   /** Consecutive recent months whose closing balance held above one month of outflow. */
   idleMonths: number
+  /**
+   * A term deposit about to mature, and therefore about to make a decision for the customer.
+   *
+   * The sibling of `debt.endingSoon`, and it exists for the same reason: a dated event the
+   * ledger can see coming and nobody else is watching. The difference is that an EMI ending is
+   * a windfall, while a deposit maturing is a *default* — left alone it auto-renews at the
+   * card rate, which after tax and inflation is a loss. Doing nothing is the expensive option,
+   * which is exactly when advice is worth something.
+   */
+  maturingSoon: {
+    accountType: string
+    amount: number
+    maturityDate: string
+    daysLeft: number
+    /** The rate it is currently on, where the feed carries one. */
+    interestRate: number | null
+  } | null
 }
 
 export interface BufferFacts {
@@ -129,6 +148,17 @@ export interface DebtFacts {
   total: number
   /** Anything above the threshold outranks every product on the shelf. */
   hasHighInterest: boolean
+  /**
+   * Only the balances actually at a high rate, which is not the same as `total`.
+   *
+   * A customer with a ₹1.86 lakh card at 34.8% and a ₹6.28 lakh car loan at 9.4% owes
+   * ₹8.14 lakh, and none of that second figure costs 34.8%. Sizing a payoff goal at the
+   * total and pricing it at the highest rate asks what it would cost to clear a car loan as
+   * if it were a credit card — which is a much larger number, and it made an otherwise
+   * feasible plan report itself impossible. Clearing the expensive debt is the advice;
+   * refinancing the cheap one is not.
+   */
+  highInterestTotal: number
   highestRate: number
   missedRepayment: boolean
   monthlyOutgo: number
@@ -205,6 +235,19 @@ export interface Snapshot {
   balances: BalanceFacts
   buffer: BufferFacts
   debt: DebtFacts
+  /**
+   * Why this rides on the Snapshot rather than sitting beside it as a sibling `/view` key: it
+   * is derived from the same `CustomerFile` at the same `asOf`, out of figures this function
+   * has already computed. A sibling key would be a second derivation of one customer on one
+   * date, and the first time the two ran against different `asOf`s the app would tell somebody
+   * their EMIs are 17% of income and, an inch below, price them on a load component that had
+   * read a different month.
+   *
+   * It also lands the block inside `meta.snapshotHash` for free, which is the decisive
+   * argument for a composite a bank could be asked to reproduce: the figure and its working
+   * are covered by the same hash as every other number the customer was shown.
+   */
+  credit: CreditFacts
   protection: ProtectionFacts
   holdings: {
     total: number
@@ -270,6 +313,14 @@ export interface DeriveOptions {
   highInterestThreshold: number
   /** A loan inside this many months of ending is a raise about to happen. */
   emiEndingWithinMonths: number
+  /**
+   * A deposit inside this many days of maturing is a decision about to be made by default.
+   *
+   * Thirty rather than ninety: the advice is "do something before it renews", and a customer
+   * told that three months out will have forgotten by the date it matters. Near enough to act
+   * on, far enough to act in.
+   */
+  depositMaturingWithinDays: number
 }
 
 const DEFAULTS: DeriveOptions = {
@@ -277,6 +328,7 @@ const DEFAULTS: DeriveOptions = {
   bufferTargetMonths: 6,
   highInterestThreshold: 24,
   emiEndingWithinMonths: 6,
+  depositMaturingWithinDays: 30,
 }
 
 export function derive(
@@ -380,6 +432,9 @@ export function derive(
   const isDiscretionary = (t: Transaction): boolean => {
     if (t.txnType !== 'DEBIT') return false
     if (committedTxnIds.has(t.txnId)) return false
+    // A sweep into the customer's own household account is not spending, and counting it
+    // makes an aggregated customer look like they outspend their salary every month.
+    if (t.isSelfTransfer === true) return false
     return !NEVER_DISCRETIONARY.has(categorize(t).category)
   }
 
@@ -471,12 +526,30 @@ export function derive(
     idleMonths += 1
   }
 
+  // The soonest deposit to mature inside the window, if any. Sorted so that two maturing in the
+  // same month surface the nearer one — the one whose decision cannot wait.
+  const maturingSoon =
+    file.accounts
+      .filter((a) => a.accountType === 'FD' || a.accountType === 'RD')
+      .filter((a) => a.maturityDate !== undefined)
+      .map((a) => ({
+        accountType: a.accountType,
+        amount: a.currentBalance,
+        maturityDate: a.maturityDate as string,
+        daysLeft: daysBetween(asOf, a.maturityDate as string),
+        interestRate: a.interestRate ?? null,
+      }))
+      // Already matured is not a decision the customer still has; it is history.
+      .filter((d) => d.daysLeft >= 0 && d.daysLeft <= opts.depositMaturingWithinDays)
+      .sort((a, b) => a.daysLeft - b.daysLeft)[0] ?? null
+
   const balances: BalanceFacts = {
     savings,
     deposits,
     total: savings + deposits,
     idleFloor: balancesInWindow.length > 0 ? Math.min(...balancesInWindow) : savings,
     idleMonths,
+    maturingSoon,
   }
 
   /* Buffer ------------------------------------------------------------ */
@@ -516,6 +589,9 @@ export function derive(
   const debt: DebtFacts = {
     total: file.liabilities.reduce((s, l) => s + l.outstandingPrincipal, 0),
     hasHighInterest: file.liabilities.some((l) => l.loanInterestRate >= opts.highInterestThreshold),
+    highInterestTotal: file.liabilities
+      .filter((l) => l.loanInterestRate >= opts.highInterestThreshold)
+      .reduce((s, l) => s + l.outstandingPrincipal, 0),
     highestRate: rates.length > 0 ? Math.max(...rates) : 0,
     missedRepayment: file.liabilities.some((l) => l.dpdStatus > 0),
     monthlyOutgo: file.liabilities.reduce((s, l) => s + l.emiAmount, 0),
@@ -527,6 +603,13 @@ export function derive(
         }
       : null,
   }
+
+  /* Credit ------------------------------------------------------------ */
+
+  const credit = creditFacts(
+    { liabilities: file.liabilities, income, debt },
+    { highInterestThreshold: opts.highInterestThreshold },
+  )
 
   /* Protection -------------------------------------------------------- */
 
@@ -663,6 +746,7 @@ export function derive(
     balances,
     buffer,
     debt,
+    credit,
     protection,
     holdings,
     quality: {

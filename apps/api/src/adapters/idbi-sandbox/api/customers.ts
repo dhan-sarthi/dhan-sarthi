@@ -152,7 +152,7 @@ export const IDBI_SANDBOX_CUSTOMERS: readonly IdbiSandboxCustomer[] = [
     city: 'Delhi',
     pitch: 'Four accounts, and a statement only a consent can reach.',
     story:
-      'Four accounts of four different types, and no own-bank statement for any of them — so her transactions come from a consented pull or not at all.',
+      'Four accounts of four different types, and no own-bank statement for any of them, so her transactions come from a consented pull or not at all.',
     reportedDateOfBirth: '1992-03-14',
     inPicker: true,
     // One consent per account, which is how 595's `01` fixture set is keyed. The masked numbers
@@ -309,7 +309,7 @@ export const HOLDINGS_SEEDS: readonly HoldingsSeed[] = [
     holdings: [
       {
         holdingType: 'MUTUAL_FUND',
-        name: 'Nifty 50 Index Fund — Direct Growth',
+        name: 'Nifty 50 Index Fund - Direct Growth',
         assetClass: 'Equity',
         investedAmount: 180_000,
         currentValue: 214_500,
@@ -334,7 +334,7 @@ export const HOLDINGS_SEEDS: readonly HoldingsSeed[] = [
         // `investedAmount` carries the cover and `currentValue` stays zero: the personas use
         // the same convention, because a term policy is protection rather than capital and a
         // net-worth figure that counted the sum assured would be wrong by a crore.
-        name: 'Term Life — 1 crore, to age 60',
+        name: 'Term Life, 1 crore to age 60',
         assetClass: 'Protection',
         investedAmount: 10_000_000,
         currentValue: 0,

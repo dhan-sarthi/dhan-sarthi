@@ -214,6 +214,8 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
   }
 
   private accountsAsOf(b: SeedBundle, ledger: readonly Transaction[], asOf: IsoDate): Account[] {
+    // An unstamped line belongs to the primary account, which is what a single-bank ledger means.
+    const primary = b.accounts.find((a) => a.isPrimary)?.accountNumberMasked ?? ''
     return b.accounts.map((row): Account => {
       const base = {
         accountNumberMasked: row.accountNumberMasked,
@@ -222,13 +224,31 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
         ...(row.branchIfsc === undefined ? {} : { branchIfsc: row.branchIfsc }),
         ...(row.interestRate === undefined ? {} : { interestRate: row.interestRate }),
         ...(row.maturityDate === undefined ? {} : { maturityDate: row.maturityDate }),
+        ...(row.institution === undefined ? {} : { institution: row.institution }),
       }
-      if (row.isPrimary) {
+
+      /*
+       * Any account with its own ledger — the primary, and every satellite held elsewhere —
+       * has its balance computed from that ledger. Only a deposit carries a declared
+       * principal, because only a deposit is a figure the statement does not move.
+       */
+      if (row.openingBalance !== undefined) {
+        const own = ledger.filter(
+          (t) => (t.accountNumberMasked ?? primary) === row.accountNumberMasked,
+        )
+        /*
+         * When the customer last moved money themselves, which is an as-of fact and not a
+         * stored one: on 2026-09-01 the answer is a date in 2025, and advancing the clock to
+         * 2028 has to be able to change it. Interest the bank credited does not count — an
+         * account whose only movement in fourteen months is four interest lines has not been
+         * used, and saying otherwise would erase the finding.
+         */
+        const byCustomer = own.filter((t) => t.spendCategory !== 'Income' || t.isSalaryCredit)
+        const last = byCustomer[byCustomer.length - 1]
         return {
           ...base,
-          ...accountFactsAsOf(ledger, asOf, {
-            ...(row.openingBalance === undefined ? {} : { openingBalance: row.openingBalance }),
-          }),
+          ...(row.isPrimary || last === undefined ? {} : { lastCustomerActivity: last.txnDate }),
+          ...accountFactsAsOf(own, asOf, { openingBalance: row.openingBalance }),
         }
       }
       return { ...base, currentBalance: row.currentBalance ?? 0 }

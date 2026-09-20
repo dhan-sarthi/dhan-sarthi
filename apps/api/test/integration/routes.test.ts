@@ -101,12 +101,12 @@ function walk(name: string, open: () => Promise<Harness>, skip: string | false):
       if (role !== null) assert.equal(role, 'dhan_app')
     })
 
-    it('lists the picker in display order: Rohan, Priya, Sunil', async () => {
+    it('lists the picker in display order: Karan, Rohan, Priya, Sunil', async () => {
       const res = await h.root.app.inject({ method: 'GET', url: '/api/v1/customers' })
       assert.equal(res.statusCode, 200, res.body)
       assert.deepEqual(
         res.json<CustomersResponse>().map((c) => c.name),
-        ['Rohan Mehta', 'Priya Nair', 'Sunil Kumar'],
+        ['Karan Deshpande', 'Rohan Mehta', 'Priya Nair', 'Sunil Kumar'],
       )
       const created = await createSession(h.root.app, ROHAN_CIF)
       token = created.token

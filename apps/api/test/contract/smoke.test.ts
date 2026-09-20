@@ -1,8 +1,8 @@
 /**
  * The demo walk, end to end through the real routes on the memory profile: pick Rohan, read
- * the figures the web app computes today, move the clock, decide, verify the record, refuse the
- * ULIP in text, page the statement, erase. Every body is what the registry declares, because
- * the registrar parses it on the way out.
+ * the figures the engine computes for him today, move the clock, decide, verify the record,
+ * refuse the ULIP in text, page the statement, erase. Every body is what the registry declares,
+ * because the registrar parses it on the way out.
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -60,7 +60,7 @@ describe('the demo walk on the memory profile', () => {
     assert.deepEqual(session.ledgerHorizon, { from: '2024-10-01', to: '2028-03-01' })
   })
 
-  it("renders Rohan's View with the figures the browser engine computes today", async () => {
+  it("renders Rohan's View, pinned to the paisa, and a 304 on the second read", async () => {
     const res = await get('/api/v1/view')
     assert.equal(res.statusCode, 200)
     const view = res.json<View>()
@@ -195,7 +195,7 @@ describe('the demo walk on the memory profile', () => {
     assert.equal(record.decisions.length, 1)
     assert.equal(record.adviceRecords.length, 1)
     assert.equal(record.chainVerified, true)
-    assert.equal(record.consent?.consentId, 'CONS_SYN_1')
+    assert.equal(record.consent?.consentId, 'CONS_SYN_ROHAN')
     assert.ok(record.provenance?.contentSha256)
     assert.ok(record.roadmapVersions.length >= 4)
     assert.match(record.roadmapVersions.at(-1)?.reasonForChange ?? '', /Re-cut after 1 decision/)

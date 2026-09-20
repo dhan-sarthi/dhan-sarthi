@@ -37,6 +37,44 @@ const list = z.preprocess(
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD')
 
+/** Only the fields the per-provider requirement table below reads. */
+interface AvatarEnv {
+  ANAM_API_KEY: readonly string[]
+  ANAM_AVATAR_ID: readonly string[]
+  ANAM_VOICE_ID?: string | undefined
+  ANAM_LLM_ID?: string | undefined
+  ANAM_PUBLIC_BASE_URL?: string | undefined
+  RUNWAY_API_KEY: readonly string[]
+  RUNWAY_CHARACTER_ID: readonly string[]
+}
+
+/**
+ * What each provider cannot start without, as one table rather than a branch per provider.
+ *
+ * Adding a third provider is a row here and a row in `AVATAR_BUILDS`
+ * (composition/profiles.ts) — which is what "the provider is a swap" is worth, if it is true.
+ */
+const REQUIRED_BY_PROVIDER: Partial<
+  Record<
+    Config['AVATAR_PROVIDER'],
+    readonly (readonly [key: string, present: (c: AvatarEnv) => boolean])[]
+  >
+> = {
+  anam: [
+    ['ANAM_API_KEY', (c) => c.ANAM_API_KEY.length > 0],
+    ['ANAM_AVATAR_ID', (c) => c.ANAM_AVATAR_ID.length > 0],
+    ['ANAM_VOICE_ID', (c) => Boolean(c.ANAM_VOICE_ID)],
+    ['ANAM_LLM_ID', (c) => Boolean(c.ANAM_LLM_ID)],
+    // Without this the tools are declared with a URL nobody can call, and the model would
+    // answer from its own head. A gate that cannot be reached is worse than no gate.
+    ['ANAM_PUBLIC_BASE_URL', (c) => Boolean(c.ANAM_PUBLIC_BASE_URL)],
+  ],
+  runway: [
+    ['RUNWAY_API_KEY', (c) => c.RUNWAY_API_KEY.length > 0],
+    ['RUNWAY_CHARACTER_ID', (c) => c.RUNWAY_CHARACTER_ID.length > 0],
+  ],
+}
+
 export const ConfigSchema = z
   .object({
     PORT: z.coerce.number().int().min(1).max(65535).default(3001),
@@ -57,19 +95,83 @@ export const ConfigSchema = z
       .regex(/^[a-z_][a-z0-9_]*$/, 'a plain SQL identifier')
       .optional(),
 
-    /** Which AvatarProvider adapter. `runway` needs a key and a character id. */
-    AVATAR_PROVIDER: z.enum(['runway', 'none']).default('none'),
+    /**
+     * Which AvatarProvider adapter. Interchangeable: the two are wired behind the same port,
+     * hold the same lease, spend the same minute budget and answer the same routes, and the
+     * client learns which one ran only from the grant's `transport`.
+     */
+    AVATAR_PROVIDER: z.enum(['runway', 'anam', 'none']).default('none'),
     /** The kill switch: false wires the null provider without a deploy of code. */
     AVATAR_ENABLED: bool.default(true),
     /** Parallel lists; entries pair by index. One key, one character is the ordinary case. */
     RUNWAY_API_KEY: list.default([]),
     RUNWAY_CHARACTER_ID: list.default([]),
     RUNWAY_API_BASE: z.string().url().default('https://api.dev.runwayml.com'),
-    /** Per-call cap. Runway accepts 10–1800; 600 turns one shared slot over across reviewers. */
+    /**
+     * Per-call cap, whichever provider runs it. Runway accepts 10–1800 and Anam takes the same
+     * number as `maxSessionLengthSeconds`; 600 turns one shared slot over across reviewers.
+     * The RUNWAY_-prefixed name is the older spelling and still works.
+     */
     RUNWAY_MAX_SESSION_SECONDS: z.coerce.number().int().min(10).max(1800).default(600),
-    /** Minutes per day across every credential, read from the store. 240 ≈ US$48. */
+    AVATAR_MAX_SESSION_SECONDS: z.coerce.number().int().min(10).max(1800).optional(),
+    /** Minutes per day across every credential, read from the store. 240 ≈ US$48 on Runway. */
     RUNWAY_DAILY_MINUTE_BUDGET: z.coerce.number().int().min(0).default(240),
+    AVATAR_DAILY_MINUTE_BUDGET: z.coerce.number().int().min(0).optional(),
+
+    /** Anam. Parallel lists, same as Runway's: entries pair by index. */
+    ANAM_API_KEY: list.default([]),
+    ANAM_AVATAR_ID: list.default([]),
+    ANAM_API_BASE: z.string().url().default('https://api.anam.ai'),
+    /** Account-wide, not per-credential: one voice and one brain for Uday. */
+    ANAM_VOICE_ID: z.string().optional(),
+    ANAM_LLM_ID: z.string().optional(),
+    /**
+     * The shape of the video track.
+     *
+     * Anam's default is landscape (1152×768 measured) and the app plays the call full-bleed on a
+     * phone, so a landscape track gets cropped to roughly 2:3 and the face ends up zoomed past
+     * the eyebrows. A portrait track fixes it — but **768×1152 is the only portrait size Anam
+     * accepts.** 720×1280, 768×1536, 768×1344 and 576×1152 were each rejected at connect time
+     * with `POST /v1/engine/session → 400 "Invalid request to start session"`, and none of that
+     * shows up when the token is minted, because minting validates nothing. Change these only
+     * against a live call.
+     */
+    ANAM_VIDEO_WIDTH: z.coerce.number().int().min(256).max(1920).default(768),
+    ANAM_VIDEO_HEIGHT: z.coerce.number().int().min(256).max(1920).default(1152),
+    /**
+     * Where Anam's servers reach this API. Anam calls the tool gate server-to-server, so
+     * localhost is not reachable and there is no way to fake it — in dev this is a tunnel.
+     */
+    ANAM_PUBLIC_BASE_URL: z.string().url().optional(),
     AVATAR_SESSIONS_PER_IP_PER_HOUR: z.coerce.number().int().min(1).default(5),
+
+    /*
+     * The text tier's language model.
+     *
+     * It phrases; it never computes. `core/query.ts` and the suitability rules have already
+     * produced the figures and the verdict by the time a completion is asked for, so an absent
+     * key costs the wording and nothing else — `/ask` still answers, still with evidence, and
+     * `phrasedBy` on the response says `rules` rather than pretending otherwise.
+     */
+    OPENAI_API_KEY: z.string().optional(),
+    /**
+     * Any chat model this key can reach. The default is a small one on purpose: the task is
+     * rewriting a sentence whose numbers are already fixed, a customer is waiting on it, and a
+     * larger model buys prose nobody asked for at a second of latency. Raise it for a demo.
+     */
+    OPENAI_MODEL: z.string().default('gpt-5.4-mini'),
+    OPENAI_API_BASE: z.string().url().default('https://api.openai.com/v1'),
+    /**
+     * The deadline. Past this the deterministic answer is sent instead, so the ceiling on a
+     * slow model is a plainer sentence rather than a spinner.
+     */
+    OPENAI_TIMEOUT_MS: z.coerce.number().int().min(500).max(30_000).default(8_000),
+    /** Two or three sentences. A cap, not a target; the prompt asks for brevity as well. */
+    OPENAI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(64).max(4_000).default(400),
+    /** Low, because the figures are fixed and the only freedom left is the wording. */
+    OPENAI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.4),
+    /** The kill switch, matching AVATAR_ENABLED: false wires the null model without a deploy. */
+    TEXT_MODEL_ENABLED: bool.default(true),
 
     /** Allowed browser origins. Unset reflects any origin, which is only right in dev. */
     CORS_ORIGIN: list.optional(),
@@ -122,19 +224,12 @@ export const ConfigSchema = z
         message: 'required when BANK_SOURCE=postgres',
       })
     }
-    if (c.AVATAR_PROVIDER === 'runway') {
-      if (c.RUNWAY_API_KEY.length === 0) {
+    for (const [key, present] of REQUIRED_BY_PROVIDER[c.AVATAR_PROVIDER] ?? []) {
+      if (!present(c)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['RUNWAY_API_KEY'],
-          message: 'required when AVATAR_PROVIDER=runway',
-        })
-      }
-      if (c.RUNWAY_CHARACTER_ID.length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['RUNWAY_CHARACTER_ID'],
-          message: 'required when AVATAR_PROVIDER=runway',
+          path: [key],
+          message: `required when AVATAR_PROVIDER=${c.AVATAR_PROVIDER}`,
         })
       }
     }
@@ -179,22 +274,71 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return parsed.data
 }
 
-/**
- * Runway credentials as the pool sees them. One character id shared across keys is not usable —
- * a Character belongs to the account that created it — so the fallback to the first id exists
- * only to keep a single-key setup working.
- */
-export function runwayCredentials(config: Config): AvatarCredential[] {
-  return config.RUNWAY_API_KEY.map((key, i) => ({
-    key,
-    characterId: config.RUNWAY_CHARACTER_ID[i] ?? config.RUNWAY_CHARACTER_ID[0] ?? '',
-    label: `runway-${i + 1}`,
-  })).filter((c) => c.characterId !== '')
+/** Which pair of parallel lists a provider's credentials come out of. */
+const CREDENTIAL_LISTS: Partial<
+  Record<
+    Config['AVATAR_PROVIDER'],
+    (c: Config) => { keys: readonly string[]; ids: readonly string[] }
+  >
+> = {
+  anam: (c) => ({ keys: c.ANAM_API_KEY, ids: c.ANAM_AVATAR_ID }),
+  runway: (c) => ({ keys: c.RUNWAY_API_KEY, ids: c.RUNWAY_CHARACTER_ID }),
 }
 
-/** True when the composition root should wire the real provider rather than the null one. */
+/**
+ * The credentials for whichever provider is configured, as the pool sees them.
+ *
+ * One shape for both, because the pool, the lease and the budget do not care which provider a
+ * credential is for. `characterId` is Runway's Character or Anam's avatar id; for Anam the
+ * voice and the brain are account-wide rather than per-credential, so they are not here. One
+ * id shared across several keys is not usable on Runway — a Character belongs to the account
+ * that created it — so the fallback to the first id exists only to keep a single-key setup
+ * working.
+ */
+export function avatarCredentials(config: Config): AvatarCredential[] {
+  const lists = CREDENTIAL_LISTS[config.AVATAR_PROVIDER]
+  if (!lists) return []
+  const { keys, ids } = lists(config)
+  return keys
+    .map((key, i) => ({
+      key,
+      characterId: ids[i] ?? ids[0] ?? '',
+      label: `${config.AVATAR_PROVIDER}-${i + 1}`,
+    }))
+    .filter((c) => c.characterId !== '')
+}
+
+/**
+ * The per-call cap and the daily budget, under either spelling.
+ *
+ * The RUNWAY_-prefixed pair is deployment-pinned and is not going away: it is set in
+ * fly.api.toml, infra/terraform/variables.tf, infra/ec2-compose/cloud-init.yaml and
+ * .env.example, and infra/terraform/observability.tf mirrors RUNWAY_DAILY_MINUTE_BUDGET to
+ * place a CloudWatch alarm. Dropping it would fall back to defaults that happen to equal the
+ * deployed values today — a silent no-op now, and a silent wrong answer the first time
+ * somebody changes one.
+ */
+export function maxSessionSeconds(config: Config): number {
+  return config.AVATAR_MAX_SESSION_SECONDS ?? config.RUNWAY_MAX_SESSION_SECONDS
+}
+
+export function dailyMinuteBudget(config: Config): number {
+  return config.AVATAR_DAILY_MINUTE_BUDGET ?? config.RUNWAY_DAILY_MINUTE_BUDGET
+}
+
+/** True when the composition root should wire a real provider rather than the null one. */
 export function avatarIsLive(config: Config): boolean {
-  return config.AVATAR_PROVIDER === 'runway' && config.AVATAR_ENABLED
+  return config.AVATAR_PROVIDER !== 'none' && config.AVATAR_ENABLED
+}
+
+/**
+ * True when the composition root should wire the real model rather than the null one.
+ *
+ * A missing key is a configuration, not a fault: the tier it leaves behind is the one the
+ * product shipped with and every figure in it is still real.
+ */
+export function textModelIsLive(config: Config): boolean {
+  return config.TEXT_MODEL_ENABLED && Boolean(config.OPENAI_API_KEY)
 }
 
 /** What the boot log prints. Secrets are counted, never shown. */
@@ -208,9 +352,10 @@ export function describeConfig(config: Config): Record<string, unknown> {
     dbRole: config.DB_ROLE ?? 'login',
     avatarProvider: config.AVATAR_PROVIDER,
     avatarEnabled: config.AVATAR_ENABLED,
-    runwayCredentials: runwayCredentials(config).length,
-    runwayMaxSessionSeconds: config.RUNWAY_MAX_SESSION_SECONDS,
-    runwayDailyMinuteBudget: config.RUNWAY_DAILY_MINUTE_BUDGET,
+    avatarCredentials: avatarCredentials(config).length,
+    avatarMaxSessionSeconds: maxSessionSeconds(config),
+    avatarDailyMinuteBudget: dailyMinuteBudget(config),
+    textModel: textModelIsLive(config) ? config.OPENAI_MODEL : 'none (rules only)',
     corsOrigin: config.CORS_ORIGIN ?? 'any (dev)',
     trustProxy: config.TRUST_PROXY,
     operatorKey: config.OPERATOR_KEY ? 'set' : 'unset',

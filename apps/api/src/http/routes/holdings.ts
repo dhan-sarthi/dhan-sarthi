@@ -12,58 +12,20 @@
  * `editable` flag on the read says which world the caller is in.
  */
 import { routeById } from '@dhan/contracts'
-import type { HoldingsResponse } from '@dhan/contracts'
-import type { HoldingDraft } from '../../ports/holdings.port.ts'
 import type { Registrar } from '../register.ts'
 import type { AppServices } from './services.ts'
 
-/**
- * A parsed body into a draft.
- *
- * `exactOptionalPropertyTypes` is on, so zod's `sipAmount?: number | undefined` is not the
- * domain's `sipAmount?: number`: an explicitly-undefined key is a different thing from an
- * absent one. Dropping the undefined keys is the conversion, and it is the honest one — a
- * client that sends `sipAmount: undefined` means "no SIP", not "a SIP of nothing".
- */
-function draftOf(body: object): HoldingDraft {
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(body)) {
-    if (v !== undefined) out[k] = v
-  }
-  return out as unknown as HoldingDraft
-}
-
 export function holdingsRoutes(r: Registrar, s: AppServices): void {
-  r(routeById('getHoldings'), async ({ session }): Promise<HoldingsResponse> => {
-    // The session's simulated today, not the bank's freshness date: under the fixtures source
-    // those are eighteen months apart, and the Dashboard reads this beside figures the view
-    // computes at `session.asOf`.
-    const held = await s.holdings.get(session.cif, session.asOf)
-    return {
-      holdings: held.holdings,
-      policies: held.policies,
-      updatedAt: held.updatedAt,
-      // Policies carry cover in `investedAmount` and no capital, so they are excluded: a total
-      // that added a ₹1 crore sum assured to a portfolio would be wrong by a crore.
-      totalValue: round2(held.holdings.reduce((sum, h) => sum + h.currentValue, 0)),
-      editable: s.holdings.editable(),
-    }
-  })
+  r(routeById('getHoldings'), async ({ session }) => s.holdingsView.view(session))
 
-  r(routeById('addHolding'), async ({ session, body }) =>
-    s.holdings.add(session.cif, draftOf(body)),
-  )
+  r(routeById('addHolding'), async ({ session, body }) => s.holdingsView.add(session, body))
 
   r(routeById('replaceHolding'), async ({ session, params, body }) =>
-    s.holdings.replace(session.cif, params.holdingId, draftOf(body)),
+    s.holdingsView.replace(session, params.holdingId, body),
   )
 
   r(routeById('removeHolding'), async ({ session, params }) => {
-    await s.holdings.remove(session.cif, params.holdingId)
+    await s.holdingsView.remove(session, params.holdingId)
     return undefined
   })
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
 }

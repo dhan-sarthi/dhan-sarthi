@@ -104,6 +104,28 @@ export const setCategoryCapRoute = defineRoute({
   response: { 200: SessionStateSchema, 400: ErrorBodySchema, ...SESSION_ERRORS },
 })
 
+/**
+ * A monthly ceiling on discretionary spending, or the removal of one.
+ *
+ * Nullable for the same reason `CategoryCapPatch.monthlyLimit` is: clearing a limit and
+ * forgetting to send one are different intentions.
+ */
+export const SpendLimitPatchSchema = z
+  .object({ monthlyLimit: MoneySchema.positive().nullable() })
+  .strict()
+export type SpendLimitPatch = z.infer<typeof SpendLimitPatchSchema>
+
+export const setSpendLimitRoute = defineRoute({
+  id: 'setSpendLimit',
+  method: 'POST',
+  path: '/api/v1/session/spend-limit',
+  summary:
+    'Set or clear the customer’s own monthly spending ceiling. The daily plan reads it, so safe-to-spend on the next /view is measured against it.',
+  auth: 'session',
+  request: { body: SpendLimitPatchSchema },
+  response: { 200: SessionStateSchema, 400: ErrorBodySchema, ...SESSION_ERRORS },
+})
+
 export const ConsentPatchSchema = z
   .object({ scope: ConsentScopeSchema, granted: z.boolean() })
   .strict()

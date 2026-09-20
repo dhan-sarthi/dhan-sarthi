@@ -1,3 +1,11 @@
+/**
+ * The question router against Rohan's real ledger.
+ *
+ * Here rather than in `@dhan/core` because the answers quote merchants, and a merchant only
+ * exists once a generator has written a narration for the categoriser to read. Which *handler*
+ * a question reaches, and what the opening line refuses to invent, are pinned against literals
+ * in `@dhan/core/src/query.test.ts`. See CONTRIBUTING.md under "Where tests live".
+ */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
@@ -46,7 +54,11 @@ describe('the deterministic question router', () => {
   it('routes "safely spend" to the envelope, not to total spending', () => {
     const { file, snapshot } = rohan()
     const a = answer('What can I safely spend today?', snapshot, file)
-    assert.match(a.text, /envelope|a day|left/i)
+    // Both branches of the handler, by what they say rather than by one word of it: the
+    // plan branch quotes a per-day figure, the fallback quotes the month after commitments.
+    // This matched on "envelope" until that word was cut from the copy for being jargon —
+    // the customer does not have an envelope, they have money left for the month.
+    assert.match(a.text, /a day|left to spend|after everything committed/i)
     assert.doesNotMatch(a.text, /on everything in/i)
   })
 

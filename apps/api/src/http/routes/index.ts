@@ -8,11 +8,13 @@ import type { RegisterDeps } from '../register.ts'
 import { actionRoutes } from './actions.ts'
 import { askRoutes } from './ask.ts'
 import { avatarRoutes } from './avatar.ts'
+import { challengeRoutes } from './challenges.ts'
 import { customerRoutes } from './customers.ts'
 import { healthRoutes } from './health.ts'
 import { operatorRoutes } from './operator.ts'
 import { recordRoutes } from './record.ts'
 import { rulesRoutes } from './rules.ts'
+import { saveRoutes } from './save.ts'
 import type { AppServices } from './services.ts'
 import { sessionRoutes } from './session.ts'
 import { sessionsRoutes } from './sessions.ts'
@@ -45,6 +47,8 @@ export function registerAllRoutes(
   shelfRoutes(r, services)
   profileRoutes(r, services)
   holdingsRoutes(r, services)
+  saveRoutes(r, services)
+  challengeRoutes(r, services)
   consentAaRoutes(r, services)
   rulesRoutes(r, services)
   avatarRoutes(r, services)

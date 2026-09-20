@@ -59,6 +59,13 @@ export const ErrorCodeSchema = z.enum([
   'AVATAR_GATE_UNAVAILABLE',
   'AVATAR_PROVIDER_ERROR',
   'AVATAR_LINE_DOWN',
+  /** One challenge at a time: a second is refused rather than queued or silently replacing it. */
+  'CHALLENGE_ALREADY_RUNNING',
+  'CHALLENGE_NOT_FOUND',
+  /** Nothing was spent on the target in the window, so there is no habit to challenge. */
+  'NOTHING_TO_CHALLENGE',
+  /** The hack cannot be switched on yet: no merchant chosen, or no salary to take a cut of. */
+  'SAVE_HACK_UNAVAILABLE',
   'NOT_AVAILABLE_FROM_BANK',
   'UNAVAILABLE',
   'INTERNAL',

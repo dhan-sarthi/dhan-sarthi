@@ -22,6 +22,10 @@ export function sessionRoutes(r: Registrar, s: AppServices): void {
     s.sessions.state(await s.sessions.setCategoryCap(session, body.category, body.monthlyLimit)),
   )
 
+  r(routeById('setSpendLimit'), async ({ session, body }) =>
+    s.sessions.state(await s.sessions.setSpendLimit(session, body.monthlyLimit)),
+  )
+
   r(routeById('setConsent'), async ({ session, body }) =>
     s.sessions.state(await s.sessions.setConsent(session, body.scope, body.granted)),
   )

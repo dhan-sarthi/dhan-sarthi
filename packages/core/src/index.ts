@@ -19,7 +19,9 @@
 export type * from './types.ts'
 export * from './dates.ts'
 export * from './asof.ts'
-export * from './merchants.ts'
+// `merchants.ts` is deliberately absent: the recognition table and its rule type are read only
+// by `categorize.ts`, which is the answer callers actually want. Exporting the table as well
+// would invite a second categoriser built on it, and ADR-0014 turns on there being exactly one.
 export * from './categorize.ts'
 export * from './recurring.ts'
 export * from './derive.ts'
@@ -30,4 +32,10 @@ export * from './goal.ts'
 export * from './actions.ts'
 export * from './insights.ts'
 export * from './dailyplan.ts'
+export * from './challenge.ts'
+export * from './save.ts'
 export * from './query.ts'
+export * from './protection.ts'
+export * from './networth.ts'
+export * from './contribution.ts'
+export * from './credit.ts'

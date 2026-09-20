@@ -68,15 +68,24 @@ function toTurn(raw: unknown): ConversationTurn | null {
 }
 
 export class RunwayAvatarProvider implements AvatarProvider {
-  private readonly transport: RunwayTransport
+  /** A LiveKit room, which the client joins with `livekit-client`. */
+  readonly transport = 'livekit' as const
+  private readonly http: RunwayTransport
+  /**
+   * Call id → the READY poll's session key, Runway's one-shot bearer for `/consume`.
+   *
+   * Private, because no caller has business holding it. It used to travel out of
+   * `waitUntilReady` and back into `consume`, which is what made the port's shape Runway's.
+   */
+  private readonly keys = new Map<string, string>()
 
-  constructor(transport: RunwayTransport) {
-    this.transport = transport
+  constructor(http: RunwayTransport) {
+    this.http = http
   }
 
   async probe(cred: AvatarCredential): Promise<{ ok: boolean; character: string | null }> {
     try {
-      const character = await this.transport.describeCharacter(cred)
+      const character = await this.http.describeCharacter(cred)
       const name = character?.['name']
       return { ok: true, character: typeof name === 'string' ? name : null }
     } catch {
@@ -89,7 +98,7 @@ export class RunwayAvatarProvider implements AvatarProvider {
     opts: AvatarSessionOptions,
   ): Promise<{ runwaySessionId: string }> {
     try {
-      const runwaySessionId = await this.transport.createSession(cred, {
+      const runwaySessionId = await this.http.createSession(cred, {
         personality: opts.personality,
         startScript: opts.startScript,
         tools: opts.tools,
@@ -101,32 +110,44 @@ export class RunwayAvatarProvider implements AvatarProvider {
     }
   }
 
-  async waitUntilReady(
+  async awaitIssuable(
     cred: AvatarCredential,
     runwaySessionId: string,
     opts: { timeoutMs: number },
-  ): Promise<{ sessionKey: string }> {
+  ): Promise<void> {
     try {
-      return await this.transport.waitUntilReady(cred, runwaySessionId, opts)
+      const { sessionKey } = await this.http.waitUntilReady(cred, runwaySessionId, opts)
+      this.keys.set(runwaySessionId, sessionKey)
     } catch (err) {
       throw toProviderError(err)
     }
   }
 
-  async consume(
+  async issueGrant(
+    _cred: AvatarCredential,
     runwaySessionId: string,
-    sessionKey: string,
   ): Promise<{ url: string; token: string }> {
+    const key = this.keys.get(runwaySessionId)
+    if (!key) {
+      throw new AvatarProviderError(
+        'failed',
+        `no session key for ${runwaySessionId}; awaitIssuable did not run`,
+      )
+    }
+    // Deleted before the call, not after: Runway's /consume is one-shot, so a retry that found
+    // the key still here would spend it twice and read the second refusal as the real answer.
+    this.keys.delete(runwaySessionId)
     try {
-      return await this.transport.consumeSession(runwaySessionId, sessionKey)
+      return await this.http.consumeSession(runwaySessionId, key)
     } catch (err) {
       throw toProviderError(err)
     }
   }
 
   async cancel(cred: AvatarCredential, runwaySessionId: string): Promise<void> {
+    this.keys.delete(runwaySessionId)
     try {
-      await this.transport.cancelSession(cred, runwaySessionId)
+      await this.http.cancelSession(cred, runwaySessionId)
     } catch (err) {
       throw toProviderError(err)
     }
@@ -137,7 +158,7 @@ export class RunwayAvatarProvider implements AvatarProvider {
     runwaySessionId: string,
   ): Promise<ConversationTurn[] | null> {
     try {
-      const body = await this.transport.getConversation(cred, runwaySessionId)
+      const body = await this.http.getConversation(cred, runwaySessionId)
       const raw = body?.['transcript'] ?? asRecord(body?.['data'])?.['transcript'] ?? null
       if (!Array.isArray(raw) || raw.length === 0) return null
       const turns = raw.map(toTurn).filter((t): t is ConversationTurn => t !== null)
@@ -148,6 +169,6 @@ export class RunwayAvatarProvider implements AvatarProvider {
   }
 
   breakerState(): BreakerState {
-    return this.transport.breaker.state()
+    return this.http.breaker.state()
   }
 }

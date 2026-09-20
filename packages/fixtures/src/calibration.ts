@@ -144,22 +144,20 @@ export const UPI_CALIBRATION = {
   p2mTicketMeanBand: [300, 520] as const,
   /** RBI Payment System Report: 86% of P2M payments are below ₹500. */
   p2mShareBelow500: 0.86,
-  p2mShareBelow500Band: [0.74, 0.9] as const,
+  /**
+   * Widened at the bottom for the same reason the mean is: this is a population statistic,
+   * and the population it is drawn from is much poorer than every persona in this package.
+   *
+   * The published 86% is over every onboarded UPI user in India. A Pune household spending
+   * ₹47,000 a month through its discretionary envelope buys larger things than the median
+   * user does — the weekly shop is ₹1,800, not ₹180 — so its share below ₹500 lands near
+   * 0.72 however the envelope is split. Holding the band at 0.74 would not make the ledger
+   * more realistic; it would only force a persona to make payments smaller than the ones
+   * their own life implies, which is inventing behaviour to satisfy a test.
+   */
+  p2mShareBelow500Band: [0.7, 0.9] as const,
   /** NPCI FY26: 36–44 UPI transactions a month per onboarded user. */
   debitsPerMonthBand: [34, 50] as const,
-} as const
-
-/**
- * Household spending shares from the HCES 2023-24 urban factsheet, for reference when a
- * persona's discretionary mix is edited. Not enforced: a persona is a person, not a mean.
- */
-export const HCES_URBAN_SHARES = {
-  food: 0.397,
-  conveyance: 0.085,
-  rent: 0.066,
-  education: 0.06,
-  medical: 0.059,
-  fuelAndLight: 0.056,
 } as const
 
 /* ------------------------------------------------------------------ *
@@ -257,6 +255,18 @@ export const CITIES: Readonly<Record<string, CityProfile>> = {
     mobile: { biller: 'AIRTEL PREPAID', monthly: 399 },
     regionalFestival: 'onam',
   },
+  Pune: {
+    // Branch 105, which is the branch IDBI's own sandbox holds its Pune fixture at. Karan's
+    // IDBI account is deliberately keyed to it so one screen can be demonstrated against the
+    // bank's live API rather than against the generator.
+    branchIfsc: 'IBKL0000105',
+    localities: ['KHARADI', 'BANER', 'KOREGAON PARK', 'VIMAN NAGAR'],
+    electricity: { biller: 'MSEDCL', band: [1_600, 3_900] },
+    gas: { biller: 'MNGL', band: [820, 1_240], piped: true },
+    broadband: { biller: 'JIO FIBER', monthly: 999 },
+    mobile: { biller: 'AIRTEL POSTPAID', monthly: 499 },
+    regionalFestival: 'ganesh-chaturthi',
+  },
   Nagpur: {
     branchIfsc: 'IBKL0000510',
     localities: ['SITABULDI', 'DHARAMPETH', 'SADAR', 'WARDHAMAN NAGAR'],
@@ -273,7 +283,7 @@ export const CITIES: Readonly<Record<string, CityProfile>> = {
 export function cityProfile(city: string): CityProfile {
   const found = CITIES[city]
   if (!found)
-    throw new Error(`no city profile for "${city}" — have ${Object.keys(CITIES).join(', ')}`)
+    throw new Error(`no city profile for "${city}"; have ${Object.keys(CITIES).join(', ')}`)
   return found
 }
 
@@ -281,33 +291,15 @@ export function cityProfile(city: string): CityProfile {
  * Bank codes
  * ------------------------------------------------------------------ */
 
-/** IDBI's own IFSC prefix. `IDIB` is Indian Bank's, and the generator used to emit it. */
-export const IDBI_IFSC_PREFIX = 'IBKL'
-
-/** The four-letter code an NPCI narration carries in place of the full IFSC. */
-export const IDBI_BANK4 = 'IBKL'
-
-/** IDBI's UPI handle, for the personas' own VPAs. */
-export const IDBI_UPI_HANDLE = 'idbi'
-
 /**
- * Four-letter bank codes that appear in the payee position of a UPI narration.
+ * IDBI's own IFSC prefix. `IDIB` is Indian Bank's, and the generator used to emit it.
  *
- * Real prefixes, so a reviewer who looks one up finds the bank we implied. Federal is in the
- * list because it is everywhere in Kochi and nowhere in the other two cities.
+ * The only bank code that belongs here, because it is the one the *account* carries. A
+ * counterparty's code is a property of that counterparty, so it is declared beside them —
+ * `bank4` and `vpa` on each row of `MERCHANTS` in `merchants.ts`, and `ifscPrefix` on each
+ * `Institution` in `personas.ts`. A central list would have to be kept in step with both.
  */
-export const BANK4_CODES = [
-  'HDFC',
-  'ICIC',
-  'UTIB',
-  'SBIN',
-  'KKBK',
-  'YESB',
-  'PYTM',
-  'BARB',
-  'FDRL',
-  'PUNB',
-] as const
+export const IDBI_IFSC_PREFIX = 'IBKL'
 
 /* ------------------------------------------------------------------ *
  * Festivals
@@ -355,6 +347,49 @@ export const FESTIVAL_DAYS: readonly FestivalDate[] = [
   { name: 'Onam', on: '2028-09-01', leadDays: 10, trailDays: 2, intensity: 2.2, city: 'Kochi' },
 
   // Ganesh Chaturthi runs for ten days in Maharashtra and the spending runs with it.
+  // Pune's is the largest in the country — eleven days, and the visarjan procession shuts
+  // the city. A higher intensity than Nagpur's for the same festival is the point: the
+  // multiplier is a property of the city, not of the date.
+  {
+    name: 'Ganesh Chaturthi',
+    on: '2024-09-07',
+    leadDays: 6,
+    trailDays: 11,
+    intensity: 2.4,
+    city: 'Pune',
+  },
+  {
+    name: 'Ganesh Chaturthi',
+    on: '2025-08-27',
+    leadDays: 6,
+    trailDays: 11,
+    intensity: 2.4,
+    city: 'Pune',
+  },
+  {
+    name: 'Ganesh Chaturthi',
+    on: '2026-09-14',
+    leadDays: 6,
+    trailDays: 11,
+    intensity: 2.4,
+    city: 'Pune',
+  },
+  {
+    name: 'Ganesh Chaturthi',
+    on: '2027-09-04',
+    leadDays: 6,
+    trailDays: 11,
+    intensity: 2.4,
+    city: 'Pune',
+  },
+  {
+    name: 'Ganesh Chaturthi',
+    on: '2028-08-23',
+    leadDays: 6,
+    trailDays: 11,
+    intensity: 2.4,
+    city: 'Pune',
+  },
   {
     name: 'Ganesh Chaturthi',
     on: '2024-09-07',

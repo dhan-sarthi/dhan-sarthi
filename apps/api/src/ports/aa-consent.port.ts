@@ -15,6 +15,15 @@
  * guess a consent handle can post an approval. A recorded event therefore grants nothing. It
  * only marks the handle as worth re-checking, and the app then asks 591 what the consent
  * actually says. The bank's own answer is the only thing that moves a consent to ACTIVE.
+ *
+ * One adapter today, `InMemoryAaConsents`, chosen in composition/profiles.ts with the same
+ * class as the fallback in composition/root.ts. The second is a Postgres sibling whose tables
+ * already exist — `app.consents` and the append-only `app.consent_events`, both created in
+ * apps/api/migrations/0004_app_identity.sql — and a consent trail that survives a restart is
+ * the whole point of writing it down. The interface is load-bearing meanwhile:
+ * application/aa-consent.service.ts is its only caller and
+ * `application-never-imports-adapters-or-http` (.dependency-cruiser.cjs) forbids it from
+ * naming the class.
  */
 import type { IsoDate } from '@dhan/contracts'
 

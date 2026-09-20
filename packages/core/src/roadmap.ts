@@ -361,13 +361,13 @@ export function buildRoadmap(
       // nothing spare, and — in the habitless case — the reason no habit is named is that the
       // statement is unreadable, not that the customer has none.
       why: habitless
-        ? `Everything that comes in goes out, and no habit here is recognisable enough to ` +
-          `name. Tell me one outgoing you could drop and the plan has a start.`
+        ? `Everything that comes in goes out, and I cannot recognise a single habit to cut. ` +
+          `Name one outgoing you could drop and the plan has a start.`
         : `Everything that comes in goes out. ` +
           `${targets.map((h) => h.merchant ?? h.key).join(' and ')} ` +
           `${targets.length === 1 ? 'costs' : 'cost'} ` +
-          `${inr(targets.reduce((s, h) => s + h.monthlyAverage, 0))} a month between them; ` +
-          `cutting that by not quite half funds everything below.`,
+          `${inr(targets.reduce((s, h) => s + h.monthlyAverage, 0))} a month. ` +
+          `Halve that and everything below is funded.`,
       productId: null,
       productName: null,
       monthly: 0,
@@ -409,15 +409,15 @@ export function buildRoadmap(
       const closesGap = (term.coverAmount ?? 0) >= snapshot.protection.gap
       push({
         kind: 'get_cover',
-        label: `${term.name} — ${inr(term.minInvestment)} a month`,
+        label: `${term.name}, ${inr(term.minInvestment)} a month`,
         // "There is nothing in force" was the old wording and it was wrong for anyone holding
         // a policy too small for their dependents — the stage fires on a *gap*, not on an
         // absence. The gap figure says the same thing and is true either way.
         why:
           `${snapshot.customer.dependents} ` +
           `${snapshot.customer.dependents === 1 ? 'person depends' : 'people depend'} on your ` +
-          `income and ${inr(snapshot.protection.gap)} of cover is missing — the cheapest step ` +
-          `here, and the only one that cannot be caught up on later.` +
+          `income and ${inr(snapshot.protection.gap)} of cover is missing. The cheapest step ` +
+          `here, and it gets dearer every year you wait.` +
           (closesGap
             ? ''
             : ` This does not close it all, but something in force beats the right amount later.`),
@@ -440,7 +440,15 @@ export function buildRoadmap(
 
   if (snapshot.debt.hasHighInterest && available > 0) {
     const rate = snapshot.debt.highestRate
-    const principal = snapshot.debt.total
+    /*
+     * The balances actually at that rate, not every rupee the customer owes.
+     *
+     * The stage prices a payoff at `highestRate`, so including a cheap loan in the principal
+     * asks what it would cost to clear a 9.4% car loan as if it were a 34.8% card. For a
+     * customer with one expensive debt the two figures are the same; for one with both, the
+     * difference decided whether the route reported itself reachable at all.
+     */
+    const principal = snapshot.debt.highInterestTotal
     const interest = monthlyInterest(principal, rate)
 
     // Amortised properly. Dividing the balance by the payment ignores the interest still
@@ -472,17 +480,16 @@ export function buildRoadmap(
     push({
       kind: 'clear_debt',
       label: viable
-        ? `Clear ${inr(principal)} at ${rate}% — about ${months} months`
+        ? `Clear ${inr(principal)} at ${rate}%, about ${months} months`
         : `${inr(principal)} at ${rate}% will not clear at ${inr(available)} a month`,
       // The infeasible branch keeps all four of its figures: the interest, what the plan can
       // pay, what three years would take, and the difference. They are why the stage carries no
       // completion date, and a shorter sentence that dropped them would leave that unexplained.
       why: viable
-        ? `Nothing on the shelf returns ${rate}% a year, so paying this down beats every ` +
-          `investment available to you.`
+        ? `Nothing you can invest in returns ${rate}% a year. Clearing this beats all of it.`
         : `Interest alone is ${inr(interest)} a month, so at ${inr(available)} the balance grows ` +
-          `and there is no date to give. Clearing it inside three years needs about ` +
-          `${inr(needed)} a month — ${inr(Math.max(0, needed - available))} more than there is.`,
+          `instead of shrinking. Clearing it in three years needs ${inr(needed)} a month — ` +
+          `${inr(Math.max(0, needed - available))} more than you have.`,
       productId: null,
       productName: null,
       monthly: available,
@@ -501,10 +508,10 @@ export function buildRoadmap(
   if (snapshot.debt.missedRepayment) {
     push({
       kind: 'clear_debt',
-      label: 'Bring the missed instalment up to date',
+      label: 'Catch up the missed instalment',
       why:
-        `A repayment on record was missed. Until it clears I can recommend nothing else, and ` +
-        `the mark on your credit file costs more, for longer, than anything I could earn you.`,
+        `You have a missed repayment on record. Nothing else can be recommended until it ` +
+        `clears — the mark on your credit file costs you more, and for longer, than any return.`,
       productId: null,
       productName: null,
       monthly: 0,
@@ -530,11 +537,10 @@ export function buildRoadmap(
 
     push({
       kind: 'build_buffer',
-      label: `${inr(bufferTarget)} within reach — ${opts.bufferFloorMonths} months of your outgoings`,
+      label: `Build ${inr(bufferTarget)} you can reach — ${opts.bufferFloorMonths} months of outgoings`,
       why:
-        `${inr(bufferHave)} reachable covers about ${snapshot.buffer.monthsCovered} months. ` +
-        `Below three, nothing with a lock-in can be recommended — and one bad month becomes ` +
-        `a loan.`,
+        `${inr(bufferHave)} covers about ${snapshot.buffer.monthsCovered} months. Under three, ` +
+        `one bad month becomes a loan — and nothing locked-in can be recommended.`,
       productId: vehicle?.productId ?? null,
       productName: vehicle?.name ?? null,
       monthly: available,
@@ -593,13 +599,13 @@ export function buildRoadmap(
       why: feasible
         ? `${inr(needed)} a month at an assumed ${rate}% gets you there. ${DISCLAIMER}`
         : available > 0
-          ? `${inr(needed)} a month would be needed and there is ${inr(available)} spare. ` +
-            `Extend the date, lower the target, or find the difference in your spending.`
+          ? `This needs ${inr(needed)} a month and you have ${inr(available)} spare. ` +
+            `Push the date back, lower the target, or find the difference in your spending.`
           : // Nothing spare and nothing readable are different situations, and "there is ₹0
             // spare" says the first while meaning the second. A statement with no recognisable
             // income has no surplus to report either way.
-            `${inr(needed)} a month would be needed. Nothing here is recognisable as income or ` +
-            `as a regular outgoing, so I cannot see what is spare — tell me what comes in.`,
+            `This needs ${inr(needed)} a month. I cannot see any income or regular outgoings ` +
+            `in this statement, so I cannot tell what is spare. Tell me what comes in.`,
       productId: vehicle?.productId ?? null,
       productName: vehicle?.name ?? null,
       monthly: affordable,

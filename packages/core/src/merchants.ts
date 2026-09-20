@@ -173,7 +173,12 @@ export const MERCHANTS: readonly MerchantRule[] = [
   { match: ['NETFLIX'], merchant: 'Netflix', category: 'Entertainment' },
   { match: ['SPOTIFY', 'GAANA', 'WYNK'], merchant: 'Spotify', category: 'Entertainment' },
   {
-    match: ['HOTSTAR', 'JIOCINEMA', 'JIOHOTSTAR', 'SONYLIV', 'ZEE5', 'PRIME VIDEO'],
+    // `YOUTUBE` earns its place twice over. It is a subscription a great many people hold,
+    // and without it the mandate line `SI/YOUTUBE PREMIUM/AUTOPAY` falls through to the
+    // insurance tokens and is categorised as a **premium** — a streaming service filed as
+    // life cover, which is the kind of error that discredits every other category on the
+    // screen. A specific merchant has to beat a generic keyword.
+    match: ['HOTSTAR', 'JIOCINEMA', 'JIOHOTSTAR', 'SONYLIV', 'ZEE5', 'PRIME VIDEO', 'YOUTUBE'],
     merchant: 'Streaming',
     category: 'Entertainment',
   },
@@ -238,7 +243,7 @@ export const MERCHANTS: readonly MerchantRule[] = [
     category: 'Rent & bills',
   },
   {
-    match: ['GAS', 'INDANE', 'HP GAS', 'MAHANAGAR', 'IOAGPL', 'AVANTIKA GAS', 'GAIL GAS'],
+    match: ['GAS', 'INDANE', 'HP GAS', 'MAHANAGAR', 'MNGL', 'IOAGPL', 'AVANTIKA GAS', 'GAIL GAS'],
     merchant: 'Gas',
     category: 'Rent & bills',
   },
@@ -288,7 +293,16 @@ export const MERCHANTS: readonly MerchantRule[] = [
   // nowhere on the line: the mandate is held by the exchange, not by the AMC, which is why a
   // dictionary that only knows fund houses finds no SIPs at all.
   {
-    match: ['INDIAN CLEARING CORP', 'NSECLEARINGLIMITED', 'NSE CLEARING', 'ICCL', 'BSE STAR MF'],
+    match: [
+      'INDIAN CLEARING CORP',
+      'NSECLEARINGLIMITED',
+      'NSE CLEARING',
+      'ICCL',
+      'BSE STAR MF',
+      // A great many fund mandates are collected through NACH directly rather than
+      // through a clearing corporation, and the line then names NPCI and nothing else.
+      'NPCI NACH',
+    ],
     merchant: 'Mutual fund',
     category: 'Investment',
   },

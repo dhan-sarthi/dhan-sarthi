@@ -1,7 +1,7 @@
 /**
  * `pnpm --filter @dhan/api seed [--check] [--force] [--anchor YYYY-MM-DD] [--forward N] [--history N]`
  *
- * Migrates, generates the three personas, and writes them through the same path a bank
+ * Migrates, generates the four personas, and writes them through the same path a bank
  * response will take: one staging.raw_payloads row per persona under a consented
  * staging.sync_runs row, then a projection into the bank.* mirrors. Nothing in the projector
  * reads a persona spec; it reads the payload, so the pipeline the sandbox will use is the
@@ -28,6 +28,7 @@ import type { Holding, Transaction } from '@dhan/core'
 import { PERSONAS, generateCustomerFile } from '@dhan/fixtures'
 import type { SeedAccountRow, SeedBundle } from '@dhan/fixtures'
 import type pg from 'pg'
+import { recordedGeneratorVersion } from '../adapters/memory/generated-source.ts'
 import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
 import {
   casaType,
@@ -109,10 +110,11 @@ function packageVersion(name: string): string {
 }
 
 export function seedVersions(gitSha: string | undefined): { engine: string; generator: string } {
-  const sha = gitSha ? gitSha.slice(0, 12) : 'dev'
   return {
     engine: engineVersion(packageVersion('@dhan/core'), gitSha),
-    generator: `@dhan/fixtures@${packageVersion('@dhan/fixtures')}+${sha}`,
+    // The same stamp the Postgres SeedInfo re-derives to check for drift, from the same
+    // function, so the two cannot disagree about the format.
+    generator: recordedGeneratorVersion(packageVersion('@dhan/fixtures'), gitSha),
   }
 }
 

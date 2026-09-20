@@ -24,6 +24,7 @@ import { categorize, coverage, disagreements, seriesKey } from '@dhan/core'
 import type { Transaction } from '@dhan/core'
 import { bankGeneratedLines } from './bank-lines.ts'
 import type { LedgerRow } from './bank-lines.ts'
+import { addMonths, monthKey } from './calendar.ts'
 import {
   BANK_CHARGES,
   CITIES,
@@ -98,7 +99,7 @@ describe('narration grammar', () => {
     // A template nobody emits is a template nobody has checked. This is what catches a rail
     // being quietly dropped from the generator while its regex stays in this file.
     //
-    // The minimum-balance charge is the one exception, and deliberately: none of these three
+    // The minimum-balance charge is the one exception, and deliberately: none of these four
     // ever runs an account thin enough to be charged one, and forcing a persona below ₹10,000
     // to exercise a template would be inventing behaviour to satisfy a test. It is proved
     // directly against `bankGeneratedLines` further down instead.
@@ -128,9 +129,14 @@ describe('narration grammar', () => {
       for (const account of file.accounts) {
         assert.ok(account.branchIfsc, `${spec.slug}: no branch IFSC on ${account.accountType}`)
         assert.match(account.branchIfsc, IFSC)
+
+        // An account held at another bank carries that bank's prefix, and must: stamping
+        // IBKL on an HDFC account would be the same error in the other direction. What has
+        // to hold is that the prefix agrees with the institution the account says it is at.
+        const prefix = account.institution?.ifscPrefix ?? IDBI_IFSC_PREFIX
         assert.ok(
-          account.branchIfsc.startsWith(IDBI_IFSC_PREFIX),
-          `${spec.slug}: ${account.branchIfsc} is not an IDBI branch`,
+          account.branchIfsc.startsWith(prefix),
+          `${spec.slug}: ${account.branchIfsc} is not a ${account.institution?.name ?? 'IDBI'} branch`,
         )
       }
     }
@@ -200,9 +206,12 @@ describe('narration grammar', () => {
       for (const t of txns) {
         assert.ok(!ids.has(t.txnId), `${slug}: duplicate reference ${t.txnId}`)
         ids.add(t.txnId)
+        // `S########` is Finacle's, which is IDBI's core. An account at another bank has its
+        // own sequence and no reason to look like Finacle — so a four-letter bank prefix is
+        // the third legal shape, and it is the sending bank's own.
         assert.ok(
-          RRN.test(t.txnId) || UTR.test(t.txnId) || /^S\d{8}$/.test(t.txnId),
-          `${slug}: ${t.txnId} is not an RRN, a UTR or a Finacle id`,
+          RRN.test(t.txnId) || UTR.test(t.txnId) || /^[A-Z]{1,4}\d{8}$/.test(t.txnId),
+          `${slug}: ${t.txnId} is not an RRN, a UTR or a bank's own sequence`,
         )
       }
     }
@@ -260,10 +269,24 @@ describe('city correctness', () => {
         assert.ok(biller && expected.has(biller), `${spec.slug}: billed by ${biller}`)
       }
 
-      // And by nobody else's. An Indore discom on a Kochi statement is the fastest way to be
-      // caught, and it is not a figure anybody has to add up to notice.
+      /*
+       * And by nobody else's. An Indore discom on a Kochi statement is the fastest way to be
+       * caught, and it is not a figure anybody has to add up to notice.
+       *
+       * Compared only against discoms that are *exclusive* to another city, because a real
+       * one need not be: MSEDCL bills the whole of Maharashtra, so it is on both the Pune and
+       * the Nagpur statement and that is correct. The claim this makes is "a discom that does
+       * not operate here", which is the claim a banker would actually test.
+       */
+      const own = CITIES[spec.customer.city]?.electricity.biller
+      const served = new Set(
+        Object.entries(CITIES)
+          .filter(([city]) => city === spec.customer.city)
+          .map(([, p]) => p.electricity.biller),
+      )
       for (const [city, profile] of Object.entries(CITIES)) {
         if (city === spec.customer.city) continue
+        if (served.has(profile.electricity.biller) || profile.electricity.biller === own) continue
         for (const t of txns) {
           assert.ok(
             !t.narration.includes(profile.electricity.biller),
@@ -386,30 +409,59 @@ describe('the lines the bank writes', () => {
   })
 
   it('charges for the mandate that came back, in the month it came back', () => {
-    const returned = SUNIL.emis.find((e) => e.returnedMonthsAgo !== undefined)
-    assert.ok(returned)
+    /*
+     * Every persona carrying a returned mandate, not Sunil alone. Naming one persona is how
+     * Karan's car loan spent six months telling two different stories at once — a return charge
+     * and a hand-paid instalment in his ledger, `dpdStatus: 0` on his liability record — while
+     * this test stayed green because it never looked at him. A loop over the condition rather
+     * than over a name is what makes the next persona to carry one arrive already checked.
+     */
+    const withReturn = PERSONAS.filter((p) => p.emis.some((e) => e.returnedMonthsAgo !== undefined))
+    assert.ok(withReturn.length >= 2, 'the returned mandate is meant to be more than one story')
 
-    const txns = generateLedger(SUNIL, OPTS)
-    const charge = txns.filter((t) => t.narration.startsWith('NACH RETURN CHGS'))
-    assert.equal(charge.length, 1)
-    assert.equal(charge[0]?.txnAmount, 300)
-    assert.equal(charge[0]?.txnDate.slice(0, 7), '2026-05')
+    for (const spec of withReturn) {
+      const returned = spec.emis.find((e) => e.returnedMonthsAgo !== undefined)
+      assert.ok(returned?.returnedMonthsAgo !== undefined)
 
-    // The instalment still leaves the account, twelve days late and by hand. That is what a
-    // DPD of 12 looks like on a statement rather than only on a liability record.
-    const late = txns.filter((t) => t.narration.includes('LATE EMI'))
-    assert.equal(late.length, 1)
-    assert.equal(late[0]?.txnAmount, returned.amount)
+      const txns = generateLedger(spec, OPTS)
+      const month = monthKey(addMonths(ASOF, -returned.returnedMonthsAgo))
+
+      const charge = txns.filter((t) => t.narration.startsWith('NACH RETURN CHGS'))
+      assert.equal(charge.length, 1, `${spec.slug} was charged for the return ${charge.length}x`)
+      assert.equal(charge[0]?.txnAmount, 300)
+      assert.equal(charge[0]?.txnDate.slice(0, 7), month)
+
+      // The instalment still leaves the account, twelve days late and by hand. That is what a
+      // DPD of 12 looks like on a statement rather than only on a liability record.
+      const late = txns.filter((t) => t.narration.includes('LATE EMI'))
+      assert.equal(late.length, 1, `${spec.slug} settled the returned instalment ${late.length}x`)
+      assert.equal(late[0]?.txnAmount, returned.amount)
+      assert.equal(late[0]?.txnDate.slice(0, 7), month)
+
+      /*
+       * And the liability record has to say the same thing the statement does. Nothing
+       * downstream reads the ledger for this — `derive.ts:596` is
+       * `file.liabilities.some((l) => l.dpdStatus > 0)` — so a spec that declares the bounce
+       * and omits `dpd` prices the customer as spotless on every screen derived from it while
+       * his own statement prices him as delinquent. That is the drift this line catches.
+       */
+      assert.ok(
+        returned.dpd !== undefined && returned.dpd > 0,
+        `${spec.slug}'s mandate came back and his liability record still reads no days past due`,
+      )
+    }
   })
 
   it('charges a minimum-balance shortfall only where the account really ran thin', () => {
-    // None of the three personas is a minimum-balance customer — all of them keep five figures
-    // — so none of them is charged, and that is the right answer rather than a gap. The charge
-    // is proved against the balances instead, on a ledger thin enough to earn one.
+    // None of the four personas is a minimum-balance customer — every account opens in five
+    // figures or better (Rohan's ₹22,000 is the thinnest, Karan's ₹8,09,891 the fattest) and
+    // the generator never runs one thin — so none of them is charged, and that is the right
+    // answer rather than a gap. The charge is proved against the balances instead, on a ledger
+    // thin enough to earn one.
     for (const { slug, txns } of ledgers()) {
       assert.ok(
         !txns.some((t) => t.narration.startsWith('MIN BAL CHGS')),
-        `${slug} was charged a minimum-balance fee while holding five figures`,
+        `${slug} was charged a minimum-balance fee while never running the account thin`,
       )
     }
 

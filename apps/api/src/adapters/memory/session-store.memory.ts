@@ -3,6 +3,7 @@
  * as a column, so a stale tab gets the same 409 under either.
  */
 import { randomUUID } from 'node:crypto'
+import { EMPTY_SAVE_STATE } from '@dhan/core'
 import type {
   Clock,
   IdempotentResponse,
@@ -34,6 +35,13 @@ export class InMemorySessionStore implements SessionStore {
       goalTarget: null,
       goalBasis: null,
       caps: [],
+      spendLimit: null,
+      // A clone, not the const. Every session in this process would otherwise share one pot, and
+      // the first deposit pushed onto it would appear in all of them — which Postgres, handing
+      // each row its own parsed jsonb, would never do, and the divergence would only ever show
+      // up in a test that ran two sessions.
+      save: structuredClone(EMPTY_SAVE_STATE),
+      challenge: null,
       scopeOverrides: [],
       version: 1,
       clientHint: input.clientHint ?? null,
@@ -67,6 +75,9 @@ export class InMemorySessionStore implements SessionStore {
       ...(patch.goalTarget === undefined ? {} : { goalTarget: patch.goalTarget }),
       ...(patch.goalBasis === undefined ? {} : { goalBasis: patch.goalBasis }),
       ...(patch.caps === undefined ? {} : { caps: patch.caps }),
+      ...(patch.spendLimit === undefined ? {} : { spendLimit: patch.spendLimit }),
+      ...(patch.save === undefined ? {} : { save: patch.save }),
+      ...(patch.challenge === undefined ? {} : { challenge: patch.challenge }),
       ...(patch.scopeOverrides === undefined ? {} : { scopeOverrides: patch.scopeOverrides }),
       version: current.version + 1,
     }

@@ -53,7 +53,9 @@ export function suggestGoal(
       id: 'goal-debt',
       kind: 'debt_payoff',
       purpose: 'Clear the expensive debt',
-      targetAmount: override ?? snapshot.debt.total,
+      // The expensive debt, not every debt. A car loan at 9.4% is not what this goal is for
+      // and pricing it at the card's rate is what made the route report itself infeasible.
+      targetAmount: override ?? snapshot.debt.highInterestTotal,
       ...basis,
       targetDate: `${Number(asOf.slice(0, 4)) + 3}${asOf.slice(4)}`,
       createdAt: asOf,

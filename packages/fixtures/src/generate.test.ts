@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { derive } from '@dhan/core'
+import { CARD_FINANCE_RATE_PA } from './calibration.ts'
 import { addMonths, monthKey } from './calendar.ts'
 import { generateCustomerFile, generateForward, generateLedger } from './generate.ts'
-import { PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
+import { KARAN, PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
 import { summarise } from './summary.ts'
 
 const ASOF = '2026-09-01'
@@ -28,17 +29,40 @@ describe('the running balance', () => {
     for (const spec of PERSONAS) {
       const txns = generateLedger(spec, OPTS)
 
-      // Carried in paise, because utilities, charges and GST arrive with paise on them and a
-      // running balance accumulated in floating-point rupees stops being exactly equal to the
-      // previous one plus the movement somewhere around the thousandth row.
-      let paise = Math.round(spec.openingBalance * 100)
+      /*
+       * Carried in paise, because utilities, charges and GST arrive with paise on them and a
+       * running balance accumulated in floating-point rupees stops being exactly equal to the
+       * previous one plus the movement somewhere around the thousandth row.
+       *
+       * Per account, because a running balance is a property of an account and not of a
+       * customer. Four merged ledgers have four of them, and reading the merged column as one
+       * series is precisely the mistake this invariant exists to catch — so the test asserts
+       * the invariant that is actually true rather than the one that used to be.
+       */
+      const opening = new Map<string, number>()
+      const running = new Map<string, number>()
 
       for (const t of txns) {
-        paise += (t.txnType === 'CREDIT' ? 1 : -1) * Math.round(t.txnAmount * 100)
+        const key = t.accountNumberMasked ?? spec.accountNumberMasked
+        if (!running.has(key)) {
+          // The primary's opening balance is declared; a satellite's is solved by the
+          // generator, so it is recovered from its own first row.
+          const first =
+            key === spec.accountNumberMasked
+              ? Math.round(spec.openingBalance * 100)
+              : Math.round((t.balanceAfterTxn ?? 0) * 100) -
+                (t.txnType === 'CREDIT' ? 1 : -1) * Math.round(t.txnAmount * 100)
+          opening.set(key, first)
+          running.set(key, first)
+        }
+        const next =
+          (running.get(key) ?? 0) +
+          (t.txnType === 'CREDIT' ? 1 : -1) * Math.round(t.txnAmount * 100)
+        running.set(key, next)
         assert.equal(
           t.balanceAfterTxn,
-          paise / 100,
-          `${spec.slug}: balance broke at ${t.txnId} (${t.narration})`,
+          next / 100,
+          `${spec.slug}/${key}: balance broke at ${t.txnId} (${t.narration})`,
         )
       }
     }
@@ -247,6 +271,22 @@ describe('the customer file', () => {
       'SUNIL needs a missed repayment for MISSED_REPAYMENT',
     )
     assert.equal(sunil.customer.riskProfile, 'Conservative')
+
+    /*
+     * Karan is both conditions at once, and the second of them was missing for six months.
+     * His ledger carried the return charge and the hand-paid instalment; his liability record
+     * read no days past due, so `MISSED_REPAYMENT` could not fire on the persona the demo is
+     * built around. The card assertion beside it is what keeps the fix scoped: the one field
+     * that changed is `dpd`, and the balance the gate refuses him on is untouched.
+     */
+    const karan = generateCustomerFile(KARAN, OPTS)
+    assert.ok(
+      karan.liabilities.some((l) => l.dpdStatus > 0),
+      'KARAN needs a missed repayment for MISSED_REPAYMENT — his ledger has always shown one',
+    )
+    const karanCard = karan.liabilities.find((l) => l.isRevolving)
+    assert.ok(karanCard, 'KARAN needs the card for HIGH_INTEREST_DEBT')
+    assert.equal(karanCard.loanInterestRate, CARD_FINANCE_RATE_PA)
   })
 
   it('never records a deposit held at IDBI as both an account and a holding', () => {

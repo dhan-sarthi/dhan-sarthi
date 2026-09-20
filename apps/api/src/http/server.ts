@@ -91,7 +91,17 @@ export async function createServer(
       max: GLOBAL_RATE_LIMIT.max,
       timeWindow: GLOBAL_RATE_LIMIT.window,
       keyGenerator: (request) => request.ip,
-      errorResponseBuilder: (_request, context): ErrorBody => ({
+      /*
+       * `statusCode` is on here for the error handler, not for the client.
+       *
+       * Fastify throws this object rather than sending it, so it arrives at `setErrorHandler`
+       * as an unknown error. Without a `statusCode` the handler could not tell a rate-limit
+       * rejection from a crash: it fell through to the 500 branch and every throttled caller was
+       * told "something went wrong on our side. Nothing you did caused it." — which is both a
+       * 500 for a client error and a lie, since what they did is exactly what caused it.
+       */
+      errorResponseBuilder: (_request, context): ErrorBody & { statusCode: number } => ({
+        statusCode: 429,
         code: 'RATE_LIMITED',
         message: 'Too many requests. Slow down a little.',
         details: { retryAfterMs: context.ttl, limit: context.max },
@@ -139,10 +149,28 @@ export async function createServer(
       typeof (err as { statusCode?: unknown }).statusCode === 'number'
         ? (err as { statusCode: number }).statusCode
         : 500
-    const message = err instanceof Error ? err.message : String(err)
+    /*
+     * Not everything thrown is an `Error`. Fastify's rate limiter throws the plain object that
+     * `errorResponseBuilder` returns, and `String({...})` on that is the string "[object Object]"
+     * — which is what the throttled caller was then told. Read a `message` off whatever arrived
+     * before falling back to stringifying it.
+     */
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof (err as { message?: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : String(err)
 
     if (status === 429) {
-      void reply.code(429).send({ code: 'RATE_LIMITED', message } satisfies ErrorBody)
+      /* Keep `details` — `retryAfterMs` is the only thing that makes this answerable rather
+         than simply refused, and the limiter went to the trouble of computing it. */
+      const details = (err as { details?: unknown }).details
+      void reply.code(429).send({
+        code: 'RATE_LIMITED',
+        message,
+        ...(details === undefined ? {} : { details }),
+      } as ErrorBody)
       return
     }
     if (status === 413) {

@@ -3,6 +3,10 @@
  *
  * Built over a real derived snapshot so the shape is honest, then nudged field by field so
  * each branch is exercised regardless of which persona happens to sit where this month.
+ *
+ * The ladder's branches and the sizing fallback are pinned against literals in
+ * `@dhan/core/src/goal.test.ts`; this file is here because it needs the generator. See CONTRIBUTING.md
+ * under "Where tests live" for why that cycle cannot be broken.
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -31,7 +35,15 @@ describe('the suggested goal', () => {
     assert.equal(priya.debt.hasHighInterest, true)
     const goal = suggestGoal(priya, ASOF, null)
     assert.equal(goal.kind, 'debt_payoff')
-    assert.equal(goal.targetAmount, priya.debt.total)
+    /*
+     * The expensive debt, which for Priya is ₹3,10,012 of a ₹5,82,776 total.
+     *
+     * It used to assert `debt.total`, and that was wrong in a way no single-debt persona
+     * could show: the goal is priced at `highestRate`, so targeting the total asks what it
+     * would cost to clear her cheaper loans at her credit card's rate.
+     */
+    assert.equal(goal.targetAmount, priya.debt.highInterestTotal)
+    assert.ok(priya.debt.highInterestTotal < priya.debt.total)
     assert.equal(goal.targetDate, '2029-09-01')
     assert.equal(goal.createdAt, ASOF)
   })

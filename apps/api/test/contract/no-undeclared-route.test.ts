@@ -31,7 +31,10 @@ describe('no undeclared route', () => {
     // 28 before the IDBI integration; six more for `/profile` and `/holdings`, the two blocks
     // no operation in IDBI's catalogue carries and the app therefore has to own; and one for
     // the category cap, which is a decision about the future and so has no endpoint anywhere.
-    assert.equal(registered.size, 42)
+    // The last seven are the savings pot and the spending challenge, decisions of the same
+    // kind: three for the pot — read it, set one hack, deposit by hand — and four for the
+    // challenge — the view, the quote, the start and the surrender.
+    assert.equal(registered.size, 51)
   })
 
   it('answers an undeclared path with the declared error body', async () => {

@@ -19,7 +19,24 @@ export const avatarAvailabilityRoute = defineRoute({
 })
 
 /** The client sends nothing but its bearer. The brief is built server-side and is not editable. */
-export const AvatarSessionRequestSchema = z.object({}).strict()
+export const AvatarSessionRequestSchema = z
+  .object({
+    /*
+     * What the customer tapped to get here, where they tapped something.
+     *
+     * "Talk me through this" on a smart insight has to open the call on *that* finding rather
+     * than on the generic greeting — otherwise the button is an ordinary deep link into the
+     * tab and the customer has to re-ask the question they just pressed a button about.
+     *
+     * The headline only, and it is a *topic*, never a script: the brief builder folds it into
+     * the opening line server-side, and every figure Uday then quotes still comes from the
+     * View or a tool result. A client that could post arbitrary words into the avatar's mouth
+     * is the one thing the server-built brief exists to prevent, which is why this is capped
+     * and why nothing downstream treats it as trusted text.
+     */
+    topic: z.string().min(1).max(200).optional(),
+  })
+  .strict()
 export type AvatarSessionRequest = z.infer<typeof AvatarSessionRequestSchema>
 
 export const AvatarSessionHeadersSchema = z
@@ -134,4 +151,52 @@ export const getAvatarCallRecordRoute = defineRoute({
     404: ErrorBodySchema,
     ...SESSION_ERRORS,
   },
+})
+
+/* The tool gate on the wire, when the provider calls it over HTTP ------------------- */
+
+/**
+ * Anam has no room to join, so there is no hidden participant to answer the model's tools.
+ * Its webhook tools are called from Anam's servers instead, which makes the gate an ordinary
+ * route — one the public internet can reach.
+ *
+ * Nothing about that request identifies the customer. There is no signature, and the body holds
+ * only what the model extracted. So the call id is in the path and a per-call secret, minted
+ * when the session was created and never reused, is in the header. Both have to match a call
+ * this process is currently hosting, and the handlers have to already be attached: a tool call
+ * that arrives before the gate is open is refused, not answered by a half-built session.
+ */
+export const AvatarToolParamsSchema = z.object({
+  runwaySessionId: RunwaySessionIdSchema,
+  tool: z.string().min(1).max(64),
+})
+export type AvatarToolParams = z.infer<typeof AvatarToolParamsSchema>
+
+export const AvatarToolHeadersSchema = z
+  .object({ 'x-avatar-call': z.string().min(16).max(128) })
+  .passthrough()
+
+/** Whatever the tool answers. Shapes are the tools' business; this route only carries them. */
+export const AvatarToolResultSchema = z.record(z.unknown())
+
+export const avatarToolCallRoute = defineRoute({
+  id: 'avatarToolCall',
+  method: 'POST',
+  path: '/api/v1/avatar/tool/:runwaySessionId/:tool',
+  summary:
+    'The tool gate, called by the avatar provider rather than over a room. Authenticated by a per-call secret, refused unless this process is hosting that call with its handlers attached.',
+  auth: 'none',
+  request: {
+    params: AvatarToolParamsSchema,
+    body: z.record(z.unknown()),
+    headers: AvatarToolHeadersSchema,
+  },
+  response: {
+    200: AvatarToolResultSchema,
+    403: ErrorBodySchema,
+    404: ErrorBodySchema,
+    409: ErrorBodySchema,
+    ...PUBLIC_ERRORS,
+  },
+  rateLimit: { max: 240, window: '1 minute', keyBy: 'ip' },
 })

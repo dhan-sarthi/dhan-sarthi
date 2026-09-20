@@ -6,6 +6,10 @@
  * Aggregator consent, and stating them as an interface is what lets the flow be tested against
  * a fake and lets a different aggregator be dropped in behind it. `IdbiGateway` satisfies this
  * structurally; nothing had to be added to it.
+ *
+ * Three implementations: `IdbiGateway` (adapters/idbi-sandbox/api/gateway.ts), the refusing
+ * `unavailableAaGateway` (application/aa-unavailable.ts) that composition/root.ts selects under
+ * every non-IDBI source, and the fake in test/application/aa-consent.test.ts.
  */
 import type { IsoDate } from '@dhan/contracts'
 

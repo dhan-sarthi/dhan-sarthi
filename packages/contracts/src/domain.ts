@@ -97,10 +97,34 @@ export const TransactionSchema = z.object({
   /** The bank's own guess at the merchant, present on a subset of lines only. */
   merchantName: z.string().optional(),
   counterpartyVpa: z.string().optional(),
+  /**
+   * Which account carried this line. Absent means the customer's primary account.
+   *
+   * Four interleaved ledgers have four running balances, so anything reading
+   * `balanceAfterTxn` as a series has to group by this first.
+   */
+  accountNumberMasked: z.string().optional(),
+  /**
+   * Both legs of a movement between two accounts the same customer owns. Not spent, not
+   * earned — moved. A single bank cannot know this; an aggregator holding both sides can.
+   */
+  isSelfTransfer: z.boolean().optional(),
 })
 export type Transaction = z.infer<typeof TransactionSchema>
 
 export const AccountTypeSchema = z.enum(['Savings', 'Current', 'FD', 'RD', 'PPF', 'NPS'])
+
+/**
+ * The bank an account is held at. IDBI's own are the ones with `isHome`; everything else
+ * reached us through an Account Aggregator consent, and the screens have to say so.
+ */
+export const InstitutionSchema = z.object({
+  name: z.string(),
+  /** The four letters that open every IFSC it issues — `IBKL`, `HDFC`, `KKBK`, `ICIC`. */
+  ifscPrefix: z.string().regex(/^[A-Z]{4}$/),
+  isHome: z.boolean(),
+})
+export type Institution = z.infer<typeof InstitutionSchema>
 
 export const AccountSchema = z.object({
   accountNumberMasked: z.string(),
@@ -126,10 +150,23 @@ export const AccountSchema = z.object({
    */
   effectiveAvailableBalance: MoneySchema.optional(),
   lienAmount: MoneySchema.optional(),
+  /** Which bank holds it. Absent means IDBI. */
+  institution: InstitutionSchema.optional(),
+  /**
+   * The last transaction the customer initiated, as distinct from interest the bank credited.
+   * Dormant and quiet are different states and only this separates them.
+   */
+  lastCustomerActivity: IsoDateSchema.optional(),
 })
 export type Account = z.infer<typeof AccountSchema>
 
 export const RiskProfileSchema = z.enum(['Conservative', 'Balanced', 'Growth'])
+/**
+ * Exported as a type, not only a schema, because a client that restates this union by hand
+ * will drift from it — and the drift shows up as a 400 at the one screen that commits a whole
+ * signup, not at the screen that caused it. Import this instead of retyping the three.
+ */
+export type RiskProfile = z.infer<typeof RiskProfileSchema>
 export const EmploymentTypeSchema = z.enum(['Salaried', 'Self-employed', 'Business'])
 export const TaxRegimeSchema = z.enum(['old', 'new'])
 
@@ -167,7 +204,7 @@ export type Liability = z.infer<typeof LiabilitySchema>
 export const AssetClassSchema = z.enum(['Equity', 'Debt', 'Hybrid', 'Protection', 'Gold'])
 
 export const HoldingSchema = z.object({
-  holdingType: z.enum(['MUTUAL_FUND', 'FD', 'RD', 'INSURANCE', 'NPS', 'PPF']),
+  holdingType: z.enum(['MUTUAL_FUND', 'FD', 'RD', 'INSURANCE', 'NPS', 'PPF', 'EQUITY', 'EPF']),
   name: z.string(),
   assetClass: AssetClassSchema,
   investedAmount: MoneySchema,
@@ -178,6 +215,18 @@ export const HoldingSchema = z.object({
   maturityDate: IsoDateSchema.optional(),
   interestRate: z.number().optional(),
   heldOutsideIdbi: z.boolean().optional(),
+  /** Who holds it — `Zerodha`, `Groww`, `IDBI`, `EPFO`. The honest form of `heldOutsideIdbi`. */
+  custodian: z.string().optional(),
+  /** Exchange symbol. Present only on `EQUITY`; a fund has no ticker. */
+  ticker: z.string().optional(),
+  isin: z.string().optional(),
+  units: z.number().optional(),
+  /** `units * avgCost` must equal `investedAmount`. */
+  avgCost: z.number().optional(),
+  purchasedOn: IsoDateSchema.optional(),
+  /** Sum assured. Never the same number as `currentValue`, and conflating them is the confusion. */
+  sumAssured: MoneySchema.optional(),
+  annualPremium: MoneySchema.optional(),
 })
 export type Holding = z.infer<typeof HoldingSchema>
 
@@ -365,6 +414,16 @@ export const BalanceFactsSchema = z.object({
   total: MoneySchema,
   idleFloor: MoneySchema,
   idleMonths: z.number(),
+  /** The next term deposit to mature, where one falls inside the window. */
+  maturingSoon: z
+    .object({
+      accountType: z.string(),
+      amount: MoneySchema,
+      maturityDate: IsoDateSchema,
+      daysLeft: z.number(),
+      interestRate: z.number().nullable(),
+    })
+    .nullable(),
 })
 
 export const BufferFactsSchema = z.object({
@@ -377,6 +436,8 @@ export const BufferFactsSchema = z.object({
 export const DebtFactsSchema = z.object({
   total: MoneySchema,
   hasHighInterest: z.boolean(),
+  /** Only the balances at a high rate. A car loan at 9.4% is not what a payoff goal targets. */
+  highInterestTotal: MoneySchema,
   highestRate: z.number(),
   missedRepayment: z.boolean(),
   monthlyOutgo: MoneySchema,
@@ -384,6 +445,56 @@ export const DebtFactsSchema = z.object({
     .object({ loanType: z.string(), emiAmount: MoneySchema, monthsLeft: z.number() })
     .nullable(),
 })
+
+export const CreditBlindSpotSchema = z.enum([
+  'utilisation',
+  'credit_age',
+  'enquiries',
+  'other_lenders',
+])
+export type CreditBlindSpot = z.infer<typeof CreditBlindSpotSchema>
+/** The members as an array, for a client that iterates them. `ConsentScopeSchema`'s idiom. */
+export const CREDIT_BLIND_SPOTS = CreditBlindSpotSchema.options
+
+export const CreditComponentSchema = z.object({
+  id: z.enum(['repayment', 'cost', 'load']),
+  weight: z.number(),
+  /** Null where the input is unreadable. Never zero, which is a verdict rather than a gap. */
+  earned: z.number().nullable(),
+})
+export type CreditComponent = z.infer<typeof CreditComponentSchema>
+
+/**
+ * What IDBI can see about how somebody borrows, and the typed list of what it cannot.
+ *
+ * `.nullable()` throughout rather than `.optional()`: core writes `T | null`, and `?: T |
+ * undefined` is a different type that would fail the parity assert at the foot of this file.
+ *
+ * `components` is on the wire on purpose. The figure rides inside `meta.snapshotHash`, so a
+ * bank could be asked to reproduce it — and a composite whose parts are not carried is a
+ * number nobody can reproduce from the payload they were given.
+ *
+ * The two arrays are `.readonly()`, which no other array in this file is, and that is not a
+ * stylistic drift. `core`'s `CreditFacts` declares both `readonly`, and `ReadonlyArray<T>` is
+ * the *supertype* of `T[]` — so a plain `z.array` here makes `Extends<CoreSnapshot, Snapshot>`
+ * false and takes the whole parity block at the foot of this file down with it. The mirror
+ * follows the type; widening core to a mutable array so a schema could stay uniform would be
+ * the wire telling the engine what to be.
+ */
+export const CreditFactsSchema = z.object({
+  conductScore: z.number().nullable(),
+  outOf: z.number().nullable(),
+  capped: z.boolean(),
+  components: z.array(CreditComponentSchema).readonly(),
+  dpdDays: z.number().int(),
+  highestRate: z.number(),
+  emiToIncome: z.number().nullable(),
+  revolvingBalance: MoneySchema,
+  instalmentBalance: MoneySchema,
+  liabilityCount: z.number().int(),
+  blind: z.array(CreditBlindSpotSchema).readonly(),
+})
+export type CreditFacts = z.infer<typeof CreditFactsSchema>
 
 export const ProtectionFactsSchema = z.object({
   dependents: z.number().int(),
@@ -432,6 +543,18 @@ export const SnapshotSchema = z.object({
   balances: BalanceFactsSchema,
   buffer: BufferFactsSchema,
   debt: DebtFactsSchema,
+  /**
+   * Named here because this object is not `.strict()` and therefore *strips* what it does not
+   * name. Without this line the engine computes `credit`, the store holds it, `meta.snapshotHash`
+   * covers it — and no client is ever told, with the parity assert below still green, because
+   * `Extends<CoreSnapshot, Snapshot>` is core → wire and a core type with an extra field still
+   * extends the narrower mirror. See `domain.test.ts`.
+   *
+   * That assert is also why there is no new `_Parity` row for `CreditFacts`: the key rides
+   * inside `Snapshot`, which already has one, so a separate row would check the same thing
+   * twice. This sentence is here so the next reader does not add it.
+   */
+  credit: CreditFactsSchema,
   protection: ProtectionFactsSchema,
   holdings: z.object({
     total: MoneySchema,
@@ -479,6 +602,7 @@ export const GoalKindSchema = z.enum([
   'wealth_target',
   'retirement',
 ])
+export type GoalKind = z.infer<typeof GoalKindSchema>
 
 /**
  * Which rupees `Goal.targetAmount` is counted in. Absent means `today`.
@@ -598,6 +722,8 @@ export const ActionSchema = z.object({
   label: z.string(),
   detail: z.string(),
   amount: MoneySchema,
+  /** How `amount` is read by the gate: a monthly commitment, or a one-off move of money held. */
+  cadence: z.enum(['monthly', 'lump_sum']).optional(),
   productId: ProductIdSchema.optional(),
   productName: z.string().optional(),
   evidence: z.array(z.string()),
@@ -618,6 +744,12 @@ export const DecisionSchema = z.object({
 export type Decision = z.infer<typeof DecisionSchema>
 
 export const SafeToSpendSchema = z.object({
+  /** The month's allowance before anything was spent out of it. `pot` is this less what has gone. */
+  envelope: MoneySchema,
+  /** The customer's own monthly ceiling, or null where they never set one. */
+  limit: MoneySchema.nullable(),
+  /** What the month leaves after everything owed, before any limit is applied. */
+  affordable: MoneySchema,
   pot: MoneySchema,
   perDay: MoneySchema,
   daysToSalary: z.number(),
@@ -638,6 +770,8 @@ export const InsightKindSchema = z.enum([
   'missed_repayment',
   'buffer_thin',
   'habit_cost',
+  'deposit_maturing',
+  'human_handoff',
 ])
 
 export const InsightSchema = z.object({
@@ -646,6 +780,8 @@ export const InsightSchema = z.object({
   headline: z.string(),
   detail: z.string(),
   monthlyValue: MoneySchema,
+  /** Days until it stops being actionable, where it has a date. Absent on undated insights. */
+  deadlineDays: z.number().optional(),
   evidence: z.array(z.string()),
   suggests: ActionKindSchema.nullable(),
 })
@@ -675,6 +811,15 @@ export type DailyPlan = z.infer<typeof DailyPlanSchema>
 export const AnswerSchema = z.object({
   text: z.string(),
   evidence: z.array(z.string()),
+  /**
+   * Who wrote the sentence in `text`. Never who computed the numbers — that is always the
+   * engine, in both cases, and `evidence` is the engine's either way.
+   *
+   * Surfaced rather than hidden because a bank reviewing this has a right to know which
+   * sentences a model touched, and because `rules` appearing under a live key is how a
+   * failed completion shows up as something other than silence. Absent means `rules`.
+   */
+  phrasedBy: z.enum(['rules', 'model']).optional(),
   resolved: z
     .object({
       category: SpendCategorySchema.optional(),
@@ -751,7 +896,7 @@ export const ProvenanceMapSchema = z.object({
 })
 export type ProvenanceMap = z.infer<typeof ProvenanceMapSchema>
 
-export const AvatarProviderNameSchema = z.enum(['runway', 'none'])
+export const AvatarProviderNameSchema = z.enum(['runway', 'anam', 'none'])
 export type AvatarProviderName = z.infer<typeof AvatarProviderNameSchema>
 
 export const LedgerHorizonSchema = z.object({ from: IsoDateSchema, to: IsoDateSchema })
@@ -778,6 +923,11 @@ export const SessionStateSchema = z.object({
    */
   goalBasis: GoalAmountBasisSchema.nullable(),
   caps: z.array(CategoryCapSchema),
+  /**
+   * A monthly ceiling on discretionary spending, set by the customer. Null means none, and
+   * the envelope is then whatever their income leaves after everything owed.
+   */
+  spendLimit: MoneySchema.nullable(),
   scopeOverrides: z.array(ConsentScopeSchema),
   version: z.number().int(),
   ledgerHorizon: LedgerHorizonSchema,
@@ -785,6 +935,284 @@ export const SessionStateSchema = z.object({
   capabilities: SessionCapabilitiesSchema,
 })
 export type SessionState = z.infer<typeof SessionStateSchema>
+
+/* ------------------------------------------------------------------ *
+ * Wire-only shapes: the savings pot and the challenge
+ * ------------------------------------------------------------------ */
+
+/**
+ * The five ways money reaches the pot without anybody deciding to move it.
+ *
+ * The enum is written in the order the screen lists them and both clients read it in that
+ * order rather than sorting for themselves: which habit to offer first is an editorial
+ * decision about what a customer will actually turn on, not an alphabetical accident, and a
+ * client that re-sorted would quietly disagree with the next one. `manual` is deliberately
+ * not a member — a deposit the customer typed is not a hack, and it is only ever seen as a
+ * `source` on a deposit.
+ */
+export const SaveHackIdSchema = z.enum([
+  'roundups',
+  'set_forget',
+  'smart_save',
+  'swear_jar',
+  'payday_saver',
+])
+export type SaveHackId = z.infer<typeof SaveHackIdSchema>
+
+/** How hard Smart Save pushes. Named rather than a raw multiplier: nobody chooses 0.6. */
+export const SmartSaveLevelSchema = z.enum(['gentle', 'normal', 'tough'])
+export type SmartSaveLevel = z.infer<typeof SmartSaveLevelSchema>
+
+/**
+ * Every hack's configuration, whether or not it is on.
+ *
+ * The configuration sits beside `enabled` rather than under it, so turning a hack off does
+ * not throw away what was chosen for it. Somebody who pauses Set & Forget in a thin month and
+ * turns it back on in the next one should not have to remember they were putting ₹500 aside,
+ * and a shape with no room for a disabled hack's weekly figure would have made them.
+ */
+export const SaveHacksSchema = z.object({
+  /** Every purchase rounded up to the next ₹10, the difference put aside. */
+  roundups: z.object({ enabled: z.boolean(), toNearest: z.number().int().positive() }),
+  /** A fixed amount, once a week, whatever the week turned out to look like. */
+  setForget: z.object({ enabled: z.boolean(), weekly: MoneySchema }),
+  /** The engine picks the amount from what the spending can actually spare. */
+  smartSave: z.object({ enabled: z.boolean(), level: SmartSaveLevelSchema }),
+  /** A fixed amount every time they spend at one merchant they would rather not. */
+  swearJar: z.object({
+    enabled: z.boolean(),
+    merchant: z.string().nullable(),
+    perSpend: MoneySchema,
+  }),
+  /** A percentage of every salary credit, taken off the top. */
+  paydaySaver: z.object({ enabled: z.boolean(), percent: z.number() }),
+})
+export type SaveHacks = z.infer<typeof SaveHacksSchema>
+
+/**
+ * One line in the pot's activity list.
+ *
+ * `atSim` is the simulated date the money landed, not the instant the server worked it out.
+ * The hacks accrue lazily when the pot is read, so a deposit computed in one request can
+ * belong to a Monday three weeks back — dating it by the computation would stack the whole
+ * pot onto whichever day the customer happened to open the screen.
+ */
+export const SaveDepositSchema = z.object({
+  id: z.string(),
+  atSim: IsoDateSchema,
+  amount: MoneySchema,
+  source: z.union([SaveHackIdSchema, z.literal('manual')]),
+  /** One short line the Activity list prints under the amount. */
+  note: z.string(),
+})
+export type SaveDeposit = z.infer<typeof SaveDepositSchema>
+
+/**
+ * The pot itself, which is the roadmap's goal seen from the saving end.
+ *
+ * `purpose`, `target` and `targetDate` are the goal's own and are not set a second time here:
+ * two places to say what the money is for is two places to disagree about it, and the roadmap
+ * already owns that answer. `progress` is served rather than left to each client to divide,
+ * because a zero target is a real state early in a session and every client would otherwise
+ * have to guard the division separately.
+ */
+export const SavePotSchema = z.object({
+  /** The goal this pot is filling, in the roadmap's own words. */
+  purpose: z.string(),
+  target: MoneySchema,
+  saved: MoneySchema,
+  targetDate: IsoDateSchema,
+  daysLeft: z.number().int(),
+  /** 0..1. */
+  progress: z.number(),
+  /** What the enabled hacks put in each month, projected. */
+  monthlyInflow: MoneySchema,
+})
+export type SavePot = z.infer<typeof SavePotSchema>
+
+/**
+ * What the pot earned by sitting in a savings account, at the rate its balance attracts.
+ *
+ * `ratePct` travels with the figure rather than being a constant a client can hold, because
+ * the rate steps at ₹5 lakh: a screen that hard-coded 2.70% would start lying to exactly the
+ * customers who saved the most.
+ */
+export const SaveInterestSchema = z.object({
+  ratePct: z.number(),
+  earned: MoneySchema,
+  asOf: IsoDateSchema,
+})
+export type SaveInterest = z.infer<typeof SaveInterestSchema>
+
+/**
+ * One hack, as the list screen prints it.
+ *
+ * `title` and `detail` are written server-side rather than derived on the client from
+ * `hacks`, because the sentence under the title changes meaning with the state — it is the
+ * current configuration when the hack is on and the pitch for it when it is off — and two
+ * clients writing that sentence independently is the same editorial decision taken twice and
+ * drifting once.
+ */
+export const SaveHackCardSchema = z.object({
+  id: SaveHackIdSchema,
+  title: z.string(),
+  detail: z.string(),
+  enabled: z.boolean(),
+  /** What it put aside over the last four weeks, or would have done had it been on. */
+  lastFourWeeks: MoneySchema,
+})
+export type SaveHackCard = z.infer<typeof SaveHackCardSchema>
+
+/**
+ * Everything Save and the screens pushed from it read, in one object.
+ *
+ * Whole rather than split per screen, for the reason `/view` is whole: the configuration
+ * screens are pushed over the tabs and each one fetches for itself, so a shape that made the
+ * swear jar's merchant list or the payday figure a second request would have every one of
+ * them waiting twice for numbers already computed off the statement that was read anyway.
+ */
+export const SaveViewSchema = z.object({
+  pot: SavePotSchema,
+  hacks: SaveHacksSchema,
+  cards: z.array(SaveHackCardSchema),
+  deposits: z.array(SaveDepositSchema),
+  interest: SaveInterestSchema,
+  /** Smart Save's "Normal" figure, and the ceiling every hack is held to. */
+  recommendedWeekly: MoneySchema,
+  /** Merchants the swear jar can be set over, biggest four-week spend first. */
+  swearJarCandidates: z.array(z.object({ merchant: z.string(), fourWeekSpend: MoneySchema })),
+  /**
+   * The salary credit the payday saver rides on — read off the statement, never typed. A
+   * percentage of a figure somebody guessed at is a standing instruction the account cannot
+   * honour, and the statement already knows the day and the amount.
+   */
+  payday: z.object({
+    monthly: MoneySchema,
+    stability: z.string(),
+    nextPayDate: IsoDateSchema,
+    payDay: z.number().int(),
+  }),
+  asOf: IsoDateSchema,
+})
+export type SaveView = z.infer<typeof SaveViewSchema>
+
+/**
+ * What a challenge is set over: one merchant, or one derived spending category.
+ *
+ * `name` is the merchant `categorize()` resolved or the category it assigned, and never the
+ * raw narration — an IDBI narration is `S1 TXN 20`, and a challenge named after one is a
+ * challenge nobody can tell they are winning.
+ */
+export const SpendTargetSchema = z.object({
+  kind: z.enum(['merchant', 'category']),
+  name: z.string(),
+})
+export type SpendTarget = z.infer<typeof SpendTargetSchema>
+
+export const TargetSpendSchema = z.object({
+  target: SpendTargetSchema,
+  spent: MoneySchema,
+  occurrences: z.number().int(),
+  /** The engine's pick. Exactly one target across both lists carries true. */
+  recommended: z.boolean(),
+})
+export type TargetSpend = z.infer<typeof TargetSpendSchema>
+
+export const ChallengeLimitOptionSchema = z.object({
+  limit: MoneySchema,
+  predictedSaving: MoneySchema,
+  recommended: z.boolean(),
+})
+export type ChallengeLimitOption = z.infer<typeof ChallengeLimitOptionSchema>
+
+/**
+ * One day of a challenge. `elapsed` is the whole reason this is a shape and not a number:
+ * a day that has not happened yet also has no spend on it, and a client that could not tell
+ * the two apart would count the future as a winning streak.
+ */
+export const ChallengeDaySchema = z.object({
+  date: IsoDateSchema,
+  spent: MoneySchema,
+  elapsed: z.boolean(),
+})
+export type ChallengeDay = z.infer<typeof ChallengeDaySchema>
+
+/**
+ * The one challenge that can be running, with everything its screen shows already worked out.
+ *
+ * `name`, `tip` and `predictedSaving` are written on the server rather than assembled from
+ * the numbers on the client. Two clients deciding independently whether somebody is ahead is
+ * two definitions of ahead, and this one is arguable enough to be worth having exactly once:
+ * it compares what they have spent against the share of the limit the elapsed days have
+ * earned them, not against the limit itself.
+ */
+export const ActiveChallengeSchema = z.object({
+  id: z.string(),
+  target: SpendTargetSchema,
+  /** "Swiggy Challenge" / "Eating out Challenge" — built server-side so both clients agree. */
+  name: z.string(),
+  limit: MoneySchema,
+  days: z.number().int(),
+  startDate: IsoDateSchema,
+  endDate: IsoDateSchema,
+  dayIndex: z.number().int(),
+  spent: MoneySchema,
+  remaining: MoneySchema,
+  overspent: z.boolean(),
+  daily: z.array(ChallengeDaySchema),
+  zeroDays: z.number().int(),
+  longestZeroStreak: z.number().int(),
+  complete: z.boolean(),
+  /** Null while it is still running: not-yet-won and lost are different things to print. */
+  won: z.boolean().nullable(),
+  predictedSaving: MoneySchema,
+  /** The lines that count against the limit, newest first, capped at 20. */
+  transactions: z.array(TransactionSchema),
+  /** The written check-in Cleo calls a Challenge tip. */
+  tip: z.object({
+    headline: z.string(),
+    detail: z.string(),
+    tone: z.enum(['ahead', 'behind', 'early']),
+  }),
+})
+export type ActiveChallenge = z.infer<typeof ActiveChallengeSchema>
+
+/**
+ * The challenge screen and the whole of the wizard behind it.
+ *
+ * `targets` and `lengths` are present even while a challenge is running, so the four steps of
+ * the wizard need no second fetch and no loading state between them. They cost one pass over
+ * the statement the view already read, and a wizard that fetched per step would spend that
+ * saving on four round trips instead.
+ */
+export const ChallengeViewSchema = z.object({
+  active: ActiveChallengeSchema.nullable(),
+  /** Everything the wizard needs, always present so the four steps need no second fetch. */
+  targets: z.object({
+    merchants: z.array(TargetSpendSchema),
+    categories: z.array(TargetSpendSchema),
+  }),
+  lengths: z.array(
+    z.object({
+      days: z.number().int(),
+      label: z.string(),
+      recommended: z.boolean(),
+    }),
+  ),
+  windowDays: z.number().int(),
+  asOf: IsoDateSchema,
+})
+export type ChallengeView = z.infer<typeof ChallengeViewSchema>
+
+/** Limits for one target over one length. A pure question, so it rides on the query. */
+export const ChallengeQuoteSchema = z.object({
+  target: SpendTargetSchema,
+  days: z.number().int(),
+  baseline: MoneySchema,
+  options: z.array(ChallengeLimitOptionSchema),
+  repeated: z.array(z.object({ days: z.number().int(), saved: MoneySchema })),
+})
+export type ChallengeQuote = z.infer<typeof ChallengeQuoteSchema>
 
 /* ------------------------------------------------------------------ *
  * Wire-only shapes: the View
@@ -801,7 +1229,13 @@ export const ViewMetaSchema = z.object({
   snapshotHash: Sha256Schema,
   roadmapVersion: z.number().int(),
   provenance: ProvenanceMapSchema,
-  /** Which tier produced this. The offline chunk stamps its own. */
+  /**
+   * Which tier produced this. In practice always `'server'`: `'offline'` was stamped by the
+   * badged simulation chunk inside `apps/web`, and that app was deleted on 20 September 2026,
+   * so the member is the last structural trace of a tier with no producer left. Narrowing the
+   * enum is a contract change and is not made here — see the amendment on
+   * `docs/architecture/adr/ADR-0011.md`.
+   */
   tier: z.enum(['server', 'offline']),
 })
 export type ViewMeta = z.infer<typeof ViewMetaSchema>
@@ -1030,8 +1464,22 @@ export const AvatarAvailabilitySchema = z.object({
 })
 export type AvatarAvailability = z.infer<typeof AvatarAvailabilitySchema>
 
+/**
+ * Which client SDK the grant is for. The only part of the provider the client is allowed to
+ * know, and it exists because the two providers speak different wire protocols: Runway hands
+ * out a LiveKit room, Anam hands out a session token for its own WebRTC signalling. Everything
+ * else about a call — how it is asked for, how it ends, what the screen does — is identical.
+ *
+ * Absent means `livekit`, so a client written before Anam existed reads a Runway grant correctly.
+ */
+export const AvatarTransportSchema = z.enum(['livekit', 'anam'])
+export type AvatarTransport = z.infer<typeof AvatarTransportSchema>
+
 export const AvatarGrantSchema = z.object({
+  transport: AvatarTransportSchema.default('livekit'),
+  /** The LiveKit room, on `livekit`. Empty on `anam`, which has no URL to join. */
   url: z.string(),
+  /** The LiveKit access token, or the Anam session token. Either way: the thing that admits the client. */
   token: z.string(),
   runwaySessionId: RunwaySessionIdSchema,
   /** The worker needs about five seconds after READY before it publishes a decodable frame. */

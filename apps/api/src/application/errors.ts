@@ -49,6 +49,22 @@ export class Forbidden extends DomainError {
   }
 }
 
+/**
+ * A profile the app cannot advise on, naming the fields it is short of.
+ *
+ * Same 403 and same sentence as a plain `Forbidden` — the difference is that `missing` survives
+ * the throw. `application/profile.service.ts` used to recover it by grepping the message for
+ * 'dateOfBirth', which a reworded throw would have silently broken.
+ */
+export class IncompleteProfile extends Forbidden {
+  readonly missing: readonly string[]
+
+  constructor(missing: readonly string[], message: string) {
+    super(message)
+    this.missing = [...missing]
+  }
+}
+
 export class NotFound extends DomainError {
   constructor(message: string) {
     super(404, 'NOT_FOUND', message)
@@ -136,6 +152,68 @@ export class ReadOnlyBlock extends DomainError {
         `Run with BANK_SOURCE=idbi-sandbox, where the app owns ${block} because no bank feed ` +
         'for them exists.',
     )
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Save and challenges. Four refusals the customer reads as sentences.
+ * ------------------------------------------------------------------ */
+
+/**
+ * One challenge at a time.
+ *
+ * A 409 rather than a silent replacement: the running challenge is a commitment with days
+ * already banked against it, and the wizard's last step is one tap away from a screen that
+ * does not know it exists. Ending the old one is a separate, deliberate act.
+ */
+export class ChallengeAlreadyRunning extends DomainError {
+  constructor(name: string) {
+    super(
+      409,
+      'CHALLENGE_ALREADY_RUNNING',
+      `Your ${name} Challenge is still running. End that one before you start another.`,
+      { details: { running: name } },
+    )
+  }
+}
+
+/** The id the client held is not the one running, which is what a stale screen sends. */
+export class ChallengeNotFound extends DomainError {
+  constructor(challengeId: string) {
+    super(404, 'CHALLENGE_NOT_FOUND', 'That challenge is not running any more.', {
+      details: { challengeId },
+    })
+  }
+}
+
+/**
+ * A well-formed target with nothing behind it.
+ *
+ * 422 and not 400: the body is valid and the customer picked something real, they have simply
+ * not spent there in four weeks — so there is no baseline to set a limit against and nothing a
+ * limit could save. The wizard can only have offered it from a stale list.
+ */
+export class NothingToChallenge extends DomainError {
+  constructor(name: string) {
+    super(
+      422,
+      'NOTHING_TO_CHALLENGE',
+      `You have not spent anything on ${name} in the last four weeks, so there is nothing to challenge yet.`,
+      { details: { target: name } },
+    )
+  }
+}
+
+/**
+ * A hack switched on with nothing to run on.
+ *
+ * Refused rather than accepted and left idle, because a hack that reads "on" and puts nothing
+ * aside for a month teaches the customer that the figures on this screen are decorative. The
+ * message says which hack and why, since it is printed verbatim.
+ */
+export class SaveHackUnavailable extends DomainError {
+  constructor(message: string) {
+    super(422, 'SAVE_HACK_UNAVAILABLE', message)
   }
 }
 

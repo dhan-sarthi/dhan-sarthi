@@ -3,31 +3,37 @@
  *
  * `http/register.ts` registers rows from here and nowhere else; a test walks Fastify's route
  * table and fails on anything not in this list. The OpenAPI document, the contract-test matrix
- * and the web client's typed fetch are all derived from these rows, which is what makes a
- * second client cheap and an undeclared response shape impossible.
+ * and the typed fetch in `apps/mobile/src/api/client.ts` are all derived from these rows, which
+ * is what makes an undeclared response shape impossible — and what made the second client cheap
+ * for as long as there was one.
  */
 import type { z } from 'zod'
 import type { RouteEntry } from './route.ts'
 import {
   addHoldingRoute,
+  addSaveDepositRoute,
   advanceClockRoute,
   consentNotificationRoute,
   dataNotificationRoute,
   askRoute,
   askSuggestionsRoute,
   avatarAvailabilityRoute,
+  avatarToolCallRoute,
   createSessionRoute,
   decideActionRoute,
   endAvatarSessionRoute,
+  endChallengeRoute,
   eraseSessionRoute,
   evaluateSuitabilityRoute,
   getAvatarCallRecordRoute,
+  getChallengesRoute,
   getHealthRoute,
   getHoldingsRoute,
   getOpenApiRoute,
   getProfileRoute,
   getRecordRoute,
   getRulesRoute,
+  getSaveRoute,
   getSessionRoute,
   getShelfRoute,
   getViewRoute,
@@ -41,13 +47,17 @@ import {
   operatorReleaseAllRoute,
   operatorSeedRoute,
   patchProfileRoute,
+  quoteChallengeRoute,
   removeHoldingRoute,
   replaceHoldingRoute,
   returnFromConsentRoute,
   setCategoryCapRoute,
+  setSaveHackRoute,
+  setSpendLimitRoute,
   setConsentRoute,
   setGoalRoute,
   startAvatarSessionRoute,
+  startChallengeRoute,
   startConsentRequestRoute,
   verifyConsentRequestRoute,
   verifyRecordRoute,
@@ -64,6 +74,18 @@ export const ROUTES = [
   setGoalRoute,
   setConsentRoute,
   setCategoryCapRoute,
+  setSpendLimitRoute,
+  getSaveRoute,
+  setSaveHackRoute,
+  addSaveDepositRoute,
+  getChallengesRoute,
+  // `/challenges/quote` is declared immediately before `/challenges/:challengeId` and stays
+  // next to it: a literal segment and the parameter that could swallow it belong where the
+  // next reader can check both at once. Fastify prefers the static segment regardless, and
+  // these two never meet anyway — one is a GET and the other a DELETE.
+  quoteChallengeRoute,
+  startChallengeRoute,
+  endChallengeRoute,
   getViewRoute,
   listTransactionsRoute,
   decideActionRoute,
@@ -87,6 +109,7 @@ export const ROUTES = [
   dataNotificationRoute,
   getRulesRoute,
   avatarAvailabilityRoute,
+  avatarToolCallRoute,
   startAvatarSessionRoute,
   getWaitlistRoute,
   leaveWaitlistRoute,

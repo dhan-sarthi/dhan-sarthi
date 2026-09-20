@@ -13,48 +13,20 @@
  * records where it came from.
  */
 import { routeById } from '@dhan/contracts'
-import type { ConsentRequestResponse } from '@dhan/contracts'
-import type { ConsentRequestRecord } from '../../ports/aa-consent.port.ts'
 import type { Registrar } from '../register.ts'
 import type { AppServices } from './services.ts'
 
-function present(record: ConsentRequestRecord): ConsentRequestResponse {
-  return {
-    consentHandle: record.consentHandle,
-    status: record.status,
-    redirectionUrl: record.redirectionUrl,
-    consentId: record.consentId,
-    validFrom: record.validFrom,
-    validTo: record.validTo,
-    events: record.events.map((e) => ({
-      eventType: e.eventType,
-      eventStatus: e.eventStatus,
-      eventMessage: e.eventMessage,
-      consentId: e.consentId,
-      sessionId: e.sessionId,
-      linkRefNumbers: [...e.linkRefNumbers],
-      receivedAt: e.receivedAt,
-    })),
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-  }
-}
-
 export function consentAaRoutes(r: Registrar, s: AppServices): void {
-  r(routeById('listConsentRequests'), async ({ session }) =>
-    (await s.aaConsent.list(session.cif)).map(present),
-  )
+  r(routeById('listConsentRequests'), async ({ session }) => s.aaConsent.list(session.cif))
 
-  r(routeById('startConsentRequest'), async ({ session }) =>
-    present(await s.aaConsent.start(session.cif)),
-  )
+  r(routeById('startConsentRequest'), async ({ session }) => s.aaConsent.start(session.cif))
 
   r(routeById('verifyConsentRequest'), async ({ session, params }) =>
-    present(await s.aaConsent.verify(session.cif, params.consentHandle)),
+    s.aaConsent.verify(session.cif, params.consentHandle),
   )
 
   r(routeById('returnFromConsent'), async ({ session, body }) =>
-    present(await s.aaConsent.returned(session.cif, body)),
+    s.aaConsent.returned(session.cif, body),
   )
 
   /* The inbound pair ------------------------------------------------- */

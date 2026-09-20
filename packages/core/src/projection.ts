@@ -201,3 +201,82 @@ export function paymentToClear(principal: number, annualRatePct: number, months:
 export function monthlyInterest(principal: number, annualRatePct: number): number {
   return Math.round((principal * annualRatePct) / 100 / 12)
 }
+
+export interface Payoff {
+  /** Months until the balance is retired at this payment. */
+  months: number
+  /** Every rupee that leaves the account over those months. */
+  totalPaid: number
+  /** The part of it the lender keeps. */
+  totalInterest: number
+  /** What the same debt costs if only the interest-plus-1% minimum is paid, for contrast. */
+  minimumTotalInterest: number | null
+  /** Months the same debt runs on at that minimum. Null where it never retires. */
+  minimumMonths: number | null
+}
+
+/**
+ * What clearing a debt actually costs, month by month, summed.
+ *
+ * The counterpart of `project` for the other kind of goal. A customer whose plan is "clear the
+ * card" has no compounding curve to look at — and the Plan tab's numbers pane, which draws one
+ * from `project`, had nothing to show them at all. This is the arithmetic that *is* their plan:
+ * how long, how much in total, and how much of it is interest.
+ *
+ * The minimum-payment comparison is the honest counterfactual and the reason this is worth a
+ * screen. Indian issuers set the minimum near 5% of the balance, which on a 34.8% card is
+ * barely above the interest — so the same debt runs for years and costs multiples more. That
+ * contrast is the argument for the plan, and it is a fact about the customer's own balance
+ * rather than a projection of anything.
+ *
+ * Simulated rather than solved in closed form because the minimum payment is recomputed off a
+ * falling balance each month, which has no clean formula. Capped so a minimum that never
+ * retires the balance returns null instead of looping.
+ */
+export function payoffSummary(
+  principal: number,
+  annualRatePct: number,
+  monthlyPayment: number,
+): Payoff | null {
+  const months = monthsToClear(principal, annualRatePct, monthlyPayment)
+  if (months === null || principal <= 0) return null
+
+  const r = annualRatePct / 100 / 12
+  let balance = principal
+  let paid = 0
+  for (let m = 0; m < months; m++) {
+    const interest = balance * r
+    const pay = Math.min(monthlyPayment, balance + interest)
+    balance = balance + interest - pay
+    paid += pay
+    if (balance <= 0) break
+  }
+
+  // 5% of the balance, floored at ₹500 — the shape every Indian issuer uses. 600 months is
+  // fifty years: past that the honest answer is "it does not clear", not a bigger number.
+  const CAP = 600
+  let minBalance = principal
+  let minPaid = 0
+  let minMonths = 0
+  while (minBalance > 0 && minMonths < CAP) {
+    const interest = minBalance * r
+    const due = Math.max(500, minBalance * 0.05)
+    const pay = Math.min(due, minBalance + interest)
+    if (pay <= interest) {
+      minMonths = CAP
+      break
+    }
+    minBalance = minBalance + interest - pay
+    minPaid += pay
+    minMonths++
+  }
+  const minimumClears = minMonths < CAP
+
+  return {
+    months,
+    totalPaid: Math.round(paid),
+    totalInterest: Math.round(paid - principal),
+    minimumTotalInterest: minimumClears ? Math.round(minPaid - principal) : null,
+    minimumMonths: minimumClears ? minMonths : null,
+  }
+}

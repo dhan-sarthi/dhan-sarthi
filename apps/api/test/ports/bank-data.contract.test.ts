@@ -35,7 +35,7 @@ export function bankDataPortContract(
       )
       assert.deepEqual(
         customers.map((c) => c.name),
-        ['Rohan Mehta', 'Priya Nair', 'Sunil Kumar'],
+        ['Karan Deshpande', 'Rohan Mehta', 'Priya Nair', 'Sunil Kumar'],
       )
       for (const c of customers) {
         assert.ok(c.cif.startsWith('IDBI'))

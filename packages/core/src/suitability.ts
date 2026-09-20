@@ -15,10 +15,16 @@
  * objection wins rather than the most technical one. A customer with a card at 34.8% should hear
  * about the card, not about their risk profile.
  *
+ * What counts as pure protection — the carve-out four of the rules below turn on — is owned by
+ * `./protection.ts` and is not restated here. This gate was the one of the three callers that
+ * had that rule right, which is why the module was pulled out beside it; a second copy living
+ * here is exactly how the three stopped agreeing the first time.
+ *
  * Ported from the archived prototype's suitability module, with the ladder in
  * docs/product/product-shelf.md added: volatility against horizon, and the tax regime.
  */
 import type { Snapshot } from './derive.ts'
+import { isProtectionProduct } from './protection.ts'
 import type { Product, Riskometer, RiskProfile } from './types.ts'
 
 /** SEBI's six bands, ordered. */
@@ -50,25 +56,6 @@ const rank = (band: Riskometer): number => {
   return i === -1 ? 0 : i
 }
 
-/**
- * Pure protection: cover with no investment component.
- *
- * These are exempt from the rules that gate *investment*, and getting that carve-out wrong is a
- * genuine advisory error rather than a technicality. Refusing someone term cover because they
- * have credit card debt is backwards — if they die, their family inherits the debt and loses the
- * income. Debt and a thin buffer are arguments for cover, not against it.
- *
- * A ULIP is deliberately not here: it bundles investment, so every investment rule applies to it.
- */
-const PROTECTION_ONLY: ReadonlySet<Product['category']> = new Set<Product['category']>([
-  'Term Insurance',
-  'Health Insurance',
-  'Government Insurance',
-])
-
-const isProtection = (p: Product): boolean =>
-  PROTECTION_ONLY.has(p.category) && !p.bundlesProtectionAndInvestment
-
 /** Categories whose value can fall. Horizon, not profile, is what governs these. */
 const VOLATILE: ReadonlySet<Product['category']> = new Set<Product['category']>([
   'Index Fund',
@@ -85,8 +72,21 @@ export interface GoalContext {
 export interface SuitabilityInput {
   product: Product
   snapshot: Snapshot
-  /** Monthly amount proposed. Zero where the question is only about the product. */
+  /** The amount proposed, read according to `cadence`. Zero where the question is only about the product. */
   amount: number
+  /**
+   * Whether the amount is committed every month or moved once.
+   *
+   * This distinction is load-bearing and its absence was a real defect. AFFORDABILITY checks a
+   * proposal against `surplus.deployable`, which is a *monthly* figure — so "move your idle
+   * ₹1,41,663 into a sweep-in" was read as "commit ₹1,41,663 a month" and blocked for every
+   * customer alive, because idle cash is an accumulated balance and surplus is monthly income.
+   * The single recommendation the product is built around could not reach a screen.
+   *
+   * A lump sum is limited by what the customer *has*, not by what they earn. Defaults to
+   * `monthly`, so an un-migrated caller keeps the stricter of the two checks.
+   */
+  cadence?: 'monthly' | 'lump_sum'
   goal?: GoalContext | null
   /** The rest of the shelf, so a rule may name a better answer instead of only refusing. */
   alternatives?: readonly Product[]
@@ -117,12 +117,11 @@ const RULES: readonly Rule[] = [
     id: 'HIGH_INTEREST_DEBT',
     description: 'No investment is recommended while high-interest debt is outstanding.',
     check: ({ snapshot, product }) =>
-      snapshot.debt.hasHighInterest && !isProtection(product)
+      snapshot.debt.hasHighInterest && !isProtectionProduct(product)
         ? {
             spoken:
-              `Not yet. You are paying ${snapshot.debt.highestRate}% on ${inr(snapshot.debt.total)}. ` +
-              `Nothing I could put you into returns anything close to that, so clearing it first is ` +
-              `worth more than any investment I could sell you.`,
+              `Not yet. You are paying ${snapshot.debt.highestRate}% on ${inr(snapshot.debt.highInterestTotal)}. ` +
+              `Nothing I can sell you returns that much, so clearing it first earns you more.`,
             recorded:
               `Blocked: outstanding debt at ${snapshot.debt.highestRate}% p.a. exceeds any ` +
               `reasonable expected return; repayment takes precedence over investment.`,
@@ -134,12 +133,11 @@ const RULES: readonly Rule[] = [
     id: 'MISSED_REPAYMENT',
     description: 'No investment is recommended where loan repayments have been missed.',
     check: ({ snapshot, product }) =>
-      snapshot.debt.missedRepayment && !isProtection(product)
+      snapshot.debt.missedRepayment && !isProtectionProduct(product)
         ? {
             spoken:
-              "Let's not start anything this month. There is a missed repayment on record, and " +
-              'putting that right protects you — and your credit score — more than a new ' +
-              'investment would.',
+              'Not this month. You have a missed repayment on record. Fixing that protects ' +
+              'your credit score, which is worth more than any investment right now.',
             recorded: 'Blocked: missed loan repayment detected (DPD > 0).',
             alternative: null,
           }
@@ -156,7 +154,7 @@ const RULES: readonly Rule[] = [
       if (snapshot.buffer.monthsCovered !== null && snapshot.buffer.monthsCovered >= floor) {
         return null
       }
-      if (isProtection(product)) return null
+      if (isProtectionProduct(product)) return null
       if (product.lockInYears <= 0 && product.category !== 'ULIP') return null
 
       // Name the thing they should do instead. A refusal with no alternative is just a no.
@@ -166,9 +164,9 @@ const RULES: readonly Rule[] = [
 
       return {
         spoken:
-          `Your savings cover about ${snapshot.buffer.monthsCovered} months of your outgoings. ` +
-          `Locking money away before three months are in place is how a small emergency turns ` +
-          `into a loan.${liquid ? ` Build the buffer in ${liquid.name} first — you can reach it any day.` : ''}`,
+          `Your savings cover about ${snapshot.buffer.monthsCovered} months. Lock money away ` +
+          `before you have three months and a small emergency becomes a loan.` +
+          `${liquid ? ` Build it up in ${liquid.name} first — you can reach that any day.` : ''}`,
         recorded:
           `Blocked: emergency buffer ${snapshot.buffer.monthsCovered} months, below the ` +
           `three-month floor, and product has a ${product.lockInYears}-year lock-in.`,
@@ -191,9 +189,8 @@ const RULES: readonly Rule[] = [
 
       return {
         spoken:
-          `That sits above the risk level on your profile. Your profile says ` +
-          `${snapshot.customer.riskProfile} and this is rated ${product.riskometer}. I would need ` +
-          `you to re-do your risk assessment before I could suggest it.`,
+          `That is riskier than your profile allows. You are ${snapshot.customer.riskProfile}; ` +
+          `this is rated ${product.riskometer}. Redo your risk assessment and I can look again.`,
         recorded:
           `Blocked: product riskometer ${product.riskometer} exceeds ceiling ${ceiling} for a ` +
           `${snapshot.customer.riskProfile} profile.`,
@@ -217,9 +214,9 @@ const RULES: readonly Rule[] = [
 
       return {
         spoken:
-          `You need this money in about ${goal.horizonYears} ${goal.horizonYears === 1 ? 'year' : 'years'}, ` +
-          `and this can be worth less than you put in over that time. That is not a risk worth ` +
-          `taking on money with a date on it.${safe ? ` ${safe.name} is the right shape for it.` : ''}`,
+          `You need this money in ${goal.horizonYears} ${goal.horizonYears === 1 ? 'year' : 'years'}, ` +
+          `and this can be worth less than you put in by then. Money with a date on it should ` +
+          `not carry that risk.${safe ? ` ${safe.name} fits better.` : ''}`,
         recorded:
           `Blocked: market-linked product proposed for a ${goal.horizonYears}-year horizon, ` +
           `below the three-year floor for volatile assets.`,
@@ -233,14 +230,34 @@ const RULES: readonly Rule[] = [
     id: 'AFFORDABILITY',
     description:
       'A recommended amount may not exceed what the customer can actually commit each month.',
-    check: ({ amount, snapshot, product, alternatives }) => {
+    check: ({ amount, snapshot, product, alternatives, cadence }) => {
       if (amount <= 0) return null
+
+      /*
+       * A one-off move of money the customer already holds is bounded by the balance, not by
+       * the month's surplus — less anything the emergency buffer is still short of, so a
+       * transfer can never be funded out of the cushion.
+       */
+      if (cadence === 'lump_sum') {
+        const headroom = Math.max(0, snapshot.balances.total - snapshot.buffer.shortfall)
+        if (amount <= headroom) return null
+        return {
+          spoken:
+            `More than you have to move. You hold ${inr(snapshot.balances.total)}, and ` +
+            `${inr(snapshot.buffer.shortfall)} of that is your emergency buffer.`,
+          recorded:
+            `Blocked: one-off ${inr(amount)} exceeds reachable balance ${inr(snapshot.balances.total)} ` +
+            `less outstanding buffer shortfall ${inr(snapshot.buffer.shortfall)}.`,
+          alternative: null,
+        }
+      }
+
       const ceiling = snapshot.surplus.deployable
       if (amount <= ceiling) return null
 
       // Cover is not optional in the way an investment is, so an unaffordable premium is a
       // reason to find a cheaper policy rather than to go uninsured.
-      if (isProtection(product)) {
+      if (isProtectionProduct(product)) {
         // Below this, being uninsured costs more than the premium ever could. PMJJBY is ₹436 a
         // year; refusing it on affordability grounds would be theatre.
         if (product.minInvestment <= 100) return null
@@ -250,7 +267,7 @@ const RULES: readonly Rule[] = [
         const cheapest = [...(alternatives ?? [])]
           .filter(
             (p) =>
-              isProtection(p) &&
+              isProtectionProduct(p) &&
               p.coverType === product.coverType &&
               p.minInvestment < product.minInvestment,
           )
@@ -263,9 +280,9 @@ const RULES: readonly Rule[] = [
           // recommending a premium the customer demonstrably cannot fund.
           return {
             spoken:
-              `${inr(product.minInvestment)} a month is more than you have spare right now. I am ` +
-              `not going to sign you up for something you would have to cancel. Let us free the ` +
-              `money up first — this is the next thing we do after that.`,
+              `${inr(product.minInvestment)} a month is more than you have spare. I will not sign ` +
+              `you up for something you would soon cancel. Free up the money first — this is ` +
+              `next after that.`,
             recorded:
               `Blocked: premium ${inr(product.minInvestment)}/month exceeds deployable surplus ` +
               `${inr(ceiling)} and no lower-cost ${product.coverType ?? 'protection'} product is ` +
@@ -276,9 +293,9 @@ const RULES: readonly Rule[] = [
 
         return {
           spoken:
-            `${inr(product.minInvestment)} a month is more than you have spare right now, and ` +
-            `going without cover is not the answer. ${cheapest.name} costs about ` +
-            `${inr(cheapest.minInvestment)} a month. Start there and we will revisit it.`,
+            `${inr(product.minInvestment)} a month is more than you have spare, and going ` +
+            `uncovered is worse. ${cheapest.name} costs ${inr(cheapest.minInvestment)} a month. ` +
+            `Start there.`,
           recorded:
             `Blocked: premium ${inr(product.minInvestment)}/month exceeds deployable surplus ` +
             `${inr(ceiling)}; substituted a lower-cost protection product (${cheapest.productId}) ` +
@@ -297,11 +314,10 @@ const RULES: readonly Rule[] = [
       return {
         spoken:
           ceiling <= 0
-            ? `There is nothing spare each month once everything committed has gone out. I am not ` +
-              `going to take money you will need back.`
-            : `That is more than you actually have spare. After everything committed, and keeping ` +
-              `something aside for the months that go wrong, there is about ${inr(ceiling)}. ` +
-              `I would rather you got there slower and did not have to stop.`,
+            ? `Nothing is spare once your committed payments go out. I will not take money ` +
+              `you are going to need back.`
+            : `More than you have spare. After committed payments, and something held back for ` +
+              `bad months, there is about ${inr(ceiling)}. Better slower than having to stop.`,
         recorded:
           `Blocked: proposed ${inr(amount)}/month exceeds deployable surplus ${inr(ceiling)} ` +
           `(normal-month surplus ${inr(snapshot.surplus.monthly)} less irregular provision ` +
@@ -318,8 +334,8 @@ const RULES: readonly Rule[] = [
       goal && product.lockInYears > goal.horizonYears
         ? {
             spoken:
-              `The money would be locked for ${product.lockInYears} years and you need it in ` +
-              `about ${goal.horizonYears}. Wrong shape for this goal.`,
+              `Locked for ${product.lockInYears} years, and you need it in ${goal.horizonYears}. ` +
+              `Wrong fit for this goal.`,
             recorded: `Blocked: lock-in ${product.lockInYears}y exceeds goal horizon ${goal.horizonYears}y.`,
             alternative: null,
           }
@@ -340,9 +356,9 @@ const RULES: readonly Rule[] = [
 
       return {
         spoken:
-          `You are on the new tax regime, so the deduction this fund exists for is worth nothing ` +
-          `to you — and it still locks your money up for three years. ` +
-          `${plain ? `${plain.name} holds the same kind of assets with no lock-in and lower charges.` : ''}`,
+          `You are on the new tax regime, so the tax break this fund exists for is worth nothing ` +
+          `to you — but it still locks your money for three years. ` +
+          `${plain ? `${plain.name} holds much the same thing, with no lock-in and lower charges.` : ''}`,
         recorded:
           `Blocked: ELSS proposed to a customer on the new tax regime; 80C deduction unavailable, ` +
           `three-year lock-in retained with no offsetting benefit.`,
@@ -370,10 +386,10 @@ const RULES: readonly Rule[] = [
       // which is exactly why it is the only thing that proves the rest of it.
       return {
         spoken:
-          `No. It costs about ${Math.round(ratio)} times what a term plan costs for the same job, ` +
-          `and the charges are buried inside it where you cannot see them. IDBI sells this one, ` +
-          `and I am still telling you not to buy it. Take the term cover at around ` +
-          `${inr(term.minInvestment)} a month and invest the difference where you can watch it.`,
+          `No. It costs ${Math.round(ratio)} times what a term plan costs for the same job, and ` +
+          `the charges are hidden inside it. IDBI sells this one and I am still telling you not ` +
+          `to buy it. Take term cover at ${inr(term.minInvestment)} a month and invest the rest ` +
+          `where you can see it.`,
         recorded:
           `Blocked: bundled protection-and-investment product priced ${ratio.toFixed(1)}x the ` +
           `unbundled term alternative (${term.productId}); charges opaque; ` +

@@ -88,4 +88,47 @@ describe('the personality brief', () => {
     )
     assert.match(brief.personality, /declined "Start ₹10,000 a month" and said: "Not this month"/)
   })
+
+  /*
+   * "Talk me through this" has to survive the whole way to the provider.
+   *
+   * The screen-side half of this handoff was dead for as long as it existed: `spend.tsx` pushed
+   * the headline as a route param and the Uday tab never read it, so the button was an ordinary
+   * deep link. Nothing failed, nothing was logged, and the feature simply did not work. These
+   * assert the server half so that at least this end cannot rot the same way.
+   */
+  describe('an insight the customer tapped', () => {
+    const TOPIC = '₹1,86,240 at 34.8% costs you ₹5,401 a month.'
+
+    it('opens the call on that finding instead of the general greeting', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+
+      const withTopic = buildBrief(view, [], view.shelfProducts, TOPIC)
+      assert.ok(withTopic.startScript.includes(TOPIC))
+      assert.ok(withTopic.personality.includes(TOPIC))
+      // The generic "is there something on your mind?" opener is what the topic replaces; a
+      // customer who just asked a specific question must not be asked what they want.
+      assert.doesNotMatch(withTopic.startScript, /something on your mind/)
+    })
+
+    it('falls back to the general opening when nothing was tapped', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+
+      for (const topic of [undefined, null]) {
+        const brief = buildBrief(view, [], view.shelfProducts, topic)
+        assert.match(brief.startScript, /something on your mind/)
+      }
+    })
+
+    it('still fits the provider caps with a topic attached', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+      const brief = buildBrief(view, [], view.shelfProducts, 'x'.repeat(200))
+
+      assert.ok(brief.personality.length <= PERSONALITY_MAX)
+      assert.ok(brief.startScript.length <= START_SCRIPT_MAX)
+    })
+  })
 })

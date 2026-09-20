@@ -3,7 +3,7 @@
  * kill switch. Every call fails with `not_configured`, which the session service turns into the
  * honest 503 and the text tier. Nothing is ever billed through this class.
  */
-import type { BreakerState, ConversationTurn } from '@dhan/contracts'
+import type { BreakerState, ConversationTurn, AvatarTransport } from '@dhan/contracts'
 import { AvatarProviderError } from '../../application/avatar/provider-error.ts'
 import type { AvatarCredential, AvatarProvider, AvatarSessionOptions } from '../../ports/index.ts'
 
@@ -15,6 +15,9 @@ const refuse = (): never => {
 }
 
 export class NullAvatarProvider implements AvatarProvider {
+  /** Never used: nothing is ever granted. Named so the type is satisfied honestly. */
+  readonly transport: AvatarTransport = 'livekit'
+
   async probe(_cred: AvatarCredential): Promise<{ ok: boolean; character: string | null }> {
     return { ok: false, character: null }
   }
@@ -26,15 +29,15 @@ export class NullAvatarProvider implements AvatarProvider {
     return refuse()
   }
 
-  async waitUntilReady(
+  async awaitIssuable(
     _cred: AvatarCredential,
     _id: string,
     _opts: { timeoutMs: number },
-  ): Promise<{ sessionKey: string }> {
+  ): Promise<void> {
     return refuse()
   }
 
-  async consume(_id: string, _sessionKey: string): Promise<{ url: string; token: string }> {
+  async issueGrant(_cred: AvatarCredential, _id: string): Promise<{ url: string; token: string }> {
     return refuse()
   }
 

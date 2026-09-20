@@ -1,8 +1,13 @@
 /**
- * The Runway tools, and the JSON Schema Runway needs to register them.
+ * The three tools, and the JSON Schema a provider needs to register them.
  *
- * Three tools, all `backend_rpc`: a round trip to the API for the things a model may not do —
- * judge suitability, add up a ledger, recall the plan. The model phrases; it does not decide.
+ * A tool is a round trip to the API for the things a model may not do — judge suitability, add
+ * up a ledger, recall the plan. The model phrases; it does not decide.
+ *
+ * What a definition carries is the same for every provider: a name, a description the model
+ * reads, a JSON Schema for the arguments, and how long the caller may take to answer. How that
+ * is spelled on the wire is not: Runway wants `type: 'backend_rpc'` and a flat parameter list,
+ * Anam wants a webhook row. Both spellings are built in their own adapter, from this.
  */
 import type { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
@@ -30,9 +35,14 @@ export type ToolResult<Name extends ToolName> = z.infer<(typeof TOOLS)[Name]['re
 
 export type JsonSchema = Record<string, unknown>
 
-/** One entry of the `tools` array on POST /v1/realtime_sessions. */
-export interface RunwayToolDefinition {
-  type: 'backend_rpc'
+/**
+ * One tool, as everything downstream of the contract sees it.
+ *
+ * Nothing here is a provider's word. An adapter takes this and adds whatever its own body needs
+ * — Runway's discriminator and flattened parameters in `toRunwayToolBody`, Anam's webhook url
+ * and per-call header in `toAnamTools` — so the port between them can speak one language.
+ */
+export interface ToolDefinition {
   name: ToolName
   description: string
   parameters: JsonSchema
@@ -48,16 +58,12 @@ export function jsonSchemaOf(schema: z.ZodTypeAny): JsonSchema {
   return rest
 }
 
-/** The tool definitions in the shape Runway's session-create body takes. */
-export function toolJsonSchemas(): RunwayToolDefinition[] {
+/** The three tools with their arguments resolved to JSON Schema. What a session is opened with. */
+export function toolJsonSchemas(): ToolDefinition[] {
   return TOOL_LIST.map((tool) => ({
-    type: 'backend_rpc',
     name: tool.name,
     description: tool.description,
     parameters: jsonSchemaOf(tool.args),
     timeoutSeconds: tool.timeoutSeconds,
   }))
 }
-
-/** The name the LLD uses for the same thing. */
-export const toRunwayTools = toolJsonSchemas

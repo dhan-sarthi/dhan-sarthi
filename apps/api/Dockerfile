@@ -30,7 +30,6 @@ WORKDIR /repo
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
-COPY apps/web/package.json apps/web/
 COPY packages/core/package.json packages/core/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/fixtures/package.json packages/fixtures/
@@ -58,6 +57,23 @@ ENV NODE_ENV=production
 ENV PORT=3001
 ENV HOST=0.0.0.0
 WORKDIR /app
+# Amazon's RDS root certificates.
+#
+# pg treats `sslmode=require` as `verify-full`, and the slim image's trust store carries no
+# Amazon roots — so the first seed task against RDS died with "self-signed certificate in
+# certificate chain". Shipping the bundle means the chain is genuinely verified, rather than
+# the connection string being downgraded to an unverified mode to make the error go away.
+# Its own directory, and the modes set by RUN rather than by ADD --chmod.
+#
+# Two traps here, both found the hard way. This base image has no /etc/ssl, so adding into
+# /etc/ssl/certs *creates* it — and node then fails reading /etc/ssl/openssl.cnf with EACCES
+# rather than ignoring a directory that was never there. And `ADD --chmod=644` applies 644 to
+# the parent directory it creates as well as to the file: a directory with no execute bit
+# cannot be traversed, so the bundle was unreadable by the non-root user either way.
+ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+    /opt/rds/global-bundle.pem
+RUN chmod 755 /opt/rds && chmod 644 /opt/rds/global-bundle.pem
+ENV NODE_EXTRA_CA_CERTS=/opt/rds/global-bundle.pem
 RUN groupadd --system dhan \
     && useradd --system --gid dhan --home-dir /app --shell /usr/sbin/nologin dhan
 COPY --from=build --chown=dhan:dhan /out ./

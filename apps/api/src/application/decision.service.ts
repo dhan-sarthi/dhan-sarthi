@@ -59,6 +59,10 @@ export class DecisionService {
         product,
         snapshot: view.snapshot,
         amount: action.amount,
+        // The same cadence the action was proposed under. Omitting it made this second run
+        // judge a one-off transfer as a monthly commitment, so accepting the plan's own
+        // primary action was refused by AFFORDABILITY every time.
+        cadence: action.cadence ?? 'monthly',
         goal: { kind: view.goal.kind, horizonYears: view.horizonYears },
         alternatives: view.shelfProducts,
       })

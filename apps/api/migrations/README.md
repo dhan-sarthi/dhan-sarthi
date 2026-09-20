@@ -83,7 +83,7 @@ fixtures carry no schedules, nominees or non-SIP folios.
 
 ```
 pnpm --filter @dhan/api migrate          # apply what is missing; safe to repeat
-pnpm --filter @dhan/api seed             # migrate, project the three personas, verify parity
+pnpm --filter @dhan/api seed             # migrate, project the four personas, verify parity
 pnpm --filter @dhan/api seed:check       # regenerate and compare the content hash + row counts
 pnpm --filter @dhan/api seed -- --force  # reseed even while reviewer sessions exist (erases them)
 pnpm --filter @dhan/api audit:verify     # walk every subject's hash chain

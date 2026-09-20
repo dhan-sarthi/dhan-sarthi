@@ -100,7 +100,7 @@ const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
 
 function print(f: PersonaFigures): void {
   const row = (label: string, value: string): string => `  ${label.padEnd(16)}${value.padStart(14)}`
-  console.log(`${f.name} — ${f.slug}, ${f.transactions} transactions as of ${f.asOf}`)
+  console.log(`${f.name} · ${f.slug}, ${f.transactions} transactions as of ${f.asOf}`)
   console.log(row('income', `${inr(f.income)} (${f.incomeStability})`))
   console.log(row('commitments', inr(f.commitments)))
   console.log(row('discretionary', inr(f.discretionary)))

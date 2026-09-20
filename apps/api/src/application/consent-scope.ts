@@ -10,7 +10,6 @@
  * a risk profile to say anything. Withdrawing it leaves the identity fields and clears the rest.
  */
 import type { CustomerFile } from '@dhan/core'
-import { CONSENT_SCOPES } from '@dhan/contracts'
 import type { Consent, ConsentScope } from '@dhan/contracts'
 
 export type Scope = ConsentScope
@@ -44,5 +43,3 @@ export function scopeFile(file: CustomerFile, granted: ReadonlySet<Scope>): Cust
     policies: has('HOLDINGS') ? file.policies : [],
   }
 }
-
-export const ALL_SCOPES: readonly Scope[] = CONSENT_SCOPES

@@ -185,18 +185,18 @@ export function answer(
       return {
         matched: true,
         text:
-          `${inr(s.pot)} is still yours to spend — about ${inr(s.perDay)} a day for the ` +
+          `${inr(s.pot)} left to spend — about ${inr(s.perDay)} a day for the ` +
           `${s.daysToSalary} ${s.daysToSalary === 1 ? 'day' : 'days'} ` +
           (s.incomeStability === 'regular'
-            ? `until your salary lands on ${Number(s.nextSalaryDate.slice(8))} ${spokenMonth(s.nextSalaryDate)}.`
-            : `left in this month.`) +
+            ? `until payday on ${Number(s.nextSalaryDate.slice(8))} ${spokenMonth(s.nextSalaryDate)}.`
+            : `left this month.`) +
           (heldBack.length > 0
-            ? ` That is after ${heldBack.join(', ')} out of ${inr(snapshot.income.monthly)} coming in.`
+            ? ` That is after ${heldBack.join(', ')}, out of ${inr(snapshot.income.monthly)} coming in.`
             : ''),
         evidence: [
-          `Income ${inr(snapshot.income.monthly)}/month`,
-          ...s.reserved.map((r) => `${r.label} ${inr(r.amount)}`),
-          `Safe to spend ${inr(s.pot)} — ${inr(s.perDay)}/day for ${s.daysToSalary} days`,
+          `${inr(snapshot.income.monthly)} a month coming in`,
+          ...s.reserved.map((r) => `${r.label}: ${inr(r.amount)}`),
+          `${inr(s.pot)} left, ${inr(s.perDay)} a day for ${s.daysToSalary} days`,
           `Next salary ${s.nextSalaryDate}`,
         ],
       }
@@ -207,12 +207,12 @@ export function answer(
     return {
       matched: true,
       text:
-        `After everything committed, this month's envelope is ${inr(envelope)}. Your salary lands ` +
-        `on ${Number(snapshot.income.nextPayDate.slice(8))} ${spokenMonth(snapshot.income.nextPayDate)}, ` +
+        `${inr(envelope)} this month after everything committed. Payday is ` +
+        `${Number(snapshot.income.nextPayDate.slice(8))} ${spokenMonth(snapshot.income.nextPayDate)}, ` +
         `${snapshot.income.daysToNextPay} days away.`,
       evidence: [
-        `Income ${inr(snapshot.income.monthly)}/month`,
-        `Commitments ${inr(snapshot.commitments.total)}/month`,
+        `${inr(snapshot.income.monthly)} a month coming in`,
+        `${inr(snapshot.commitments.total)} a month committed`,
         `Next salary ${snapshot.income.nextPayDate}`,
       ],
     }
@@ -231,9 +231,9 @@ export function answer(
       matched: true,
       text:
         `${subs.length} live: ${subs.map((x) => `${x.merchant ?? x.key} at ${inr(x.amount)}`).join(', ')}. ` +
-        `That is ${inr(annual)} a year. I cannot tell which you still use — that part is yours.`,
+        `That is ${inr(annual)} a year. I cannot tell which you still use — you can.`,
       evidence: subs.map(
-        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)}/month, ${inr(x.annualCost)}/year`,
+        (x) => `${x.merchant ?? x.key}: ${inr(x.amount)} a month, ${inr(x.annualCost)} a year`,
       ),
     }
   }
@@ -248,7 +248,7 @@ export function answer(
       return {
         matched: true,
         text: `Nothing on ${category ?? 'that'} in ${window.label} that I can see.`,
-        evidence: [`Window ${window.from} to ${window.to}`],
+        evidence: [`Looked at ${window.from} to ${window.to}`],
         resolved: { from: window.from, to: window.to, ...(category ? { category } : {}) },
       }
     }
@@ -266,7 +266,7 @@ export function answer(
               .join(' and ')}.`
           : ''),
       evidence: [
-        `Window ${window.from} to ${window.to}`,
+        `Looked at ${window.from} to ${window.to}`,
         ...top.map((t) => `${t.merchant}: ${inr(t.amount)}`),
       ],
       resolved: { from: window.from, to: window.to, ...(category ? { category } : {}) },
@@ -278,15 +278,14 @@ export function answer(
     return {
       matched: true,
       text:
-        'No. A ULIP bundles cover with investing and the charges sit inside where you cannot see ' +
-        'them — premium allocation, administration, fund management, mortality — and it locks your ' +
-        'money for five years. IDBI sells it and I am still telling you not to buy it. Term cover ' +
-        'for the protection, a fund for the growth: same job, a fraction of the cost, and you can ' +
-        'change either half without touching the other.',
+        'No. A ULIP mixes cover with investing, hides its charges inside, and locks your money ' +
+        'for five years. IDBI sells it and I am still telling you not to buy it. Buy term cover ' +
+        'for protection and a fund for growth: same job, a fraction of the cost, and you can ' +
+        'change one without touching the other.',
       evidence: [
-        'Bundled protection and investment; five-year lock-in',
-        'Cover typically around ten times the annual premium',
-        'Term plus fund provides equivalent cover at materially lower cost',
+        'Cover and investment bundled, locked in for five years',
+        'Cover is usually only ten times the yearly premium',
+        'Term plus a fund does the same job for far less',
       ],
     }
   }
@@ -298,22 +297,21 @@ export function answer(
       return {
         matched: true,
         text:
-          'Nobody depends on your income, so life cover is not the priority it would be ' +
-          'otherwise. Health cover still is — one hospital admission undoes a decade of investing.',
-        evidence: ['No dependents on record'],
+          'Nobody depends on your income, so life cover is not urgent. Health cover is. ' +
+          'One hospital stay can wipe out a decade of investing.',
+        evidence: ['Nobody on record depends on your income'],
       }
     }
     return {
       matched: true,
       text:
-        `${p.dependents} people depend on your income and there is ${inr(p.lifeCoverInForce)} in ` +
-        `force. A rule of thumb puts the requirement near ${inr(p.lifeCoverNeeded)} — ten times ` +
-        `annual income. Term cover is the cheapest way to buy it and the only thing on your list ` +
-        `that cannot be caught up on later.`,
+        `${p.dependents} people depend on your income and you hold ${inr(p.lifeCoverInForce)} ` +
+        `of cover. The rule of thumb is ${inr(p.lifeCoverNeeded)} — ten times your yearly income. ` +
+        `Term cover is the cheapest way to buy it, and it gets dearer every year you wait.`,
       evidence: [
-        `${p.dependents} dependents`,
-        `Cover in force ${inr(p.lifeCoverInForce)}`,
-        `Indicative requirement ${inr(p.lifeCoverNeeded)} (10x annual income, thumb rule)`,
+        `${p.dependents} people depend on you`,
+        `${inr(p.lifeCoverInForce)} of cover today`,
+        `${inr(p.lifeCoverNeeded)} needed — ten times your income, as a rule of thumb`,
       ],
     }
   }
@@ -324,27 +322,36 @@ export function answer(
     if (d.total === 0) {
       return {
         matched: true,
-        text: 'Nothing outstanding. That is a good position to be in.',
+        text: 'Nothing outstanding. That is a good place to be.',
         evidence: [],
       }
     }
-    const monthly = Math.round((d.total * d.highestRate) / 100 / 12)
+    /*
+     * The dear balance costs the dear rate; the rest does not.
+     *
+     * `d.total * d.highestRate` charged the card's rate to the whole book — Karan's ₹8,14,315,
+     * most of it loans at well under half that, quoted as costing ₹23,615 a month when the card
+     * costs ₹5,401. Same arithmetic slip as `expensive_debt` in `insights.ts`, and both now use
+     * `highInterestTotal`, which is the field the suitability gate has always read.
+     */
+    const dear = d.hasHighInterest ? d.highInterestTotal : d.total
+    const monthly = Math.round((dear * d.highestRate) / 100 / 12)
     return {
       matched: true,
       text:
-        `${inr(d.total)} outstanding, the most expensive at ${d.highestRate}% — that alone is ` +
-        `${inr(monthly)} a month in interest. ` +
+        `${inr(d.total)} outstanding. The dearest is ${inr(dear)} at ${d.highestRate}%, which ` +
+        `costs you ${inr(monthly)} a month in interest. ` +
         (d.hasHighInterest
-          ? 'Nothing on the shelf returns that, so clearing it beats every investment I could suggest.'
-          : 'That is low enough that investing alongside it is reasonable.') +
+          ? 'Nothing you can invest in returns that, so clear it first.'
+          : 'That is low enough to invest alongside it.') +
         (d.endingSoon
-          ? ` Your ${d.endingSoon.loanType.toLowerCase()} finishes in ${d.endingSoon.monthsLeft} months, freeing ${inr(d.endingSoon.emiAmount)} a month.`
+          ? ` Your ${d.endingSoon.loanType.toLowerCase()} ends in ${d.endingSoon.monthsLeft} months, freeing ${inr(d.endingSoon.emiAmount)} a month.`
           : ''),
       evidence: [
-        `Outstanding ${inr(d.total)}`,
-        `Highest rate ${d.highestRate}%`,
-        `Interest ${inr(monthly)}/month`,
-        ...(d.missedRepayment ? ['A repayment has been missed (DPD > 0)'] : []),
+        `${inr(d.total)} outstanding in total`,
+        `${inr(dear)} of it at ${d.highestRate}%, the highest rate you pay`,
+        `${inr(monthly)} a month in interest on that`,
+        ...(d.missedRepayment ? ['One repayment has been missed'] : []),
       ],
     }
   }
@@ -366,14 +373,14 @@ export function answer(
     return {
       matched: true,
       text:
-        `${inr(snapshot.balances.savings)} in savings and ${inr(snapshot.balances.deposits)} in ` +
-        `deposits. The part worth knowing: ${inr(snapshot.balances.idleFloor)} has not been ` +
-        `touched in twelve months — it is sitting at about 2.7% while prices rise faster than that.`,
+        `${inr(snapshot.balances.savings)} in savings, ${inr(snapshot.balances.deposits)} in ` +
+        `deposits. Worth knowing: ${inr(snapshot.balances.idleFloor)} has not moved in twelve ` +
+        `months, earning about 2.7% while prices rise faster than that.`,
       evidence: [
-        `Savings ${inr(snapshot.balances.savings)}`,
-        `Deposits ${inr(snapshot.balances.deposits)}`,
-        `Twelve-month minimum balance ${inr(snapshot.balances.idleFloor)}`,
-        `Held above one month of outgoings for ${snapshot.balances.idleMonths} consecutive months`,
+        `${inr(snapshot.balances.savings)} in savings`,
+        `${inr(snapshot.balances.deposits)} in deposits`,
+        `${inr(snapshot.balances.idleFloor)} — your lowest balance in twelve months`,
+        `Never dipped below it in ${snapshot.balances.idleMonths} months`,
       ],
     }
   }
@@ -383,9 +390,9 @@ export function answer(
   return {
     matched: false,
     text: top
-      ? `I am not certain what you are asking, so I will not guess at a number. The thing I would ` +
-        `raise with you, ${first}, is this: ${top.headline}`
-      : `I am not certain what you are asking, and I would rather say so than invent a figure.`,
+      ? `I am not sure what you are asking, and I will not guess at a number. But here is what ` +
+        `I would raise with you, ${first}: ${top.headline}`
+      : `I am not sure what you are asking, and I would rather say so than make a figure up.`,
     evidence: top?.evidence ?? [],
   }
 }
@@ -423,20 +430,20 @@ export function openingLine(snapshot: Snapshot): Answer {
   const clauses: string[] = []
   if (s.income.monthly > 0) clauses.push(`${inr(s.income.monthly)} comes in`)
   if (s.commitments.total > 0) {
-    clauses.push(`${inr(s.commitments.total)} is committed before you decide anything`)
+    clauses.push(`${inr(s.commitments.total)} is spoken for before you decide anything`)
   }
   if (s.discretionary.monthly > 0) {
-    clauses.push(`about ${inr(s.discretionary.monthly)} goes on everything else`)
+    clauses.push(`about ${inr(s.discretionary.monthly)} goes on the rest`)
   }
 
   const diagnosis =
     clauses.length === 0
       ? `${first}, I can see ${inr(s.balances.total)} across your accounts and ` +
-        `${inr(s.debt.total)} owed, but nothing in this statement is recognisable enough to ` +
-        `tell you what a normal month looks like. Tell me what comes in and I can.`
+        `${inr(s.debt.total)} owed. Nothing else in this statement is clear enough to tell you ` +
+        `what a normal month looks like. Tell me what comes in and I can.`
       : clauses.length === 1
-        ? `${first}, ${clauses[0]}. Nothing else in this statement is recognisable enough to ` +
-          `break down yet.`
+        ? `${first}, ${clauses[0]}. Nothing else in this statement is clear enough to break ` +
+          `down yet.`
         : `${first}, ${clauses.slice(0, -1).join(', ')} and ${clauses[clauses.length - 1]}.`
 
   return {
@@ -444,11 +451,11 @@ export function openingLine(snapshot: Snapshot): Answer {
     text: lead ? `${diagnosis} ${lead.headline}` : diagnosis,
     evidence: [
       s.income.monthly > 0
-        ? `Income ${inr(s.income.monthly)}/month (${s.income.source})`
-        : 'No salary credit recognisable in the statement',
-      `Commitments ${inr(s.commitments.total)}/month`,
-      `Discretionary ${inr(s.discretionary.monthly)}/month`,
-      `Deployable surplus ${inr(s.surplus.deployable)}/month`,
+        ? `${inr(s.income.monthly)} a month coming in (${s.income.source})`
+        : 'No salary found in the statement',
+      `${inr(s.commitments.total)} a month committed`,
+      `${inr(s.discretionary.monthly)} a month on everything else`,
+      `${inr(s.surplus.deployable)} a month spare`,
       ...(lead?.evidence ?? []),
     ],
   }
@@ -456,10 +463,10 @@ export function openingLine(snapshot: Snapshot): Answer {
 
 /** Openers offered as taps, so a judge on a phone does not have to type. */
 export function suggestedQuestions(snapshot: Snapshot): string[] {
-  const out = ['How much did I spend on food last month?', 'What are my subscriptions costing me?']
+  const out = ['What did I spend on food last month?', 'What do my subscriptions cost me?']
   if (snapshot.debt.total > 0) out.push('Should I invest or clear my debt first?')
   if (snapshot.protection.dependents > 0)
     out.push('My cousin says I should take a LIC savings plan')
-  out.push('What can I safely spend today?', 'Why are you telling me this?')
+  out.push('What can I spend today?', 'Why are you telling me this?')
   return out
 }

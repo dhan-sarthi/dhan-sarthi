@@ -14,6 +14,7 @@ import type {
   IsoDate,
   Timestamp,
 } from '@dhan/contracts'
+import { normaliseSaveState } from '@dhan/core'
 import { NotFound } from '../../application/errors.ts'
 import type { Db } from '../../db/pool.ts'
 import type {
@@ -23,6 +24,7 @@ import type {
   Session,
   SessionPatch,
   SessionStore,
+  StoredChallenge,
 } from '../../ports/index.ts'
 import { systemClock } from './clock.ts'
 
@@ -36,6 +38,12 @@ interface SessionRow {
   goal_target: number | null
   goal_basis: GoalAmountBasis | null
   caps: CategoryCap[]
+  spend_limit: string | null
+  // pg parses jsonb for us, so these arrive as values and not as text. `save_state` is unknown
+  // rather than SaveState because the row may predate the column or predate a field of it, and
+  // `normaliseSaveState` is what turns whatever is actually there into a pot.
+  save_state: unknown
+  challenge: StoredChallenge | null
   scope_overrides: ConsentScope[]
   version: number
   client_hint: string | null
@@ -45,9 +53,11 @@ interface SessionRow {
   revoked_at: Date | null
 }
 
+/** Qualified `s.`, because both the SELECT and patch's RETURNING read it across the same join. */
 const SESSION_COLUMNS = `
   s.id, s.subject_id, sub.cif, s.token_hash, s.as_of, s.last_seen, s.goal_target, s.goal_basis,
-  s.caps, s.scope_overrides, s.version, s.client_hint, s.created_at, s.last_active_at, s.expires_at, s.revoked_at`
+  s.caps, s.spend_limit, s.save_state, s.challenge, s.scope_overrides, s.version, s.client_hint,
+  s.created_at, s.last_active_at, s.expires_at, s.revoked_at`
 
 const SELECT_SQL = `
   SELECT ${SESSION_COLUMNS}
@@ -66,6 +76,13 @@ function toSession(row: SessionRow): Session {
     goalTarget: row.goal_target,
     goalBasis: row.goal_basis,
     caps: row.caps,
+    // numeric(18,2) arrives as a string from pg, the way every other money column does.
+    spendLimit: row.spend_limit === null ? null : Number(row.spend_limit),
+    // No JSON.parse: jsonb comes back already parsed, and its numbers come back as JSON numbers
+    // rather than through pool.ts's numeric parser, so the rupees inside the pot are numbers
+    // here the way they were numbers when they went in.
+    save: normaliseSaveState(row.save_state),
+    challenge: row.challenge,
     scopeOverrides: row.scope_overrides,
     version: row.version,
     clientHint: row.client_hint,
@@ -151,6 +168,14 @@ export class PostgresSessionStore implements SessionStore {
     if (patch.goalTarget !== undefined) set('goal_target', patch.goalTarget)
     if (patch.goalBasis !== undefined) set('goal_basis', patch.goalBasis)
     if (patch.caps !== undefined) set('caps', JSON.stringify(patch.caps))
+    if (patch.spendLimit !== undefined) set('spend_limit', patch.spendLimit)
+    // jsonb is written as text and let the server parse it, exactly as caps is; scope_overrides
+    // above is a text[] and must not be stringified. Null clears the challenge rather than
+    // writing the four characters "null" into the column.
+    if (patch.save !== undefined) set('save_state', JSON.stringify(patch.save))
+    if (patch.challenge !== undefined) {
+      set('challenge', patch.challenge === null ? null : JSON.stringify(patch.challenge))
+    }
     if (patch.scopeOverrides !== undefined) set('scope_overrides', patch.scopeOverrides)
 
     const { rows } = await this.db.query<SessionRow>(

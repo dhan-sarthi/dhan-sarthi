@@ -330,7 +330,12 @@ export class AdvisoryService {
       d.file.transactions,
       d.shelfProducts,
       session.asOf,
-      { lastSeen: session.lastSeen, caps: session.caps, horizonYears },
+      {
+        lastSeen: session.lastSeen,
+        caps: session.caps,
+        spendLimit: session.spendLimit,
+        horizonYears,
+      },
     )
 
     return {

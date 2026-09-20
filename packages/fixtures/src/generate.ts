@@ -33,7 +33,7 @@ import type {
   TxnMode,
 } from '@dhan/core'
 import { bankGeneratedLines } from './bank-lines.ts'
-import type { LedgerRow } from './bank-lines.ts'
+import type { BankDraft, LedgerRow } from './bank-lines.ts'
 import {
   addDays,
   addMonths,
@@ -66,7 +66,8 @@ import {
 } from './narration.ts'
 import { rng } from './random.ts'
 import type { Rng } from './random.ts'
-import type { EmiSpec, PersonaSpec, SipSpec } from './personas.ts'
+import { IDBI } from './personas.ts'
+import type { EmiSpec, PersonaSpec, SatelliteSpec, SipSpec } from './personas.ts'
 
 export interface GenerateOptions {
   /**
@@ -119,6 +120,15 @@ interface Draft {
   mcc?: string
   merchantName?: string
   vpa?: string
+  isSelfTransfer?: boolean
+  /**
+   * Which account carries the line. Absent means the primary one.
+   *
+   * Set by `routeDrafts` rather than by the code that builds the draft: where a rent payment
+   * leaves from is a fact about the customer's banking arrangement, not about rent, and
+   * threading it through every builder would put it in fifteen places instead of one.
+   */
+  account?: string
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
@@ -701,7 +711,36 @@ function railReference(narration: string): string | null {
   )
 }
 
-function seal(drafts: Draft[], openingBalance: number): Transaction[] {
+/** A sealed line, the intra-day rank it was sealed at, and its place in its own ledger. */
+interface Ranked {
+  txn: Transaction
+  rank: number
+  /**
+   * Position within its own account's sealed ledger.
+   *
+   * The merge must never reorder two rows of the *same* account: their running balances were
+   * computed in the sealed order, so swapping them makes the column stop being "the previous
+   * balance plus the movement". Two rows on one day at one rank are common — three UPI
+   * payments at lunchtime — so this is the tiebreak, not the statement id.
+   */
+  seq: number
+}
+
+/**
+ * Seal one account's drafts into a ledger with a running balance.
+ *
+ * `account` is stamped on every line; `idPrefix` is what its statement ids are built from.
+ * The two are separate because the primary account's ids are Finacle's own `S########` and
+ * must stay that way, while another bank's statement has no reason to look like Finacle —
+ * and giving all four accounts the same id format would let two lines collide the moment the
+ * ledgers merge.
+ */
+function sealRanked(
+  drafts: Draft[],
+  openingBalance: number,
+  account?: string,
+  idPrefix = 'S',
+): Ranked[] {
   const sorted = [...drafts].sort((a, b) =>
     a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank,
   )
@@ -715,7 +754,7 @@ function seal(drafts: Draft[], openingBalance: number): Transaction[] {
   return sorted.map((d, i) => {
     paise += (d.type === 'CREDIT' ? 1 : -1) * Math.round(d.amount * 100)
 
-    const finacle = `S${String(i + 1).padStart(8, '0')}`
+    const finacle = `${idPrefix}${String(i + 1).padStart(8, '0')}`
     const rail = railReference(d.narration)
     // Two switch traces can collide across a long ledger. Deterministic either way, but a
     // statement cannot carry the same reference twice.
@@ -723,22 +762,211 @@ function seal(drafts: Draft[], openingBalance: number): Transaction[] {
     used.add(txnId)
 
     return {
-      txnId,
-      txnDate: d.date,
-      valueDate: d.valueDate,
-      txnAmount: d.amount,
-      txnType: d.type,
-      txnMode: d.mode,
-      narration: d.narration,
-      spendCategory: d.category,
-      balanceAfterTxn: paise / 100,
-      isSalaryCredit: d.isSalaryCredit,
-      isRecurring: d.isRecurring,
-      ...(d.mcc === undefined ? {} : { mccCode: d.mcc }),
-      ...(d.merchantName === undefined ? {} : { merchantName: d.merchantName }),
-      ...(d.vpa === undefined ? {} : { counterpartyVpa: d.vpa }),
+      rank: d.rank,
+      seq: i,
+      txn: {
+        txnId,
+        txnDate: d.date,
+        valueDate: d.valueDate,
+        txnAmount: d.amount,
+        txnType: d.type,
+        txnMode: d.mode,
+        narration: d.narration,
+        spendCategory: d.category,
+        balanceAfterTxn: paise / 100,
+        isSalaryCredit: d.isSalaryCredit,
+        isRecurring: d.isRecurring,
+        ...(d.mcc === undefined ? {} : { mccCode: d.mcc }),
+        ...(d.merchantName === undefined ? {} : { merchantName: d.merchantName }),
+        ...(d.vpa === undefined ? {} : { counterpartyVpa: d.vpa }),
+        ...(account === undefined ? {} : { accountNumberMasked: account }),
+        ...(d.isSelfTransfer === undefined ? {} : { isSelfTransfer: d.isSelfTransfer }),
+      },
     }
   })
+}
+
+/** The sealed ledger alone, for the callers that do not need to merge it with another. */
+function seal(drafts: Draft[], openingBalance: number, account?: string): Transaction[] {
+  return sealRanked(drafts, openingBalance, account).map((r) => r.txn)
+}
+
+/* ------------------------------------------------------------------ *
+ * Routing across accounts
+ * ------------------------------------------------------------------ */
+
+/**
+ * Which account each draft leaves from.
+ *
+ * A satellite claims a draft when it carries that category *and* the draft falls inside the
+ * window the account was still in use. Everything else stays on the primary account, which
+ * is what a persona with no satellites means and why adding them changes nothing for the
+ * three that have none.
+ */
+function routeDrafts(spec: PersonaSpec, anchor: string, drafts: Draft[]): Draft[] {
+  const satellites = spec.satellites ?? []
+  if (satellites.length === 0) return drafts
+
+  const claims = new Map<SpendCategory, SatelliteSpec>()
+  for (const s of satellites) for (const c of s.carries) claims.set(c, s)
+
+  return drafts.map((d) => {
+    const owner = claims.get(d.category)
+    if (owner === undefined) return d
+    if (owner.quietAfterMonthsAgo !== undefined) {
+      const wentQuiet = addMonths(anchor, -owner.quietAfterMonthsAgo)
+      if (d.date > wentQuiet) return d
+    }
+    return { ...d, account: owner.accountNumberMasked }
+  })
+}
+
+/**
+ * The standing transfers that fund a satellite, as both halves of each movement.
+ *
+ * Emitted here rather than inside `monthTransactions` because it is a fact about the
+ * customer's banking arrangement rather than about any month, and because both halves have
+ * to carry the same date and amount — which is far easier to guarantee in one place than in
+ * two builders that happen to agree.
+ */
+function fundingDrafts(
+  spec: PersonaSpec,
+  sat: SatelliteSpec,
+  anchor: string,
+  from: string,
+  to: string,
+): Draft[] {
+  const plan = sat.monthlyFunding
+  if (plan === undefined) return []
+
+  const out: Draft[] = []
+  let cursor = fromYmd(ymd(from).year, ymd(from).month, 1)
+  const end = fromYmd(ymd(to).year, ymd(to).month, 1)
+  const quiet =
+    sat.quietAfterMonthsAgo === undefined ? null : addMonths(anchor, -sat.quietAfterMonthsAgo)
+
+  while (cursor <= end) {
+    const { year, month } = ymd(cursor)
+    const date = fromYmd(year, month, Math.min(plan.day, daysInMonth(year, month)))
+    cursor = addMonths(cursor, 1)
+    if (date < from || date > to) continue
+    if (quiet !== null && date > quiet) continue
+
+    const fork = rng(spec.seed).fork(`fund:${sat.accountNumberMasked}:${date}`)
+    // Two legs, two references. The remitting and the beneficiary bank each stamp their
+    // own, which is why a customer chasing a transfer is asked which bank they are calling
+    // from — and why the merged ledger cannot carry one reference on two lines.
+    const ref = fork.int(1e11, 1e12 - 1)
+    const beneficiaryRef = fork.int(1e11, 1e12 - 1)
+    out.push({
+      date,
+      valueDate: date,
+      amount: plan.amount,
+      type: 'DEBIT',
+      mode: 'IMPS',
+      // Both legs are IMPS P2A lines in the standard grammar, and both name a real IFSC —
+      // the counterparty's, which is the other account. A self-transfer between two banks
+      // is not a special rail and does not get a special narration.
+      narration: `IMPS/P2A/${ref}/SELF/${sat.branchIfsc}/TRANSFER`,
+      category: 'Transfers',
+      isSalaryCredit: false,
+      isRecurring: true,
+      isSelfTransfer: true,
+      rank: RANK.mandate,
+    })
+    out.push({
+      date,
+      valueDate: date,
+      amount: plan.amount,
+      type: 'CREDIT',
+      mode: 'IMPS',
+      narration: `IMPS/P2A/${beneficiaryRef}/SELF/${cityProfile(spec.customer.city).branchIfsc}/TRANSFER`,
+      category: 'Transfers',
+      isSalaryCredit: false,
+      isRecurring: true,
+      isSelfTransfer: true,
+      rank: RANK.credit,
+      account: sat.accountNumberMasked,
+    })
+  }
+  return out
+}
+
+/** A satellite's one-off lines, as drafts. */
+function satelliteLumpDrafts(sat: SatelliteSpec, anchor: string): Draft[] {
+  return (sat.lumps ?? []).map((l) => {
+    const { year, month } = ymd(addMonths(anchor, -l.monthsAgo))
+    const date = fromYmd(year, month, Math.min(l.day, daysInMonth(year, month)))
+    return {
+      date,
+      valueDate: date,
+      amount: l.amount,
+      type: l.type,
+      mode: l.mode,
+      narration: l.narration,
+      category: l.category,
+      isSalaryCredit: false,
+      isRecurring: false,
+      ...(l.isSelfTransfer === undefined ? {} : { isSelfTransfer: l.isSelfTransfer }),
+      rank: l.type === 'CREDIT' ? RANK.credit : RANK.spend,
+      account: sat.accountNumberMasked,
+    }
+  })
+}
+
+/**
+ * One satellite's sealed ledger, with its opening balance solved so the account closes on
+ * exactly the balance the persona declares at the anchor.
+ *
+ * Solved rather than declared because the alternative is a balance that drifts away from its
+ * own statement the first time a flow is tuned — and a customer who opens the statement
+ * behind the number is the whole reason the number is trustworthy.
+ */
+function satelliteLedger(
+  sat: SatelliteSpec,
+  routed: Draft[],
+  anchor: string,
+  asOf: string,
+  from: string,
+): Ranked[] {
+  const own = [
+    ...routed.filter((d) => d.account === sat.accountNumberMasked),
+    ...satelliteLumpDrafts(sat, anchor),
+  ].filter((d) => d.date >= from)
+
+  const toAnchor = own.filter((d) => d.date <= anchor)
+  const net = toAnchor.reduce((s, d) => s + (d.type === 'CREDIT' ? d.amount : -d.amount), 0)
+
+  // Interest the bank credited, which also has to be inside the solve or the balance lands
+  // a few thousand rupees above the figure the persona declares.
+  const opening = round2(sat.balanceAtAnchor - net)
+  const interest = bankGeneratedLines(
+    [...toAnchor]
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank))
+      .map((d) => ({ date: d.date, amount: d.amount, type: d.type })),
+    {
+      from,
+      to: asOf,
+      openingBalance: opening,
+      govtCover: [],
+      coverReference: '',
+      nachReturnOn: null,
+      savingsRatePa: sat.interestRate,
+    },
+  ).filter((l: BankDraft) => l.category === 'Income')
+
+  const interestToAnchor = interest
+    .filter((l) => l.date <= anchor)
+    .reduce((s, l) => s + l.amount, 0)
+
+  return sealRanked(
+    [...own, ...interest].filter((d) => d.date <= asOf),
+    round2(opening - interestToAnchor),
+    sat.accountNumberMasked,
+    // Another bank's statement has no reason to carry a Finacle id, and giving it one would
+    // be a small lie in the one column a customer uses to reconcile.
+    sat.institution.ifscPrefix,
+  )
 }
 
 /** Months between the anchor and a date. Positive is the past, negative the future. */
@@ -781,8 +1009,18 @@ function bankDrafts(spec: PersonaSpec, anchor: string, to: string): Draft[] {
   if (hit) return hit
 
   const from = addMonths(anchor, -(LEDGER_MONTHS - 1))
-  const rows: LedgerRow[] = draftWindow(spec, anchor, from, to)
-    .filter((d) => d.date >= from && d.date <= to)
+  /*
+   * The primary account's own rows, which is not the same set as the customer's life once a
+   * satellite carries part of it. Interest is the daily product of *this* account's closing
+   * balance, and a minimum-average-balance charge is levied on *this* account's shortfall —
+   * so the rent leaving a joint account at another bank has to be out of this sum, and the
+   * standing transfer that funds it has to be in.
+   */
+  const rows: LedgerRow[] = [
+    ...routeDrafts(spec, anchor, draftWindow(spec, anchor, from, to)),
+    ...(spec.satellites ?? []).flatMap((sat) => fundingDrafts(spec, sat, anchor, from, to)),
+  ]
+    .filter((d) => d.account === undefined && d.date >= from && d.date <= to)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank))
     .map((d) => ({ date: d.date, amount: d.amount, type: d.type }))
 
@@ -816,12 +1054,59 @@ export function generateLedger(
 
   // The ledger ends at asOf. Anything a month would have produced later than that has not
   // happened yet — it is what the time machine reveals.
-  const drafts = [...draftWindow(spec, anchor, start, asOf), ...bankDrafts(spec, anchor, asOf)]
-
-  return seal(
-    drafts.filter((d) => d.date >= start && d.date <= asOf),
-    spec.openingBalance,
+  const funding = (spec.satellites ?? []).flatMap((sat) =>
+    fundingDrafts(spec, sat, anchor, start, asOf),
   )
+  const routed = [...routeDrafts(spec, anchor, draftWindow(spec, anchor, start, asOf)), ...funding]
+  const primary = [
+    ...routed.filter((d) => d.account === undefined),
+    ...bankDrafts(spec, anchor, asOf),
+  ]
+
+  const satellites = spec.satellites ?? []
+
+  // A persona who banks in one place produces exactly the ledger it always did, down to the
+  // statement ids: no stamped account, no prefix, no merge.
+  if (satellites.length === 0) {
+    return seal(
+      primary.filter((d) => d.date >= start && d.date <= asOf),
+      spec.openingBalance,
+    )
+  }
+
+  const own = sealRanked(
+    primary.filter((d) => d.date >= start && d.date <= asOf),
+    spec.openingBalance,
+    spec.accountNumberMasked,
+  )
+
+  const others = satellites.flatMap((sat) => satelliteLedger(sat, routed, anchor, asOf, start))
+
+  /*
+   * Merged into one stream, because that is what an aggregated view is.
+   *
+   * Ordered by date and then by the same intra-day rank each account was sealed at, so a
+   * salary still lands before the spending it funded even when the two are on different
+   * banks. The running balance on each line belongs to **its own account** — reading the
+   * merged column as one series is exactly the bug `accountNumberMasked` exists to prevent.
+   */
+  return [...own, ...others]
+    .sort((a, b) =>
+      a.txn.txnDate < b.txn.txnDate
+        ? -1
+        : a.txn.txnDate > b.txn.txnDate
+          ? 1
+          : a.rank !== b.rank
+            ? a.rank - b.rank
+            : a.seq !== b.seq
+              ? a.seq - b.seq
+              : a.txn.txnId < b.txn.txnId
+                ? -1
+                : a.txn.txnId > b.txn.txnId
+                  ? 1
+                  : 0,
+    )
+    .map((r) => r.txn)
 }
 
 /**
@@ -893,13 +1178,48 @@ export function generateCustomerFile(
   const { anchor, asOf, months } = { ...DEFAULTS, ...options }
   const transactions = generateLedger(spec, { anchor, asOf, months })
 
+  // An unstamped line belongs to the primary account: that is what every ledger written
+  // before a customer could hold four of them meant, and `Transaction` says so.
+  const on = (masked: string): Transaction[] =>
+    transactions.filter(
+      (t) =>
+        t.accountNumberMasked === masked ||
+        (t.accountNumberMasked === undefined && masked === spec.accountNumberMasked),
+    )
+
   const savings: Account = {
     accountNumberMasked: spec.accountNumberMasked,
     accountType: 'Savings',
     accountOpeningDate: spec.customer.customerSince,
     branchIfsc: cityProfile(spec.customer.city).branchIfsc,
-    ...accountFactsAsOf(transactions, asOf, { openingBalance: spec.openingBalance }),
+    institution: IDBI,
+    ...accountFactsAsOf(on(spec.accountNumberMasked), asOf, {
+      openingBalance: spec.openingBalance,
+    }),
   }
+
+  /*
+   * The accounts held elsewhere, each with facts read off its own ledger.
+   *
+   * `lastCustomerActivity` deliberately skips the lines the *bank* wrote. An account whose
+   * only movement for fourteen months is four interest credits has not been used, and
+   * reporting the last interest credit as activity would erase the finding.
+   */
+  const satellites: Account[] = (spec.satellites ?? []).map((sat) => {
+    const ledger = on(sat.accountNumberMasked)
+    const byCustomer = ledger.filter((t) => t.spendCategory !== 'Income' || t.isSalaryCredit)
+    const last = byCustomer[byCustomer.length - 1]
+    return {
+      accountNumberMasked: sat.accountNumberMasked,
+      accountType: sat.accountType,
+      accountOpeningDate: sat.accountOpeningDate,
+      branchIfsc: sat.branchIfsc,
+      institution: sat.institution,
+      interestRate: sat.interestRate,
+      ...(last === undefined ? {} : { lastCustomerActivity: last.txnDate }),
+      ...accountFactsAsOf(ledger, asOf, { openingBalance: 0 }),
+    }
+  })
 
   const liabilities: Liability[] = spec.emis
     .map((emi) => liabilityAsOf(liabilityContract(emi), anchor, asOf))
@@ -912,7 +1232,7 @@ export function generateCustomerFile(
 
   return {
     customer: spec.customer,
-    accounts: [savings, ...spec.extraAccounts],
+    accounts: [savings, ...satellites, ...spec.extraAccounts],
     transactions,
     liabilities,
     holdings: [...sipHoldings, ...spec.holdings],

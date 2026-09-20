@@ -1,8 +1,12 @@
 /**
  * A scripted AvatarProvider: READY, queued for the whole window, or FAILED, with every call
- * recorded in order so a test can assert that the gate opened before the session was consumed.
+ * recorded in order so a test can assert that the gate opened before the grant was issued.
+ *
+ * The event strings are the assertion surface — `['create', 'ready', 'open', 'consume']` is
+ * deep-equalled in rpc-before-consume.test.ts — so they stay as they are even though the port's
+ * methods have been renamed around them. No session key: the fake has no reason to hold one.
  */
-import type { BreakerState, ConversationTurn } from '@dhan/contracts'
+import type { BreakerState, ConversationTurn, AvatarTransport } from '@dhan/contracts'
 import { AvatarProviderError } from '../../src/application/avatar/provider-error.ts'
 import type {
   AvatarCredential,
@@ -16,6 +20,9 @@ export interface FakeScript {
 }
 
 export class FakeAvatarProvider implements AvatarProvider {
+  /** Overridable, so a test can assert the grant a given provider would produce. */
+  readonly transport: AvatarTransport = 'livekit'
+
   readonly events: string[]
   readonly created: { id: string; opts: AvatarSessionOptions }[] = []
   readonly consumed: string[] = []
@@ -47,11 +54,11 @@ export class FakeAvatarProvider implements AvatarProvider {
     return { runwaySessionId: id }
   }
 
-  async waitUntilReady(
+  async awaitIssuable(
     _cred: AvatarCredential,
-    runwaySessionId: string,
+    _runwaySessionId: string,
     _opts: { timeoutMs: number },
-  ): Promise<{ sessionKey: string }> {
+  ): Promise<void> {
     this.events.push('ready')
     if (this.script.ready === 'queued') {
       throw new AvatarProviderError('queued', 'The avatar service is at capacity.', 409)
@@ -59,12 +66,11 @@ export class FakeAvatarProvider implements AvatarProvider {
     if (this.script.ready === 'failed') {
       throw new AvatarProviderError('failed', 'Session failed.', 502)
     }
-    return { sessionKey: `key-${runwaySessionId}` }
   }
 
-  async consume(
+  async issueGrant(
+    _cred: AvatarCredential,
     runwaySessionId: string,
-    _sessionKey: string,
   ): Promise<{ url: string; token: string }> {
     this.events.push('consume')
     this.consumed.push(runwaySessionId)

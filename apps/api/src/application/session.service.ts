@@ -13,11 +13,12 @@ import type {
   AvatarProviderName,
   ClockRequest,
   ConsentScope,
+  CustomerSummary,
   GoalAmountBasis,
   IsoDate,
   SessionState,
 } from '@dhan/contracts'
-import { BeyondHorizon, StaleClock } from './errors.ts'
+import { BeyondHorizon, StaleClock, Unavailable } from './errors.ts'
 import { sha256Hex } from './hash.ts'
 import type { BankDataPort, Clock, Session, SessionStore } from '../ports/index.ts'
 
@@ -48,6 +49,18 @@ export class SessionService {
 
   private expiry(): string {
     return new Date(this.deps.clock.now().getTime() + SESSION_TTL_DAYS * 86_400_000).toISOString()
+  }
+
+  /**
+   * The picker.
+   *
+   * Empty means the host app named the customer for us (Phase 2, ADR-0008), so there is
+   * nothing to choose and the route says so rather than answering an empty list.
+   */
+  async pickable(): Promise<CustomerSummary[]> {
+    const customers = await this.deps.bank.listCustomers()
+    if (customers.length === 0) throw new Unavailable('The customer picker is disabled here.')
+    return customers
   }
 
   async create(cif: string, clientHint?: string): Promise<{ token: string; session: Session }> {
@@ -103,6 +116,7 @@ export class SessionService {
       goalTarget: session.goalTarget,
       goalBasis: session.goalBasis,
       caps: session.caps,
+      spendLimit: session.spendLimit,
       scopeOverrides: session.scopeOverrides,
       version: session.version,
       ledgerHorizon: await this.deps.bank.ledgerHorizon(session.cif),
@@ -175,6 +189,17 @@ export class SessionService {
     return this.patch(session, {
       caps: monthlyLimit === null ? rest : [...rest, { category, monthlyLimit }],
     })
+  }
+
+  /**
+   * The customer's own monthly ceiling on discretionary spending, or its removal.
+   *
+   * Stored as given. `buildDailyPlan` is where it is held to what the month can actually
+   * afford, so the stored number stays the one the customer chose — a limit silently lowered
+   * on the way in would reappear as a different figure the next time they opened the screen.
+   */
+  async setSpendLimit(session: Session, monthlyLimit: number | null): Promise<Session> {
+    return this.patch(session, { spendLimit: monthlyLimit })
   }
 
   async setConsent(session: Session, scope: ConsentScope, granted: boolean): Promise<Session> {

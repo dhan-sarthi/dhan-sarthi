@@ -22,14 +22,21 @@ import { LeaseReaper } from '../application/avatar/lease-reaper.ts'
 import { LiveCalls } from '../application/avatar/live-calls.ts'
 import { MinuteBudget } from '../application/avatar/minute-budget.ts'
 import { Waitlist } from '../application/avatar/waitlist.ts'
+import { ChallengeService } from '../application/challenge.service.ts'
 import { ConversationService } from '../application/conversation.service.ts'
 import { DecisionService } from '../application/decision.service.ts'
 import { engineVersion } from '../application/engine-version.ts'
 import { HistoryService } from '../application/history.service.ts'
+import { HoldingsView } from '../application/holdings-view.ts'
+import { LedgerQuery } from '../application/ledger-query.ts'
+import { OperatorService } from '../application/operator.service.ts'
+import { ProfileService } from '../application/profile.service.ts'
 import { RecordService } from '../application/record.service.ts'
+import { SaveService } from '../application/save.service.ts'
 import { SessionService } from '../application/session.service.ts'
 import type { SeedInfo } from '../application/seed-info.ts'
 import type { Config } from '../config.ts'
+import { dailyMinuteBudget, maxSessionSeconds } from '../config.ts'
 import { makeAuthenticator } from '../http/auth.ts'
 import { buildOpenApi } from '../http/openapi.ts'
 import { registerAllRoutes } from '../http/routes/index.ts'
@@ -40,9 +47,11 @@ import type {
   AvatarCredential,
   AvatarProvider,
   AvatarRpcHost,
+  AvatarToolWebhook,
   BankDataPort,
   Clock,
   LeaseStore,
+  LanguageModelPort,
   ProductShelfPort,
   SessionStore,
   SnapshotStore,
@@ -56,7 +65,13 @@ import type { HoldingsStore } from '../ports/holdings.port.ts'
 import { AaConsentService } from '../application/aa-consent.service.ts'
 import { InMemoryAaConsents } from '../adapters/memory/aa-consent.memory.ts'
 import { unavailableAaGateway } from '../application/aa-unavailable.ts'
-import { avatarAdapters, bankAdapters, describeProfile, resolveProfile } from './profiles.ts'
+import {
+  avatarAdapters,
+  bankAdapters,
+  describeProfile,
+  languageModel,
+  resolveProfile,
+} from './profiles.ts'
 
 /**
  * The redirect URL IDBI's sandbox will accept, which is not ours to choose.
@@ -96,8 +111,11 @@ export interface Deps {
   leases: LeaseStore
   avatar: AvatarProvider
   rpc: AvatarRpcHost
+  toolWebhook: AvatarToolWebhook
   clock: Clock
   credentials: AvatarCredential[]
+  /** The text tier's phrasing. Null-implemented with no key; `/ask` answers either way. */
+  model: LanguageModelPort
   seed: SeedInfo
 }
 
@@ -164,6 +182,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
   const deps: Deps = {
     ...bankAdapters(profile, config, clock, versions, log),
     ...avatarAdapters(profile, config, log),
+    model: languageModel(config, log),
     clock,
     ...options.deps,
   }
@@ -195,6 +214,13 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     snapshots: deps.snapshots,
     engineVersion: engine,
   })
+  /*
+   * Both read the advisory view rather than the bank, and both write the session through its
+   * optimistic version — the pot because it accrues on read, the challenge because starting and
+   * ending one is a decision about the future that no statement records.
+   */
+  const save = new SaveService({ sessions: deps.sessions, advisory, clock })
+  const challenges = new ChallengeService({ sessions: deps.sessions, advisory, clock })
   const decisions = new DecisionService({
     advisory,
     shelf: deps.shelf,
@@ -202,7 +228,12 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     sessions: deps.sessions,
     leads: deps.leads,
   })
-  const conversation = new ConversationService({ advisory, shelf: deps.shelf, audit: deps.audit })
+  const conversation = new ConversationService({
+    advisory,
+    shelf: deps.shelf,
+    audit: deps.audit,
+    model: deps.model,
+  })
   /*
    * The months behind today. Seeded per session, because a session *is* the customer's use of
    * this app: the record, the plan versions and the clock all hang off that row.
@@ -220,10 +251,35 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     bank: deps.bank,
     seed: deps.seed,
   })
+  const ledger = new LedgerQuery({ bank: deps.bank })
+  const holdingsView = new HoldingsView({ holdings: deps.holdings })
+  const profileService = new ProfileService({ profiles: deps.profiles, bank: deps.bank })
+  const operator = new OperatorService({
+    bank: deps.bank,
+    seed: deps.seed,
+    /*
+     * The mapping report, read through the concrete adapter.
+     *
+     * `deps.bank` is a port and does not carry one — only the IDBI adapter has a mapping layer
+     * to report on, and it is the composition root's job to know that. A `Set` does not survive
+     * JSON, so the unmapped paths are flattened here.
+     */
+    mappingReport: () => {
+      const reporter = deps.mappingReport
+      if (reporter === null) return null
+      const report = reporter()
+      if (report === null) return null
+      return {
+        codeFallbacks: report.codeFallbacks,
+        unmappedPaths: [...report.unmappedPaths].sort(),
+        notes: report.notes,
+      }
+    },
+  })
 
   const pool = new CredentialPool(deps.credentials)
   const live = new LiveCalls()
-  const budget = new MinuteBudget(deps.leases, clock, config.RUNWAY_DAILY_MINUTE_BUDGET)
+  const budget = new MinuteBudget(deps.leases, clock, dailyMinuteBudget(config))
   const reaper = new LeaseReaper({
     leases: deps.leases,
     audit: deps.audit,
@@ -232,12 +288,12 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     pool,
     live,
     clock,
-    capSeconds: config.RUNWAY_MAX_SESSION_SECONDS,
+    capSeconds: maxSessionSeconds(config),
     log,
   })
   const waitlist = new Waitlist(deps.leases, clock, {
     holdSeconds: HOLD_SECONDS,
-    capSeconds: config.RUNWAY_MAX_SESSION_SECONDS,
+    capSeconds: maxSessionSeconds(config),
   })
   const avatar = new AvatarSessionService({
     provider: deps.avatar,
@@ -254,7 +310,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     live,
     enabled: config.AVATAR_ENABLED,
     taskId,
-    maxSessionSeconds: config.RUNWAY_MAX_SESSION_SECONDS,
+    maxSessionSeconds: maxSessionSeconds(config),
     engineVersion: engine,
     log,
     ...(options.transcriptDelaysMs === undefined
@@ -297,37 +353,22 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
   })
 
   const services: AppServices = {
-    bank: deps.bank,
     history,
-    profiles: deps.profiles,
-    holdings: deps.holdings,
+    ledger,
+    holdingsView,
+    profile: profileService,
+    operator,
     aaConsent,
-    /*
-     * The mapping report, read through the concrete adapter.
-     *
-     * `deps.bank` is a port and does not carry one — only the IDBI adapter has a mapping layer
-     * to report on, and it is the composition root's job to know that. A `Set` does not survive
-     * JSON, so the unmapped paths are flattened here.
-     */
-    mappingReport: () => {
-      const reporter = deps.mappingReport
-      if (reporter === null) return null
-      const report = reporter()
-      if (report === null) return null
-      return {
-        codeFallbacks: report.codeFallbacks,
-        unmappedPaths: [...report.unmappedPaths].sort(),
-        notes: report.notes,
-      }
-    },
     shelf: deps.shelf,
     sessions,
     advisory,
+    save,
+    challenges,
     decisions,
     conversation,
     records,
     avatar,
-    seed: deps.seed,
+    avatarTools: deps.toolWebhook,
     health,
     openapi: buildOpenApi({ version: versions.api }),
   }
