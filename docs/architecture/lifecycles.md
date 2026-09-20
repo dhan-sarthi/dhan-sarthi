@@ -7,14 +7,30 @@ owns every step, so a question about a flow can be answered with a filename. The
 specified in [`LLD.md`](LLD.md); the routes and tables they touch are in
 [`DATA-AND-API.md`](DATA-AND-API.md).
 
-Status: adopted 3 September 2026.
+Status: adopted 3 September 2026 · amended 2026-09-20 (the participant on the left, and two
+renamed provider calls).
+
+> **Amendment, 2026-09-20.** `apps/web` has been deleted and `apps/mobile` is the only client
+> ([ADR-0001](adr/ADR-0001.md)). Every one of these flows is unchanged — same routes, same order,
+> same services — so the only correction is the participant each diagram starts from, which used
+> to be the browser and is now the app. The storage note on the first diagram is the same claim
+> about the same one value — the bearer is all the client keeps — only the place changed:
+> SecureStore on a device, and still `localStorage` on the Expo web build, which
+> `apps/mobile/src/api/storage.ts:1-7` argues is acceptable because that target exists for review
+> builds over a synthetic customer.
+>
+> The grant diagram carries one correction that is not about the client: it called the provider's
+> `waitUntilReady` and `consume(id, sessionKey)`, which [ADR-0013](adr/ADR-0013.md)'s amendment
+> renamed to `awaitIssuable` and `issueGrant(cred, id)` when it stopped the port carrying a
+> session key between two of its own calls. The order in the diagram is the order in the code and
+> did not move.
 
 ## Open app and pick a customer
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant B as Browser (apps/web)
+    participant B as apps/mobile
     participant H as http/register.ts
     participant S as SessionService
     participant BD as BankDataPort
@@ -32,7 +48,7 @@ sequenceDiagram
     S->>DB: INSERT sessions (subject_id, token_hash, as_of=anchor, last_seen=anchor-6d, version=1, expires_at=now+30d)
     S-->>H: {token, session}
     H-->>B: 201 {token, session:{asOf, lastSeen, ledgerHorizon, capabilities:{simulatedClock:true, avatar:'runway'}}}
-    Note over B: localStorage holds only the token
+    Note over B: SecureStore (localStorage on the web build) holds only the bearer
 ```
 
 ## Today plan (GET /view)
@@ -40,7 +56,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant B as Browser
+    participant B as apps/mobile
     participant H as http/register.ts
     participant A as AdvisoryService
     participant CS as consent-scope
@@ -72,7 +88,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant B as Browser
+    participant B as apps/mobile
     participant H as http/register.ts
     participant D as DecisionService
     participant A as AdvisoryService
@@ -105,7 +121,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant B as Browser
+    participant B as apps/mobile
     participant H as http/register.ts
     participant AS as AvatarSessionService
     participant L as LeaseStore (postgres)
@@ -125,11 +141,11 @@ sequenceDiagram
     AS->>AS: lifecycle: claimed → creating · brief = BriefBuilder.build(view)
     AS->>P: createSession(cred, {personality, startScript, tools, maxSeconds: min(600, budgetLeft)})
     P->>RW: POST /v1/realtime_sessions (8 s timeout, breaker)
-    AS->>P: waitUntilReady (queued is not contention)
+    AS->>P: awaitIssuable (queued is not contention)
     AS->>AS: lifecycle: ready
     rect rgba(111, 76, 255, 0.12)
         Note over AS,LK: the gate opens before any credential is issued
-        AS->>R: open(runwaySessionId, handlers) — joins room as hidden participant
+        AS->>R: open(runwaySessionId, cred, handlers) — joins room as hidden participant
         R->>LK: connect · await onConnected (8 s)
         alt open() rejects
             AS->>P: cancel
@@ -137,8 +153,8 @@ sequenceDiagram
             AS->>AS: lifecycle: failed
             AS-->>B: 502 {cause:'gate_unavailable'} → text tier
         end
-        AS->>AS: lifecycle: gated — only now may consume run
-        AS->>P: consume(id, sessionKey) (one shot)
+        AS->>AS: lifecycle: gated — only now may a grant be issued
+        AS->>P: issueGrant(cred, id) (one shot)
     end
     AS->>AU: appendAvatarSession({rpc_connected_at, granted_at})
     AS-->>B: 200 {url, token, runwaySessionId, expectVideoAfterMs:5000, expiresInSeconds}
@@ -159,7 +175,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant B2 as Reviewer 2 browser
+    participant B2 as Reviewer 2's app
     participant H as http/register.ts
     participant AS as AvatarSessionService
     participant W as Waitlist
@@ -193,7 +209,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant B as Browser (Clock component)
+    participant B as apps/mobile (the clock control)
     participant H as http/register.ts
     participant S as SessionService
     participant ST as SessionStore (postgres)

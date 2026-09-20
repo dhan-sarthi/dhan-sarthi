@@ -193,11 +193,18 @@ A `Store` interface with an in-memory implementation and optional JSON-file pers
 Postgres and pgvector become one more adapter. This is what makes the API a single container
 deployable anywhere in ten minutes, which is the insurance you asked for.
 
-### D2. No API keys in this environment
-Per the README's own open items, there is no `OPENAI_API_KEY` here. So the model path gets built
-against stubs and the deterministic Tier-3 fallback, and **is unverified against a real
-provider**. I will not claim otherwise. Everything else — the engine, the rules, the numbers —
-is provable with `pnpm test` and no key at all.
+### D2. The model phrases; it never computes
+Written when there was no `OPENAI_API_KEY` here, and kept now that there is, because the shape
+it forced is the shape worth keeping. The text tier computes its figures in `core/query.ts` and
+decides any product in `core/suitability.ts`, and a language model is asked only to say the
+result in English. Everything that matters — the engine, the rules, the numbers — is still
+provable with `pnpm test` and no key at all, and the tier with no key is a shipped product
+rather than a degraded one: the same answers, the same evidence, plainer prose, and `phrasedBy`
+on the response saying which it was.
+
+The same division runs the avatar, where the boundary is a tool call rather than a function
+call. Neither is a prompt instruction, which is the point: a rule a model is asked to follow is
+not a rule.
 
 ### D3. Recurring detection must *infer*, and the fixtures let us grade it
 The generator sets `isRecurring` because it knows the truth. Production cannot trust that field,
@@ -253,6 +260,15 @@ because an API is down, and it deploys anywhere in minutes.
 That is the insurance you asked for, and it is not the production shape. Core is pure, so every
 function moves behind `apps/api` unchanged once the data is a real customer's; `@dhan/fixtures`
 must never be in a production bundle. Worth confirming you are happy with the trade.
+
+> **Resolved, 20 Sep 2026 — the ⚠ is spent.** The trade was taken in the direction this entry
+> hoped for and then taken all the way. Every function did move behind `apps/api` unchanged
+> ([ADR-0001](../architecture/adr/ADR-0001.md)); the client engine survived for a while as a
+> badged offline chunk; and on 20 Sep `apps/web` was deleted outright, so there is no
+> client-side engine left to reverse. `@dhan/fixtures` is not merely kept out of a production
+> bundle — `apps/mobile` does not depend on it at all. What was bought with the insurance is now
+> gone with it: the demo can fail because an API is down, which is the cost recorded in
+> ADR-0001's amendment rather than a surprise.
 
 ### Protection is exempt from the investment gates
 The gate initially refused Sunil term insurance because he has a missed repayment. That is

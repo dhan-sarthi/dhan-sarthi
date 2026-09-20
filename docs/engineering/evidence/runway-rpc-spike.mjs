@@ -18,7 +18,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 // Resolved through apps/api, the package that owns the SDK, the same way the video check
-// resolves livekit-client through apps/web. Falls back to this file's own tree so the script
+// resolves livekit-client through apps/mobile. Falls back to this file's own tree so the script
 // also runs from a scratch directory with its own node_modules. The package ships a CJS build.
 const { createRpcHandler } = (() => {
   for (const from of [

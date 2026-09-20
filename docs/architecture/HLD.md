@@ -7,7 +7,24 @@ where and why. The module-level detail is in [`LLD.md`](LLD.md), the request flo
 [`lifecycles.md`](lifecycles.md), the tables and routes in [`DATA-AND-API.md`](DATA-AND-API.md),
 and the reasoning behind each decision in [`adr/`](adr/).
 
-Status: adopted 3 September 2026.
+Status: adopted 3 September 2026 · amended 2026-09-20 (the client changed, and the
+`AvatarProvider` listing was re-read off the port; see below).
+
+> **Amendment, 2026-09-20 — there is one client, and it is `apps/mobile`.** `apps/web` has been
+> deleted from the repository; the Expo app is the product. Everything in this document about the
+> engine, the API, the ports, the adapters, the data and the deployment stands as adopted — the
+> change is on the client side of the ALB, not behind it. The sections below that describe a
+> client have been corrected to describe the one that exists; the **Starting point** section is
+> left exactly as adopted, because it is a record of 3 September and not a claim about today.
+> The badged offline tier went with the app it lived in: see the amendments on
+> [ADR-0001](adr/ADR-0001.md) and [ADR-0011](adr/ADR-0011.md).
+>
+> The one thing behind the ALB that did move is the **`AvatarProvider` and `AvatarRpcHost`
+> listing** under *Ports*, which still published the signatures as adopted after
+> [ADR-0013](adr/ADR-0013.md) had renamed and narrowed them. Both blocks are now read off
+> `apps/api/src/ports/avatar-provider.port.ts` and `avatar-rpc-host.port.ts`, and the adapter
+> tables gain the second provider that ADR brought in. A port listing that does not compile
+> against the port is worse than no listing, because it is believed.
 
 ## Starting point
 
@@ -61,42 +78,50 @@ database (REVOKE plus a raising trigger) and hash-chained. Audit rows carry a `s
 
 The avatar path: the brief is built server-side from the same View the screens render;
 `check_suitability`, `query_spend` and `get_plan` are `backend_rpc` tools whose handlers are
-opened (the LiveKit hidden participant joins) before `/consume` is ever called; the lifecycle
-state machine makes `consume()` from any state other than `gated` a thrown error; every tool call
+opened (the LiveKit hidden participant joins) before a grant is ever issued; the lifecycle
+state machine makes `issueGrant` from any state other than `gated` a thrown error; every tool call
 writes `advice_records (source='avatar_tool')` before returning; after the call the transcript is
 fetched with backoff and each tool result is reconciled against our own ledger. The single Tier-1
 slot is a Postgres-backed FIFO waitlist with position, ETA and a 20-second claim window; the
 deterministic text conversation runs underneath. The daily minute budget is
 `sum(minutes_charged)` over `avatar_sessions` for today, so a redeploy cannot reset it.
 
-`apps/web` becomes a client: `api/client.ts` typed from the registry, only a bearer token in
-localStorage, every screen rendered from `/api/v1/view`, `/record` and `/transactions`. The
-in-browser engine survives only as a lazy-loaded `offline/` chunk behind `VITE_OFFLINE_FALLBACK`,
-shown with a persistent "Offline — local simulation, nothing recorded" badge and decision buttons
-disabled; the bank build sets the flag false and CI asserts `@dhan/fixtures` is absent from that
-bundle. Three tiers, always labelled: live avatar → honest text over `/ask` and
-`/suitability/evaluate` (same engine, same sentences, same advice records) → offline simulation.
+The client becomes exactly that — a client. `apps/mobile/src/api/client.ts` is typed from the
+registry and holds only a bearer token — SecureStore on a device, `localStorage` on the Expo web
+build, and nothing else either way (`apps/mobile/src/api/storage.ts`); every screen renders from
+`/api/v1/view`, `/record` and `/transactions`. It carries no engine at all: there is
+no `offline/` chunk, no `VITE_OFFLINE_FALLBACK`, and no build in which `@dhan/fixtures` reaches a
+device, so the CI grep that used to assert the fixtures package out of one bundle is no longer the
+thing keeping it out — nothing imports it. `@dhan/core` *is* imported, for named helpers and
+constants a label is computed from, never to build a View.
+
+**Two tiers, always labelled:** live avatar → honest text over `/ask` and `/suitability/evaluate`
+(same engine, same sentences, same advice records). The third rung, the badged local simulation,
+lived inside `apps/web` and went with it; [ADR-0011](adr/ADR-0011.md)'s amendment records that the
+ladder is now two rungs and why the invariant it protects is unaffected.
 
 Deployment is Terraform to `ap-south-1`: one Fargate task (the RPC host is a held LiveKit
 connection, so no Lambda) in a private subnet behind an ALB, NAT with an egress allow-list
 (`api.dev.runwayml.com`, `*.livekit.cloud`, UDP 50000–60000 with TURN/TLS 443 fallback), RDS
 Postgres 16 with the vector extension, S3 + CloudFront serving `/` and `/api/*` from one origin,
 Secrets Manager injected at task start, CloudWatch alarms and an AWS Budgets alarm. The same image
-runs under `docker compose up` locally, and `BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev`
-runs the whole product with no database and no keys. An `infra/ec2-compose/` cloud-init covers a
+runs under `docker compose up` locally, and `BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api`
+runs the API with no database and no keys — the client is a second terminal,
+`pnpm --filter @dhan/mobile start`, because `apps/mobile` has no `dev` script and root `pnpm dev`
+therefore runs the API and nothing else. An `infra/ec2-compose/` cloud-init covers a
 sandbox that grants only the t3.medium the sandbox request asked for.
 
 ```mermaid
 flowchart TB
   subgraph device["Reviewer device"]
-    HOST["GO Mobile+ host app (Phase 2)<br/>WebView · HostIdentityPort seam"]
-    WEB["apps/web — React 19 · Vite 6 · Tailwind 4<br/>renders /api/v1/view · types from @dhan/contracts<br/>token only in localStorage · offline/ lazy chunk, badged"]
+    HOST["GO Mobile+ host app (Phase 2)<br/>WebView · host-token exchange (ADR-0008, not built)"]
+    WEB["apps/mobile — Expo · Expo Router · NativeWind<br/>renders /api/v1/view · types from @dhan/contracts<br/>bearer only, in SecureStore · no engine on the device"]
     HOST -. embeds .-> WEB
   end
 
   subgraph aws["AWS ap-south-1 · IDBI sandbox VPC · infra/terraform"]
     CF["CloudFront<br/>/ → S3 · /api/* → ALB (one origin, no CORS)"]
-    S3[("S3 · web build")]
+    S3[("S3 · Expo web export")]
     ALB["ALB · HTTPS (ACM) · /api/v1/health"]
     subgraph ecs["ECS Fargate · one persistent task (holds the LiveKit RPC participant)"]
       subgraph api["apps/api — Fastify 5, layered"]
@@ -118,7 +143,7 @@ flowchart TB
 
   RUNWAY[("Runway Characters<br/>realtime_sessions · avatar_conversations")]
   LK[("LiveKit Cloud · India South")]
-  FIX["packages/fixtures<br/>generator · cities · mcc · narration · toSeedBundle<br/>seed + tests + offline chunk only"]
+  FIX["packages/fixtures<br/>generator · cities · mcc · narration · toSeedBundle<br/>seed + tests only · never reaches a client"]
   IDBI[("IDBI sandbox APIs · ~1 week<br/>393 statement · 394 accounts · 402 overdues · 456 master · liens")]
 
   WEB -->|HTTPS| CF
@@ -174,7 +199,7 @@ dhan-sarthi/
 │   │   │   ├── ports/                        interfaces only · no imports from adapters/
 │   │   │   │   ├── bank-data.port.ts · product-shelf.port.ts · session-store.port.ts · snapshot-store.port.ts
 │   │   │   │   ├── audit-store.port.ts · lease-store.port.ts · avatar-provider.port.ts · avatar-rpc-host.port.ts
-│   │   │   │   └── clock.port.ts · host-identity.port.ts (stub seam for GO Mobile+)
+│   │   │   │   └── clock.port.ts
 │   │   │   ├── application/                  orchestration · imports core, contracts, ports · never adapters or http
 │   │   │   │   ├── advisory.service.ts       view(session): scope → derive → suggestGoal → roadmap → plan → insights · snapshot store
 │   │   │   │   ├── session.service.ts        create · advanceClock · resetClock · setGoal · setCategoryCap · setConsent · erase
@@ -237,19 +262,18 @@ dhan-sarthi/
 │   │       ├── avatar/                       rpc-before-consume · budget survives restart · waitlist claim · reconciler
 │   │       ├── architecture/                 dependency-cruiser rules
 │   │       └── fakes/                        FakeAvatarProvider · FakeRpcHost
-│   └── web/
-│       ├── Dockerfile                        nginx · /api proxied to api:3001 (compose only)
+│   └── mobile/                               Expo · Expo Router · NativeWind — the only client
+│       ├── app/                               file-routed screens
+│       │   ├── (onboarding)/                 welcome · mobile · otp · consent · reading · checklist · about · goal · risk · ready
+│       │   ├── (tabs)/                       spend · plan · uday · grow · protect — the five tabs
+│       │   └── *.tsx                         the modals and detail routes: record · credit · challenge · save-hack · statement · …
 │       └── src/
-│           ├── api/client.ts                 typed fetch from registry · bearer · ETag · 12 s timeout · GET retry
-│           ├── api/session.ts                token only (dhan.session.v2)
-│           ├── lib/view.ts                   useView(): server View, else offline chunk
-│           ├── lib/motion.ts                  reduced-motion · count-up · ripple · changed
-│           ├── lib/onboarding.ts              whether this browser has been through the first run, per cif
-│           ├── offline/                      lazy: core + fixtures + old buildView · VITE_OFFLINE_FALLBACK
-│           ├── components/                   Clock · TabBar · ui · TierBadge · QueueCard · OfflineBadge · DataSourceRibbon · Sheet · Toast · Form · PullToRefresh
-│           ├── styles/motion.css              every keyframe in the app, and the reduced-motion block that turns them all off
-│           └── screens/                      Pick · Onboarding · Today · Plan · Ask · Money · Record
-│                                             + sheets: Profile · Holdings · LinkAccounts · Goal · Cap · Transaction
+│           ├── api/client.ts                 typed fetch from registry · bearer · idempotency keys · ETag
+│           ├── api/storage.ts                the bearer, in SecureStore. Nothing else is persisted
+│           ├── state/snapshot.tsx            SnapshotStore: the one View, its loading state, refresh
+│           ├── avatar/                       useAvatarCall · AvatarStage · transports/ (one per provider SDK)
+│           ├── lib/                          pure per-screen derivations, each with its own tests
+│           └── ui/                           Text (the seven type roles) · Screen · Card · … · interop.ts
 ├── packages/
 │   ├── core/src/                             unchanged public API + asof.ts (pure as-of helpers) + goal.ts (suggestGoal)
 │   ├── contracts/src/
@@ -261,7 +285,7 @@ dhan-sarthi/
 │   │   └── envs/team-sandbox.tfvars · idbi-sandbox.tfvars
 │   ├── ec2-compose/                          cloud-init.yaml (t3.medium hedge)
 │   └── scripts/                              deploy-api.sh · deploy-web.sh · seed-remote.sh · smoke.sh · load.sh
-├── docker-compose.yml                        postgres (pgvector/pgvector:pg16, :5433) · seed (profile) · api · web
+├── docker-compose.yml                        postgres (pgvector/pgvector:pg16, :5433) · seed (profile) · api
 ├── docs/architecture/                        HLD.md · LLD.md · lifecycles.md · DATA-AND-API.md · adr/ · THREAT-MODEL.md · TESTING-AND-DEPLOYMENT.md · BUILD-PLAN.md
 ├── docs/data/                                seed-pipeline.md · statement-formats.md · calibration.md · field-mapping.md
 └── .github/workflows/                        ci.yml (quality · hygiene · contract · integration · architecture · docker · infra) · deploy.yml (workflow_dispatch)
@@ -376,34 +400,44 @@ enqueue(sessionId) / peek() / markClaimable(ticket, holdUntil) / expire(ticket) 
 ### AvatarProvider
 
 ```ts
+readonly transport: AvatarTransport                               // 'livekit' | 'anam' — the one provider fact the browser learns
 probe(cred): Promise<{ ok: boolean; character: string | null }>   // unbilled
 createSession(cred, { personality, startScript, tools, maxSeconds }): Promise<{ runwaySessionId }>
-waitUntilReady(cred, id, { timeoutMs }): Promise<{ sessionKey }>
-consume(id, sessionKey): Promise<{ url; token }>
+awaitIssuable(cred, id, { timeoutMs }): Promise<void>
+issueGrant(cred, id): Promise<{ url; token }>
 cancel(cred, id): Promise<void>
 getConversation(cred, id): Promise<ConversationTurn[] | null>
 breakerState(): 'closed'|'open'|'half-open'
 ```
 
+The wait and the grant carry nothing between them: whatever an adapter learns while waiting that
+it needs at issue time it keeps in a private per-call map — Runway its one-shot `/consume` bearer,
+Anam its minted JWT — so the step count is the adapter's business and Anam's `awaitIssuable` is
+honestly empty rather than a pass-through. [ADR-0013](adr/ADR-0013.md)'s amendment records the
+narrowing; `awaitIssuable` and `issueGrant` were `waitUntilReady` and `consume` as adopted.
+
 | Adapter | Role |
 |---|---|
-| `RunwayAvatarProvider` | Over `adapters/runway/transport.ts` |
-| `NullAvatarProvider` | Every call resolves `Unavailable('not configured')`; `AVATAR_PROVIDER=none` or `AVATAR_ENABLED=false` |
-| `FakeAvatarProvider` (test) | Scripted READY / QUEUED-for-window / FAILED; counts `consume()` calls |
+| `RunwayAvatarProvider` | Over `adapters/runway/transport.ts`; `transport: 'livekit'` |
+| `AnamAvatarProvider` | Over `adapters/anam/transport.ts`; `transport: 'anam'` ([ADR-0013](adr/ADR-0013.md)) |
+| `NullAvatarProvider` | Every call fails with `not_configured`; `AVATAR_PROVIDER=none` or `AVATAR_ENABLED=false` |
+| `FakeAvatarProvider` (test) | Scripted READY / queued-for-the-window / FAILED; counts `issueGrant()` calls |
 
 ### AvatarRpcHost
 
 ```ts
-open(runwaySessionId, cred, handlers: Record<ToolName, ToolHandler>): Promise<RpcHandle>   // resolves only on onConnected
+open(runwaySessionId, cred, handlers: Record<ToolName, ToolHandler>): Promise<RpcHandle>   // resolves only once the tools are answerable
 close(handle): Promise<void>
+liveness(handle): Promise<'connected'|'gone'|'unknown'>   // never throws, never guesses
 openCount(): number
 ```
 
 | Adapter | Role |
 |---|---|
 | `RunwayRpcHost` | `@runwayml/avatars-node-rpc`; hidden LiveKit participant for the call's life (why the API is a persistent process) |
+| `AnamToolGate` | The handlers in the registry the webhook route reads; `liveness` polls `GET /v1/sessions` for our `clientLabel` ([ADR-0013](adr/ADR-0013.md)) |
 | `NullRpcHost` | Only legal with `NullAvatarProvider` (startup invariant in `composition/root.ts`) |
-| `FakeRpcHost` (test) | Records `open()` order relative to `consume()`; can be scripted to reject |
+| `FakeRpcHost` (test) | Records `open()` order relative to the grant; can be scripted to reject |
 
 ### Clock
 
@@ -414,14 +448,16 @@ today(): IsoDate   // wall clock for leases, TTLs, budget days — the simulated
 
 Adapters: `SystemClock`, `FixedClock` (tests).
 
-### HostIdentityPort (stub)
+### There is no host-identity port
 
-```ts
-exchange(hostToken: string): Promise<{ cif: string } | null>   // Phase 2: GO Mobile+ hands the WebView a short-lived JWT; verified against the bank's JWKS; picker route disabled under this adapter
-```
-
-Adapter: `NotImplementedHostIdentity` returns null and logs; documented in
-`docs/integration/go-mobile-plus.md`.
+Phase 2 puts the app inside GO Mobile+, where the host app says who the customer is instead of a
+picker, and that exchange has to land somewhere. It is not a port today. One was written for it,
+`apps/api/src/ports/host-identity.port.ts`, and deleted on 20 September 2026 with no adapter, no
+importer and no entry in `Deps` behind it: an interface nobody implements and nobody calls is a
+design note that happens to compile, and this document asserting an adapter for it that had never
+been written is what that costs. The intention is unchanged and lives in
+[ADR-0008](adr/ADR-0008.md); the interface comes back with its first adapter, in one change, when
+IDBI supplies the host-token format.
 
 ## Non-functional requirements
 
@@ -435,7 +471,7 @@ Adapter: `NotImplementedHostIdentity` returns null and logs; documented in
   ≤ 7 s after grant with the portrait held until then.
 - **Availability.** ≥ 99.5 % for the API over the 15-day review window on one Fargate task with
   ECS replacement and RDS automated backups (7-day PITR); the product remains usable at 0 % avatar
-  availability through Tiers 1–2; Multi-AZ RDS is one variable if IDBI asks.
+  availability through Tier 1; Multi-AZ RDS is one variable if IDBI asks.
 - **Scalability.** 50 concurrent reviewer sessions and 20 req/s sustained on 1 vCPU / 2 GB with
   zero 5xx (autocannon script committed with results); content-addressed snapshots mean N
   reviewers on one customer cost one derivation per clock position; Runway concurrency is 1 per
@@ -443,7 +479,7 @@ Adapter: `NotImplementedHostIdentity` returns null and logs; documented in
 - **Robustness.** Every outbound call has a timeout and a breaker; no request path can wait
   longer than 45 s; no user-facing end state is a spinner; every tier transition is a typed
   `ErrorBody {code, message, cause?, retryAfterSeconds?, ticket?}` and the client state machine
-  (idle · connecting · live · waitlisted · text · offline) has a designed screen per state;
+  (idle · connecting · live · waitlisted · text) has a designed screen per state;
   `FAULT_INJECT` demonstrates each rung on demand.
 - **Correctness.** API figures equal the generator's figures to the rupee at anchor, +1d, +7d,
   +30d, +6m, +18m for every persona (parity test in CI); the same View feeds screens, brief and
@@ -452,8 +488,10 @@ Adapter: `NotImplementedHostIdentity` returns null and logs; documented in
 - **Cost.** Infrastructure ≈ US$115–130/month in `ap-south-1` (Fargate 1 vCPU/2 GB ≈ $35, RDS
   db.t4g.micro ≈ $18, NAT ≈ $35, ALB ≈ $20, CloudFront/S3/Secrets/CloudWatch ≈ $8); Runway
   hard-capped at 240 min/day (≤ US$48/day) with the meter in Postgres, alarm at 80 %, AWS Budgets
-  alarm at US$100; no model spend.
-- **Security.** Zero secrets in the browser (CI grep on `dist/`); every route validated in and
+  alarm at US$100; the text tier's model is a few hundred tokens a message on a small model,
+  which rounds to nothing beside the avatar minutes and stops entirely when the key is removed.
+- **Security.** Zero secrets on the device (the CI secret scan runs over the whole tree, not over
+  one app's `dist/`, now that the only client build is the Expo export); every route validated in and
   out from the registry; bearers 256-bit random stored hashed; helmet; TLS end to end (CloudFront,
   ALB, RDS `sslmode=require`); rate limits 120/min, 20 sessions/hour, 5 grants/hour per IP; 16 KB
   bodies; operator routes behind a separate key; task role limited to three secret ARNs and log
@@ -467,8 +505,8 @@ Adapter: `NotImplementedHostIdentity` returns null and logs; documented in
 - **Determinism.** Same seed → identical Postgres rows on any machine (`seed_runs` hash,
   `--check` in CI); the clock reveals seeded rows rather than generating new ones, so two
   reviewers advancing the same customer see identical months.
-- **Portability and operability.** `pnpm dev` with `BANK_SOURCE=memory AVATAR_PROVIDER=none` runs
-  the whole product with no database and no keys; `docker compose up` gives the full stack in
+- **Portability and operability.** `pnpm dev:api` with `BANK_SOURCE=memory AVATAR_PROVIDER=none`
+  runs the API with no database and no keys, and `pnpm --filter @dhan/mobile start` the client; `docker compose up` gives the full stack in
   under three minutes; fresh AWS account to running deployment in under 45 minutes following the
   runbook (rehearsed on Day 8); `/api/v1/health` answers db, bank source, seed hash, engine
   version, avatar provider, breaker and RPC count in one call; every log line carries a request

@@ -1,13 +1,28 @@
 # Data model and API surface
 
 This document is the contract between the API and everything around it: the tables the API reads
-and writes, the roles that may touch them, the 42 routes and what each returns, and the session,
+and writes, the roles that may touch them, the 51 routes and what each returns, and the session,
 idempotency, caching and rate-limit rules that make many concurrent reviewers safe. It also
 records the avatar integration in the detail a reviewer of the compliance story will want. The
 route table is the human-readable twin of `packages/contracts/src/registry.ts`, which is the
 executable one.
 
-Status: adopted 3 September 2026.
+Status: adopted 3 September 2026 · amended 2026-09-20 (one client, not two; four personas, not
+three; the renamed provider calls — see below).
+
+> **Amendment, 2026-09-20.** `apps/web` has been deleted; `apps/mobile` is the only client. No
+> table, route, status code, header or limit in this document changed as a result — the server is
+> the same server. What changed is the sentences that said *"the browser"* or named an `apps/web`
+> file, and those have been corrected below. Where a field is described as having been shaped
+> *"at adoption"* after something in `apps/web`, that is the provenance of the column and stays,
+> because it is why the column has the shape it has. See [ADR-0001](adr/ADR-0001.md).
+>
+> Two further corrections were made on the same day, neither of them about the client. The
+> counts in the brief-test sentence and in the `transactions` bullet were written when there
+> were three personas and there are now four (`PERSONAS`,
+> `packages/fixtures/src/personas.ts:1486`); both have been re-derived from the generator rather
+> than scaled. And the grant sequence still named `waitUntilReady` and `consume`, which
+> [ADR-0013](adr/ADR-0013.md)'s amendment renamed to `awaitIssuable` and `issueGrant`.
 
 ## Relationship to the relational schema record
 
@@ -38,7 +53,7 @@ schema. Region `ap-south-1` only.
   Record → Your data as provenance.
 - `customers(cif PK, cust_id, cust_name, date_of_birth, gender, marital_status, dependents int, employment_type, declared_annual_income, city, state_code char(2), preferred_language, risk_profile, risk_profile_date, kyc_status, customer_since, tax_regime, persona_slug, pitch, demonstrates, ledger_anchor date, ledger_horizon date, seed_run_id)`.
   Mirrors block 01 plus `tax_regime`, which the specification lacks and rule 8 needs
-  (`docs/data/field-mapping.md` records the ask).
+  (`docs/engineering/schema/README.md:456` records the ask, in the column's own comment).
 - `consents(consent_id PK 'CONS_SYN_<n>', cif, purpose 'Wealth advisory', scopes text[], status ACTIVE|EXPIRED|REVOKED, valid_from, valid_to)`.
   Block 08 shape; echoed on every advice record.
 - `accounts(id PK, cif, account_number_masked (unique per persona, not the shared XXXXXX7412), account_type, ifsc char(11) 'IBKL0'+city branch, opening_date, interest_rate, maturity_date, is_primary)`.
@@ -46,7 +61,8 @@ schema. Region `ap-south-1` only.
   the session date by `core/asof` over the ledger, exactly as `generateCustomerFile` does.
 - `transactions(txn_id PK, cif, account_id, seq int, txn_date, value_date, txn_amount, txn_type CREDIT|DEBIT, txn_mode, narration varchar(200), merchant_name, mcc_code char(4), counterparty_vpa, balance_after_txn, label_spend_category, label_is_salary_credit bool, label_is_recurring bool, seed_run_id)`;
   index `(cif, txn_date, seq)`. 42 months per customer (anchor−23 → anchor+18, 2024-10 →
-  2028-02), ≈2,100 rows per persona, ≈6.5k total. Rows after the session's `as_of` are never
+  2028-03), 2,506–4,187 rows per persona and 13,479 in total over the four (`seedBundles()` at
+  the default 24/18 window). Rows after the session's `as_of` are never
   returned. `seq` preserves the generator's sealed intra-day order so `balance_after_txn` is
   reproducible. `label_*` map onto the optional bank-supplied fields IDBI's feed may carry; core
   still infers and `disagreements()` stays the honesty test; the adapter never reads
@@ -65,7 +81,9 @@ schema. Region `ap-south-1` only.
   snapshots); audit rows are untouched and become unlinkable. This resolves the immutable-audit
   versus erasure contradiction.
 - `sessions(id uuid PK, subject_id FK, token_hash char(64) UNIQUE, as_of date, last_seen date, goal_target numeric null, caps jsonb, scope_overrides text[], version int, client_hint text (hashed UA + /24), created_at, last_active_at, expires_at (30-day sliding), revoked_at)`.
-  Field-for-field the `Session` in `apps/web/src/lib/session.ts` at adoption.
+  Field-for-field the `Session` the browser held in `localStorage` at adoption
+  (`apps/web/src/lib/session.ts`, deleted with that app): the row is that object, moved server-side
+  and given an owner.
 - `idempotency_keys(session_id, key, request_hash, response jsonb, created_at; PK(session_id, key))`;
   24 h sweep.
 
@@ -75,8 +93,8 @@ schema. Region `ap-south-1` only.
   The first reviewer to open Rohan at a clock position pays `derive()`; everyone after reads JSON.
   `snapshotId:roadmapVersion` is the `/view` ETag.
 - `roadmap_versions(id, session_id, version int, snapshot_id FK, goal jsonb, roadmap jsonb, reason_for_change, created_at; UNIQUE(session_id, version))`.
-  The browser's `1 + accepted.length` becomes a real row per version: the "it learns" list on
-  Plan and the audit trail at once.
+  What the browser computed at adoption as `1 + accepted.length` becomes a real row per version:
+  the "it learns" list on Plan and the audit trail at once.
 
 ### Append-only record — hash-chained per session
 
@@ -118,16 +136,24 @@ subjects row and cascades everything else. All data is synthetic.
 | Method | Path | Purpose | Auth | Contract |
 |---|---|---|---|---|
 | GET | `/api/v1/health` | Liveness plus dependency truth: `{ok, at, version, engineVersion, bank: {source, ok, latencyMs, seedHash}, avatar: {provider, enabled, breaker, rpcOpen}, faultInject}`. ALB target. | none | `HealthResponse` |
-| GET | `/api/v1/openapi.json` | OpenAPI 3.1 generated from `packages/contracts/registry.ts` at boot; what a reviewer imports into Postman. | none | OpenAPI document (snapshot-tested) |
-| GET | `/api/v1/customers` | The picker, from `BankDataPort.listCustomers()`: `[{cif, slug, name, age, city, pitch, demonstrates}]`. Replaces `PERSONAS` imported into the browser. Disabled under a HostIdentity adapter. | none · 60/min/IP | `CustomersResponse` |
+| GET | `/api/v1/openapi.json` | OpenAPI 3.1 generated from `packages/contracts/src/registry.ts` at boot; what a reviewer imports into Postman. | none | OpenAPI document (snapshot-tested) |
+| GET | `/api/v1/customers` | The picker, from `BankDataPort.listCustomers()`: `[{cif, slug, name, age, city, pitch, demonstrates}]`. Replaced `PERSONAS` imported straight into the client at adoption. 503 when `listCustomers()` comes back empty — a source that names the customer itself leaves nothing to pick ([ADR-0008](adr/ADR-0008.md)). | none · 60/min/IP | `CustomersResponse` |
 | POST | `/api/v1/sessions` | Body `{cif}`. Creates an isolated reviewer session at the persona anchor (`as_of=2026-09-01`, `last_seen=anchor−6d`), 30-day sliding expiry; returns the opaque bearer once. | none · 20/hour/IP | `CreateSessionRequest → {token, session: SessionState}` |
 | GET | `/api/v1/session` | Session state: cif, asOf, lastSeen, goalTarget, goalBasis, caps, scopeOverrides, version, ledgerHorizon, expiresAt, capabilities `{simulatedClock, avatar}`. | session bearer | `SessionState` |
 | DELETE | `/api/v1/session` | DPDP erasure of reviewer state: deletes the subjects row, cascading sessions and snapshots; audit rows stay immutable and become unlinkable. | session bearer | 204 |
-| POST | `/api/v1/session/clock` | Body `{advanceDays: 1\|7\|30, expectedVersion}` or `{reset: true, expectedVersion}`. Moves `last_seen` to the old `as_of` (the browser's `advance()`). 409 `STALE_CLOCK` on version mismatch; 422 `CLOCK_BEYOND_SEEDED_HORIZON` past `ledger_horizon`. | session bearer | `ClockRequest → SessionState` |
+| POST | `/api/v1/session/clock` | Body `{advanceDays: 1\|7\|30, expectedVersion}` or `{reset: true, expectedVersion}`. Moves `last_seen` to the old `as_of` (what `advance()` did client-side at adoption). 409 `STALE_CLOCK` on version mismatch; 422 `CLOCK_BEYOND_SEEDED_HORIZON` past `ledger_horizon`. | session bearer | `ClockRequest → SessionState` |
 | PATCH | `/api/v1/session/goal` | Body `{targetAmount, amountBasis?}`. Overrides the suggested goal target; `amountBasis` says which money it is in — `today` (the default when omitted) or `at_horizon` where the customer inflated the figure themselves, which the engine funds at the nominal rate rather than discounting a second time. The next `/view` cuts a new roadmap version with reason 'Target changed by the customer'. | session bearer | `GoalPatch → SessionState` |
 | POST | `/api/v1/session/consent` | Body `{scope, granted}`. Per-session scope override; the next `/view` recomputes with the block removed, which makes the consent copy in `Record.tsx` true. | session bearer | `ConsentPatch → SessionState` |
 | POST | `/api/v1/session/caps` | Body `{category, monthlyLimit}`, the limit nullable to remove it. A decision about the future, so it lives on the session and not on the file: no bank endpoint anywhere carries what somebody meant to spend. `dailyplan` reads caps over the thirty days ending at `as_of` and marks the plan breached. | session bearer | `CategoryCapPatch → SessionState` |
-| GET | `/api/v1/view` | The one object every screen reads: `{snapshot, goal, roadmap, plan, insights, shelf, rules, meta:{asOf, ledgerHorizon, dataFreshnessDate, source, simulatedClock, snapshotId, snapshotHash, roadmapVersion, provenance, tier}}`. ETag = `snapshotId:roadmapVersion`; 304 on If-None-Match; `Cache-Control: private, no-store`. | session bearer | `View` (zod mirror of the `View` type in `apps/web/src/lib/view.ts`) |
+| POST | `/api/v1/session/spend-limit` | Body `{monthlyLimit}`, nullable to remove it. The ceiling on *everything*, where `caps` is the ceiling on one category. `buildDailyPlan` measures safe-to-spend against it, and holds it to what the month can actually afford — a limit above that is stored as the customer typed it and applied as the lower figure, because an app that agreed a customer had more money than they do is the only thing in the room lying to them. | session bearer | `SpendLimitPatch → SessionState` |
+| GET | `/api/v1/save` | The savings pot: the roadmap's goal seen from the saving end, the five hacks with what each put aside over the last four weeks, the deposits themselves, the interest the balance attracted, and the merchant and payday facts the configuration screens read. The hacks accrue lazily on this read — `SaveService` replays them from `save.accrued_to` to the session's `as_of` and writes back only what it produced — so the pot is a function of the clock and nothing has to run on a schedule to keep it true. | session bearer | `SaveView` |
+| POST | `/api/v1/save/hacks` | Body a discriminated union on `id`: one hack, set whole, so the wire cannot carry a weekly amount for the swear jar. Switching a hack off keeps its configuration, because somebody who pauses Set & Forget in a thin month should not be asked to choose ₹500 again in the next one. 422 `SAVE_HACK_UNAVAILABLE` where the hack has nothing to run on — the swear jar with no merchant, the payday saver where the statement shows no regular salary — since an app that accepts a standing instruction the account cannot honour is the one lying in the room. | session bearer | `SaveHackPatch → SaveView` |
+| POST | `/api/v1/save/deposits` | Body `{amount}`: money the customer moved themselves, on top of whatever the hacks are doing. Requires `Idempotency-Key`, because a double tap on a slow connection must not put the amount aside twice. Answers with the whole pot rather than the deposit it made — the deposit moves the progress, the interest and the projected monthly inflow with it, and a client patching its own copy would draw a pot that disagrees with the next refresh. | session bearer | `SaveDepositRequest → SaveView` |
+| GET | `/api/v1/challenges` | The running challenge scored against the statement — spent, remaining, the day-by-day series, the zero-spend streak, the lines that count against the limit and a written check-in — plus the merchants, categories and lengths the wizard offers for the next one. The wizard's material is present even while a challenge is running: it falls out of the same pass over the statement, and a four-step wizard that fetched per step would trade one computed answer for three loading states. | session bearer | `ChallengeView` |
+| GET | `/api/v1/challenges/quote` | Query `{kind, name, days}`. The three limits on offer for one target over one length, what each would save against the four-week baseline, and what repeating the challenge once or twice more would add. A GET because it writes nothing and the wizard asks it again on every tap of a different length; a POST that changed nothing would be lying about itself. Declared immediately before the `:challengeId` row so the literal segment and the parameter that could swallow it stay where a reader can check both at once. | session bearer | `ChallengeQuoteQuery → ChallengeQuote` |
+| POST | `/api/v1/challenges` | Body `{target, limit, days}` — the rupee limit rather than the tier that produced it, because a tier is a percentage of a baseline that moves with every new statement line, and the figure the customer agreed to is the one the progress bar has to be measured against for the whole run. 409 `CHALLENGE_ALREADY_RUNNING` while one is still going, 422 `NOTHING_TO_CHALLENGE` where the target has no spend in the window to spend less of. Requires `Idempotency-Key`. | session bearer | `ChallengeDraft → ChallengeView` |
+| DELETE | `/api/v1/challenges/:challengeId` | Give up on the running challenge. The id is in the path and is checked, rather than ending whatever happens to be running: a screen left open while one challenge completed would otherwise end the one started after it. A mismatch is 404 `CHALLENGE_NOT_FOUND`, which is the honest answer — the thing they were looking at is not there any more. | session bearer | 204 |
+| GET | `/api/v1/view` | The one object every screen reads: `{snapshot, accounts, goal, roadmap, plan, insights, shelf, rules, meta:{asOf, ledgerHorizon, dataFreshnessDate, source, simulatedClock, snapshotId, snapshotHash, roadmapVersion, provenance, tier}}`. `accounts` is the accounts themselves, which the snapshot's two balance totals cannot carry; `snapshot` carries `credit` (`packages/contracts/src/domain.ts:557`), what IDBI can see about how the customer borrows and the typed list of what it cannot. ETag = `snapshotId:roadmapVersion`; 304 on If-None-Match; `Cache-Control: private, no-store`. | session bearer | `View` (`ViewSchema`, `packages/contracts/src/domain.ts:1238`) |
 | GET | `/api/v1/transactions` | Query `{from?, to?, category?, cursor?, limit≤200}`. Cursor-paged statement lines ≤ `as_of` for Money → Spending. | session bearer | `TransactionsQuery → {items: Transaction[], nextCursor}` |
 | GET | `/api/v1/profile` | The declared half of the customer: income, employment, dependents, risk profile, tax regime, date of birth, and `missing[]`. IDBI's catalogue has no operation carrying any of it, so the app owns it and the first run asks for it. | session bearer | `DeclaredProfileResponse` |
 | PATCH | `/api/v1/profile` | Body: any subset of the declared facts. The next `/view` re-derives on them, so an income typed here moves the goal, the surplus and the cover requirement. | session bearer | `ProfilePatch → DeclaredProfileResponse` |
@@ -143,17 +169,18 @@ subjects row and cascades everything else. All data is synthetic.
 | POST | `/api/v1/webhooks/idbi/data` | IDBI's data-ready notification. Same rule. | none | `202` |
 | POST | `/api/v1/actions/:actionId/decision` | Body `{kind, note?}`. Server re-derives the plan, finds the action, runs `evaluate()` for money actions, appends advice_record + decision + roadmap_version in one transaction, applies a cap for `set_category_cap`. Requires `Idempotency-Key`. | session bearer | `DecisionRequest → {adviceRecord, decision, roadmapVersion}` |
 | POST | `/api/v1/suitability/evaluate` | Body `{productId, amount, goal?}`. Verdict from core `evaluate()` over the session's current snapshot; always writes an advice_record (source 'text' or 'api'). Used by 'Why?' and by the ULIP refusal in the text tier. | session bearer · 30/min/session | `EvaluateRequest → {verdict: Verdict, adviceRecordId}` |
-| POST | `/api/v1/ask` | Body `{question}`. Tier-1 text conversation: `core.answer()` over the session's snapshot and file → `{text, evidence[], resolved, matched}`. Deterministic; no model. | session bearer · 30/min/session | `AskRequest → Answer` |
+| POST | `/api/v1/ask` | Body `{question, history?}`. Text conversation: `core.answer()` over the session's snapshot and file computes the figures, the suitability rules decide any shelf product the question names (writing its advice_record), and only then does `LanguageModelPort` phrase the result → `{text, evidence[], resolved, matched, phrasedBy}`. `evidence` and `matched` are always the engine's. No `OPENAI_API_KEY`, a failed completion or a timeout all return the engine's own sentence with `phrasedBy: 'rules'`. | session bearer · 30/min/session | `AskRequest → Answer` |
 | GET | `/api/v1/ask/suggestions` | `openingLine(snapshot)` and `suggestedQuestions(snapshot)` for the text tier's first screen. | session bearer | `{opening: Answer, questions: string[]}` |
 | GET | `/api/v1/record` | Everything the Record tab shows: advice records with decisions and snapshot ids, roadmap versions, consent state and scope overrides, seed provenance, avatar sessions with gate_coverage and transcript status, chainVerified. | session bearer | `RecordView` |
 | GET | `/api/v1/record/verify` | Walks this session's hash chain: `{ok, length, brokenAt?}`. The compliance-reviewer demo moment. | session bearer | `ChainVerification` |
 | GET | `/api/v1/shelf` | `ProductShelfPort.list()` including the products that will be refused, with source and verified flags. | none · public, max-age=300 | `Product[]` |
 | GET | `/api/v1/rules` | `ruleBook` from core: the nine rules in plain English. | none · public, max-age=300 | `Rule[]` |
 | GET | `/api/v1/avatar/availability` | Public minimal: `{available, enabled, minutesLeftToday, queueLength, estimatedWaitSeconds, breaker}`. Lets Ask render the right tier before the tap. | none | `AvatarAvailability` |
-| POST | `/api/v1/avatar/session` | Empty strict body; optional `X-Waitlist-Ticket`. Server builds the brief, registers tools, opens the RPC host, then consumes → `{url, token, runwaySessionId, expectVideoAfterMs, expiresInSeconds}`. 409 `{cause: pool_busy\|provider_concurrency, ticket, position, estimatedWaitSeconds}`; 429 budget; 502 `gate_unavailable\|provider_error`; 503 not configured/disabled. | session bearer · 5/hour/IP · one live call per session | `z.object({}).strict() → AvatarGrant \| ErrorBody` |
+| POST | `/api/v1/avatar/session` | Empty strict body; optional `X-Waitlist-Ticket`. Server builds the brief, registers tools, opens the RPC host, then consumes → `{transport, url, token, runwaySessionId, expectVideoAfterMs, expiresInSeconds}`. `transport` is `livekit` (Runway) or `anam`, and is the only provider fact the client is told. 409 `{cause: pool_busy\|provider_concurrency, ticket, position, estimatedWaitSeconds}`; 429 budget; 502 `gate_unavailable\|provider_error`; 503 not configured/disabled. | session bearer · 5/hour/IP · one live call per session | `z.object({}).strict() → AvatarGrant \| ErrorBody` |
 | GET | `/api/v1/avatar/waitlist/:ticket` | Poll: `{position, estimatedWaitSeconds, claimable, holdUntil}`. When claimable, `POST /avatar/session` with `X-Waitlist-Ticket` wins the slot for 20 s. | session bearer (owner) | `WaitlistStatus` |
 | DELETE | `/api/v1/avatar/waitlist/:ticket` | Leave the queue. | session bearer (owner) | 204 |
-| POST | `/api/v1/avatar/session/:runwaySessionId/end` | Release the lease, close the RPC handler, cancel Runway, charge actual minutes, schedule the transcript fetch. Always 204. sendBeacon-safe. Only the owning session (any task marks it; the owning task's reaper closes its handler). | session bearer (owner) | 204 |
+| POST | `/api/v1/avatar/session/:runwaySessionId/end` | Release the lease, close the RPC handler, cancel the provider session, charge actual minutes, schedule the transcript fetch. Always 204. sendBeacon-safe. Only the owning session (any task marks it; the owning task's reaper closes its handler). | session bearer (owner) | 204 |
+| POST | `/api/v1/avatar/tool/:runwaySessionId/:tool` | The tool gate, called by the provider rather than answered inside a room — Anam only; Runway's model reaches the tools over LiveKit RPC. Authenticated by the per-call secret minted at session creation, since Anam signs nothing and its body carries only the model's arguments. 403 wrong secret; 404 no such live call; 409 the gate is not open, which is never answered rather than retried. | `X-Avatar-Call` per-call secret · 240/min/IP | `Record<string, unknown> → the tool's own result` |
 | GET | `/api/v1/avatar/session/:runwaySessionId/record` | What the gate did during the call: tool calls, advice records, transcript status, reconciliation and gate_coverage: 'Gate fired n/n · verified against provider transcript' or 'transcript unavailable — our ledger shown'. | session bearer (owner) | `AvatarCallRecord` |
 | GET | `/api/v1/operator/avatar/status` | The `/api/avatar/status` of adoption (credentials, held leases with task_id, waitlist, minutes from Postgres, breaker), behind the operator key because it lists live session ids. | `X-Operator-Key` (constant-time compare) | `OperatorAvatarStatus` |
 | POST | `/api/v1/operator/avatar/release-all` | Cancel every held session and close every handler on this task. At adoption this route has no authentication. | `X-Operator-Key` | `{released: string[]}` |
@@ -162,17 +189,20 @@ subjects row and cascades everything else. All data is synthetic.
 
 ## Sessions and multi-client
 
-**Isolation.** A reviewer session is a row, not a browser. `POST /api/v1/sessions {cif}` creates
-`subjects` (if absent for this reviewer) and `sessions` with `as_of = 2026-09-01` (the `ANCHOR`
-constant in `apps/web/src/lib/session.ts`), `last_seen = anchor − 6 days` (`FRESH`), a 30-day
+**Isolation.** A reviewer session is a row, not a device. `POST /api/v1/sessions {cif}` creates
+`subjects` (if absent for this reviewer) and `sessions` with `as_of = 2026-09-01` (the anchor, now
+`packages/fixtures/src/seed-bundle.ts:126`), `last_seen = anchor − 6 days` (`FRESH`), a 30-day
 sliding expiry, and returns a 256-bit opaque token (`ds_` + base64url) whose sha256 is the only
 thing stored. Fifteen reviewers on fifteen phones get fifteen rows with fifteen clocks, caps, goal
 overrides and records; every bearer route resolves the session in a Fastify preHandler and every
-store method takes `sessionId` first, so no query shape crosses sessions. The web app keeps only
-the token in localStorage, which is what makes "no in-browser data" checkable in DevTools. Opaque
+store method takes `sessionId` first, so no query shape crosses sessions. The client keeps only
+the bearer — SecureStore on a device, `localStorage` on the Expo web build
+(`apps/mobile/src/api/storage.ts`) — which is what makes "no customer data on the client" a claim
+someone can check rather than one they have to take. Opaque
 tokens rather than JWTs ([ADR-0008](adr/ADR-0008.md)): revocable, one indexed lookup, no key
-management; the Phase-2 GO Mobile+ seam is `HostIdentityPort.exchange(hostToken)` creating the
-same session row.
+management. Phase 2 inside GO Mobile+ replaces the picker with a host-token exchange creating
+the same session row; it is a plan, not an interface — [ADR-0008](adr/ADR-0008.md) holds it until
+IDBI supplies the token format, and it arrives with its first adapter.
 
 **The server-side clock.** `POST /session/clock` is the only mutation of `as_of`; it takes
 `{advanceDays: 1|7|30}` or `{reset}` plus `expectedVersion`, moves `last_seen` to the previous
@@ -211,8 +241,10 @@ while sessions exist unless `--force`).
 reviewer at a clock position pays the ~20 ms derivation, everyone after reads JSON; an LRU(64)
 sits in front. `/view` sets `ETag: <snapshotId>:<roadmapVersion>` and
 `Cache-Control: private, no-store`; the client sends If-None-Match. Shelf and rules are
-`public, max-age=300`. The client persists the last successful View for the offline tier, tagged
-with asOf and fetchedAt.
+`public, max-age=300`. **The client persists nothing but the bearer.** The last-successful-View
+cache described here at adoption fed the offline tier, and both went with `apps/web`; `apps/mobile`
+holds its View in memory for the life of the process and re-reads on refresh
+([ADR-0001](adr/ADR-0001.md)).
 
 **Limits** (all `@fastify/rate-limit`, keyed on the CloudFront/ALB-forwarded client IP with
 `trustProxy`, documented in [THREAT-MODEL.md](THREAT-MODEL.md)): 120 req/min general, 20 session
@@ -239,8 +271,8 @@ not show. It adds the prototype's instruction ("before you recommend, endorse or
 specific product, including one the customer raises, call check_suitability and read back its
 sentence"), the shelf as `productId · name · aliases` so the model can name what it is asking
 about, and the session's recent decisions ("Last month you said ₹10,000; you did ₹4,000"). A unit
-test asserts ≤10,000 / ≤2,000 characters for all three personas at six clock positions and that
-every rupee figure in the brief exists in the snapshot. `POST /api/v1/avatar/session` takes
+test (`test/avatar/brief.test.ts`) asserts ≤10,000 / ≤2,000 characters for all four personas at
+six clock positions and that every rupee figure in the brief exists in the snapshot. `POST /api/v1/avatar/session` takes
 `z.object({}).strict()`; the client sends nothing but its bearer. The `{personality}` body that
 `useAvatar` sends at adoption is rejected with 400.
 
@@ -258,16 +290,20 @@ does arithmetic), `get_plan {}` → compact plan summary. `zod-to-json-schema` p
 `LeaseReaper.run()`; `LeaseStore.tryAcquire()` atomic (miss → waitlist ticket, 409 `pool_busy`).
 (2) `lifecycle: claimed → creating`; `AdvisoryService.view()` (cached) → `BriefBuilder.build()`.
 (3) `AvatarProvider.createSession(cred, {brief, tools, maxSeconds: min(RUNWAY_MAX_SESSION_SECONDS=600, budgetLeft)})`
-→ `waitUntilReady` (`queued:true` tolerated; only FAILED/CANCELLED/timeout end it, per
-`docs/engineering/runway.md`) → `lifecycle: ready`. (4) `AvatarRpcHost.open(runwaySessionId, handlers)`:
-the hidden participant joins here; resolves only on `onConnected`, 8 s timeout. Reject → `cancel`,
-`release`, `lifecycle: failed`, 502 `gate_unavailable`. (5) `lifecycle: gated`: `consume()` is
-legal only from this state; any other transition throws `IllegalTransition`. (6)
-`consume(id, sessionKey)` → `avatar_sessions` row with `rpc_connected_at` and `granted_at` →
+→ `awaitIssuable` (`queued:true` tolerated; only FAILED/CANCELLED/timeout end it, per
+`docs/engineering/runway.md`) → `lifecycle: ready`. (4) `AvatarRpcHost.open(runwaySessionId, cred, handlers)`:
+for Runway the hidden participant joins here and for Anam the handlers land in the registry the
+webhook route reads; either way it resolves only once the tools are answerable, 8 s timeout.
+Reject → `cancel`, `release`, `lifecycle: failed`, 502 `gate_unavailable`. (5) `lifecycle: gated`:
+`Lifecycle.assertConsumable()` throws from any other state, so a grant is legal only from here.
+(6) `issueGrant(cred, id)` → `avatar_sessions` row with `rpc_connected_at` and `granted_at` →
 `lifecycle: granted` → the grant with `expectVideoAfterMs: 5000` and `expiresInSeconds`.
+Nothing is carried from step 3 to step 6 in the open: whatever the adapter learned while waiting
+it kept privately — see [ADR-0013](adr/ADR-0013.md)'s amendment, which renamed this pair from
+`waitUntilReady` / `consume(id, sessionKey)`.
 `test/avatar/rpc-before-consume.test.ts` uses `FakeRpcHost` + `FakeAvatarProvider` to assert
-`open()` completed before `consume()` and that a rejected `open()` produced exactly one `cancel()`
-and zero `consume()`.
+`open()` completed before the grant and that a rejected `open()` produced exactly one `cancel()`
+and zero `issueGrant()`.
 
 **The `check_suitability` handler.** Parse args with the contract schema (bad args → a tool
 result the model can read, never an exception); `ProductShelfPort.resolve()` exact → alias →

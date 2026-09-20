@@ -35,3 +35,37 @@ Status: adopted 3 September 2026.
 | Day 8 | Backend | Code freeze; fixes from the dry run only; tag `v1.0.0-review`; image pushed to ECR; daily avatar smoke scheduled for the review window. **Demo:** tagged deploy with a green smoke. |
 | Day 8 | Web | Twenty-person dry run (team, friends, mentors) opening the link at once for thirty minutes; fix only what breaks; final build to S3 with `VITE_OFFLINE_FALLBACK=true` for the public URL and `false` for the bank artefact. **Demo:** the dry-run log with zero hard failures. |
 | Day 8 | Data and infrastructure | `terraform apply` into IDBI's sandbox if credentials have arrived (else team-sandbox stays the demo URL), rehearsed from a clean account using only the runbook, timed under 45 minutes; `aws-sandbox.md` updated with exact egress domains; recorded walkthrough (live avatar, refusal, queue state, Record tab, adapter switch); submission checklist ticked. |
+
+---
+
+## Notes on the record
+
+The table is the plan as adopted on 3 September 2026 and stays as written: it records what each
+day was meant to deliver, not what exists today. Where a deliverable was later reversed, the note
+belongs here and not in the row.
+
+- **Day 6, data and infrastructure — `go-mobile-plus.md` (WebView, `HostIdentityPort`).** Not
+  delivered, and no longer planned in this shape. `apps/api/src/ports/host-identity.port.ts` was
+  written and then deleted on 20 September 2026, having never had an adapter, an importer or an
+  entry in `Deps`; `docs/integration/go-mobile-plus.md` was never written. GO Mobile+ Phase 2 is
+  still the plan, and [ADR-0008](adr/ADR-0008.md) is now its only record: the host-token exchange
+  returns as a port together with its first adapter, once IDBI supplies the token format.
+- **The whole Web track — every Web row, Days 1 through 8.** It was delivered and then retired.
+  `apps/web` was frozen once `apps/mobile` became the product, and was deleted from the repository
+  on 20 September 2026, so each of those eight rows records work that shipped and has since been
+  removed rather than work outstanding. The three a reader is most likely to chase:
+  - **Day 1's `offline/` chunk behind `VITE_OFFLINE_FALLBACK`**, and the Day 6 and Day 8 rows that
+    build with the flag set. Neither the chunk nor the flag exists in any form now — nothing in
+    the tree reads `VITE_OFFLINE_FALLBACK` and there is no bundle left to set it on. See the
+    amendments on [ADR-0001](adr/ADR-0001.md) and [ADR-0011](adr/ADR-0011.md).
+  - **Day 6's Playwright end-to-end suite against compose.** It was written, it lived in
+    `apps/web/e2e/`, and it went with the app. Nothing replaced it;
+    [TESTING-AND-DEPLOYMENT.md](TESTING-AND-DEPLOYMENT.md) records that as an open hole rather
+    than as a layer that still passes.
+  - **Day 8's final build to S3.** The S3-and-CloudFront half of that is still exactly how the
+    product is served; what changed is what is uploaded, which is now the Expo web export out of
+    `apps/mobile`, published by `infra/scripts/deploy-web.sh`.
+
+  Nothing on the Backend or Data-and-infrastructure tracks was affected, and the Day 6 data row's
+  `VITE_OFFLINE_FALLBACK=false` mention is part of the `go-mobile-plus.md` deliverable covered by
+  the note above, which was never written either.

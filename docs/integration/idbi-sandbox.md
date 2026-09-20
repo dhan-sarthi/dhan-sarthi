@@ -18,7 +18,10 @@ There is no credential. The sandbox allow-lists IP addresses and that is the ent
 - CI cannot reach the sandbox. This is why the adapter's tests replay captured responses.
 - The gateway answers `access-control-allow-origin: *`, so a browser on any origin could read
   customer data straight from IDBI with no credential. **Our server must be the only caller**,
-  and `apps/web` never learns the base URL.
+  and the client never learns the base URL. (This read `apps/web` until that app was deleted on
+  20 Sep; the constraint is on *any* client and is enforced in
+  `apps/api/src/adapters/idbi-sandbox/api/transport.ts`, which is the only place the base URL
+  exists.)
 
 Every response carries `x-atlas-request-id` and `x-atlas-trace-id`. Those are the two things IDBI
 support asks for, so every call logs both, failures included.

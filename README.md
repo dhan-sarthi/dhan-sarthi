@@ -4,32 +4,35 @@
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-6f4cff?style=flat-square&logo=typescript&logoColor=white)
 ![React 19](https://img.shields.io/badge/React%2019-6f4cff?style=flat-square&logo=react&logoColor=white)
-![Vite 6](https://img.shields.io/badge/Vite%206-6f4cff?style=flat-square&logo=vite&logoColor=white)
-![Tailwind 4](https://img.shields.io/badge/Tailwind%204-6f4cff?style=flat-square&logo=tailwindcss&logoColor=white)
+![Expo 57](https://img.shields.io/badge/Expo%2057-6f4cff?style=flat-square&logo=expo&logoColor=white)
+![NativeWind 4](https://img.shields.io/badge/NativeWind%204-6f4cff?style=flat-square&logo=tailwindcss&logoColor=white)
 ![Fastify 5](https://img.shields.io/badge/Fastify%205-6f4cff?style=flat-square&logo=fastify&logoColor=white)
 ![Runway Characters](https://img.shields.io/badge/Runway%20Characters-6f4cff?style=flat-square)
 ![LiveKit](https://img.shields.io/badge/LiveKit-6f4cff?style=flat-square)
 ![suitability rules](https://img.shields.io/badge/suitability%20rules-9-6f4cff?style=flat-square)
-![tests](https://img.shields.io/badge/tests-148%20passing-6f4cff?style=flat-square)
-![keys in the browser](https://img.shields.io/badge/keys%20in%20the%20browser-0-6f4cff?style=flat-square)
+![tests](https://img.shields.io/badge/tests-635%20passing-6f4cff?style=flat-square)
+![keys on the client](https://img.shields.io/badge/keys%20on%20the%20client-0-6f4cff?style=flat-square)
 
 > [!TIP]
-> **Try it in two minutes.** `pnpm install && pnpm dev:web`, open the phone-sized page, pick
-> **Rohan**. Press **+1 month** on the simulated clock and watch the plan re-cut itself. Open
-> **Record → The rules** to see the nine rules and the two shelf products marked *Refused*. Ask
-> Uday about "the LIC plan my cousin recommends" and he will refuse it, on the record.
+> **Try it in two minutes.** Two terminals: `pnpm install && pnpm dev:api`, then
+> `pnpm --filter @dhan/mobile start --web`. Pick **Rohan**, press **+1 month** on the simulated
+> clock and watch the plan re-cut itself. Open **Record → The rules** to see the nine rules and
+> the two shelf products marked *Refused*. Ask Uday about "the LIC plan my cousin recommends" and
+> he will refuse it, on the record.
 
 > [!NOTE]
 > Every customer, transaction and balance in this repository is synthetic, generated from a seed by
-> `packages/fixtures`. No IDBI data, no personal data. The app runs end to end with no server and
-> no API keys; only the live avatar call needs the API and a Runway credential.
+> `packages/fixtures`. No IDBI data, no personal data. The app runs end to end with no database
+> and no API keys — `BANK_SOURCE=memory AVATAR_PROVIDER=none` serves the generated customers
+> straight out of the engine; only the live avatar call needs a Runway credential. It does need
+> the API: every figure comes from there ([ADR-0001](docs/architecture/adr/ADR-0001.md)).
 
 ---
 
 ## Architecture
 
 Three rules decide where code goes. **Secrets and provider calls live only in `apps/api`**, so a
-key can never reach a browser. **Decisions live only in `packages/core`, which does no I/O**, so
+key can never reach the client. **Decisions live only in `packages/core`, which does no I/O**, so
 the suitability rules can be exercised and audited without standing anything up. **A route may not
 return a shape not declared in `packages/contracts`.** The four pieces in **purple** are where the
 interesting decisions live: the rules, the contracts, the one process allowed to hold a secret,
@@ -37,41 +40,46 @@ and the clock that lets a reviewer verify time-dependent behaviour in seconds.
 
 ```mermaid
 flowchart TB
-    subgraph web["apps/web — React 19, mobile-first"]
+    subgraph web["apps/mobile — Expo · React Native · NativeWind"]
       PICK["Pick a customer<br/>no signup"]
-      TABS["Today · Plan · Money · Record"]
+      TABS["Spend · Plan · Uday · Grow · Protect"]
       ASK["Ask Uday<br/>full-screen video call"]
       CLOCK["Simulated clock<br/>+1 day · +1 week · +1 month"]
     end
 
-    subgraph packages["packages — pure, zero I/O"]
-      FIX["fixtures<br/>3 customers · 24 months · product shelf"]
+    subgraph api["apps/api — the only process that holds a secret, and the only source of a figure"]
+      VIEW["GET /view<br/>the one object every screen reads"]
+      ROUTE["routes/avatar<br/>credential pool · minute budget · teardown"]
+      RW["providers/runway"]
+    end
+
+    subgraph packages["packages — pure, zero I/O · server-side only"]
+      FIX["fixtures<br/>4 customers · 24 months · product shelf"]
       CORE["core<br/>categorize · recurring · derive<br/>roadmap · dailyplan · insights"]
       GATE{{"suitability<br/>9 rules · earliest failure wins"}}
       CON["contracts<br/>zod schemas"]
     end
 
-    subgraph api["apps/api — the only process that holds a secret"]
-      ROUTE["routes/avatar<br/>credential pool · minute budget · teardown"]
-      RW["providers/runway"]
-    end
-
     RUNWAY[("Runway Characters<br/>voice · video · turn-taking")]
     LK[("LiveKit Cloud<br/>WebRTC room")]
 
-    PICK --> FIX --> CORE --> TABS
-    CLOCK -->|regenerates the ledger to the new date| FIX
+    PICK -->|POST /sessions| VIEW
+    CLOCK -->|POST /session/clock — moves the as-of date| VIEW
+    VIEW --> FIX --> CORE
     CORE --> GATE
-    GATE -->|verdict + the sentence the rule wrote| TABS
-    ASK -->|POST /api/avatar/session| ROUTE --> RW --> RUNWAY
+    GATE -->|verdict + the sentence the rule wrote| VIEW
+    VIEW -->|every figure on every screen| TABS
+    ASK -->|POST /avatar/session| ROUTE --> RW --> RUNWAY
     ROUTE -->|short-lived LiveKit token, never a key| ASK
     ASK <-->|audio in · video out| LK
     RUNWAY --> LK
+    VIEW -.->|shapes declared in| CON
     ROUTE -.->|shapes declared in| CON
 
     style GATE fill:#6f4cff,color:#fff,stroke:#5a3de0
     style CON fill:#6f4cff,color:#fff,stroke:#5a3de0
     style ROUTE fill:#6f4cff,color:#fff,stroke:#5a3de0
+    style VIEW fill:#6f4cff,color:#fff,stroke:#5a3de0
     style CLOCK fill:#6f4cff,color:#fff,stroke:#5a3de0
     style RUNWAY fill:#f3f0ff,stroke:#5a3de0,color:#1d1d1d
     style LK fill:#f3f0ff,stroke:#5a3de0,color:#1d1d1d
@@ -87,13 +95,13 @@ The provider's own record of it is in
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as Customer (browser)
+    participant C as Customer (apps/mobile)
     participant A as apps/api
     participant R as Runway Characters
     participant L as LiveKit
     participant K as packages/core
 
-    Note over C,K: SESSION — no key ever reaches the browser
+    Note over C,K: SESSION — no key ever reaches the client
     C->>A: POST /api/avatar/session
     A->>R: create session (personality ≤10k chars · tools)
     R-->>A: session READY
@@ -159,15 +167,15 @@ flowchart TB
 
 | # | Rule | Fires when | What the customer hears |
 |---|---|---|---|
-| 1 | `HIGH_INTEREST_DEBT` | any loan at 24% or more is outstanding | Not yet. You are paying 34.8% on the card; nothing on this shelf beats clearing that. |
-| 2 | `MISSED_REPAYMENT` | a repayment is overdue | Let's not start anything this month. Bring the loan current first. |
+| 1 | `HIGH_INTEREST_DEBT` | any loan at 24% or more is outstanding | Not yet. You are paying 34.8% on ₹1,86,240. Nothing I can sell you returns that much, so clearing it first earns you more. |
+| 2 | `MISSED_REPAYMENT` | a repayment is overdue | Not this month. You have a missed repayment on record. Fixing that protects your credit score. |
 | 3 | `EMERGENCY_BUFFER` | under three months of outflow in reach, and the product has a lock-in | Something with no lock-in first: a sweep-in deposit or a liquid fund. |
-| 4 | `RISK_CEILING` | the product's riskometer band exceeds the recorded risk profile | That sits above the risk level on your profile. |
+| 4 | `RISK_CEILING` | the product's riskometer band exceeds the recorded risk profile | That is riskier than your profile allows. |
 | 5 | `VOLATILITY_VS_HORIZON` | equity for a goal under three years away | Money you need in two years should not be in something that can fall. |
 | 6 | `AFFORDABILITY` | the amount exceeds what the ledger says can be committed monthly | You said ₹10,000. I would take ₹6,000. |
-| 7 | `HORIZON_VS_LOCKIN` | the lock-in outlasts the goal | Wrong shape for this goal. |
+| 7 | `HORIZON_VS_LOCKIN` | the lock-in outlasts the goal | Locked for 5 years, and you need it in 3. Wrong fit for this goal. |
 | 8 | `TAX_BENEFIT_UNAVAILABLE` | an ELSS for a customer on the new tax regime | Its only advantage is a deduction you cannot claim. |
-| 9 | `BUNDLED_PROTECTION` | a product bundles cover and investment at twice the cost of term cover plus a fund | No. It costs about three times what a term plan costs for the same cover. IDBI sells this one, and I am still telling you not to buy it. |
+| 9 | `BUNDLED_PROTECTION` | a product bundles cover and investment at twice the cost of term cover plus a fund | No. It costs 3 times what a term plan costs for the same job, and the charges are hidden inside it. IDBI sells this one and I am still telling you not to buy it. |
 
 Pure protection (term, health, the government schemes) is exempt from rules 1 to 3, because a
 customer in debt with dependents needs cover more, not less. A ULIP is not protection, so every
@@ -208,12 +216,14 @@ screen is arithmetic over the ledger. Nothing is typed alongside the data.
 |---|---|---|---|---|
 | <img src="docs/assets/screens/pick.png" width="150" alt="Pick a customer"> | <img src="docs/assets/screens/today.png" width="150" alt="Today: safe to spend and one action"> | <img src="docs/assets/screens/plan.png" width="150" alt="Plan: goal, route, projection band"> | <img src="docs/assets/screens/ask-uday.png" width="150" alt="Ask Uday: video call"> | <img src="docs/assets/screens/record-rules.png" width="150" alt="Record: the nine rules"> |
 
-Three generated customers, each chosen so a different rule fires. They are what
-`BANK_SOURCE=memory` and `BANK_SOURCE=postgres` serve, and they are what the engine's guarantees
-below are held against:
+Four generated customers, in picker order. Karan is the one the demo is told on and carries the
+whole rule set by himself; the other three each exist so that one rule fires cleanly on its own
+facts. They are what `BANK_SOURCE=memory` and `BANK_SOURCE=postgres` serve, and they are what the
+engine's guarantees below are held against:
 
 | Customer | Who | What Sarthi finds |
 |---|---|---|
+| **Karan Deshpande** | 30, Pune. ₹1,92,000 a month, spread over four banks and nine investments, two dependents | ₹12,45,774 of bank balance on one screen for the first time — and a card revolving at 34.8% with ₹1,86,240 on it, so **rule 1 blocks every investment** until it is cleared; the 2019 ULIP he believes is his life cover is refused by **rule 9**; and the ₹5 crore house is refused by **rule 6** on the EMI alone |
 | **Rohan Mehta** | 29, Indore. ₹85,000 a month, two dependents, no life cover | ₹1,41,663 has sat idle for a year; the education loan ends in five months; a forgotten gym membership; and when his cousin's LIC ULIP comes up, **rule 9 refuses it** and offers term cover at ₹985 instead |
 | **Priya Nair** | 34, Kochi. ₹1.4 lakh a month, a credit card revolving at 34.8% | Every investment is blocked by **rule 1** until the card is cleared; protection at ₹36 a month still passes |
 | **Sunil Kumar** | 47, Nagpur. Shop owner, income different every month, four dependents | A missed instalment blocks every investment by **rule 2**; cover passes; the buffer, not equity, is the first job |
@@ -268,7 +278,7 @@ Each row is unpacked in [docs/product/decisions.md](docs/product/decisions.md).
 
 ## What the engine guarantees
 
-Held by `pnpm test` over the three generated ledgers, with no provider configured:
+Held by `pnpm test` over the four generated ledgers, with no provider configured:
 
 | Guarantee | How it is held |
 |---|---|
@@ -281,7 +291,7 @@ Held by `pnpm test` over the three generated ledgers, with no provider configure
 | Recognition | categorisation coverage above 98% with zero disagreements against the bank's own labels |
 | Statement realism | every narration matches a declared rail template; the account's IFSC is IDBI's and the salary remitter's is the employer's; utilities, transit and local merchants are correct for Indore, Kochi and Nagpur; MCC on every merchant line and on nothing else |
 | Calibration | UPI debits per month, ticket distribution and the share of payments under ₹500 stay inside bands cited to NPCI and the RBI Payment System Report |
-| Tests | **270 passing** · generator, engine, realism, as-of, suitability, goal and query over the ledger 115 · contracts 12 · api 139 · web 4 |
+| Tests | **635 passing** · core 188 · contracts 22 · fixtures 164 (generator, realism, and the engine against a generated persona) · api 211 · mobile 50 |
 
 ---
 
@@ -300,7 +310,7 @@ including the webhook the bank posts back at us and the rule that a notification
 until 591 confirms it. And 428, so a recommendation somebody accepts becomes a lead the bank's
 staff will work.
 
-**Simulated.** The three customers and their twenty-four months of transactions — generated
+**Simulated.** The four customers and their twenty-four months of transactions — generated
 against NPCI narration grammar, IDBI's own IFSC prefix, rate card and schedule of fees, and the
 published UPI ticket distribution, with every constant cited in
 [`docs/engineering/data-calibration.md`](docs/engineering/data-calibration.md) and the one figure
@@ -337,14 +347,15 @@ Node 22 or newer. pnpm switches to the pinned version on its own.
 
 ```bash
 pnpm install
-BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev   # api → :3001 · web → :5173 · no database, no keys
+BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api   # api → :3001 · no database, no keys
+pnpm --filter @dhan/mobile start                       # Expo: press w for the browser, or scan for a device
 ```
 
 On IDBI's own data, with no credential — the sandbox allow-lists IP addresses and that is the
 whole gate, so this needs a machine on the list:
 
 ```bash
-BANK_SOURCE=idbi-sandbox IDBI_API_BASE=https://sandboxpocgatewayprod.idbi.bank.in   AVATAR_PROVIDER=none pnpm dev
+BANK_SOURCE=idbi-sandbox IDBI_API_BASE=https://sandboxpocgatewayprod.idbi.bank.in   AVATAR_PROVIDER=none pnpm dev:api
 ```
 
 Off the allow-list, leave `IDBI_API_BASE` unset and the adapter replays the captured responses
@@ -352,17 +363,17 @@ in process — IDBI's own bytes, and the same numbers the live sandbox gives, at
 2.4s:
 
 ```bash
-BANK_SOURCE=idbi-sandbox AVATAR_PROVIDER=none pnpm dev
+BANK_SOURCE=idbi-sandbox AVATAR_PROVIDER=none pnpm dev:api
 ```
 
 ```bash
 cp .env.example apps/api/.env                     # DATABASE_URL for the shared Postgres; Runway keys for the live call
 pnpm --filter @dhan/api migrate && pnpm --filter @dhan/api seed
-BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
+BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev:api
 ```
 
 ```bash
-pnpm test                                         # builds packages, then 270 tests · rules · ledger · contracts · api · web · the IDBI captures
+pnpm test                                         # builds packages, then 635 tests · rules · ledger · contracts · api · mobile · the IDBI captures
 pnpm --filter @dhan/api seed:check                # the database still matches the generator, by hash
 curl -s localhost:3001/api/v1/openapi.json        # every route, generated from the registry
 ./scripts/capture-idbi.sh                         # re-capture the sandbox; writes and bureau are behind flags
@@ -375,9 +386,9 @@ What the sandbox actually returns, and every trap in it, is
 
 ## API
 
-Forty-two routes, all under `/api/v1`, every one of them declared in
-`packages/contracts/registry.ts` — which is also what generates the OpenAPI document, the typed
-browser client and the route tests, so a route that is not in the registry cannot exist. The
+Fifty-one routes, all under `/api/v1`, every one of them declared in
+`packages/contracts/src/registry.ts` — which is also what generates the OpenAPI document, the client's
+types and the route tests, so a route that is not in the registry cannot exist. The
 full table, with what each one returns and who may call it, is
 [`docs/architecture/DATA-AND-API.md`](docs/architecture/DATA-AND-API.md); a test walks it against
 the registry in both directions so it cannot drift.
@@ -401,12 +412,15 @@ The shape of it:
 
 ```
 apps/
-  web/                          React 19 + Vite 6 + Tailwind 4, mobile-first
-    src/screens/                Pick · Onboarding · Today · Plan · Ask · Money · Record
-                                · sheets: Profile · Holdings · LinkAccounts · Goal · Cap · Transaction
-    src/lib/                    view · session · mutations · avatar (LiveKit) · money · merchant · motion
-    src/components/             Clock · TabBar · Sheet · Toast · Form · PullToRefresh · ui primitives
-    src/styles/motion.css       every keyframe, and the reduced-motion block that turns them all off
+  mobile/                       Expo + Expo Router + NativeWind — the product, and the only client
+    app/(onboarding)/           welcome · mobile · otp · consent · reading · checklist · about · goal
+                                · risk · ready
+    app/(tabs)/                 Spend · Plan · Uday · Grow · Protect
+    app/                        the modals and detail routes: record · credit · challenge · statement …
+    src/api/                    client (typed from the registry) · storage (the bearer, and nothing else)
+    src/state/                  snapshot — the one View every screen reads
+    src/avatar/                 useAvatarCall · AvatarStage · one transport per provider SDK
+    src/ui/                     Text (seven type roles) · Screen · Card · … · interop.ts
   api/                          Fastify 5 — the only process that holds a secret
     src/application/            the services: advisory · decision · record · session · aa-consent · avatar
     src/adapters/idbi-sandbox/  the bank, written from 42 captured bodies rather than from the spec
@@ -417,9 +431,10 @@ packages/
   core/                         pure engine — categorize · recurring · derive · suitability
                                 · projection · roadmap · insights · dailyplan · actions · query
   contracts/                    the route registry and the zod domain — one source for the API, the
-                                OpenAPI document and the browser's typed client
-  fixtures/                     3 generated customers · 24 months · product shelf · 115 tests, which
-                                are also where the engine is tested (core may not depend on fixtures)
+                                OpenAPI document and the client's types
+  fixtures/                     4 generated customers · 24 months · product shelf · 164 tests, which
+                                are also where the engine is tested against a whole persona
+                                (core may not depend on fixtures)
 docs/                           product reasoning · Runway findings · IDBI integration evidence · submission
 ```
 

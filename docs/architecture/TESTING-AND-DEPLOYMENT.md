@@ -6,7 +6,27 @@ AWS topology Terraform creates in `ap-south-1`, secrets handling, observability,
 and the monthly cost. The infrastructure itself is under [`infra/`](../../infra/terraform/README.md);
 this document explains why it is shaped the way it is.
 
-Status: adopted 3 September 2026.
+Status: adopted 3 September 2026 · amended 2026-09-20 (layer 4, the web image, and the layer-1
+test topology; see below).
+
+> **Amendment, 2026-09-20.** `apps/web` has been deleted ([ADR-0001](adr/ADR-0001.md)), and it
+> owned two things this document describes: the browser end-to-end suite in layer 4, and the nginx
+> image and S3 upload in the deployment section. Both entries below are corrected to say what is
+> there now rather than left describing a directory that is gone — **including where the answer is
+> "nothing"**. There are still five layers, but layer 4 has lost its browser half and nothing
+> replaced it, which is exactly the kind of thing a document like this exists to stop passing
+> unnoticed. The AWS topology is unchanged: S3 and CloudFront still serve a browser build, now the
+> Expo web export.
+>
+> **Layer 1 was separately wrong, and not because of the deletion.** It said fixtures held 158
+> tests across ten named suites and that `packages/core` held 16, "in `asof.test.ts`". Both
+> numbers had simply been overtaken: fixtures holds 164 across eleven — `credit.test.ts` was the
+> suite nobody added to the list — and core holds 188 across ten suites, of which `asof.test.ts`
+> is still exactly the 16 the sentence was written about. The paragraph also predicted that
+> `goal.test.ts` would not move to core, and a core `goal.test.ts` has since been written; the
+> constraint it reasoned from is intact, the prediction was not, and both are described above.
+> Every figure here is the `# tests` line `node --test` printed on 20 September 2026, per suite
+> and per package, not an arithmetic on the old ones.
 
 ## Testing
 
@@ -14,25 +34,46 @@ Five layers; `pnpm test` at the root runs the first two with no database and no 
 property the README already advertises must survive. Node's built-in `node:test` throughout; no
 mocking library; the memory adapters are shipped implementations, not mocks.
 
-1. **Unit (pure, no I/O).** `packages/fixtures` holds 114 tests: generator 20, engine 21,
-   as-of 19, suitability 13, goal 7, query 5, and **realism 29** — the last added by the
-   calibration pass of 3 September 2026 and covering exactly what was planned here (every
-   narration matches a declared template; MCC on every merchant debit and on nothing else; KSEB
-   for Kochi and MSEDCL for Nagpur; account IFSC `^IBKL0`; a per-employer remitter IFSC in place
-   of the `IDIB000M` literal; unique masked account numbers; UPI count, ticket mean and
-   sub-₹500 share inside the bands in `packages/fixtures/src/calibration.ts`), plus the bank's
-   own lines and the festival calendar. Still to add: `seed-bundle.test.ts` (42-month row
-   counts, balance continuity across the span, forward rows dated after the anchor, generator ↔
-   bundle hash stable).
-   `packages/core` gains `asof.test.ts` (`accountFactsAsOf`/`liabilityAsOf`/`sipHoldingAsOf`
-   reproduce `generateCustomerFile`'s figures for six dates: the property the whole seed rests
-   on) and `goal.test.ts` (moved with `suggestGoal`). `apps/api` unit-tests its pure modules with
-   `FixedClock`: `brief.builder` (≤10,000/≤2,000 for all personas × six clock positions; every
-   figure present in the snapshot), `lifecycle` (illegal transitions throw; consume only from
-   gated), `waitlist` (order, 20 s hold expiry, ETA), minute-budget day roll, circuit breaker,
-   idbi-sandbox mapping against the sample values in `data-requirements.md`, tool product
-   resolution including `UNKNOWN_PRODUCT`, reconciler over fixture transcripts with and without a
-   matching toolResult.
+1. **Unit (pure, no I/O).** `packages/fixtures` holds **164 tests across eleven suites**:
+   generator 22, engine 22, as-of 3, suitability 15, goal 9, query 5, challenge 27, credit 6,
+   roadmap 15, waterfall 11, and **realism 29** — the last added by the calibration pass of
+   3 September 2026 and covering
+   exactly what was planned here (every narration matches a declared template; MCC on every
+   merchant debit and on nothing else; KSEB for Kochi and MSEDCL for Nagpur; account IFSC
+   `^IBKL0`; a per-employer remitter IFSC in place of the `IDIB000M` literal; unique masked
+   account numbers; UPI count, ticket mean and sub-₹500 share inside the bands in
+   `packages/fixtures/src/calibration.ts`), plus the bank's own lines and the festival calendar.
+   Still to add: `seed-bundle.test.ts` (42-month row counts, balance continuity across the span,
+   forward rows dated after the anchor, generator ↔ bundle hash stable).
+   `packages/core` holds **188 tests across ten suites** of its own, over hand-built literals
+   rather than over a generated customer: as-of 16, contribution 7, credit 20, goal 15,
+   net worth 5, projection 22, protection 8, query 19, roadmap 40, suitability 36.
+   `snapshot.testkit.ts` builds a complete `Snapshot` so a case can state one fact — the same
+   customer, but carrying a card at 34.8% — without reaching for the generator; it is excluded
+   from `dist` and never collected by `node --test`. The original of this paragraph described
+   only `asof.test.ts` (`elapsedMonths`, `accountFactsAsOf`, `liabilityAsOf` and `sipHoldingAsOf`
+   over literal `LiabilityContract`/`SipContract` values, which are core's own types, so the
+   generator is not needed to state a loan), and that suite is still there and still 16.
+   The six-date parity property — that `generateCustomerFile` and those functions agree at every
+   clock position, which is what the whole seed rests on — stays in
+   `packages/fixtures/src/asof.test.ts`, because it is a statement about two packages and core may
+   not depend on the fixtures. That constraint has not moved, but the conclusion this paragraph
+   drew from it has: a `goal.test.ts` **did** arrive in core, and the fixtures one stayed. They
+   are two jobs, not one. Core's walks each rung of the ladder against a literal, including the
+   sizing fallback that stopped a six-month emergency fund being proposed with a target of ₹0;
+   fixtures' asserts the same ladder over derived personas, where several conditions are live at
+   once and `priya.debt.highInterestTotal < priya.debt.total` is a claim about Priya's debt mix
+   rather than about `suggestGoal`. Seven fixtures suites exercise core modules over a generated
+   persona for that reason — roadmap, suitability, waterfall, goal, query, challenge, credit —
+   and five of them (all but waterfall and challenge, which core has no suite for) have a
+   literal-driven half in core under the same name. CONTRIBUTING.md's "Where
+   tests live" carries the full argument for why the split cannot be collapsed.
+   `apps/api` unit-tests its pure modules with `FixedClock`: `brief.builder` (≤10,000/≤2,000 for
+   all four personas × six clock positions; every figure present in the snapshot), `lifecycle`
+   (illegal transitions throw; `assertConsumable` passes only from `gated`), `waitlist` (order, 20 s hold expiry,
+   ETA), minute-budget day roll, circuit breaker, idbi-sandbox mapping against the sample values
+   in `data-requirements.md`, tool product resolution including `UNKNOWN_PRODUCT`, reconciler
+   over fixture transcripts with and without a matching toolResult.
 
 2. **Contract.** `apps/api/test/contract/`, one file per registry entry: boot
    `buildRoot({profile:'memory', avatar:'fake'})`, `app.inject()`, assert status, parse the body
@@ -65,19 +106,28 @@ mocking library; the memory adapters are shipped implementations, not mocks.
    object; three sessions join the waitlist ⇒ order, hold expiry promotes the next, `/end` from a
    beacon releases; the ULIP tool call ⇒ BLOCKED, `BUNDLED_PROTECTION`, an `advice_records` row
    with the exact spoken sentence and source `avatar_tool` written before the handler returns.
-   Playwright (`apps/web/e2e/`) against docker compose: pick Rohan → Today shows the safe-to-spend
-   figure from `/view` → +1 month ×5 → education loan gone from Money → Do it → Record shows the
-   sentence and snapshot id → reload keeps it → Ask with no keys refuses the ULIP by rule 9 in
-   text with term cover named → stop the api container → offline badge appears with figures
-   intact → start it → badge clears; a second browser context picks Priya concurrently and sees
-   rule 1 with no cross-talk. The live Runway path is exercised by one billed manual smoke per
-   day during the build, logged in `docs/engineering/runway.md`; it is not in CI.
+   **There is no browser end-to-end suite today.** The walkthrough this paragraph specified — pick
+   Rohan, advance the clock five months, watch the education loan leave Money, decide, find the
+   sentence and snapshot id on Record, reload, be refused the ULIP by rule 9 in text, and a second
+   browser picking Priya with no cross-talk — was Playwright under `apps/web/e2e/`, and it was
+   deleted with the app. Nothing in `apps/mobile` replaces it. What still covers that ground is
+   `apps/api/test/integration/`, which drives every one of those routes over `inject` on both the
+   memory and the Postgres adapter; what is **not** covered is the part only a browser could prove,
+   which is that the screens render the figures the routes returned. That is a known hole, not a
+   layer that quietly passed. (The offline-badge leg of the old walkthrough is not part of the
+   hole: there is no offline tier any more — see [ADR-0011](adr/ADR-0011.md).) The live Runway path
+   is exercised by one billed manual smoke per day during the build, logged in
+   `docs/engineering/runway.md`; it is not in CI.
 
 5. **Architecture as tests.** `test/architecture/depcruise.test.ts`: `packages/core` imports
    nothing outside itself; `application/` may import core, contracts, ports, never adapters or
-   http; `http/` never imports adapters; adapters never import each other; `apps/web` (excluding
-   `offline/`) never imports `@dhan/core` or `@dhan/fixtures`; `process.env` appears only in
-   `config.ts`.
+   http; `http/` never imports adapters; adapters never import each other; `process.env` appears
+   only in `config.ts`. The client rule this list used to carry — `apps/web` outside `offline/`
+   imports neither `@dhan/core` nor `@dhan/fixtures` — has no rule left in
+   `.dependency-cruiser.cjs` and does not need one: `apps/mobile` is outside the cruise entirely,
+   as that file's own header says, and the half of the rule that mattered — keeping the
+   synthetic-data package off a device — is now held by `apps/mobile` not depending on
+   `@dhan/fixtures` at all.
 
 **Load and chaos (not in CI).** `infra/scripts/load.sh` (autocannon, 50 virtual reviewers
 creating sessions and pressing +1 month ten times, 10 minutes) against the team sandbox with p95
@@ -100,17 +150,23 @@ fixtures in the bank build). Target under 12 minutes.
 `node dist/index.js` as a non-root user with a HEALTHCHECK on `/api/v1/health`. Debian-slim
 rather than Alpine because `@runwayml/avatars-node-rpc` sits on the LiveKit Node SDK's native
 N-API binaries; glibc avoids the musl question on day one. The seed and replay CLIs are in the
-same image (`node dist/cli/seed.js`), run as one-off tasks, never from the entrypoint. `apps/web`
-builds to static files; locally nginx serves them with `/api` proxied to `api:3001`; in AWS the
-same `dist/` goes to S3.
+same image (`node dist/cli/seed.js`), run as one-off tasks, never from the entrypoint. **There is
+no second image.** The nginx image that served `apps/web`'s static build locally is gone with the
+app, and so is the compose service that ran it. The browser build is now the Expo web export:
+`infra/scripts/deploy-web.sh <env>` runs `expo export --platform web` out of `apps/mobile` with
+`EXPO_PUBLIC_API_URL` set to the CloudFront origin and syncs the result to the same S3 bucket — so
+the AWS half of this paragraph is unchanged, and only the local half lost a container.
 
 **Local, three ways** (root README's Run section):
-`BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev`: no database, no keys, everything works except
-Tier 0. `docker compose up`: postgres (`pgvector/pgvector:pg16` on 5433 as CONTRIBUTING documents,
+`BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api` plus `pnpm --filter @dhan/mobile start`:
+no database, no keys, everything works except Tier 0. Two terminals rather than one, because
+`apps/mobile` has no `dev` script (Expo's is `start`), so root `pnpm dev` now runs the API alone.
+`docker compose up`: postgres (`pgvector/pgvector:pg16` on 5433 as CONTRIBUTING documents,
 volume, healthcheck), seed (profile, `depends_on` postgres healthy, runs migrate + seed + verify,
-exits 0), api (`BANK_SOURCE=postgres`, `AVATAR_PROVIDER` from `.env`), web (nginx).
-`docker compose --profile seed up seed` then `docker compose up` chains seed then up. `pnpm dev`
-against `DATABASE_URL` as at adoption.
+exits 0) and api (`BANK_SOURCE=postgres`, `AVATAR_PROVIDER` from `.env`). There is no browser tier
+in compose; the mobile app reaches the API over the published host port.
+`docker compose --profile seed up seed` then `docker compose up` chains seed then up.
+`pnpm dev:api` against `DATABASE_URL` as at adoption.
 
 **Topology, `ap-south-1`, Terraform** ([ADR-0010](adr/ADR-0010.md)) in `infra/terraform` with
 `envs/team-sandbox.tfvars` and `envs/idbi-sandbox.tfvars` differing only in account id, domain,
@@ -118,7 +174,7 @@ CIDRs and egress list: one VPC, two AZs, public subnets for the ALB and one NAT 
 subnets for Fargate and RDS. ECS cluster, one service, `desired_count 1`, Fargate 1 vCPU / 2 GB,
 circuit-breaker rollback on, rolling min 100 % / max 200 % with `stopTimeout` 120 s (SIGTERM
 drain in the API), task role limited to three Secrets Manager ARNs and CloudWatch log writes; ALB
-with ACM certificate, HTTPS only, health `/api/v1/health`, idle timeout 120 s (browser WebRTC
+with ACM certificate, HTTPS only, health `/api/v1/health`, idle timeout 120 s (the client's WebRTC
 goes to LiveKit directly, not through the ALB). RDS Postgres 16 db.t4g.micro, 20 GB gp3,
 single-AZ (`multi_az` is one variable), private, encryption at rest, `rds.force_ssl`, 7-day
 backups, deletion protection; `CREATE EXTENSION vector` by migration 0001. S3 private bucket with
@@ -157,7 +213,7 @@ new deployment; ten-step laptop apply with expected outputs.
 
 **CI/CD.** `ci.yml` as in the testing section. `deploy.yml` on `workflow_dispatch`: build and
 push the image to ECR, `aws ecs update-service --force-new-deployment`, wait for stability,
-`aws s3 sync` the web build, CloudFront invalidation, then `infra/scripts/smoke.sh` (health,
+`aws s3 sync` the Expo web export, CloudFront invalidation, then `infra/scripts/smoke.sh` (health,
 customers, a session, a view, a decision, an availability call). It assumes an OIDC role only if
 the target account allows it; otherwise the runbook documents the same steps from a laptop with
 the bank's credentials. We do not assume IDBI will let GitHub into their account. Deploys are

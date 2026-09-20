@@ -29,10 +29,22 @@ const env = Object.fromEntries(
 const BASE = env.RUNWAY_API_BASE || 'https://api.dev.runwayml.com'
 const KEY = env.RUNWAY_API_KEY
 const CHARACTER = env.RUNWAY_CHARACTER_ID
-// Resolved through apps/web, which is the package that depends on livekit-client.
-const LIVEKIT_UMD = createRequire(new URL('../../../apps/web/package.json', import.meta.url)).resolve(
-  'livekit-client/dist/livekit-client.umd.js',
-)
+// Resolved through apps/mobile, which is the package that depends on livekit-client. It was
+// apps/web until that app was deleted on 20 Sep 2026 (docs/architecture/adr/ADR-0001.md), which
+// left this line resolving through a package.json that no longer exists. Falls back to this
+// file's own tree so the script also runs from a scratch directory with its own node_modules.
+//
+// The bare specifier, not the dist path: livekit-client's `exports` map does not publish
+// `./dist/*`, and createRequire resolves `.` under the `require` condition, which IS the UMD
+// build — the one thing page.addScriptTag can inject as a plain <script>.
+const LIVEKIT_UMD = (() => {
+  for (const from of [new URL('../../../apps/mobile/package.json', import.meta.url), import.meta.url]) {
+    try {
+      return createRequire(from).resolve('livekit-client')
+    } catch {}
+  }
+  throw new Error('livekit-client is not installed anywhere this script can see')
+})()
 
 const call = async (path, { method = 'GET', bearer, body } = {}) => {
   const headers = { Authorization: `Bearer ${bearer || KEY}`, 'X-Runway-Version': '2024-11-06' }

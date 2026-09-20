@@ -21,10 +21,12 @@ assign: the mass-market account that has a surplus and has never been told what 
 
 ```
 apps/api             the ONLY process that holds a secret or calls a provider (Fastify)
-apps/web             React client, mobile-first, runs the engine in the browser for the demo
+apps/mobile          Expo + Expo Router + NativeWind — the product, and the only client
 packages/core        domain logic — PURE, zero I/O; the suitability rules live here
-packages/contracts   request/response schemas shared by API and clients (zod)
+packages/contracts   request/response schemas shared by the API and the client (zod)
 packages/fixtures    synthetic customers and the product shelf; never real data
+packages/design      the design tokens, consumed twice: raw values, and the NativeWind preset
+packages/assets      generated imagery the app ships with (icons, portraits)
 ```
 
 Infrastructure as code for the AWS deployment is planned under `infra/` once the sandbox exists.
@@ -38,8 +40,9 @@ Infrastructure as code for the AWS deployment is planned under `infra/` once the
    compliance story; a rule you can only exercise by standing up a server is a rule nobody can
    audit. `pnpm test` proves the whole advisory brain with zero providers configured.
 3. **A route may not return a shape that is not declared in `packages/contracts`.** The API
-   validates against those schemas and clients import the inferred types. This is what makes a
-   second client cheap.
+   validates against those schemas and the client imports the inferred types. This is what makes
+   a second client cheap — and it is why `apps/web` could be deleted in an afternoon without the
+   API noticing ([ADR-0001](docs/architecture/adr/ADR-0001.md)).
 
 ### The invariant that matters most
 
@@ -74,16 +77,17 @@ pnpm test               # builds packages/*, then every unit and contract test
 Three ways to run the app, by what you have:
 
 ```bash
-# 1. No database, no keys. The API serves the three customers from memory.
-BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev          # api :3001 · web :5173 (proxies /api)
+# 1. No database, no keys. The API serves the four generated customers from memory.
+BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api      # api :3001 — `pnpm dev` runs only this now
+pnpm --filter @dhan/mobile start                          # the client, separately: press w for the browser target
 
 # 2. The shared Postgres. Ask a teammate for DATABASE_URL and put it in apps/api/.env.
 pnpm --filter @dhan/api migrate                            # applies apps/api/migrations once
-pnpm --filter @dhan/api seed                               # 42 months for three customers, hash recorded
-BANK_SOURCE=postgres AVATAR_PROVIDER=none pnpm dev
+pnpm --filter @dhan/api seed                               # 42 months for four customers, hash recorded
+BANK_SOURCE=postgres AVATAR_PROVIDER=none pnpm dev:api
 
 # 3. The live avatar as well: add RUNWAY_API_KEY and RUNWAY_CHARACTER_ID to apps/api/.env.
-BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev
+BANK_SOURCE=postgres AVATAR_PROVIDER=runway pnpm dev:api
 ```
 
 `pnpm --filter @dhan/api seed:check` regenerates the ledger in memory and compares its hash with
@@ -102,14 +106,18 @@ walks every record chain. Integration tests run when `DATABASE_URL` is set:
 imports `@dhan/core` through its `dist/` export. The root scripts do this for you.
 
 The team shares one Postgres database (Supabase, `pgvector` enabled). Only the API ever connects
-to it. Browsers talk to the API and nothing else; the token in `localStorage` is the only thing
-they keep.
+to it. The client talks to the API and nothing else, and the bearer is the only thing it keeps —
+SecureStore on a device, `localStorage` on the Expo web build
+(`apps/mobile/src/api/storage.ts`).
 
 ## Conventions
 
 - **TypeScript, strict.** `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are on.
-- **Tailwind utilities over the tokens in `tokens.css`.** No new hand-written component CSS.
-  `apps/web/DESIGN.md` has the recipes and the GO Mobile+ rules every screen follows.
+- **NativeWind utilities over the tokens in `packages/design/tokens.json`.** Never write a hex in
+  a component; add the colour to `tokens.json` first, which is consumed both as raw runtime values
+  and as the NativeWind preset. Typography is the seven roles on `<Type>`
+  (`apps/mobile/src/ui/Text.tsx`), not free-form sizes. (`apps/web/DESIGN.md` used to be the
+  reference here and went with that app; CONTRIBUTING.md has what replaced it.)
 - **Node 22+, pnpm.** The `packageManager` field pins the pnpm version; pnpm switches to it
   automatically. The API runs `.ts` directly in dev via `--experimental-strip-types`.
 - **pnpm workspaces.** `workspace:*` for internal dependencies.
@@ -193,10 +201,10 @@ have been re-implemented here; the pieces below have not, in rough dependency or
 
 | Piece | Where it goes | Notes |
 |---|---|---|
-| `show_artifact` client event + canvas | `apps/web` | The rule ladder and the ULIP-vs-term comparison the customer sees while Uday speaks. |
+| `show_artifact` client event + canvas | `apps/mobile` | The rule ladder and the ULIP-vs-term comparison the customer sees while Uday speaks. Named `apps/web` until that app was deleted; the work did not move, it simply has one destination now. |
 | Semantic memory + safeguard | `apps/api/src/memory.ts` | **Port the safeguard test with it.** It pins a real leak: exact-string topic matching let a medical conversation through. Matching must stay bidirectional-substring plus a summary keyword scan. |
 | Tone registers | `packages/core` | Six registers: candid, encouraging, firm, pleased, steady, careful. Chosen deterministically from the snapshot before any model call. |
-| Portrait proxy | `apps/api/src/http/routes/avatar.ts` | Runway's image URL carries an expiring token; the browser cannot hold it. Today a static portrait is served instead. |
+| Portrait proxy | `apps/api/src/http/routes/avatar.ts` | Runway's image URL carries an expiring token; the client cannot hold it. Today a static portrait is served instead. |
 | Per-IP session limit | `apps/api` | The daily minute budget exists; the per-IP limiter does not. |
 
 ## Where the docs live

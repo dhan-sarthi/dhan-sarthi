@@ -3,18 +3,27 @@
 This document lists the modules the high-level design introduces, one section each, with the
 signature the rest of the codebase depends on and the modules it may import. It is the reference
 to read before writing or reviewing a file under `apps/api/src`, `packages/core/src/asof.ts`,
-`packages/core/src/goal.ts`, `packages/contracts/src` or `apps/web/src/api`. The architecture it
+`packages/core/src/goal.ts`, `packages/contracts/src` or `apps/mobile/src/api`. The architecture it
 serves is in [`HLD.md`](HLD.md); the flows these modules take part in are in
 [`lifecycles.md`](lifecycles.md).
 
-Status: adopted 3 September 2026.
+Status: adopted 3 September 2026 · amended 2026-09-20 (the client module; see below).
+
+> **Amendment, 2026-09-20.** `apps/web` has been deleted and `apps/mobile` is the only client, so
+> the last section of this document — the client's `api/client` module — now describes
+> `apps/mobile/src/api/client.ts` and has been rewritten against it. Nothing on the server side
+> moved. Where a section below says *"at adoption"* and names an `apps/web` file, it is stating
+> where a piece of logic came from on 3 September, which is still true and is why the function it
+> names lives where it does; see the amendment on [ADR-0001](adr/ADR-0001.md) for the removal
+> itself.
 
 ## core/asof — `packages/core/src/asof.ts`
 
 The as-of arithmetic that lives inside `generateCustomerFile` at adoption, as pure functions:
 account aggregates from a ledger prefix, liability tenure/outstanding roll, SIP instalments. Called
-by the generator and by every `BankDataPort` adapter so Postgres, memory and the offline chunk
-agree to the rupee by construction.
+by the generator and by every `BankDataPort` adapter so Postgres and memory agree to the rupee by
+construction. (The offline chunk was the third caller and went with `apps/web`; the two that
+remain are the two that were ever hard to keep in step.)
 
 ```ts
 accountFactsAsOf(txns: readonly Transaction[], asOf: string): { currentBalance: number; avgMonthlyBalance3m: number; avgMonthlyBalance12m: number; minBalance12m: number }
@@ -48,14 +57,14 @@ Depends on: `contracts/routes/*`, `contracts/common`.
 
 ## contracts/tools — `packages/contracts/src/tools/index.ts`
 
-Zod argument/result schemas for the Runway tools; `zod-to-json-schema` turns them into the JSON
-Schema Runway expects.
+Zod argument/result schemas for the tools; `zod-to-json-schema` turns them into the JSON
+Schema a provider needs to register them.
 
 ```ts
 CheckSuitabilityArgs = z.object({ product_name: z.string(), monthly_amount: z.number().optional() })
 CheckSuitabilityResult = z.object({ verdict: z.enum(['PASS','BLOCKED','UNKNOWN_PRODUCT']), product: z.string().nullable(), rule_id: z.string().nullable(), spoken: z.string(), alternative: AlternativeSchema.nullable() })
 QuerySpendArgs / QuerySpendResult · GetPlanResult
-export function toRunwayTools(): RunwayToolDefinition[]
+export function toolJsonSchemas(): ToolDefinition[]
 ```
 
 Depends on: `contracts/domain`.
@@ -115,10 +124,18 @@ Depends on: `application/advisory.service`, `core/suitability`, `ports/audit-sto
 
 ## application/conversation.service — `apps/api/src/application/conversation.service.ts`
 
-Tier-1 text conversation and direct suitability evaluation, both deterministic.
+The text tier and direct suitability evaluation. The figures and the verdicts are
+deterministic; the sentence over them is not, where a model is configured.
+
+`ask` runs in three steps, in this order and for this reason: `core.answer()` computes the
+figures, `gateFor` resolves any shelf product the question names and records its verdict before
+anything is said, and `LanguageModelPort.complete` is handed both as material. The model gets no
+ledger and no discretion over a verdict, so a bad completion is a quality bug rather than a
+compliance one. `null` back from the model — no key, a timeout, a refusal — returns the
+engine's own sentence, or the rules' refusal where the gate produced one.
 
 ```ts
-ask(session: Session, question: string): Promise<Answer>
+ask(session: Session, question: string, history?: AskTurn[]): Promise<Answer>
 suggestions(session: Session): Promise<{ opening: Answer; questions: string[] }>
 evaluateProduct(session: Session, productId: string, amount: number, source: 'text'|'api'): Promise<{ verdict: Verdict; adviceRecordId: string }>
 ```
@@ -142,8 +159,10 @@ Depends on: `core/types`.
 ## application/avatar/avatar-session.service — `apps/api/src/application/avatar/avatar-session.service.ts`
 
 The grant sequence, in this order and no other: budget → claim lease → brief → createSession →
-waitUntilReady → `RpcHost.open` → consume → persist → grant. A rejected `open()` cancels,
-releases and answers 502 `gate_unavailable`.
+`awaitIssuable` → `RpcHost.open` → `issueGrant` → persist → grant. A rejected `open()` cancels,
+releases and answers 502 `gate_unavailable`. The last two port calls were `waitUntilReady` and
+`consume` as adopted and were renamed by [ADR-0013](adr/ADR-0013.md); the Runway transport below
+still spells them the old way, because those are Runway's own HTTP steps and they did not move.
 
 ```ts
 start(session: Session, ticket?: string): Promise<AvatarGrant | WaitlistTicket>
@@ -158,12 +177,13 @@ Depends on: `application/avatar/lifecycle`, `application/avatar/brief.builder`,
 
 ## application/avatar/lifecycle — `apps/api/src/application/avatar/lifecycle.ts`
 
-Explicit state machine. `consume()` is legal only from `'gated'`; any other transition throws
-`IllegalTransition` and is unit-tested.
+Explicit state machine. `assertConsumable()` passes only from `'gated'`, so `issueGrant` cannot
+run before the tool gate is open; any other transition throws `IllegalTransition` and is
+unit-tested.
 
 ```ts
 type AvatarState = 'claimed'|'creating'|'ready'|'gated'|'granted'|'live'|'ended'|'reaped'|'failed'
-class Lifecycle { get state(): AvatarState; to(next: AvatarState): void  // throws IllegalTransition }
+class Lifecycle { get state(): AvatarState; to(next: AvatarState): void; tryTo(next: AvatarState): boolean; assertConsumable(): void  // to() and assertConsumable() throw IllegalTransition }
 const TRANSITIONS: Readonly<Record<AvatarState, readonly AvatarState[]>>
 ```
 
@@ -252,7 +272,7 @@ Depends on: `adapters/idbi-sandbox/client`, `adapters/idbi-sandbox/mapping`,
 probe on the unbilled `GET /v1/avatars/{id}`).
 
 ```ts
-createSession(cred, opts: { personality; startScript; tools: RunwayToolDefinition[]; maxDuration }): Promise<string>
+createSession(cred, opts: { personality; startScript; tools: ToolDefinition[]; maxDuration }): Promise<string>
 waitUntilReady(cred, id, { timeoutMs }): Promise<{ sessionKey }>
 consumeSession(id, sessionKey): Promise<LiveKitGrant>
 cancelSession(cred, id): Promise<boolean>
@@ -269,7 +289,7 @@ Depends on: `infra/circuit`, `infra/timeout`.
 release-all and Fastify `onClose`. Written to whatever the Day-1 spike finds the SDK exposes.
 
 ```ts
-class RunwayRpcHost implements AvatarRpcHost { open(runwaySessionId: string, cred: RunwayCredential, handlers: Record<string, ToolHandler>): Promise<RpcHandle>; close(handle: RpcHandle): Promise<void>; openCount(): number }
+class RunwayRpcHost implements AvatarRpcHost { open(runwaySessionId: string, cred: AvatarCredential, handlers: ToolHandlers): Promise<RpcHandle>; close(handle: RpcHandle): Promise<void>; liveness(handle: RpcHandle): Promise<CallLiveness>; openCount(): number }
 ```
 
 Depends on: `ports/avatar-rpc-host`.
@@ -311,15 +331,30 @@ interface SeedBundle { customer; consent; accounts; transactions; liabilityContr
 
 Depends on: `fixtures/generate`, `fixtures/personas`, `fixtures/cities`, `fixtures/mcc`.
 
-## web/api/client — `apps/web/src/api/client.ts`
+## mobile/api/client — `apps/mobile/src/api/client.ts`
 
-Typed fetch generated from the contracts registry: bearer, ETag/If-None-Match, 6 s timeout, retry
-on GET only, last-good View cache for the offline tier.
+The one client. A flat object of named methods rather than a generic typed-fetch helper: every
+request and response type is imported from `@dhan/contracts`, so a route that changes shape fails
+here at `tsc` rather than at runtime, and a screen takes the body type from the method it is about
+to call instead of having to know which route file the contract filed it in. The bearer is the
+whole of what the client persists, and `api/storage.ts` is the one module that knows where:
+SecureStore on a device, `localStorage` on the Expo web build, with its own comment arguing why
+the fallback is acceptable on a target that only ever holds a synthetic customer. `onTokenChange`
+lets the snapshot store re-arm when the bearer appears or is dropped. Idempotency keys are minted per
+request and their shape is per route — derived for a decision, so a retry of the same choice
+collapses; random for an avatar call, because each attempt genuinely leases a credential and
+starts billing.
+
+There is no offline tier and no last-good cache, so no `tier` field: `apps/mobile` renders what the
+API returned or says it could not reach the bank. See [ADR-0001](adr/ADR-0001.md)'s amendment.
 
 ```ts
-api.get<'/api/v1/view'>(): Promise<View>
-api.post<'/api/v1/actions/:actionId/decision'>(params, body, { idempotencyKey }): Promise<DecisionResponse>
-useView(): { view: View | null; tier: 'server'|'offline'; error: ErrorBody | null }
+class ApiError extends Error { readonly status: number; readonly code: string }
+getToken(): Promise<string | null>
+setToken(token: string | null): Promise<void>
+onTokenChange(fn: () => void): () => void
+api.view(): Promise<View>
+api.decide(actionId, kind): Promise<DecisionResponse>   // idempotency-key `${actionId}:${kind}`
 ```
 
-Depends on: `contracts/registry`, `web/api/session`.
+Depends on: `@dhan/contracts`, `mobile/api/storage`, `expo-constants`.

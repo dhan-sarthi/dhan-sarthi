@@ -15,8 +15,14 @@
  *   - an API on API_BASE with AVATAR_PROVIDER=runway, e.g.
  *       cd apps/api && BANK_SOURCE=postgres AVATAR_PROVIDER=runway RUNWAY_MAX_SESSION_SECONDS=180 \
  *         PORT=3011 node --experimental-strip-types --env-file=.env src/index.ts
- *   - a web dev server on WEB_BASE proxying /api to it:
+ *   - a web dev server on WEB_BASE proxying /api to it. This was, at the time of the run:
  *       cd apps/web && VITE_API_PROXY_TARGET=http://127.0.0.1:3011 pnpm exec vite --port 5183
+ *     `apps/web` was deleted on 20 Sep 2026 (docs/architecture/adr/ADR-0001.md), so that command
+ *     no longer works and this script cannot be re-run as written: the page it drives is that
+ *     app's, down to the selectors below ("Ask Uday", "Call", [aria-label="End call"]). It is
+ *     kept as the record of the run in ../avatar-live-call.md, not as a recipe. Reproducing it
+ *     against `apps/mobile` (`expo start --web`) means re-finding those three controls first;
+ *     that is a rewrite, and deliberately not done here.
  *   - playwright-core (PLAYWRIGHT_CORE = path to the package) and a matching Chromium
  *     (CHROMIUM_PATH = the binary). Neither is a dependency of this repository.
  *   - a 16 kHz mono WAV of the question (FAKE_AUDIO), with leading silence so it lands after
