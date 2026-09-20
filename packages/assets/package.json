@@ -1,0 +1,23 @@
+{
+  "name": "@dhan/assets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./icons/*": "./icons/*",
+    "./logos/*": "./logos/*",
+    "./merchant-kind": "./src/merchant-kind.ts",
+    "./avatars/*": "./avatars/*"
+  },
+  "files": [
+    "avatars",
+    "icons",
+    "logos",
+    "src"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@dhan/contracts": "workspace:*"
+  }
+}

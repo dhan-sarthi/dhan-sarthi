@@ -1,0 +1,25 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    // packages/core is compiled from source by Metro rather than consumed as a build, and
+    // its own imports carry explicit .ts specifiers so that `node --experimental-strip-types`
+    // can run it directly. Type-checking it from here means accepting those specifiers.
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "~/*": ["./src/*"],
+      "@dhan/contracts": ["../../packages/contracts/src/index.ts"],
+      "@dhan/core": ["../../packages/core/src/index.ts"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    "images.d.ts"
+  ]
+}

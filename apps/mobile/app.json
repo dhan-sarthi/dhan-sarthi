@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Dhan Sarthi",
+    "slug": "dhan-sarthi",
+    "scheme": "dhansarthi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0E3329",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.dhansarthi.app"
+    },
+    "android": {
+      "package": "in.dhansarthi.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E3329"
+      }
+    },
+    "plugins": ["expo-router", "expo-status-bar", "expo-image"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

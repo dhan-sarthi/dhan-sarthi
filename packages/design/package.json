@@ -1,0 +1,15 @@
+{
+  "name": "@dhan/design",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.json": "./tokens.json",
+    "./tailwind-preset": "./tailwind-preset.cjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": { "typescript": "^5.7.2" }
+}
