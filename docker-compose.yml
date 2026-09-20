@@ -1,9 +1,9 @@
-# The full stack on one machine: Postgres with pgvector, the API in postgres mode, and the web
-# build behind nginx. Three commands:
+# The full stack on one machine: Postgres with pgvector and the API in postgres mode. There is no
+# browser tier here — the mobile app talks to this API over the host port. Three commands:
 #
 #   docker compose up -d postgres                 # database only; pnpm dev against :5433
 #   docker compose --profile seed run --rm seed   # migrate + seed + verify, exits 0
-#   docker compose up                             # api on :3001, web on :8080
+#   docker compose up                             # api on :3001
 #
 # Runway credentials, if any, come from apps/api/.env (never committed). Without them the API
 # runs with the avatar disabled and the text tier answers instead.
@@ -69,21 +69,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
-
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    image: dhan-sarthi/web
-    environment:
-      API_UPSTREAM: http://api:3001
-      DNS_RESOLVER: 127.0.0.11
-      RESOLVER_FLAGS: ipv6=off
-    ports:
-      - "8080:80"
-    depends_on:
-      - api
     restart: unless-stopped
 
 volumes:

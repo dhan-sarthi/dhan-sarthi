@@ -16,10 +16,9 @@ coverage
 **/.env.*
 !**/.env.example
 
-# Not needed to build either image.
+# Not needed to build the image.
 docs
 infra
-apps/web/e2e
 *.md
 !apps/**/*.md
 !packages/**/*.md

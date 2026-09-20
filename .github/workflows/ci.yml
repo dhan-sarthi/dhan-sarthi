@@ -126,7 +126,7 @@ jobs:
       - name: Migrate
         run: node --experimental-strip-types src/db/migrate.ts
 
-      - name: Seed the three personas
+      - name: Seed the four personas
         run: node --experimental-strip-types src/cli/seed.ts
 
       - name: Check the seed reproduces

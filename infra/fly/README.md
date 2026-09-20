@@ -1,10 +1,16 @@
 # Public URL on Fly.io
 
 The fastest public deployment that satisfies the one hard constraint: the API is a persistent
-process, because the Runway RPC host holds a LiveKit connection for the life of every call. Two
-Fly apps in Mumbai (`bom`), built from the repository's own Dockerfiles, talking over Fly's
-private network. The IDBI-account deployment is Terraform under `infra/terraform`; this is the
-review link that exists regardless of that timeline.
+process, because the Runway RPC host holds a LiveKit connection for the life of every call. One
+Fly app in Mumbai (`bom`), built from the repository's own Dockerfile. The IDBI-account
+deployment is Terraform under `infra/terraform`; this is the review link that exists regardless
+of that timeline.
+
+There was a second Fly app here, `dhan-sarthi-web`, serving `apps/web`'s static build behind an
+nginx image and proxying `/api` to this one over Fly's private network. `apps/web` was deleted on
+20 September 2026 ([ADR-0001](../../docs/architecture/adr/ADR-0001.md)) and `fly.web.toml` went
+with it, so this API is the whole deployment. The client is `apps/mobile`, which is published to
+S3 and CloudFront by `infra/scripts/deploy-web.sh`, not to Fly.
 
 ## One-time setup
 
@@ -12,7 +18,6 @@ review link that exists regardless of that timeline.
 fly auth login                                     # a browser window; once per machine
 
 fly apps create dhan-sarthi-api
-fly apps create dhan-sarthi-web
 
 # The API's secrets. DATABASE_URL is the Supabase session-pooler string from apps/api/.env.
 fly secrets set -a dhan-sarthi-api \
@@ -24,21 +29,21 @@ fly secrets set -a dhan-sarthi-api \
 
 ## Deploy
 
-From the repository root, API first, then web:
+From the repository root:
 
 ```bash
 fly deploy -c fly.api.toml
-fly deploy -c fly.web.toml
 ```
 
-The web app reaches the API at `http://dhan-sarthi-api.internal:3001` on Fly's private IPv6
-network, so the API needs no public IPv4 of its own. The review link is the web app's hostname
-(`fly status -a dhan-sarthi-web` prints it, or `fly open -c fly.web.toml`).
+`fly.api.toml` is the only target in the repository. The review link is the API's own hostname
+(`fly status -a dhan-sarthi-api` prints it, or `fly open -c fly.api.toml`) — `[http_service]` in
+`fly.api.toml` already gives it a public `https` address, which is what the mobile client points
+`EXPO_PUBLIC_API_URL` at. Nothing reaches it over Fly's private network any more.
 
 ## After a deploy
 
 ```bash
-curl -s https://dhan-sarthi-web.fly.dev/api/v1/health | jq
+curl -s https://dhan-sarthi-api.fly.dev/api/v1/health | jq
 fly logs -a dhan-sarthi-api
 ```
 
@@ -55,7 +60,7 @@ thing to look at.
   build.
 - `AVATAR_ENABLED=false` is the kill switch: the API keeps serving every screen and the text
   tier while calls are refused with an honest message.
-- One machine each. A rolling deploy briefly overlaps two API machines; the Postgres lease
-  claim is atomic, so both can serve safely for those seconds.
-- Costs: two shared-CPU machines are within Fly's free allowance or a few dollars a month; the
+- One machine. A rolling deploy briefly overlaps two API machines; the Postgres lease claim is
+  atomic, so both can serve safely for those seconds.
+- Costs: one shared-CPU machine is within Fly's free allowance or a few dollars a month; the
   Runway budget is the only meaningful spend and it is capped by the daily minute budget.

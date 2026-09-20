@@ -12,7 +12,9 @@ hosted_zone_id = ""
 api_image_tag    = "latest"
 cpu_architecture = "X86_64"
 
-db_instance_class      = "db.t4g.micro"
+# t4g (Graviton) had no capacity in any ap-south-1 AZ on 20 Sep 2026; t3 is x86 and orderable
+# in 1a/1b/1c. Same 2 vCPU / 1 GiB, about $3/month more.
+db_instance_class      = "db.t3.micro"
 db_multi_az            = false
 db_deletion_protection = false
 db_skip_final_snapshot = true

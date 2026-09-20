@@ -103,6 +103,9 @@ variable "api_environment" {
   default = {
     NODE_ENV                   = "production"
     BANK_SOURCE                = "postgres"
+    # `SET ROLE dhan_app` on every pooled connection. Without it the API runs as the master
+    # login and the REVOKEs in migration 0007 bind nothing.
+    DB_ROLE                    = "dhan_app"
     AVATAR_PROVIDER            = "runway"
     AVATAR_ENABLED             = "true"
     RUNWAY_MAX_SESSION_SECONDS = "600"

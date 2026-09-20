@@ -16,7 +16,7 @@
 
 ## Proof
 
-<!-- Tests added or changed. For apps/web, a screenshot at 390px wide. For apps/api, the curl. -->
+<!-- Tests added or changed. For apps/mobile, a screenshot at 390px wide. For apps/api, the curl. -->
 
 ## Checklist
 

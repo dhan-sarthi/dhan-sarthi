@@ -81,9 +81,11 @@ rehearsal in a clean account.
    with the task's exit code. Expect `seed ok` with the content hash and row counts. Reseed
    later with `infra/scripts/seed-remote.sh $ENV --force`. (4 min)
 
-9. **Build and publish the web bundle.** `infra/scripts/deploy-web.sh $ENV`. `pnpm build`, syncs
-   `apps/web/dist` to the bucket (hashed assets immutable, `index.html` no-cache), invalidates
-   `/*` on the distribution. (3 min)
+9. **Build and publish the web bundle.** `infra/scripts/deploy-web.sh $ENV`. Exports
+   `apps/mobile` for the web platform with `expo export` and syncs the resulting
+   `apps/mobile/dist` to the bucket (`_expo/**` and `assets/**` immutable, `index.html` and
+   `metadata.json` no-cache), then invalidates `/*` on the distribution. The API URL is baked in
+   at export time as `EXPO_PUBLIC_API_URL`. (3 min)
 
 10. **Smoke.** `infra/scripts/smoke.sh "$(terraform output -raw app_url)"`. Health, customers,
     a session, a view, a decision, availability. Every line prints `ok` and the script exits 0.
@@ -123,5 +125,7 @@ or Bedrock egress is superseded.
 ## When the sandbox is only an EC2 instance
 
 If IDBI grants the t3.medium the sandbox form asked for and nothing else, `../ec2-compose/`
-carries a cloud-init that installs Docker and runs the compose stack behind Caddy. It is the
-hedge, not the target.
+carries a cloud-init that installs Docker and runs the compose stack behind Caddy. Caddy proxies
+to the API and to nothing else — there is no browser tier in the repository any more, so that box
+serves `/api/v1/*` and answers `/` with the API's 404. The client stays the mobile build, pointed
+at the instance's hostname. It is the hedge, not the target.

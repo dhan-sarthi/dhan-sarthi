@@ -7,8 +7,9 @@
 # here is the only copy of the Runway credentials on the box; it is mode 0600 and owned by the
 # service user. Terraform is not involved.
 #
-# After first boot (about six minutes): https://<domain-or-ip> serves the product; the API is
-# reachable only through Caddy on the same host.
+# After first boot (about six minutes): https://<domain-or-ip>/api/v1/health answers. This box is
+# the API and nothing else — the client is `apps/mobile`, which ships separately and points its
+# EXPO_PUBLIC_API_URL here.
 
 package_update: true
 package_upgrade: true
@@ -46,7 +47,17 @@ write_files:
       NODE_ENV=production
 
   # Caddy terminates TLS (automatic certificate when a hostname is set; self-signed for a bare
-  # IP) and proxies to the web container, which proxies /api to the API. One origin, no CORS.
+  # IP) and reverse-proxies straight to the API. It used to proxy to a web container that served
+  # `/` and passed `/api` onward; `apps/web` was deleted on 20 September 2026 (ADR-0001) and
+  # nothing replaced that tier, so this host is API-only. Every route the API declares lives
+  # under `/api/v1/`, which means `/` matches nothing and returns the API's own JSON 404 — a
+  # dull answer rather than a missing page, and the honest one for a host with no browser tier.
+  #
+  # The old single-origin arrangement is what made CORS a non-question here. It is gone: an
+  # Android build talks to this hostname directly and needs no CORS, but an Expo *web* bundle
+  # served from anywhere else does, and api.env sets NODE_ENV=production, under which
+  # `apps/api/src/http/server.ts:84` registers CORS only when CORS_ORIGIN is set. Add that line
+  # to api.env, naming the origin, if a browser is ever pointed at this box.
   - path: /opt/dhan-sarthi/Caddyfile
     owner: dhan:dhan
     permissions: '0644'
@@ -54,7 +65,7 @@ write_files:
       # Replace with your hostname to get a public certificate; keep ":443" for a bare IP.
       REPLACE_ME_HOSTNAME_OR_:443 {
         encode gzip
-        reverse_proxy web:80
+        reverse_proxy api:3001
       }
 
   # Adds Caddy to the repository's compose file and keeps the API off the public interface.
@@ -68,8 +79,6 @@ write_files:
             - path: /opt/dhan-sarthi/api.env
               required: true
           ports: !override []
-        web:
-          ports: !override []
         caddy:
           image: caddy:2-alpine
           restart: unless-stopped
@@ -82,7 +91,7 @@ write_files:
             - caddy_data:/data
             - caddy_config:/config
           depends_on:
-            - web
+            - api
       volumes:
         caddy_data:
         caddy_config:
@@ -121,7 +130,8 @@ runcmd:
   # The repository. Use a deploy key or a token in the URL for a private remote.
   - mkdir -p /opt/dhan-sarthi && chown -R dhan:dhan /opt/dhan-sarthi
   - sudo -u dhan git clone --depth 1 REPLACE_ME_REPOSITORY_URL /opt/dhan-sarthi/repo
-  # Build both images on the box (takes a few minutes on a t3.medium), seed, then start.
+  # Build the API image on the box (takes a few minutes on a t3.medium), seed, then start. One
+  # image covers both build targets: `api` and `seed` share the `dhan-sarthi/api` tag.
   - cd /opt/dhan-sarthi/repo && sudo -u dhan docker compose build
   - cd /opt/dhan-sarthi/repo && sudo -u dhan docker compose up -d postgres
   - cd /opt/dhan-sarthi/repo && sudo -u dhan docker compose --profile seed run --rm seed

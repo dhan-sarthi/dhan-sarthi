@@ -46,7 +46,12 @@ resource "aws_secretsmanager_secret" "database" {
 resource "aws_secretsmanager_secret_version" "database" {
   secret_id = aws_secretsmanager_secret.database.id
   secret_string = jsonencode({
-    DATABASE_URL         = "postgres://dhan_app:${random_password.db_app.result}@${aws_db_instance.this.address}:5432/dhan?sslmode=require"
+    # The runtime connects as the master login and then does `SET ROLE dhan_app` (DB_ROLE in
+    # api_environment, applied by apps/api/src/db/pool.ts). It cannot connect *as* dhan_app:
+    # 0001_foundation.sql creates that role NOLOGIN on purpose — "what makes the REVOKEs in 0007
+    # binding for the API without a second password". Pointing DATABASE_URL at dhan_app instead
+    # produced `password authentication failed for user "dhan_app"` on every task start.
+    DATABASE_URL         = "postgres://${aws_db_instance.this.username}:${random_password.db_master.result}@${aws_db_instance.this.address}:5432/dhan?sslmode=require"
     MIGRATE_DATABASE_URL = "postgres://${aws_db_instance.this.username}:${random_password.db_master.result}@${aws_db_instance.this.address}:5432/dhan?sslmode=require"
     DHAN_APP_PASSWORD    = random_password.db_app.result
   })

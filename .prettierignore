@@ -7,7 +7,6 @@ pnpm-lock.yaml
 # Generated or third-party content we do not reformat
 docs/engineering/evidence/
 docs/assets/
-apps/web/public/
 
 # IDBI's own OpenAPI exports, byte for byte as the Atlas portal produced them. Reformatting
 # would cost us the one thing they are good for: being exactly what the bank handed over.

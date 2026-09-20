@@ -110,7 +110,12 @@ resource "aws_security_group" "alb" {
   tags = { Name = "${local.name}-alb" }
 }
 
+# Only when a domain is configured. Without one there is no HTTPS listener on the ALB
+# (alb.tf gates it on the same local), so this rule would open a port nothing serves — and a
+# prefix-list rule is charged against the 60-rule security-group quota at the list's full entry
+# count, not as one rule. Two CloudFront rules exceed the quota on their own.
 resource "aws_vpc_security_group_ingress_rule" "alb_https_from_cloudfront" {
+  count             = local.has_domain ? 1 : 0
   security_group_id = aws_security_group.alb.id
   description       = "HTTPS from CloudFront"
   ip_protocol       = "tcp"
