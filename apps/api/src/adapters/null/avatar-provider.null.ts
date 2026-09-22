@@ -3,9 +3,14 @@
  * kill switch. Every call fails with `not_configured`, which the session service turns into the
  * honest 503 and the text tier. Nothing is ever billed through this class.
  */
-import type { BreakerState, ConversationTurn, AvatarTransport } from '@dhan/contracts'
+import type { BreakerState, ConversationTurn } from '@dhan/contracts'
 import { AvatarProviderError } from '../../application/avatar/provider-error.ts'
-import type { AvatarCredential, AvatarProvider, AvatarSessionOptions } from '../../ports/index.ts'
+import type {
+  AvatarCredential,
+  AvatarProvider,
+  AvatarSessionOptions,
+  IssuedGrant,
+} from '../../ports/index.ts'
 
 const refuse = (): never => {
   throw new AvatarProviderError(
@@ -15,11 +20,16 @@ const refuse = (): never => {
 }
 
 export class NullAvatarProvider implements AvatarProvider {
-  /** Never used: nothing is ever granted. Named so the type is satisfied honestly. */
-  readonly transport: AvatarTransport = 'livekit'
-
   async probe(_cred: AvatarCredential): Promise<{ ok: boolean; character: string | null }> {
     return { ok: false, character: null }
+  }
+
+  async credits(_cred: AvatarCredential): Promise<number | null> {
+    return null
+  }
+
+  async sessionsLeftToday(_cred: AvatarCredential): Promise<number | null> {
+    return null
   }
 
   async createSession(
@@ -37,11 +47,11 @@ export class NullAvatarProvider implements AvatarProvider {
     return refuse()
   }
 
-  async issueGrant(_cred: AvatarCredential, _id: string): Promise<{ url: string; token: string }> {
+  async issueGrant(_cred: AvatarCredential, _id: string): Promise<IssuedGrant> {
     return refuse()
   }
 
-  async cancel(_cred: AvatarCredential, _id: string): Promise<void> {
+  async cancel(_cred: AvatarCredential, _id: string, _opts?: { graceMs?: number }): Promise<void> {
     return refuse()
   }
 
@@ -49,7 +59,7 @@ export class NullAvatarProvider implements AvatarProvider {
     return null
   }
 
-  breakerState(): BreakerState {
+  breakerState(_cred?: AvatarCredential): BreakerState {
     return 'closed'
   }
 }

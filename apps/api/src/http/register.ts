@@ -77,6 +77,12 @@ export interface RegisterDeps {
   clock: Clock
   /** Per-row rate limits are applied only when the plugin is registered on the app. */
   rateLimits: boolean
+  /**
+   * A deployment's own ceiling for a row, in place of the registry's default. The registry says
+   * what a route's limit is for; configuration says how many a given demo can afford — and a
+   * room of judges on one venue network is one IP.
+   */
+  rateLimitMax?: Partial<Record<string, number>>
   /** A response that fails its schema is a 500 (true) or a logged violation (false). */
   strictResponses: boolean
 }
@@ -131,7 +137,7 @@ export function registerRoute<E extends Route>(
       ...(deps.rateLimits && row.rateLimit
         ? {
             rateLimit: {
-              max: row.rateLimit.max,
+              max: deps.rateLimitMax?.[row.id] ?? row.rateLimit.max,
               timeWindow: row.rateLimit.window,
               keyGenerator:
                 row.rateLimit.keyBy === 'session'

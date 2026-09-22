@@ -29,6 +29,7 @@ import { IdbiGateway } from '../adapters/idbi-sandbox/api/gateway.ts'
 import { IdbiTransport } from '../adapters/idbi-sandbox/api/transport.ts'
 import { REPLAY_BASE_URL, createReplayTransport } from '../adapters/idbi-sandbox/api/replay.ts'
 import { loadCapturedCalls } from '../adapters/idbi-sandbox/api/captured.ts'
+import { createFailoverFetch } from '../adapters/idbi-sandbox/api/failover.ts'
 import { DECLARED_SEEDS, HOLDINGS_SEEDS } from '../adapters/idbi-sandbox/api/customers.ts'
 import { BankBackedHoldings, InMemoryHoldings } from '../adapters/memory/holdings.memory.ts'
 import { InMemoryAaConsents } from '../adapters/memory/aa-consent.memory.ts'
@@ -48,8 +49,9 @@ import { PostgresSeedInfo } from '../adapters/postgres/seed-provenance.postgres.
 import { PostgresSessionStore } from '../adapters/postgres/session-store.postgres.ts'
 import { PostgresSnapshotStore } from '../adapters/postgres/snapshot-store.postgres.ts'
 import { HISTORY_WINDOW_MONTHS } from '../application/advisory.service.ts'
+import { AvatarProviderRouter, AvatarRpcRouter } from '../application/avatar/provider-router.ts'
 import type { SeedInfo } from '../application/seed-info.ts'
-import { avatarCredentials, avatarIsLive, textModelIsLive } from '../config.ts'
+import { avatarChain, avatarCredentials, avatarIsLive, textModelIsLive } from '../config.ts'
 import type { Config } from '../config.ts'
 import { createPool } from '../db/pool.ts'
 import type { Logger } from '../infra/logger.ts'
@@ -66,6 +68,7 @@ import type {
   AvatarProvider,
   AvatarRpcHost,
   AvatarToolWebhook,
+  AvatarVendor,
   BankDataPort,
   Clock,
   LeaseStore,
@@ -76,18 +79,23 @@ import type {
 
 export interface Profile {
   bank: Config['BANK_SOURCE']
+  /** The provider tried first — what health and a session's capabilities report. */
   avatar: AvatarProviderName
+  /** Every provider in try order. Empty when the avatar is off. */
+  avatarChain: AvatarVendor[]
 }
 
 export function resolveProfile(config: Config): Profile {
+  const chain = avatarIsLive(config) ? avatarChain(config) : []
   return {
     bank: config.BANK_SOURCE,
-    avatar: avatarIsLive(config) ? config.AVATAR_PROVIDER : 'none',
+    avatar: chain[0] ?? 'none',
+    avatarChain: chain,
   }
 }
 
 export function describeProfile(profile: Profile): string {
-  return `${profile.bank} × ${profile.avatar}`
+  return `${profile.bank} × ${profile.avatarChain.length > 0 ? profile.avatarChain.join(' → ') : 'none'}`
 }
 
 export interface BankAdapters {
@@ -220,19 +228,30 @@ export function bankAdapters(
       // replayed in process against a reserved TLD that cannot resolve. That is IDBI's own
       // bytes rather than wire we generated, so the offline path exercises the same mapping
       // the live one does.
-      const replay = config.IDBI_API_BASE
-        ? null
-        : createReplayTransport({
-            captures: loadCapturedCalls(),
-            onMiss: (miss) =>
-              log.warn(
-                { op: miss.op, fingerprint: miss.fingerprint, reason: miss.reason },
-                'the IDBI replay transport had no capture for a request',
-              ),
-          })
+      //
+      // With a base URL, the live sandbox is asked first and the same replay answers whenever it
+      // cannot — refused at the edge, down, or slow — so an IP allow-list we do not control is
+      // never the reason the product stops working (failover.ts).
+      const replay =
+        config.IDBI_API_BASE && config.IDBI_FALLBACK === 'off'
+          ? null
+          : createReplayTransport({
+              captures: loadCapturedCalls(),
+              onMiss: (miss) =>
+                log.warn(
+                  { op: miss.op, fingerprint: miss.fingerprint, reason: miss.reason },
+                  'the IDBI replay transport had no capture for a request',
+                ),
+            })
+      const idbiFetch =
+        replay === null
+          ? undefined
+          : config.IDBI_API_BASE
+            ? createFailoverFetch({ live: fetch, fallback: replay.fetch, logger: log }).fetch
+            : replay.fetch
       const transport = new IdbiTransport({
         baseUrl: config.IDBI_API_BASE ?? REPLAY_BASE_URL,
-        ...(replay ? { fetch: replay.fetch } : {}),
+        ...(idbiFetch ? { fetch: idbiFetch } : {}),
         logger: log,
       })
       const profiles = new InMemoryDeclaredProfiles(DECLARED_SEEDS, clock)
@@ -261,7 +280,7 @@ export function bankAdapters(
 export interface AvatarAdapters {
   avatar: AvatarProvider
   rpc: AvatarRpcHost
-  /** The gate's HTTP front door. Null-implemented under Runway, which answers inside the room. */
+  /** The gate's HTTP front door. Null-implemented unless Anam is in the chain. */
   toolWebhook: AvatarToolWebhook
   credentials: AvatarCredential[]
 }
@@ -269,20 +288,22 @@ export interface AvatarAdapters {
 /**
  * The two providers are wired the same way and differ only in what answers the model's tools:
  * Runway joins the room as a hidden participant, Anam is called back over HTTP. Everything
- * downstream — the pool, the lease, the budget, the reaper, the waitlist, the audit — is shared,
- * which is what makes `AVATAR_PROVIDER` a genuine swap rather than a second code path.
+ * downstream — the pool, the lease, the budget, the reaper, the waitlist, the audit — is shared.
  *
  * The table below is the whole of what a third provider would add here: one row, three
- * adapters, and nothing above this file changes.
+ * adapters. What changed on 22 September 2026 is that more than one row can be live at once:
+ * `AVATAR_PROVIDER=runway,anam` builds both and puts a router in front, and each credential in
+ * the pool says which of them it belongs to.
  */
-type AvatarBuild = (config: Config, log: Logger) => Omit<AvatarAdapters, 'credentials'>
+interface VendorAdapters {
+  avatar: AvatarProvider
+  rpc: AvatarRpcHost
+  toolWebhook: AvatarToolWebhook | null
+}
 
-const AVATAR_BUILDS: Record<AvatarProviderName, AvatarBuild> = {
-  none: () => ({
-    avatar: new NullAvatarProvider(),
-    rpc: new NullRpcHost(),
-    toolWebhook: new NullToolWebhook(),
-  }),
+type AvatarBuild = (config: Config, log: Logger) => VendorAdapters
+
+const AVATAR_BUILDS: Record<AvatarVendor, AvatarBuild> = {
   anam: (config, log) => {
     // One registry, three readers: the provider mints the per-call secret into the persona
     // config, the gate attaches the handlers, the webhook dispatches. See call-registry.ts.
@@ -291,6 +312,7 @@ const AVATAR_BUILDS: Record<AvatarProviderName, AvatarBuild> = {
       baseUrl: config.ANAM_API_BASE,
       voiceId: config.ANAM_VOICE_ID ?? '',
       llmId: config.ANAM_LLM_ID ?? '',
+      ...(config.ANAM_LANGUAGE_CODE ? { languageCode: config.ANAM_LANGUAGE_CODE } : {}),
       videoWidth: config.ANAM_VIDEO_WIDTH,
       videoHeight: config.ANAM_VIDEO_HEIGHT,
     })
@@ -312,14 +334,38 @@ const AVATAR_BUILDS: Record<AvatarProviderName, AvatarBuild> = {
   runway: (config, log) => ({
     avatar: new RunwayAvatarProvider(new RunwayTransport({ baseUrl: config.RUNWAY_API_BASE })),
     rpc: new RunwayRpcHost({ baseUrl: config.RUNWAY_API_BASE, log }),
-    toolWebhook: new NullToolWebhook(),
+    // Runway's tools are answered inside the room; nothing may come through the HTTP gate.
+    toolWebhook: null,
   }),
 }
 
 export function avatarAdapters(profile: Profile, config: Config, log: Logger): AvatarAdapters {
   // The credentials are counted under the kill switch too, so the availability route can say
   // "disabled" (a decision) rather than "not configured" (a gap).
-  return { ...AVATAR_BUILDS[profile.avatar](config, log), credentials: avatarCredentials(config) }
+  const credentials = avatarCredentials(config)
+  if (profile.avatarChain.length === 0) {
+    return {
+      avatar: new NullAvatarProvider(),
+      rpc: new NullRpcHost(),
+      toolWebhook: new NullToolWebhook(),
+      credentials,
+    }
+  }
+  const providers: Partial<Record<AvatarVendor, AvatarProvider>> = {}
+  const hosts: Partial<Record<AvatarVendor, AvatarRpcHost>> = {}
+  let toolWebhook: AvatarToolWebhook = new NullToolWebhook()
+  for (const vendor of profile.avatarChain) {
+    const built = AVATAR_BUILDS[vendor](config, log)
+    providers[vendor] = built.avatar
+    hosts[vendor] = built.rpc
+    if (built.toolWebhook) toolWebhook = built.toolWebhook
+  }
+  return {
+    avatar: new AvatarProviderRouter(providers),
+    rpc: new AvatarRpcRouter(hosts),
+    toolWebhook,
+    credentials,
+  }
 }
 
 /**

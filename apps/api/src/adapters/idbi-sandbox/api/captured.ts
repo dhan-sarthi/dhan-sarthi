@@ -29,10 +29,11 @@ export const CAPTURED_DIR = join(dirname(fileURLToPath(import.meta.url)), '../ca
 /**
  * Every captured call, or an empty list where the directory is not on disk.
  *
- * Empty rather than a throw, because `tsc -b` emits JavaScript and does not copy JSON: a built
- * `dist` has no `captured/`, and a deployment there is expected to be talking to the real
- * sandbox anyway. The replay transport answers 501 per operation in that case, which says
- * "no fixture" loudly instead of serving a plausible empty body.
+ * Empty rather than a throw. `tsc -b` emits JavaScript and does not copy JSON, so the build
+ * script copies `captured/` into `dist` itself — the failover in `failover.ts` answers from it
+ * when a deployment cannot reach the sandbox. Were it ever missing, the replay transport
+ * answers 501 per operation, which says "no fixture" loudly instead of serving a plausible
+ * empty body.
  */
 export function loadCapturedCalls(dir: string = CAPTURED_DIR): CapturedCall[] {
   if (!existsSync(dir)) return []

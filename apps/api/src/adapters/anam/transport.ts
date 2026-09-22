@@ -93,9 +93,19 @@ export interface AnamConcurrency {
 
 export interface AnamTransportOptions {
   baseUrl: string
-  /** The avatar's voice and brain. Both are account-wide choices, not per-credential ones. */
+  /**
+   * The avatar's voice and brain, for a credential that does not name its own. A cloned voice
+   * belongs to the account that cloned it, so a second Anam account carries `voiceId` on its
+   * credential and this is only the fallback.
+   */
   voiceId: string
   llmId: string
+  /**
+   * What the speech recogniser expects to hear, ISO 639-1. Unset uses the org default (`en`).
+   * Anam has no auto-detect: the code is fixed per session, which is why the persona prompt, not
+   * this, is what makes the reply follow the customer's language.
+   */
+  languageCode?: string
   /**
    * The shape of the video track, which the client cannot fix afterwards.
    *
@@ -237,6 +247,7 @@ export class AnamTransport {
   private readonly baseUrl: string
   private readonly voiceId: string
   private readonly llmId: string
+  private readonly languageCode: string | undefined
   private readonly videoWidth: number
   private readonly videoHeight: number
   private readonly fetchImpl: typeof fetch
@@ -253,6 +264,7 @@ export class AnamTransport {
     this.baseUrl = options.baseUrl.replace(/\/$/, '')
     this.voiceId = options.voiceId
     this.llmId = options.llmId
+    this.languageCode = options.languageCode
     this.videoWidth = options.videoWidth
     this.videoHeight = options.videoHeight
     this.sessionListTtlMs = options.sessionListTtlMs ?? 4_000
@@ -351,11 +363,12 @@ export class AnamTransport {
       personaConfig: {
         name: 'Uday',
         avatarId: cred.characterId,
-        voiceId: this.voiceId,
-        llmId: this.llmId,
+        voiceId: cred.voiceId ?? this.voiceId,
+        llmId: cred.llmId ?? this.llmId,
         systemPrompt: opts.systemPrompt.slice(0, 10_000),
         initialMessage: opts.initialMessage.slice(0, 2_000),
         maxSessionLengthSeconds: opts.maxSeconds,
+        ...(this.languageCode ? { languageCode: this.languageCode } : {}),
         ...(opts.tools.length > 0 ? { tools: opts.tools } : {}),
       },
     }

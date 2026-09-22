@@ -87,8 +87,8 @@ import kindThali from '../icons/merchant/thali.png'
 import kindTrain from '../icons/merchant/train.png'
 import kindWater from '../icons/merchant/water.png'
 
-
 import udayPortrait from '../avatars/uday.jpg'
+import udayRunwayStill from '../avatars/uday-runway.jpg'
 import priyaPortrait from '../avatars/priya.png'
 
 import cash from '../icons/spend/cash.png'
@@ -140,6 +140,17 @@ export const SPEND_ICON: Record<SpendCategory, IconRef> = {
  * customer talks to is the same person whether or not the video connects.
  */
 export const UDAY_PORTRAIT: IconRef = udayPortrait
+/**
+ * Uday at rest, 1088×704: `uday.jpg` cropped to the Runway video's framing (same face size and
+ * eye line). It replaced the video's own first frame, which caught him mid-word with his teeth
+ * showing; that frame is kept as `uday-runway-mouth-open.jpg`.
+ *
+ * Shown in the call's frame before the video arrives, framed the same way, so connecting is the
+ * picture starting to move rather than one crop of him being swapped for another.
+ */
+export const UDAY_CALL_STILL: IconRef = udayRunwayStill
+/** Its width over its height, which the stage frames by until a real video reports its own. */
+export const UDAY_CALL_STILL_ASPECT = 1088 / 704
 export const PRIYA_PORTRAIT: IconRef = priyaPortrait
 
 // <generated: assets>
@@ -156,43 +167,43 @@ export const PRIYA_PORTRAIT: IconRef = priyaPortrait
  * bundled at all — a drawn icon is the better picture.
  */
 const MERCHANT_LOGO: Record<string, { src: IconRef; width: number }> = {
-  'amazon': { src: logoAmazon, width: 48 },
+  amazon: { src: logoAmazon, width: 48 },
   'apollo-pharmacy': { src: logoApolloPharmacy, width: 32 },
-  'blinkit': { src: logoBlinkit, width: 96 },
-  'bookmyshow': { src: logoBookmyshow, width: 96 },
-  'bpcl': { src: logoBpcl, width: 48 },
-  'cleartrip': { src: logoCleartrip, width: 96 },
-  'croma': { src: logoCroma, width: 96 },
-  'crossword': { src: logoCrossword, width: 32 },
-  'dmart': { src: logoDmart, width: 96 },
-  'dominos': { src: logoDominos, width: 96 },
-  'flipkart': { src: logoFlipkart, width: 96 },
-  'hotstar': { src: logoHotstar, width: 64 },
-  'inox': { src: logoInox, width: 96 },
+  blinkit: { src: logoBlinkit, width: 96 },
+  bookmyshow: { src: logoBookmyshow, width: 96 },
+  bpcl: { src: logoBpcl, width: 48 },
+  cleartrip: { src: logoCleartrip, width: 96 },
+  croma: { src: logoCroma, width: 96 },
+  crossword: { src: logoCrossword, width: 32 },
+  dmart: { src: logoDmart, width: 96 },
+  dominos: { src: logoDominos, width: 96 },
+  flipkart: { src: logoFlipkart, width: 96 },
+  hotstar: { src: logoHotstar, width: 64 },
+  inox: { src: logoInox, width: 96 },
   'jio-fiber': { src: logoJioFiber, width: 48 },
-  'lenskart': { src: logoLenskart, width: 96 },
-  'lulu': { src: logoLulu, width: 96 },
-  'makemytrip': { src: logoMakemytrip, width: 96 },
-  'medplus': { src: logoMedplus, width: 96 },
-  'myntra': { src: logoMyntra, width: 96 },
-  'netflix': { src: logoNetflix, width: 64 },
-  'nykaa': { src: logoNykaa, width: 96 },
-  'pvr': { src: logoPvr, width: 96 },
-  'rapido': { src: logoRapido, width: 96 },
-  'reliance': { src: logoReliance, width: 96 },
+  lenskart: { src: logoLenskart, width: 96 },
+  lulu: { src: logoLulu, width: 96 },
+  makemytrip: { src: logoMakemytrip, width: 96 },
+  medplus: { src: logoMedplus, width: 96 },
+  myntra: { src: logoMyntra, width: 96 },
+  netflix: { src: logoNetflix, width: 64 },
+  nykaa: { src: logoNykaa, width: 96 },
+  pvr: { src: logoPvr, width: 96 },
+  rapido: { src: logoRapido, width: 96 },
+  reliance: { src: logoReliance, width: 96 },
   'reliance-fresh': { src: logoRelianceFresh, width: 96 },
   'reliance-smart': { src: logoRelianceSmart, width: 96 },
-  'smaaash': { src: logoSmaaash, width: 96 },
-  'spencer': { src: logoSpencer, width: 96 },
-  'spotify': { src: logoSpotify, width: 48 },
-  'starbucks': { src: logoStarbucks, width: 96 },
-  'swiggy': { src: logoSwiggy, width: 96 },
+  smaaash: { src: logoSmaaash, width: 96 },
+  spencer: { src: logoSpencer, width: 96 },
+  spotify: { src: logoSpotify, width: 48 },
+  starbucks: { src: logoStarbucks, width: 96 },
+  swiggy: { src: logoSwiggy, width: 96 },
   'swiggy-dineout': { src: logoSwiggyDineout, width: 96 },
   'swiggy-instamart': { src: logoSwiggyInstamart, width: 96 },
   'third-wave-coffee': { src: logoThirdWaveCoffee, width: 96 },
-  'uber': { src: logoUber, width: 96 },
-  'zepto': { src: logoZepto, width: 96 },
-  'zomato': { src: logoZomato, width: 96 },
+  uber: { src: logoUber, width: 96 },
+  zepto: { src: logoZepto, width: 96 },
+  zomato: { src: logoZomato, width: 96 },
 }
 
 /**
@@ -203,48 +214,51 @@ const MERCHANT_LOGO: Record<string, { src: IconRef; width: number }> = {
  * drawing all three the same way is how a statement stops being read.
  */
 const MERCHANT_KIND_ICON: Record<string, IconRef> = {
-  'beauty': kindBeauty,
+  beauty: kindBeauty,
   'bike-taxi': kindBikeTaxi,
-  'biryani': kindBiryani,
-  'books': kindBooks,
-  'broadband': kindBroadband,
-  'burger': kindBurger,
-  'chai': kindChai,
-  'cinema': kindCinema,
-  'clinic': kindClinic,
-  'clothing': kindClothing,
-  'coffee': kindCoffee,
-  'electricity': kindElectricity,
-  'electronics': kindElectronics,
-  'eyewear': kindEyewear,
-  'flight': kindFlight,
-  'fuel': kindFuel,
-  'gaming': kindGaming,
-  'gas': kindGas,
-  'gym': kindGym,
-  'interest': kindInterest,
-  'jewellery': kindJewellery,
-  'kirana': kindKirana,
+  biryani: kindBiryani,
+  books: kindBooks,
+  broadband: kindBroadband,
+  burger: kindBurger,
+  chai: kindChai,
+  cinema: kindCinema,
+  clinic: kindClinic,
+  clothing: kindClothing,
+  coffee: kindCoffee,
+  electricity: kindElectricity,
+  electronics: kindElectronics,
+  eyewear: kindEyewear,
+  flight: kindFlight,
+  fuel: kindFuel,
+  gaming: kindGaming,
+  gas: kindGas,
+  gym: kindGym,
+  interest: kindInterest,
+  jewellery: kindJewellery,
+  kirana: kindKirana,
   'lab-test': kindLabTest,
-  'metro': kindMetro,
-  'mobile': kindMobile,
-  'music': kindMusic,
-  'person': kindPerson,
-  'pharmacy': kindPharmacy,
-  'pizza': kindPizza,
-  'school': kindSchool,
-  'snacks': kindSnacks,
-  'software': kindSoftware,
-  'streaming': kindStreaming,
-  'supermarket': kindSupermarket,
-  'sweets': kindSweets,
-  'thali': kindThali,
-  'train': kindTrain,
-  'water': kindWater,
+  metro: kindMetro,
+  mobile: kindMobile,
+  music: kindMusic,
+  person: kindPerson,
+  pharmacy: kindPharmacy,
+  pizza: kindPizza,
+  school: kindSchool,
+  snacks: kindSnacks,
+  software: kindSoftware,
+  streaming: kindStreaming,
+  supermarket: kindSupermarket,
+  sweets: kindSweets,
+  thali: kindThali,
+  train: kindTrain,
+  water: kindWater,
 }
 
 export const logoSlug = (merchant: string): string =>
-  merchant.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  merchant
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 
 /** The brand's logo and its true pixel width, or undefined where this merchant has none. */
 export function merchantLogo(

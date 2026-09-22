@@ -73,3 +73,33 @@ describe('rate limiting answers with 429, not 500', () => {
     assert.ok((body.details.retryAfterMs ?? 0) > 0)
   })
 })
+
+describe("the call-start limit is the deployment's to set", () => {
+  it('follows AVATAR_SESSIONS_PER_IP_PER_HOUR, not the registry default of five', async () => {
+    // The setting existed from the start and nothing read it, so a room of judges sharing one
+    // venue IP was limited to five calls an hour whatever the environment said.
+    const root = await makeRoot({ rateLimits: true, env: { AVATAR_SESSIONS_PER_IP_PER_HOUR: '2' } })
+    try {
+      const session = await root.app.inject({
+        method: 'POST',
+        url: '/api/v1/sessions',
+        payload: { cif: 'IDBI0009182731' },
+      })
+      const token = session.json<{ token: string }>().token
+      const statuses: number[] = []
+      for (let i = 0; i < 3; i += 1) {
+        const res = await root.app.inject({
+          method: 'POST',
+          url: '/api/v1/avatar/session',
+          headers: { authorization: `Bearer ${token}`, 'idempotency-key': `idem-limit-${i}` },
+          payload: {},
+        })
+        statuses.push(res.statusCode)
+      }
+      // Two answered (503: no avatar in the test build), the third refused by the limiter.
+      assert.deepEqual(statuses, [503, 503, 429])
+    } finally {
+      await root.close()
+    }
+  })
+})

@@ -26,6 +26,24 @@ There is no credential. The sandbox allow-lists IP addresses and that is the ent
 Every response carries `x-atlas-request-id` and `x-atlas-trace-id`. Those are the two things IDBI
 support asks for, so every call logs both, failures included.
 
+### When the gate says no
+
+The sandbox is not a dependency the product can stop for. With `IDBI_API_BASE` set, every call
+goes to the live sandbox first; if it is refused at the edge (403), answers 5xx, sends back
+something that is not JSON, or says nothing for 6 s, the call is answered by our own
+implementation of the same API instead — the replay over the forty-two captured responses,
+refusals included, on the same wire. The next 60 s skip the live line entirely, then one call
+probes it again. A 400 from a sandbox that is up is the bank's answer and is never replaced.
+
+So an AWS deployment whose NAT address IDBI has not allow-listed serves Priya and Neha with the
+same figures as an allow-listed one, and `/health` stays green, so the load balancer does not
+cycle the task. The log line `answering from our own implementation` says which is happening.
+`IDBI_FALLBACK=off` turns the fallback off. Verified 22 Sep 2026 against the real gateway, which
+was refusing this team's network with a 403 at the time: every route answered 200.
+
+The captures are copied into `dist/` by the API's `build` script, so the Docker image carries
+them.
+
 ## The shape of a call
 
 Every operation is a `POST` to `/Development/<op>test` with a JSON body. The registry we had
@@ -260,5 +278,6 @@ Worth raising, in rough order of how much it costs us:
 | `api/to-domain.ts` | IDBI's wire to the domain, in one hop |
 | `api/customers.ts` | the keys and the coverage table above |
 | `api/replay.ts` | a `fetch` answering from the captures, refusals included |
+| `api/failover.ts` | live sandbox first, the replay when it is refused, down or slow |
 | `captured/` | forty-two responses, each with the request that produced it |
 | `scripts/capture-idbi.sh` | re-capture everything; writes and bureau are behind flags |

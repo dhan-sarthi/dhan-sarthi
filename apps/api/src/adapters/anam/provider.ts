@@ -24,7 +24,12 @@ import type { BreakerState, ConversationTurn } from '@dhan/contracts'
 import { AvatarProviderError } from '../../application/avatar/provider-error.ts'
 import { BreakerOpenError } from '../../infra/circuit.ts'
 import { isTimeout } from '../../infra/timeout.ts'
-import type { AvatarCredential, AvatarProvider, AvatarSessionOptions } from '../../ports/index.ts'
+import type {
+  AvatarCredential,
+  AvatarProvider,
+  AvatarSessionOptions,
+  IssuedGrant,
+} from '../../ports/index.ts'
 import type { AnamCallRegistry } from './call-registry.ts'
 import { AnamError, type AnamTransport, toAnamTools } from './transport.ts'
 
@@ -59,7 +64,7 @@ export interface AnamAvatarProviderOptions {
 
 export class AnamAvatarProvider implements AvatarProvider {
   /** Anam's own WebRTC signalling, which the client opens with `@anam-ai/js-sdk`. */
-  readonly transport = 'anam' as const
+  static readonly transport = 'anam' as const
   private readonly http: AnamTransport
   private readonly registry: AnamCallRegistry
   private readonly publicBaseUrl: string
@@ -82,10 +87,32 @@ export class AnamAvatarProvider implements AvatarProvider {
     }
   }
 
+  /** Anam publishes no balance this build can read. */
+  async credits(_cred: AvatarCredential): Promise<number | null> {
+    return null
+  }
+
+  /** Nor a daily session cap: a minted token is not a session until a browser connects. */
+  async sessionsLeftToday(_cred: AvatarCredential): Promise<number | null> {
+    return null
+  }
+
   async createSession(
     cred: AvatarCredential,
     opts: AvatarSessionOptions,
   ): Promise<{ runwaySessionId: string }> {
+    // A minted token is not a slot: a full org answers 429 only when the browser connects, too
+    // late for the pool to try the next account. The concurrency read is unbilled and says so
+    // now. Unreadable is not full — minting goes ahead, as it did before this check existed.
+    const room = await this.http.concurrency(cred).catch(() => null)
+    if (room && !room.canStartSession) {
+      throw new AvatarProviderError(
+        'queued',
+        `Anam account ${cred.label} is at its concurrent-session limit (${room.active}/${room.limit}).`,
+        429,
+      )
+    }
+
     // Ours, and prefixed, so a glance at a log line or an audit row says which provider ran it.
     const runwaySessionId = `anam_${randomUUID()}`
     const secret = this.registry.mint(runwaySessionId)
@@ -120,20 +147,22 @@ export class AnamAvatarProvider implements AvatarProvider {
     }
   }
 
-  async issueGrant(
-    _cred: AvatarCredential,
-    runwaySessionId: string,
-  ): Promise<{ url: string; token: string }> {
+  async issueGrant(_cred: AvatarCredential, runwaySessionId: string): Promise<IssuedGrant> {
     const token = this.tokens.get(runwaySessionId)
     if (!token) {
       throw new AvatarProviderError('failed', `no minted Anam token for ${runwaySessionId}`)
     }
     this.tokens.delete(runwaySessionId)
     // No room to join, so no URL. The client reads the grant's `transport` and knows this.
-    return { url: '', token }
+    return { transport: AnamAvatarProvider.transport, url: '', token }
   }
 
-  async cancel(cred: AvatarCredential, runwaySessionId: string): Promise<void> {
+  /** Anam keeps its transcript either way, so there is nothing to wait for. */
+  async cancel(
+    cred: AvatarCredential,
+    runwaySessionId: string,
+    _opts?: { graceMs?: number },
+  ): Promise<void> {
     this.tokens.delete(runwaySessionId)
     this.registry.release(runwaySessionId)
     try {
@@ -156,7 +185,7 @@ export class AnamAvatarProvider implements AvatarProvider {
     }
   }
 
-  breakerState(): BreakerState {
+  breakerState(_cred?: AvatarCredential): BreakerState {
     return this.http.breaker.state()
   }
 }

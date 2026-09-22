@@ -15,6 +15,13 @@ export function avatarRoutes(r: Registrar, s: AppServices): void {
     s.avatar.start(session, headers['x-waitlist-ticket'], body.topic),
   )
 
+  // The call screen asks for this while the customer is still looking at Uday: the provider's
+  // slow part (create, READY, the gate) happens before the tap instead of after it. Same topic
+  // rule as the start route: it steers the opening line and nothing else.
+  r(routeById('prepareAvatarSession'), async ({ session, body }) =>
+    s.avatar.prepare(session, body.topic),
+  )
+
   r(routeById('getWaitlist'), async ({ session, params }) =>
     s.avatar.waitlistStatus(session, params.ticket),
   )

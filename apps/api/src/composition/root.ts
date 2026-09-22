@@ -17,6 +17,7 @@ import { NullAvatarProvider } from '../adapters/null/avatar-provider.null.ts'
 import { NullRpcHost } from '../adapters/null/rpc-host.null.ts'
 import { AdvisoryService } from '../application/advisory.service.ts'
 import { AvatarSessionService } from '../application/avatar/avatar-session.service.ts'
+import { CreditWatch, CredentialHealth } from '../application/avatar/credential-health.ts'
 import { CredentialPool } from '../application/avatar/credential-pool.ts'
 import { LeaseReaper } from '../application/avatar/lease-reaper.ts'
 import { LiveCalls } from '../application/avatar/live-calls.ts'
@@ -127,6 +128,8 @@ export interface RootOptions {
   logger?: FastifyServerOptions['logger']
   /** Backoff for the transcript fetch after a call. */
   transcriptDelaysMs?: readonly number[]
+  /** How long a readied avatar call stays worth handing over. */
+  preparedUsableMs?: number
 }
 
 export interface Root {
@@ -278,6 +281,17 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
   })
 
   const pool = new CredentialPool(deps.credentials)
+  // Wall time, not the injected clock: benches and balance reads are about the provider's
+  // present, which a test's pinned clock would freeze.
+  const accountHealth = new CredentialHealth(() => Date.now())
+  const credits = new CreditWatch({
+    provider: deps.avatar,
+    pool,
+    health: accountHealth,
+    log,
+    minCredits: config.AVATAR_MIN_CREDITS,
+    now: () => Date.now(),
+  })
   const live = new LiveCalls()
   const budget = new MinuteBudget(deps.leases, clock, dailyMinuteBudget(config))
   const reaper = new LeaseReaper({
@@ -304,6 +318,8 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     advisory,
     clock,
     pool,
+    health: accountHealth,
+    credits,
     budget,
     reaper,
     waitlist,
@@ -316,6 +332,10 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     ...(options.transcriptDelaysMs === undefined
       ? {}
       : { transcriptDelaysMs: options.transcriptDelaysMs }),
+    ...(options.preparedUsableMs === undefined
+      ? {}
+      : { preparedUsableMs: options.preparedUsableMs }),
+    endGraceMs: config.AVATAR_END_GRACE_SECONDS * 1000,
   })
 
   const health = async (): Promise<HealthResponse> => {
@@ -382,10 +402,31 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
       sessions: deps.sessions,
       clock,
       rateLimits: options.rateLimits ?? config.NODE_ENV !== 'test',
+      // This setting existed and nothing read it: the registry's 5 an hour was the limit
+      // whatever the environment said.
+      rateLimitMax: { startAvatarSession: config.AVATAR_SESSIONS_PER_IP_PER_HOUR },
       strictResponses: config.NODE_ENV !== 'production',
     },
     services,
   )
+
+  // Learn every account's balance before the first customer asks, so an empty account is
+  // skipped rather than tried. Unbilled, and never awaited: boot does not wait on a provider.
+  if (config.AVATAR_ENABLED && pool.size > 0) {
+    void credits.sweep().then(() => {
+      const benched = accountHealth.list()
+      log.info(
+        {
+          accounts: pool.list().map((c) => ({
+            label: c.label,
+            credits: accountHealth.credits(c.label),
+            benched: benched.find((b) => b.label === c.label)?.reason ?? null,
+          })),
+        },
+        'avatar accounts checked',
+      )
+    })
+  }
 
   // The reaper runs before every acquire; the timer catches abandoned calls between grants.
   const reaperTimer =

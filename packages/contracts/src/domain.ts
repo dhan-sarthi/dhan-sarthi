@@ -1488,6 +1488,20 @@ export const AvatarGrantSchema = z.object({
 })
 export type AvatarGrant = z.infer<typeof AvatarGrantSchema>
 
+/**
+ * A call readied before the customer asked for one — created, ready and gated, not handed over.
+ *
+ * The next `POST /avatar/session` hands it over in one round trip instead of building a call from
+ * nothing; on Runway that skips seconds of create and warm-up. `prepared: false` is not an error:
+ * it means the tap will build its call as it always did.
+ */
+export const AvatarPreparedSchema = z.object({
+  prepared: z.boolean(),
+  /** How long the readied call stays worth handing over. Null when nothing was readied. */
+  usableForSeconds: z.number().int().nullable(),
+})
+export type AvatarPrepared = z.infer<typeof AvatarPreparedSchema>
+
 export const WaitlistTicketSchema = z.object({
   ticket: TicketSchema,
   position: z.number().int(),

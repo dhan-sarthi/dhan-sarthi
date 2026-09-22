@@ -4,6 +4,7 @@ import {
   AvatarAvailabilitySchema,
   AvatarCallRecordSchema,
   AvatarGrantSchema,
+  AvatarPreparedSchema,
   WaitlistStatusSchema,
 } from '../domain.ts'
 import { PUBLIC_ERRORS, SESSION_ERRORS, defineRoute } from '../route.ts'
@@ -89,6 +90,23 @@ export const startAvatarSessionRoute = defineRoute({
     429: AvatarUnavailableBodySchema,
     502: AvatarUnavailableBodySchema,
     503: AvatarUnavailableBodySchema,
+    401: ErrorBodySchema,
+    500: ErrorBodySchema,
+  },
+})
+
+export const prepareAvatarSessionRoute = defineRoute({
+  id: 'prepareAvatarSession',
+  method: 'POST',
+  path: '/api/v1/avatar/session/prepare',
+  summary:
+    'Ready a call before the customer asks for one: claim an account, create the session, wait for READY and open the gate — and hand nothing over. Free on Runway until handed over. The next POST /avatar/session hands it over in one round trip. Never queues; `prepared: false` means the tap builds its call from nothing.',
+  auth: 'session',
+  rateLimit: { max: 30, window: '1 hour', keyBy: 'session' },
+  request: { body: AvatarSessionRequestSchema },
+  response: {
+    200: AvatarPreparedSchema,
+    400: ErrorBodySchema,
     401: ErrorBodySchema,
     500: ErrorBodySchema,
   },

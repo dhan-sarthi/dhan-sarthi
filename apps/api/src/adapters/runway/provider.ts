@@ -7,7 +7,12 @@ import type { BreakerState, ConversationTurn } from '@dhan/contracts'
 import { AvatarProviderError } from '../../application/avatar/provider-error.ts'
 import { BreakerOpenError } from '../../infra/circuit.ts'
 import { isTimeout } from '../../infra/timeout.ts'
-import type { AvatarCredential, AvatarProvider, AvatarSessionOptions } from '../../ports/index.ts'
+import type {
+  AvatarCredential,
+  AvatarProvider,
+  AvatarSessionOptions,
+  IssuedGrant,
+} from '../../ports/index.ts'
 import { RunwayError, type RunwayTransport } from './transport.ts'
 
 function toProviderError(err: unknown): AvatarProviderError {
@@ -69,7 +74,7 @@ function toTurn(raw: unknown): ConversationTurn | null {
 
 export class RunwayAvatarProvider implements AvatarProvider {
   /** A LiveKit room, which the client joins with `livekit-client`. */
-  readonly transport = 'livekit' as const
+  static readonly transport = 'livekit' as const
   private readonly http: RunwayTransport
   /**
    * Call id → the READY poll's session key, Runway's one-shot bearer for `/consume`.
@@ -93,6 +98,23 @@ export class RunwayAvatarProvider implements AvatarProvider {
     }
   }
 
+  /** Unbilled. Null when the balance could not be read, which is no evidence either way. */
+  async credits(cred: AvatarCredential): Promise<number | null> {
+    try {
+      return await this.http.creditBalance(cred)
+    } catch {
+      return null
+    }
+  }
+
+  async sessionsLeftToday(cred: AvatarCredential): Promise<number | null> {
+    try {
+      return await this.http.sessionsLeftToday(cred)
+    } catch {
+      return null
+    }
+  }
+
   async createSession(
     cred: AvatarCredential,
     opts: AvatarSessionOptions,
@@ -113,7 +135,7 @@ export class RunwayAvatarProvider implements AvatarProvider {
   async awaitIssuable(
     cred: AvatarCredential,
     runwaySessionId: string,
-    opts: { timeoutMs: number },
+    opts: { timeoutMs: number; queuedGiveUpMs?: number },
   ): Promise<void> {
     try {
       const { sessionKey } = await this.http.waitUntilReady(cred, runwaySessionId, opts)
@@ -123,10 +145,7 @@ export class RunwayAvatarProvider implements AvatarProvider {
     }
   }
 
-  async issueGrant(
-    _cred: AvatarCredential,
-    runwaySessionId: string,
-  ): Promise<{ url: string; token: string }> {
+  async issueGrant(_cred: AvatarCredential, runwaySessionId: string): Promise<IssuedGrant> {
     const key = this.keys.get(runwaySessionId)
     if (!key) {
       throw new AvatarProviderError(
@@ -138,15 +157,23 @@ export class RunwayAvatarProvider implements AvatarProvider {
     // the key still here would spend it twice and read the second refusal as the real answer.
     this.keys.delete(runwaySessionId)
     try {
-      return await this.http.consumeSession(runwaySessionId, key)
+      const { url, token } = await this.http.consumeSession(runwaySessionId, key)
+      return { transport: RunwayAvatarProvider.transport, url, token }
     } catch (err) {
       throw toProviderError(err)
     }
   }
 
-  async cancel(cred: AvatarCredential, runwaySessionId: string): Promise<void> {
+  async cancel(
+    cred: AvatarCredential,
+    runwaySessionId: string,
+    opts: { graceMs?: number } = {},
+  ): Promise<void> {
     this.keys.delete(runwaySessionId)
     try {
+      // A session that ends itself keeps its transcript; only one that is still running when
+      // the grace runs out is cancelled, so the billing stops either way.
+      if (opts.graceMs && (await this.http.awaitEnd(cred, runwaySessionId, opts.graceMs))) return
       await this.http.cancelSession(cred, runwaySessionId)
     } catch (err) {
       throw toProviderError(err)
@@ -168,7 +195,8 @@ export class RunwayAvatarProvider implements AvatarProvider {
     }
   }
 
-  breakerState(): BreakerState {
+  /** One line for every Runway key: a 5xx or a timeout is Runway's, not one account's. */
+  breakerState(_cred?: AvatarCredential): BreakerState {
     return this.http.breaker.state()
   }
 }

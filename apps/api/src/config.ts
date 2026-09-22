@@ -10,7 +10,7 @@
  * `describeConfig` is what the boot log prints.
  */
 import { z } from 'zod'
-import type { AvatarCredential } from './ports/avatar-provider.port.ts'
+import type { AvatarCredential, AvatarVendor } from './ports/avatar-provider.port.ts'
 
 const TRUE = new Set(['1', 'true', 'yes', 'on'])
 const FALSE = new Set(['0', 'false', 'no', 'off'])
@@ -37,43 +37,56 @@ const list = z.preprocess(
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD')
 
-/** Only the fields the per-provider requirement table below reads. */
-interface AvatarEnv {
-  ANAM_API_KEY: readonly string[]
-  ANAM_AVATAR_ID: readonly string[]
-  ANAM_VOICE_ID?: string | undefined
-  ANAM_LLM_ID?: string | undefined
-  ANAM_PUBLIC_BASE_URL?: string | undefined
-  RUNWAY_API_KEY: readonly string[]
-  RUNWAY_CHARACTER_ID: readonly string[]
-}
+/**
+ * How many numbered accounts a provider may carry: `RUNWAY_API_KEY_1` … `RUNWAY_API_KEY_9`.
+ * One account is one concurrent call on both providers, so this is also the ceiling on calls
+ * at once.
+ */
+export const MAX_ACCOUNT_SLOTS = 9
+
+/** One numbered Runway account, as `RUNWAY_API_KEY_n` and `RUNWAY_CHARACTER_ID_n` spell it. */
+const RunwayAccountSchema = z.object({
+  slot: z.number().int().min(1).max(MAX_ACCOUNT_SLOTS),
+  key: z.string().optional(),
+  characterId: z.string().optional(),
+})
 
 /**
- * What each provider cannot start without, as one table rather than a branch per provider.
- *
- * Adding a third provider is a row here and a row in `AVATAR_BUILDS`
- * (composition/profiles.ts) — which is what "the provider is a swap" is worth, if it is true.
+ * One numbered Anam account. The voice and the brain are optional here because the
+ * account-wide `ANAM_VOICE_ID` / `ANAM_LLM_ID` cover an account that shares them — but a cloned
+ * voice belongs to the account that cloned it, so a second account usually names its own.
  */
-const REQUIRED_BY_PROVIDER: Partial<
-  Record<
-    Config['AVATAR_PROVIDER'],
-    readonly (readonly [key: string, present: (c: AvatarEnv) => boolean])[]
-  >
-> = {
-  anam: [
-    ['ANAM_API_KEY', (c) => c.ANAM_API_KEY.length > 0],
-    ['ANAM_AVATAR_ID', (c) => c.ANAM_AVATAR_ID.length > 0],
-    ['ANAM_VOICE_ID', (c) => Boolean(c.ANAM_VOICE_ID)],
-    ['ANAM_LLM_ID', (c) => Boolean(c.ANAM_LLM_ID)],
-    // Without this the tools are declared with a URL nobody can call, and the model would
-    // answer from its own head. A gate that cannot be reached is worse than no gate.
-    ['ANAM_PUBLIC_BASE_URL', (c) => Boolean(c.ANAM_PUBLIC_BASE_URL)],
-  ],
-  runway: [
-    ['RUNWAY_API_KEY', (c) => c.RUNWAY_API_KEY.length > 0],
-    ['RUNWAY_CHARACTER_ID', (c) => c.RUNWAY_CHARACTER_ID.length > 0],
-  ],
-}
+const AnamAccountSchema = z.object({
+  slot: z.number().int().min(1).max(MAX_ACCOUNT_SLOTS),
+  key: z.string().optional(),
+  avatarId: z.string().optional(),
+  voiceId: z.string().optional(),
+  llmId: z.string().optional(),
+})
+
+const VENDORS = ['runway', 'anam'] as const
+
+/**
+ * `AVATAR_PROVIDER` is the order accounts are tried in, by provider: `runway,anam` means every
+ * Runway account first, then every Anam one. A single name still works, and `none` alone turns
+ * the avatar off.
+ */
+const providerChain = z.preprocess(
+  (v) =>
+    typeof v === 'string'
+      ? v
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      : v,
+  z
+    .array(z.enum(['runway', 'anam', 'none']))
+    .min(1)
+    .refine((names) => !(names.includes('none') && names.length > 1), {
+      message: '"none" cannot be combined with a provider',
+    })
+    .transform((names) => [...new Set(names)]),
+)
 
 export const ConfigSchema = z
   .object({
@@ -96,14 +109,24 @@ export const ConfigSchema = z
       .optional(),
 
     /**
-     * Which AvatarProvider adapter. Interchangeable: the two are wired behind the same port,
-     * hold the same lease, spend the same minute budget and answer the same routes, and the
-     * client learns which one ran only from the grant's `transport`.
+     * Which providers, in the order their accounts are tried: `runway,anam` puts every Runway
+     * account ahead of every Anam one. They are interchangeable behind the same port — the same
+     * lease, minute budget, brief, tools and routes — and the client learns which one took a
+     * call only from the grant's `transport`.
      */
-    AVATAR_PROVIDER: z.enum(['runway', 'anam', 'none']).default('none'),
+    AVATAR_PROVIDER: providerChain.default(['none']),
     /** The kill switch: false wires the null provider without a deploy of code. */
     AVATAR_ENABLED: bool.default(true),
-    /** Parallel lists; entries pair by index. One key, one character is the ordinary case. */
+    /**
+     * Numbered accounts, gathered by `loadConfig` from `RUNWAY_API_KEY_n` and
+     * `RUNWAY_CHARACTER_ID_n`. Slot order is try order. A Character belongs to the account that
+     * made it, so every slot names its own.
+     */
+    RUNWAY_ACCOUNTS: z.array(RunwayAccountSchema).default([]),
+    /**
+     * The older spelling: parallel comma lists, entries paired by index. Read only when no
+     * numbered Runway slot is set, so a deployment pinned to it keeps working unchanged.
+     */
     RUNWAY_API_KEY: list.default([]),
     RUNWAY_CHARACTER_ID: list.default([]),
     RUNWAY_API_BASE: z.string().url().default('https://api.dev.runwayml.com'),
@@ -118,13 +141,25 @@ export const ConfigSchema = z
     RUNWAY_DAILY_MINUTE_BUDGET: z.coerce.number().int().min(0).default(240),
     AVATAR_DAILY_MINUTE_BUDGET: z.coerce.number().int().min(0).optional(),
 
-    /** Anam. Parallel lists, same as Runway's: entries pair by index. */
+    /** Numbered Anam accounts, from `ANAM_API_KEY_n`, `ANAM_AVATAR_ID_n` and friends. */
+    ANAM_ACCOUNTS: z.array(AnamAccountSchema).default([]),
+    /** The older spelling, read only when no numbered Anam slot is set. */
     ANAM_API_KEY: list.default([]),
     ANAM_AVATAR_ID: list.default([]),
     ANAM_API_BASE: z.string().url().default('https://api.anam.ai'),
-    /** Account-wide, not per-credential: one voice and one brain for Uday. */
+    /** The voice and brain for any Anam account that does not name its own. */
     ANAM_VOICE_ID: z.string().optional(),
     ANAM_LLM_ID: z.string().optional(),
+    /**
+     * What Anam's speech recogniser expects to hear (ISO 639-1). Unset is the org default,
+     * English. Anam cannot detect the language itself and fixes it per session, so `hi` trades
+     * clean English transcription for Hindi; the reply's language follows the customer either
+     * way, because that is the brief's instruction rather than this setting.
+     */
+    ANAM_LANGUAGE_CODE: z
+      .string()
+      .regex(/^[a-z]{2}$/, 'an ISO 639-1 code, like en or hi')
+      .optional(),
     /**
      * The shape of the video track.
      *
@@ -144,6 +179,19 @@ export const ConfigSchema = z
      */
     ANAM_PUBLIC_BASE_URL: z.string().url().optional(),
     AVATAR_SESSIONS_PER_IP_PER_HOUR: z.coerce.number().int().min(1).default(5),
+    /**
+     * Below this balance an account is skipped, in the provider's units. Runway's 42 credits is
+     * two minutes (2 up front, 2 per six seconds), so the last call an account takes is not cut
+     * off in its first sentence. Anam publishes no balance and is never skipped for it.
+     */
+    AVATAR_MIN_CREDITS: z.coerce.number().int().min(0).default(42),
+    /**
+     * Seconds a hung-up call gets to end on its own before it is cancelled. Runway keeps a
+     * transcript and a recording only for a session that ends itself, and the slot stays held
+     * while it does. Measured: a short call completed within 7 s of END_CALL; a 90 s one had not
+     * after 10.
+     */
+    AVATAR_END_GRACE_SECONDS: z.coerce.number().int().min(0).max(120).default(20),
 
     /*
      * The text tier's language model.
@@ -188,6 +236,12 @@ export const ConfigSchema = z
     // through an in-process fake, so the adapter runs with no network and no credential.
     IDBI_API_BASE: z.string().url().optional(),
     /**
+     * What answers when `IDBI_API_BASE` is set and the sandbox cannot: `replay` serves IDBI's
+     * own captured responses (adapters/idbi-sandbox/api/failover.ts), `off` lets the outage
+     * reach the customer. The sandbox allow-lists IPs, so a new network is refused outright.
+     */
+    IDBI_FALLBACK: z.enum(['replay', 'off']).default('replay'),
+    /**
      * Where the Account Aggregator sends the customer back to after they approve a consent.
      *
      * It is encrypted into 592's redirection URL, so it has to be a URL this deployment
@@ -224,14 +278,8 @@ export const ConfigSchema = z
         message: 'required when BANK_SOURCE=postgres',
       })
     }
-    for (const [key, present] of REQUIRED_BY_PROVIDER[c.AVATAR_PROVIDER] ?? []) {
-      if (!present(c)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [key],
-          message: `required when AVATAR_PROVIDER=${c.AVATAR_PROVIDER}`,
-        })
-      }
+    for (const issue of avatarIssues(c)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.key], message: issue.message })
     }
     // A fault injector in production is a foot-gun with a bank's name on it.
     if (c.NODE_ENV === 'production' && c.FAULT_INJECT.length > 0) {
@@ -262,10 +310,10 @@ export class ConfigError extends Error {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const present: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {
-    if (typeof value === 'string' && value.trim() !== '') present[key] = value
+    if (typeof value === 'string' && value.trim() !== '') present[key] = value.trim()
   }
 
-  const parsed = ConfigSchema.safeParse(present)
+  const parsed = ConfigSchema.safeParse({ ...present, ...numberedAccounts(present) })
   if (!parsed.success) {
     throw new ConfigError(
       parsed.error.issues.map((i) => ({ key: i.path.join('.') || '(root)', message: i.message })),
@@ -274,38 +322,194 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return parsed.data
 }
 
-/** Which pair of parallel lists a provider's credentials come out of. */
-const CREDENTIAL_LISTS: Partial<
-  Record<
-    Config['AVATAR_PROVIDER'],
-    (c: Config) => { keys: readonly string[]; ids: readonly string[] }
-  >
-> = {
-  anam: (c) => ({ keys: c.ANAM_API_KEY, ids: c.ANAM_AVATAR_ID }),
-  runway: (c) => ({ keys: c.RUNWAY_API_KEY, ids: c.RUNWAY_CHARACTER_ID }),
+/**
+ * The numbered account variables, gathered into the two account lists the schema validates.
+ *
+ * Only slots with at least one variable set are returned, so an `.env` that ships blank
+ * placeholders for slots 2 and 3 configures exactly slot 1 — and a half-filled slot (a key with
+ * no character) is a startup error naming the missing variable, not a silently skipped account.
+ */
+function numberedAccounts(env: Record<string, string>): {
+  RUNWAY_ACCOUNTS?: z.input<typeof RunwayAccountSchema>[]
+  ANAM_ACCOUNTS?: z.input<typeof AnamAccountSchema>[]
+} {
+  const runway: z.input<typeof RunwayAccountSchema>[] = []
+  const anam: z.input<typeof AnamAccountSchema>[] = []
+  for (let slot = 1; slot <= MAX_ACCOUNT_SLOTS; slot += 1) {
+    const r = {
+      slot,
+      key: env[`RUNWAY_API_KEY_${slot}`],
+      characterId: env[`RUNWAY_CHARACTER_ID_${slot}`],
+    }
+    if (r.key || r.characterId) runway.push(r)
+    const a = {
+      slot,
+      key: env[`ANAM_API_KEY_${slot}`],
+      avatarId: env[`ANAM_AVATAR_ID_${slot}`],
+      voiceId: env[`ANAM_VOICE_ID_${slot}`],
+      llmId: env[`ANAM_LLM_ID_${slot}`],
+    }
+    if (a.key || a.avatarId || a.voiceId || a.llmId) anam.push(a)
+  }
+  return {
+    ...(runway.length > 0 ? { RUNWAY_ACCOUNTS: runway } : {}),
+    ...(anam.length > 0 ? { ANAM_ACCOUNTS: anam } : {}),
+  }
+}
+
+/** Only the fields the credential builders read, so the schema's refinement can call them. */
+type AvatarEnv = Pick<
+  Config,
+  | 'AVATAR_PROVIDER'
+  | 'RUNWAY_ACCOUNTS'
+  | 'RUNWAY_API_KEY'
+  | 'RUNWAY_CHARACTER_ID'
+  | 'ANAM_ACCOUNTS'
+  | 'ANAM_API_KEY'
+  | 'ANAM_AVATAR_ID'
+  | 'ANAM_VOICE_ID'
+  | 'ANAM_LLM_ID'
+  | 'ANAM_PUBLIC_BASE_URL'
+>
+
+/** The providers named in `AVATAR_PROVIDER`, in try order. Empty for `none`. */
+export function avatarChain(config: Pick<Config, 'AVATAR_PROVIDER'>): AvatarVendor[] {
+  return config.AVATAR_PROVIDER.filter((p): p is AvatarVendor =>
+    (VENDORS as readonly string[]).includes(p),
+  )
+}
+
+/** A second copy of the same key is the same account, and one account is one slot. */
+function distinctKeys(creds: AvatarCredential[]): AvatarCredential[] {
+  const seen = new Set<string>()
+  return creds.filter((c) => (seen.has(c.key) ? false : (seen.add(c.key), true)))
 }
 
 /**
- * The credentials for whichever provider is configured, as the pool sees them.
+ * Each provider's accounts, numbered slots first. The comma lists are read only where no slot
+ * is set: mixing the two spellings for one provider would make the try order a guess.
  *
- * One shape for both, because the pool, the lease and the budget do not care which provider a
- * credential is for. `characterId` is Runway's Character or Anam's avatar id; for Anam the
- * voice and the brain are account-wide rather than per-credential, so they are not here. One
- * id shared across several keys is not usable on Runway — a Character belongs to the account
- * that created it — so the fallback to the first id exists only to keep a single-key setup
- * working.
+ * One id shared across several keys is not usable on Runway — a Character belongs to the
+ * account that created it — so the list form's fallback to the first id exists only to keep a
+ * single-key setup working.
  */
-export function avatarCredentials(config: Config): AvatarCredential[] {
-  const lists = CREDENTIAL_LISTS[config.AVATAR_PROVIDER]
-  if (!lists) return []
-  const { keys, ids } = lists(config)
-  return keys
-    .map((key, i) => ({
-      key,
-      characterId: ids[i] ?? ids[0] ?? '',
-      label: `${config.AVATAR_PROVIDER}-${i + 1}`,
-    }))
-    .filter((c) => c.characterId !== '')
+const CREDENTIALS: Record<AvatarVendor, (c: AvatarEnv) => AvatarCredential[]> = {
+  runway: (c) =>
+    distinctKeys(
+      c.RUNWAY_ACCOUNTS.length > 0
+        ? c.RUNWAY_ACCOUNTS.filter((a) => a.key && a.characterId).map((a) => ({
+            provider: 'runway' as const,
+            key: a.key!,
+            characterId: a.characterId!,
+            label: `runway-${a.slot}`,
+          }))
+        : c.RUNWAY_API_KEY.map((key, i) => ({
+            provider: 'runway' as const,
+            key,
+            characterId: c.RUNWAY_CHARACTER_ID[i] ?? c.RUNWAY_CHARACTER_ID[0] ?? '',
+            label: `runway-${i + 1}`,
+          })).filter((cred) => cred.characterId !== ''),
+    ),
+  anam: (c) =>
+    distinctKeys(
+      c.ANAM_ACCOUNTS.length > 0
+        ? c.ANAM_ACCOUNTS.filter((a) => a.key && a.avatarId).map((a) => ({
+            provider: 'anam' as const,
+            key: a.key!,
+            characterId: a.avatarId!,
+            label: `anam-${a.slot}`,
+            ...(a.voiceId ? { voiceId: a.voiceId } : {}),
+            ...(a.llmId ? { llmId: a.llmId } : {}),
+          }))
+        : c.ANAM_API_KEY.map((key, i) => ({
+            provider: 'anam' as const,
+            key,
+            characterId: c.ANAM_AVATAR_ID[i] ?? c.ANAM_AVATAR_ID[0] ?? '',
+            label: `anam-${i + 1}`,
+          })).filter((cred) => cred.characterId !== ''),
+    ),
+}
+
+/**
+ * Every account the pool may spend, in the order it tries them: each provider in
+ * `AVATAR_PROVIDER` order, and within a provider by slot.
+ *
+ * `characterId` is Runway's Character or Anam's avatar id. The credentials are counted under
+ * the kill switch too, so the availability route can say "disabled" (a decision) rather than
+ * "not configured" (a gap).
+ */
+export function avatarCredentials(config: AvatarEnv): AvatarCredential[] {
+  return avatarChain(config).flatMap((vendor) => CREDENTIALS[vendor](config))
+}
+
+/**
+ * What stops a named provider from starting, as readable issues rather than a 500 on the first
+ * call. A provider named in `AVATAR_PROVIDER` with no usable account is an error, not a quiet
+ * skip: somebody asked for it.
+ */
+function avatarIssues(c: AvatarEnv): { key: string; message: string }[] {
+  const issues: { key: string; message: string }[] = []
+  const chain = avatarChain(c)
+  const named = `required when AVATAR_PROVIDER includes`
+
+  for (const a of c.RUNWAY_ACCOUNTS) {
+    if (!a.key)
+      issues.push({
+        key: `RUNWAY_API_KEY_${a.slot}`,
+        message: `required when RUNWAY_CHARACTER_ID_${a.slot} is set`,
+      })
+    if (!a.characterId)
+      issues.push({
+        key: `RUNWAY_CHARACTER_ID_${a.slot}`,
+        message: `required when RUNWAY_API_KEY_${a.slot} is set`,
+      })
+  }
+  for (const a of c.ANAM_ACCOUNTS) {
+    if (!a.key)
+      issues.push({
+        key: `ANAM_API_KEY_${a.slot}`,
+        message: `required when another ANAM_*_${a.slot} is set`,
+      })
+    if (!a.avatarId)
+      issues.push({
+        key: `ANAM_AVATAR_ID_${a.slot}`,
+        message: `required when ANAM_API_KEY_${a.slot} is set`,
+      })
+  }
+
+  if (chain.includes('runway') && CREDENTIALS.runway(c).length === 0) {
+    issues.push({
+      key: 'RUNWAY_API_KEY_1',
+      message: `${named} runway (or the RUNWAY_API_KEY list)`,
+    })
+    if (c.RUNWAY_ACCOUNTS.length === 0 && c.RUNWAY_API_KEY.length > 0) {
+      issues.push({ key: 'RUNWAY_CHARACTER_ID', message: `${named} runway` })
+    }
+  }
+  if (chain.includes('anam')) {
+    const anam = CREDENTIALS.anam(c)
+    if (anam.length === 0) {
+      issues.push({ key: 'ANAM_API_KEY_1', message: `${named} anam (or the ANAM_API_KEY list)` })
+    }
+    for (const cred of anam) {
+      const slot = cred.label.split('-')[1]
+      if (!cred.voiceId && !c.ANAM_VOICE_ID) {
+        issues.push({
+          key: `ANAM_VOICE_ID_${slot}`,
+          message: `${named} anam (or set ANAM_VOICE_ID)`,
+        })
+      }
+      if (!cred.llmId && !c.ANAM_LLM_ID) {
+        issues.push({ key: `ANAM_LLM_ID_${slot}`, message: `${named} anam (or set ANAM_LLM_ID)` })
+      }
+    }
+    // Without this the tools are declared with a URL nobody can call, and the model would
+    // answer from its own head. A gate that cannot be reached is worse than no gate.
+    if (!c.ANAM_PUBLIC_BASE_URL) {
+      issues.push({ key: 'ANAM_PUBLIC_BASE_URL', message: `${named} anam` })
+    }
+  }
+  return issues
 }
 
 /**
@@ -328,7 +532,7 @@ export function dailyMinuteBudget(config: Config): number {
 
 /** True when the composition root should wire a real provider rather than the null one. */
 export function avatarIsLive(config: Config): boolean {
-  return config.AVATAR_PROVIDER !== 'none' && config.AVATAR_ENABLED
+  return avatarChain(config).length > 0 && config.AVATAR_ENABLED
 }
 
 /**
@@ -350,9 +554,13 @@ export function describeConfig(config: Config): Record<string, unknown> {
     bankSource: config.BANK_SOURCE,
     database: config.DATABASE_URL ? 'set' : 'unset',
     dbRole: config.DB_ROLE ?? 'login',
-    avatarProvider: config.AVATAR_PROVIDER,
+    avatarProvider: config.AVATAR_PROVIDER.join(','),
     avatarEnabled: config.AVATAR_ENABLED,
     avatarCredentials: avatarCredentials(config).length,
+    // Labels, in try order. Which accounts exist is not a secret; their keys are.
+    avatarAccounts: avatarCredentials(config).map((c) => c.label),
+    avatarMinCredits: config.AVATAR_MIN_CREDITS,
+    anamLanguage: config.ANAM_LANGUAGE_CODE ?? 'org default',
     avatarMaxSessionSeconds: maxSessionSeconds(config),
     avatarDailyMinuteBudget: dailyMinuteBudget(config),
     textModel: textModelIsLive(config) ? config.OPENAI_MODEL : 'none (rules only)',

@@ -79,7 +79,7 @@ no endpoint that lists live realtime sessions.
 | Mid-call context push | **does not exist**. The model pulls facts through tools |
 | Tool calling | `backend_rpc` (round trip to our process, 1–8 s timeout) and `client_event` (fire-and-forget to the UI). **Verified on a live call**: the model called `check_suitability` and spoke our verdict back |
 | Barge-in | **unverified**. Runway documents it nowhere. UI copy must not claim it |
-| Languages | unverified with the cloned voice. English is the build default |
+| Languages | **Hindi is understood, not yet answered** (22 Sep 2026): the recogniser transcribed a Hindi question word for word, and the model replied in English. See [avatar-accounts.md](avatar-accounts.md#language-understood-not-yet-answered) |
 
 The `backend_rpc` handler (`@runwayml/avatars-node-rpc`) joins the LiveKit room as a hidden
 participant and holds that connection for the life of the conversation. This is why the API must
@@ -102,7 +102,10 @@ to the customer. Write the opening as the words themselves.
 
 ## Cost
 
-$0.20 per minute, billed from session creation. Tier 1 allows one concurrent session per
+$0.20 per minute: 2 credits when a session is handed over, then 2 per six seconds with a customer in
+the room. A created, READY session that is never handed over costs nothing (measured 22 September
+2026, [avatar-accounts.md](avatar-accounts.md#what-runway-bills-measured)); that is what lets the
+app ready a call before the tap. Tier 1 allows one concurrent session per
 account; pooling requires more accounts, each with its own Character. Teardown is wired on every
 path in the API (`/end` beacon on page hide, cancel on any failed grant, a reaper before each
 new grant, and an operator `release-all`), but a hard-killed browser bills until the session cap.

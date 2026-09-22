@@ -31,6 +31,7 @@ import type { AvatarCredential, RpcHandle, ToolHandlers } from '../../src/ports/
 const PUBLIC_BASE = 'https://gate.example.test'
 const SESSION_TOKEN = 'header.payload.signature'
 const CRED: AvatarCredential = {
+  provider: 'anam',
   key: 'test-key-not-real',
   characterId: 'test-avatar',
   label: 'anam-1',

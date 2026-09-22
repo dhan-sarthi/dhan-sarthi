@@ -15,6 +15,7 @@ import type {
   AskTurn,
   AvatarAvailability,
   AvatarGrant,
+  AvatarPrepared,
   ChallengeDraft,
   ChallengeQuote,
   ChallengeView,
@@ -205,6 +206,17 @@ export const api = {
       headers: {
         'idempotency-key': `call-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       },
+    }),
+
+  /**
+   * Ready a call while the customer is still looking at Uday: the server creates it, waits for
+   * it and opens the gate, and hands nothing over — free on Runway until it is. The next
+   * `avatarSession` then takes seconds off the wait. `prepared: false` is not an error.
+   */
+  prepareAvatarSession: (topic?: string | null) =>
+    request<AvatarPrepared>('/api/v1/avatar/session/prepare', {
+      method: 'POST',
+      body: topic ? { topic } : {},
     }),
 
   endAvatarSession: (id: string) =>

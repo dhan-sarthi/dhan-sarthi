@@ -49,6 +49,9 @@ Reading order for someone new to the project. About thirty minutes end to end.
   ten-step apply, the operator actions, and the egress the bank's network team must allow.
 - [`engineering/runway.md`](engineering/runway.md): the avatar provider, verified behaviour,
   and the operational gotchas.
+- [`engineering/avatar-accounts.md`](engineering/avatar-accounts.md): the account chain (Runway
+  1 → 2 → 3, then Anam), what Runway bills, measured, and the tap-to-first-word latency and how
+  readying the call ahead of the tap halved it.
 - [`../infra/fly/README.md`](../infra/fly/README.md): the public review link on Fly.io in Mumbai,
   built from the repository's own Dockerfile, one login and one command. `fly.api.toml` is the
   only target; the second app it used to deploy was `apps/web`'s and went with it on 20 Sep 2026.

@@ -33,8 +33,9 @@ describe('no undeclared route', () => {
     // the category cap, which is a decision about the future and so has no endpoint anywhere.
     // The last seven are the savings pot and the spending challenge, decisions of the same
     // kind: three for the pot — read it, set one hack, deposit by hand — and four for the
-    // challenge — the view, the quote, the start and the surrender.
-    assert.equal(registered.size, 51)
+    // challenge — the view, the quote, the start and the surrender. And one for readying an
+    // avatar call before the tap, which moves the provider's slow part off the customer's wait.
+    assert.equal(registered.size, 52)
   })
 
   it('answers an undeclared path with the declared error body', async () => {

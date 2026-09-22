@@ -70,7 +70,7 @@ describe('the route registry', () => {
     assert.throws(() => routeById('nope' as never), /no route/)
   })
 
-  it('has the 51 routes of the API surface', () => {
+  it('has the 52 routes of the API surface', () => {
     // 28 before the IDBI integration; six for the two blocks no bank endpoint carries, and
     // six for the Account Aggregator consent flow — four the app drives and two the bank
     // posts at us.
@@ -87,7 +87,9 @@ describe('the route registry', () => {
     // spending rather than the intention behind it. Three carry the pot — read it, set one
     // hack, put money in by hand — and four carry the challenge: the view, a quote for the
     // limits on offer that writes nothing at all, the start, and the surrender.
-    assert.equal(ROUTES.length, 51)
+    // The fifty-second readies an avatar call before the customer taps for one: Runway bills
+    // nothing until a call is handed over, so the slow part can happen while they look.
+    assert.equal(ROUTES.length, 52)
   })
 })
 

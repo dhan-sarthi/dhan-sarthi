@@ -14,7 +14,12 @@ import { TranscriptService } from '../../src/application/avatar/transcript.servi
 import { silentLogger } from '../../src/infra/logger.ts'
 import { FakeAvatarProvider } from '../fakes/avatar-provider.fake.ts'
 
-const CRED: AvatarCredential = { key: 'test-key-not-real', characterId: 'c', label: 'runway-1' }
+const CRED: AvatarCredential = {
+  provider: 'runway',
+  key: 'test-key-not-real',
+  characterId: 'c',
+  label: 'runway-1',
+}
 const SESSION = 'fake-session-9'
 
 const TURNS: ConversationTurn[] = [

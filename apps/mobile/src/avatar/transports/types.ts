@@ -18,8 +18,15 @@ export interface ConnectOptions {
   grant: AvatarGrant
   /** Where the video goes. May be null if the screen has not laid out yet. */
   stage: HTMLDivElement | null
+  /**
+   * The customer's microphone, opened on the tap while the grant was being fetched. Null when it
+   * was refused or is unavailable; the call goes ahead without it.
+   */
+  mic: MediaStream | null
   /** Called once, when a frame has actually been presented. */
   onVideoLive: () => void
+  /** The video's real size, so the stage can frame the call by its shape. May repeat. */
+  onVideoSize?: (width: number, height: number) => void
   /** The stream went away on its own. Never called for a hang-up we initiated. */
   onLost: () => void
 }
@@ -32,3 +39,9 @@ export interface LiveConnection {
 }
 
 export type Connect = (opts: ConnectOptions) => Promise<LiveConnection>
+
+/** What each transport module exports: the call, and a way to fetch its SDK ahead of the tap. */
+export interface TransportModule {
+  connect: Connect
+  preload: () => Promise<unknown>
+}
