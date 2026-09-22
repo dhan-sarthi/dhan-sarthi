@@ -58,17 +58,19 @@ rehearsal in a clean account.
 5. **Confirm the alarm subscription.** If `alert_email` was set, open the SNS confirmation email
    and click the link. Until then alarms fire into the topic and reach nobody. (1 min)
 
-6. **Put the Runway credentials in Secrets Manager.** Terraform created the secret with empty
-   values and will never overwrite it:
+6. **Put the avatar credentials in Secrets Manager.** Terraform created the secret with empty
+   values and will never overwrite it. Uday tries each numbered Runway account, then each
+   numbered Anam account (`docs/engineering/avatar-accounts.md`); `avatar_secret_keys` in the
+   tfvars names the keys the task reads, and every one must be in the secret. With the accounts
+   in `apps/api/.env`:
 
    ```bash
-   aws secretsmanager put-secret-value \
-     --secret-id "dhan-sarthi/$ENV/runway" \
-     --secret-string '{"RUNWAY_API_KEY":"<key>","RUNWAY_CHARACTER_ID":"<character>"}'
+   infra/scripts/put-avatar-secret.sh "$ENV"      # merges RUNWAY_API_KEY_n, ANAM_API_KEY_n, … by name
    ```
 
-   Comma-separated lists pool more than one account; entries pair by index. Skip this step to
-   run with the avatar disabled; the text tier answers instead. (2 min)
+   It prints key names, never values, and refuses when a key the task reads would be missing;
+   `deploy-api.sh` checks the same before it applies. Skip this step to run with the avatar
+   disabled; the text tier answers instead. (2 min)
 
 7. **Build and push the API image.** `infra/scripts/deploy-api.sh $ENV v1.0.0-review`. Builds
    `apps/api/Dockerfile` for `linux/amd64`, pushes to the ECR repository from the outputs,
@@ -97,7 +99,7 @@ rehearsal in a clean account.
 |---|---|
 | A credential is stuck (a browser died mid-call, the lease has not expired) | `curl -X POST -H "X-Operator-Key: $(aws secretsmanager get-secret-value --secret-id dhan-sarthi/$ENV/operator --query SecretString --output text \| jq -r .OPERATOR_KEY)" "$APP_URL/api/v1/operator/avatar/release-all"` |
 | Reseed (numbers must match the generator again, or the seed changed) | `infra/scripts/seed-remote.sh $ENV --force`. Refuses without `--force` while sessions exist. |
-| Rotate the Runway key | `aws secretsmanager put-secret-value` as in step 6, then `aws ecs update-service --cluster <cluster> --service <service> --force-new-deployment`. Secrets are read at task start. |
+| Rotate or add an avatar account | Update `apps/api/.env`, run `infra/scripts/put-avatar-secret.sh $ENV`, then `aws ecs update-service --cluster <cluster> --service <service> --force-new-deployment` (a new key name also goes in `avatar_secret_keys`, then `deploy-api.sh`). Secrets are read at task start. |
 | Kill switch: stop all avatar spend now | Set `AVATAR_ENABLED = "false"` in `api_environment` (tfvars override or `-var`), `terraform apply`, which forces a new deployment. The product keeps running on the text tier. |
 | Deploy a new API build | `infra/scripts/deploy-api.sh $ENV <tag>` outside an announced demo window. Rolling with a 120 s drain; a live call at deploy time is ended gracefully with `end_reason='deploy'`. |
 | Deploy a new web build | `infra/scripts/deploy-web.sh $ENV` |

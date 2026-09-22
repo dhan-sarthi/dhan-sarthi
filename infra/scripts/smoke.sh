@@ -45,7 +45,8 @@ echo "ok session · asOf=$(echo "$SESSION" | jq -r .session.asOf)"
 
 # 4. view
 VIEW="$(curl -fsS --max-time 15 "${AUTH[@]}" "$API/view")" || fail "view" ""
-ACTION_ID="$(echo "$VIEW" | jq -r '.plan.actions[0].id // empty')"
+# The daily plan's one primary action (a list of actions in the first cut of the view).
+ACTION_ID="$(echo "$VIEW" | jq -r '.plan.primary.id // empty')"
 [[ -n "$ACTION_ID" ]] || fail "view has no action" "$(echo "$VIEW" | jq -c '.meta')"
 echo "ok view · snapshot=$(echo "$VIEW" | jq -r .meta.snapshotId) roadmap v$(echo "$VIEW" | jq -r .meta.roadmapVersion) action=$ACTION_ID"
 

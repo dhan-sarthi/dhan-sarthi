@@ -31,6 +31,19 @@ CLUSTER="$(terraform -chdir="$TF_DIR" output -raw ecs_cluster)"
 SERVICE="$(terraform -chdir="$TF_DIR" output -raw ecs_service)"
 REGISTRY="${REPO%%/*}"
 
+# Every avatar key the task will read has to exist in the secret, or the new task cannot start
+# (the circuit breaker would roll it back, after minutes). Key names only; no value is printed.
+SECRET="dhan-sarthi/$ENV/runway"
+KEYS="$(echo 'jsonencode(var.avatar_secret_keys)' \
+  | terraform -chdir="$TF_DIR" console -var-file="envs/$ENV.tfvars" | sed -e 's/^"//' -e 's/"$//' -e 's/\\"/"/g')"
+HELD="$(aws secretsmanager get-secret-value --region "$REGION" --secret-id "$SECRET" \
+  --query SecretString --output text | python3 -c 'import json,sys; print(json.dumps(sorted(json.load(sys.stdin))))')"
+MISSING="$(python3 -c 'import json,sys; want=json.loads(sys.argv[1]); held=set(json.loads(sys.argv[2])); print(" ".join(k for k in want if k not in held))' "$KEYS" "$HELD")"
+if [[ -n "$MISSING" ]]; then
+  echo "the task would read $MISSING, which $SECRET does not hold; run infra/scripts/put-avatar-secret.sh $ENV first" >&2
+  exit 3
+fi
+
 echo "==> login to $REGISTRY"
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$REGISTRY"

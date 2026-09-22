@@ -24,4 +24,18 @@ monthly_budget_usd = 100
 
 runway_daily_minute_budget = 240
 
+# Uday tries the numbered Runway account first and Anam second (docs/engineering/avatar-accounts.md).
+# Every key listed must exist in the dhan-sarthi/team-sandbox/runway secret.
+avatar_secret_keys = [
+  "RUNWAY_API_KEY_1",
+  "RUNWAY_CHARACTER_ID_1",
+  "ANAM_API_KEY_1",
+  "ANAM_AVATAR_ID_1",
+  "ANAM_VOICE_ID",
+  "ANAM_LLM_ID",
+]
+api_environment_overrides = {
+  AVATAR_PROVIDER = "runway,anam"
+}
+
 egress_domains = ["api.dev.runwayml.com", "*.livekit.cloud"]

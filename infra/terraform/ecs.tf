@@ -120,17 +120,27 @@ resource "aws_iam_role_policy" "task_runtime" {
 locals {
   api_image = "${aws_ecr_repository.api.repository_url}:${var.api_image_tag}"
 
+  # ANAM_PUBLIC_BASE_URL is where Anam posts tool calls back to us: the public origin, because
+  # CloudFront forwards /api/* to the ALB. Unused unless anam is in AVATAR_PROVIDER.
   api_environment = [
-    for k, v in merge(var.api_environment, { PORT = "3001", HOST = "0.0.0.0", ENVIRONMENT = var.environment }) :
+    for k, v in merge(
+      var.api_environment,
+      { ANAM_PUBLIC_BASE_URL = local.has_domain ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.web.domain_name}" },
+      var.api_environment_overrides,
+      { PORT = "3001", HOST = "0.0.0.0", ENVIRONMENT = var.environment },
+    ) :
     { name = k, value = v }
   ]
 
-  api_secrets = [
-    { name = "RUNWAY_API_KEY", valueFrom = "${aws_secretsmanager_secret.runway.arn}:RUNWAY_API_KEY::" },
-    { name = "RUNWAY_CHARACTER_ID", valueFrom = "${aws_secretsmanager_secret.runway.arn}:RUNWAY_CHARACTER_ID::" },
-    { name = "DATABASE_URL", valueFrom = "${aws_secretsmanager_secret.database.arn}:DATABASE_URL::" },
-    { name = "OPERATOR_KEY", valueFrom = "${aws_secretsmanager_secret.operator.arn}:OPERATOR_KEY::" },
-  ]
+  # Each avatar key named in var.avatar_secret_keys must exist in the avatar secret's JSON, or the
+  # task fails to start; the secret is populated out of band (README step 6).
+  api_secrets = concat(
+    [for k in var.avatar_secret_keys : { name = k, valueFrom = "${aws_secretsmanager_secret.runway.arn}:${k}::" }],
+    [
+      { name = "DATABASE_URL", valueFrom = "${aws_secretsmanager_secret.database.arn}:DATABASE_URL::" },
+      { name = "OPERATOR_KEY", valueFrom = "${aws_secretsmanager_secret.operator.arn}:OPERATOR_KEY::" },
+    ],
+  )
 
   seed_secrets = [
     { name = "DATABASE_URL", valueFrom = "${aws_secretsmanager_secret.database.arn}:MIGRATE_DATABASE_URL::" },

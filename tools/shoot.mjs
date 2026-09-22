@@ -6,8 +6,13 @@ import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const API = 'http://localhost:3001'
-const WEB = 'http://localhost:8081'
+// --base https://… points both at one origin, which is how the deployment serves them: CloudFront
+// routes / to the web bundle and /api/* to the API.
+const BASE = process.argv.includes('--base')
+  ? process.argv[process.argv.indexOf('--base') + 1].replace(/\/$/, '')
+  : undefined
+const API = BASE ?? 'http://localhost:3001'
+const WEB = BASE ?? 'http://localhost:8081'
 const OUT = process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
   : './shots'

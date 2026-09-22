@@ -14,7 +14,7 @@ locals {
 
 resource "aws_secretsmanager_secret" "runway" {
   name                    = "${local.secret_prefix}/runway"
-  description             = "Runway Characters credentials for the avatar (comma-separated lists pair by index)"
+  description             = "Avatar credentials: numbered Runway and Anam accounts (RUNWAY_API_KEY_1, ANAM_API_KEY_1, ...), or the legacy comma-separated RUNWAY_API_KEY list"
   recovery_window_in_days = 7
 }
 

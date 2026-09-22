@@ -114,6 +114,18 @@ variable "api_environment" {
   }
 }
 
+variable "api_environment_overrides" {
+  description = "Merged over api_environment, so an environment changes one knob without restating the whole map."
+  type        = map(string)
+  default     = {}
+}
+
+variable "avatar_secret_keys" {
+  description = "JSON keys of the avatar secret (dhan-sarthi/<env>/runway) injected into the API task as environment variables of the same name: the numbered accounts RUNWAY_API_KEY_n / RUNWAY_CHARACTER_ID_n / ANAM_API_KEY_n / ANAM_AVATAR_ID_n, or the legacy RUNWAY_API_KEY list. Every key listed must exist in the secret."
+  type        = list(string)
+  default     = ["RUNWAY_API_KEY", "RUNWAY_CHARACTER_ID"]
+}
+
 variable "runway_daily_minute_budget" {
   description = "Mirror of RUNWAY_DAILY_MINUTE_BUDGET, used to place the 80 % CloudWatch alarm."
   type        = number
