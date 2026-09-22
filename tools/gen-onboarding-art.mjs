@@ -64,7 +64,7 @@ const STYLE = [
  * company, because restraint photographs as calm and nothing else.
  *
  * **`ready` is the one frame that may not show a single person, and the headline is why.** It
- * reads `{firstName}, ready?` off the actual customer record, so whoever is in that frame is
+ * reads `Ready, {firstName}?` off the actual customer record, so whoever is in that frame is
  * being offered as the customer — and a lone woman there is wrong for every male customer, with
  * no second variant behind it to fix it. It is drawn as a family across three generations, both
  * genders and sixty years of age between them: nobody in it can be read as *you*, and the frame

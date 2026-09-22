@@ -1,11 +1,11 @@
-// Spend — the home tab.
+// The Home tab. Its route and file are still `spend`; the tab bar and the header say Home.
 //
 // Four panes. Overview, Budget and Debt map one-to-one onto Cleo's three; Credit sits beside
 // Debt the way Cleo's Request tab pairs "Cash advance" with "Credit score". Credit used to be a
 // strip inside the Debt pane pointing at `/credit`, a pushed route with no tab of its own — the
 // only door to it, and one most customers scrolled past. The pane renders the same
-// `CreditContent` the route does, so the two cannot drift; the route stays for the gate sheet
-// and the plan, which link to it by name.
+// `CreditContent` the route does, so the two cannot drift. The gate sheet and the plan open
+// this pane now; the route stays for deep links.
 //
 // Every pane can be asked for by link: `/spend?pane=credit` opens on Credit, cold or with the
 // tab already mounted. A card on this tab that points at another pane of it switches the pane

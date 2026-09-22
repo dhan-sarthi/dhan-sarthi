@@ -1,9 +1,9 @@
 // Everything the engine spotted — what the bell opens.
 //
-// Spend shows the top three because a home screen that lists eight findings is a to-do
-// list, and the product's whole posture is that there is one thing worth doing today. The
-// rest are not hidden, though — they are here, grouped by how much they matter and ordered
-// within that by what they cost, with the evidence each was derived from.
+// Home carries the findings as a carousel, one card at a time, because a home screen that lists
+// eight findings is a to-do list, and the product's whole posture is that there is one thing
+// worth doing today. This page is the whole list at once, grouped by how much they matter and
+// ordered within that by what they cost, with the evidence each was derived from.
 //
 // This is what the bell means. There are no push notifications in this build and inventing
 // some would be dishonest; what a notification would have been about is exactly this list.

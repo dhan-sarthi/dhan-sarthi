@@ -1,13 +1,15 @@
-// Credit, as a pushed route — the door the gate sheet and the Plan's arrears stage open.
+// Credit, as a pushed route. Every door inside the app now opens the Home tab's Credit pane
+// (`/spend?pane=credit`) instead, the gate sheet and the Plan's arrears stage included; this route
+// stays for deep links and anything outside the app that still names it.
 //
-// The page itself is `CreditContent`, the same component the Spend tab's Credit pane renders, so
+// The page itself is `CreditContent`, the same component the Home tab's Credit pane renders, so
 // the two doors can't drift into two screens; its header carries every decision about what the
 // page says. This file is only the frame: the back chevron, the display title and the promise
 // under it, and the two arms a route owns that a pane inside Spend's scroll does not — the first
 // read, and a read that failed.
 //
-// Reachable from Spend, from the gate sheet and from a deep link, so back can't assume a stack
-// under it: `leave` pops where it can and lands on Spend where it can't.
+// Reached by a deep link, so back can't assume a stack under it: `leave` pops where it can and
+// lands on Home where it can't.
 //
 // `data` before `state`, per the store's own invariants: a refresh that fails over a view already
 // on screen leaves `data` standing, and branching on `state` first would blank a page the store is

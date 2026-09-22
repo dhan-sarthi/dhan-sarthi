@@ -222,10 +222,10 @@ export default function Uday() {
   /*
    * What the customer tapped to get here.
    *
-   * Every "Ask Uday about this" in the app navigates here with `{ ask }`, and onboarding's
-   * hand-off replaces to here with one. It drives both tiers: the chat opens having asked it,
-   * and a call started afterwards hands the last question to the brief builder so Uday's
-   * first sentence is about it.
+   * Every "Ask Uday about this" in the app navigates here with `{ ask }`. Onboarding's hand-off
+   * does not: since 22 Sep 2026 "Meet Uday" lands on the call screen with nothing asked, the
+   * owner's call. It drives both tiers: the chat opens having asked it, and a call started
+   * afterwards hands the last question to the brief builder so Uday's first sentence is about it.
    */
   const { ask: asked } = useLocalSearchParams<{ ask?: string }>()
   const navigation = useNavigation<{
@@ -397,8 +397,8 @@ export default function Uday() {
    *
    * Asked once per new value, then cleared from the route, so coming back to the tab does not
    * ask it again. The latch resets when the param goes away, which is what lets the same
-   * question be handed over a second time — onboarding's `replace`, or the same "Ask Uday about
-   * this" tapped twice — where the old latch held the first value forever and ignored it.
+   * question be handed over a second time (the same "Ask Uday about this" tapped twice), where
+   * the old latch held the first value forever and ignored it.
    * Chat rather than the call screen, because tapping a written finding is a request to read,
    * not to be phoned; the call is one tap away in the header.
    */
