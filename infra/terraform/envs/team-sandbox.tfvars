@@ -33,9 +33,13 @@ avatar_secret_keys = [
   "ANAM_AVATAR_ID_1",
   "ANAM_VOICE_ID",
   "ANAM_LLM_ID",
+  # Not an avatar key, but the same secret: lets Uday's text chat phrase answers to questions the
+  # rules do not match. Without it the chat answers only the questions it recognises.
+  "OPENAI_API_KEY",
 ]
 api_environment_overrides = {
   AVATAR_PROVIDER = "runway,anam"
+  OPENAI_MODEL    = "gpt-5.4-mini"
 }
 
-egress_domains = ["api.dev.runwayml.com", "*.livekit.cloud"]
+egress_domains = ["api.dev.runwayml.com", "*.livekit.cloud", "api.openai.com"]
