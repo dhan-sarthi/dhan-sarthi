@@ -2,30 +2,32 @@
 //
 // Cleo paginate their insights one card at a time with a dot rail underneath, and each card
 // ends in two controls: a way into the conversation about it, and a thumbs up/down that
-// collapses into "Thanks for your feedback!" once answered. Both are structural rather than
-// decorative. The carousel is what lets the app show six findings without a wall of cards,
-// and the feedback is what stops an insight pool nobody can correct.
+// collapses into a thank-you once answered. Both are structural rather than decorative. The
+// carousel is what lets the app show seven findings without a wall of cards, and the feedback
+// is what stops an insight pool nobody can correct.
 //
 // Three measurements carry the whole component, and getting any of them wrong is what makes a
 // carousel read as cheap:
 //
-// **The page is the scroller's own width, measured on the scroller.** This wrapper sits inside
-// the screen's 20pt gutter and the scroller is pulled full-bleed with `-mx-pad`, so the page
-// is *not* the wrapper's width — a page sized to the wrapper is 40pt short, which puts 40pt of
-// the next card on screen and pushes every card after the first a further 40pt off its stop.
-// Measuring the ScrollView itself says so directly instead of inferring it. It is seeded from
-// the window width so the **first painted frame is already correct**: a page with no width
-// inside a horizontal scroller is laid out against an infinite main-axis constraint and
-// resolves to max-content, which is one committed frame of a ~820pt card on a 393pt screen
-// before the measurement lands.
+// **The card is narrower than the page, so the next one shows.** Cleo's cards stop short of
+// the right edge and the next card's corner sits in the gap — the only cue a first-time reader
+// gets that there is more to swipe. The scroller is pulled full-bleed with `-mx-pad` and the
+// gutter goes back on as content padding, so the first card starts on the screen's gutter and
+// the last one ends on it. The page is measured on the scroller itself and seeded from the
+// window width, so the **first painted frame is already correct**: a card with no width inside
+// a horizontal scroller is laid out against an infinite main axis and resolves to max-content,
+// which is one committed frame of a ~820pt card on a 393pt screen before the measurement lands.
 //
 // **Every card is as tall as the tallest.** A row of self-sizing cards steps up and down as
 // you swipe and drags the dot rail with it. So each card reports its natural height, the
-// tallest wins, and all of them take it as a floor — with the feedback row pushed down by a
-// flex spacer, so the extra height reads as a deliberate footer rather than slack under the
-// text. The floor only ever grows, which is why it is **reset whenever the insight set or the
-// screen width changes**: without that, a list that gets shorter keeps the taller list's
-// height and every card carries an empty band nothing will ever reclaim.
+// tallest wins, and all of them take it as a floor. The spare height goes **under the words
+// and above the controls**, which is where Cleo leave it: the pill and the feedback row are
+// one block pinned to the bottom edge, so "Talk me through this" sits at the same height on
+// every card and the thumbs sit a fixed step under it. Spent between the pill and the thumbs
+// instead, the slack read as a missing line — an empty band between two controls on exactly
+// the short cards a customer sees first. The floor only ever grows, so it is **reset whenever
+// the insight set or the screen width changes**: without that, a list that gets shorter keeps
+// the taller list's height and every card carries an empty band nothing will ever reclaim.
 //
 // **The page index is derived from the scroll offset, not from momentum.** `onMomentumScrollEnd`
 // does not fire when a slow drag is released without throwing, and it does not fire when the
@@ -35,19 +37,29 @@
 //
 // Three differences from Cleo, all deliberate:
 //
-// **The headline carries the number.** `findInsights` writes one sentence with the figure in
-// it, and that sentence is the card. Cleo's copy is a question ("Would you be open to…");
-// ours states the finding and lets the action be the question.
+// **The card says the thing to do, with its number.** `findInsights` writes each finding as a
+// statement; the card is worded by `copyOf` (lib/insight-copy.ts) instead — the action naming its
+// amount, then one sentence of why — the same words /noticed prints for the same finding. Cleo's
+// copy is a question ("Would you be open to…"); ours says what to do and lets the pill be the
+// question. The engine's sentence is still the key the card is rated under.
 //
-// **"Talk me through this" hands Uday the insight.** It is not a generic deep link into chat:
-// it carries the headline as the opening question, so the avatar starts on the thing the
-// customer tapped rather than on "how can I help".
+// **"Talk me through this" hands Uday a question about the insight.** Not the headline: a
+// headline is a statement, and handed to Uday word for word half of them came back "I am not
+// sure what you are asking". The screen supplies the question (`lib/ask.ts`), worded so the
+// engine answers on the card's subject. The finding about talking to a person gets the bank's
+// own line instead, because a person is what it promises and Uday is not one; a finding with no
+// question Uday can answer gets no pill at all rather than one that ends the flow.
 //
-// **Feedback is local.** There is no route to record it and inventing one would mean a button
-// that claims to teach a system it cannot reach. It is kept per insight *kind*, which is
-// stable while a headline's figure is not, so a refresh that moves a number does not silently
-// un-answer a card the customer already rated. The honest next step is a route that records it.
-import { useEffect, useRef, useState } from 'react'
+// **Feedback stays in the app.** There is no route to record it and inventing one would mean a
+// button that claims to teach a system it cannot reach. So the thank-you only promises what the
+// app itself does: the screen that owns the answers draws a finding turned down at the back of
+// this list the next time it opens. It says "this list" because that is all it moves — Noticed
+// and Uday's opening still lead with the same finding, and the answers do not outlive the
+// session. The answers live on that screen, not in here — Spend shows this
+// carousel on two panes, and a rating kept inside the carousel was wiped by every pane switch.
+// They are keyed by kind *and* headline: two price rises are two findings, and keyed on kind
+// alone they shared one card's answer and one React key.
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   ScrollView,
@@ -58,29 +70,69 @@ import {
 } from 'react-native'
 import { Type } from '~/ui/Text'
 import { Tap } from '~/ui/Tap'
+import { Button } from '~/ui/Button'
 import { Glyph, GlyphPlate } from '~/ui/Glyph'
+import { useToast } from '~/ui/Toast'
 import { cn } from '~/ui/cn'
-import { color } from '@dhan/design'
+import { IDBI_CARE } from '~/lib/idbi'
+import { copyOf } from '~/lib/insight-copy'
+import { color, size, space } from '@dhan/design'
 import { SEVERITY } from '~/ui/severity'
-import type { Insight } from '@dhan/contracts'
+import type { Insight, Snapshot } from '@dhan/contracts'
+
+export type Rating = 'up' | 'down'
+export type Ratings = Readonly<Record<string, Rating>>
+
+/** How much of the next card shows past the current one: the gap plus the peek. */
+const PEEK = space.xxl + space.sm
+
+/** The key a finding is rendered and rated under. */
+export function insightKey(insight: Pick<Insight, 'kind' | 'headline'>): string {
+  return `${insight.kind}:${insight.headline}`
+}
 
 export function InsightCarousel({
   insights,
-  onTalk,
+  snapshot,
+  questionOf,
+  onAsk,
+  rated,
+  onRate,
 }: {
   insights: readonly Insight[]
-  onTalk: (insight: Insight) => void
+  /** The snapshot the findings came from: each card's figures are worded from it. */
+  snapshot: Snapshot
+  /** What "Talk me through this" asks about a finding, or null where Uday has no answer to it. */
+  questionOf: (insight: Insight) => string | null
+  /** Hands the question to Uday. Stable, so the memoised cards are not redrawn by it. */
+  onAsk: (question: string) => void
+  /**
+   * The answers so far, by `insightKey`. A screen that shows the carousel in more than one place
+   * owns them, so an answer outlives a pane switch; left out, the carousel keeps its own.
+   */
+  rated?: Ratings
+  onRate?: (key: string, rating: Rating) => void
 }) {
   const { width: windowWidth } = useWindowDimensions()
   const [measured, setMeasured] = useState(0)
   const [page, setPage] = useState(0)
   const [tallest, setTallest] = useState(0)
-  const [rated, setRated] = useState<readonly string[]>([])
+  const [own, setOwn] = useState<Ratings>({})
   const scroller = useRef<ScrollView>(null)
+
+  const answers = rated ?? own
+  const rateOwn = useCallback(
+    (key: string, rating: Rating) =>
+      setOwn((prev) => (prev[key] === undefined ? { ...prev, [key]: rating } : prev)),
+    [],
+  )
+  const rate = onRate ?? rateOwn
 
   // The scroller is full-bleed, so the window width is the right page width from the first
   // frame; the measurement then replaces the assumption with the fact.
   const pageWidth = measured > 0 ? measured : windowWidth
+  const cardWidth = Math.max(0, pageWidth - space.pad - PEEK)
+  const stride = cardWidth + space.md
 
   /*
    * What this carousel is currently showing, and the trigger for starting over.
@@ -90,7 +142,7 @@ export function InsightCarousel({
    * an effect, so the frame that shows a new list is already using that list's own floor
    * instead of painting once with the previous one's.
    */
-  const signature = `${pageWidth}|${insights.map((i) => i.kind).join(',')}`
+  const signature = `${pageWidth}|${insights.map(insightKey).join(',')}`
   const [shown, setShown] = useState(signature)
   if (shown !== signature) {
     setShown(signature)
@@ -104,6 +156,12 @@ export function InsightCarousel({
     scroller.current?.scrollTo({ x: 0, animated: false })
   }, [signature])
 
+  // Only ever grows within one signature, and applied to every card, so the second pass
+  // measures the floor it was just given and settles there. A functional update because
+  // several cards lay out in the same frame and the last writer would otherwise win. Stable,
+  // so the memoised cards are not redrawn by a sibling's measurement.
+  const measure = useCallback((h: number) => setTallest((prev) => (h > prev ? h : prev)), [])
+
   if (insights.length === 0) return null
 
   const onScrollerLayout = (e: LayoutChangeEvent) => setMeasured(e.nativeEvent.layout.width)
@@ -111,15 +169,10 @@ export function InsightCarousel({
   // Clamped, because the OS clamps the offset itself when the content gets shorter and does
   // so without firing anything — an index past the end lights no dot at all.
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (pageWidth <= 0) return
-    const next = Math.round(e.nativeEvent.contentOffset.x / pageWidth)
+    if (stride <= 0) return
+    const next = Math.round(e.nativeEvent.contentOffset.x / stride)
     setPage(Math.max(0, Math.min(insights.length - 1, next)))
   }
-
-  // Only ever grows within one signature, and applied to every card, so the second pass
-  // measures the floor it was just given and settles there. A functional update because
-  // several cards lay out in the same frame and the last writer would otherwise win.
-  const measure = (h: number) => setTallest((prev) => (h > prev ? h : prev))
 
   const active = Math.min(page, insights.length - 1)
 
@@ -128,126 +181,196 @@ export function InsightCarousel({
       <ScrollView
         ref={scroller}
         horizontal
-        pagingEnabled
         showsHorizontalScrollIndicator={false}
+        snapToInterval={stride}
         decelerationRate="fast"
         onLayout={onScrollerLayout}
         onScroll={onScroll}
         scrollEventThrottle={16}
         className="-mx-pad"
+        style={{ flexGrow: 0, flexShrink: 0 }}
+        contentContainerStyle={{ paddingHorizontal: space.pad, gap: space.md }}
       >
-        {insights.map((insight) => (
-          <View
-            // The kind, not the headline: a headline carries a figure that moves on every
-            // refresh, and keying on it would remount the card and wipe its answered state.
-            key={insight.kind}
-            // The page is the scroller's full width; the card takes the gutter back inside it,
-            // so it lands at exactly the width of every other card on the screen.
-            style={{ width: pageWidth }}
-            className="px-pad"
-          >
-            <InsightPane
-              insight={insight}
-              minHeight={tallest}
-              rated={rated.includes(insight.kind)}
-              onRate={() =>
-                setRated((prev) => (prev.includes(insight.kind) ? prev : [...prev, insight.kind]))
-              }
-              onMeasure={measure}
-              onTalk={() => onTalk(insight)}
-            />
-          </View>
-        ))}
+        {insights.map((insight) => {
+          const key = insightKey(insight)
+          const copy = copyOf(insight, snapshot)
+          return (
+            <View key={key} style={{ width: cardWidth }}>
+              <InsightPane
+                insight={insight}
+                title={copy.title}
+                why={copy.why}
+                rateKey={key}
+                rating={answers[key] ?? null}
+                minHeight={tallest}
+                onRate={rate}
+                onMeasure={measure}
+                question={questionOf(insight)}
+                onAsk={onAsk}
+              />
+            </View>
+          )
+        })}
       </ScrollView>
 
       {insights.length > 1 && (
-        <View className="mt-md flex-row items-center justify-center gap-xs">
-          {insights.map((insight, i) => (
-            <View
-              key={insight.kind}
-              className={cn('h-1.5 rounded-pill', i === active ? 'w-5 bg-ink' : 'w-1.5 bg-ink/20')}
-            />
-          ))}
-        </View>
+        <DotRail
+          count={insights.length}
+          active={active}
+          label={`Insight ${active + 1} of ${insights.length}`}
+          className="mt-md"
+        />
       )}
     </View>
   )
 }
 
-function InsightPane({
+/**
+ * The page dots under a carousel: Cleo's row of 8pt dots, the current one filled.
+ *
+ * One element for a screen reader, announcing where the reader is ("Account 2 of 4") and
+ * announcing it again, politely, as the page changes; the dots themselves are drawing.
+ */
+export function DotRail({
+  count,
+  active,
+  label,
+  className,
+}: {
+  count: number
+  active: number
+  label: string
+  className?: string
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={label}
+      accessibilityLiveRegion="polite"
+      className={cn('flex-row items-center justify-center gap-sm', className)}
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <View
+          key={i}
+          className={cn('h-sm w-sm rounded-pill', i === active ? 'bg-ink' : 'bg-ink/20')}
+        />
+      ))}
+    </View>
+  )
+}
+
+/**
+ * One finding. Memoised, because a swipe re-renders the carousel on every scroll event and seven
+ * cards redrawn sixty times a second is the stutter under a finger; its props are a finding, a
+ * rating and three stable callbacks, so a card redraws only when its own answer changes.
+ */
+const InsightPane = memo(function InsightPane({
   insight,
+  title,
+  why,
+  rateKey,
+  rating,
   minHeight,
-  rated,
   onRate,
   onMeasure,
-  onTalk,
+  question,
+  onAsk,
 }: {
   insight: Insight
+  /** The thing to do, naming its amount. */
+  title: string
+  /** One sentence of why, leading with the number. */
+  why: string
+  rateKey: string
+  rating: Rating | null
   minHeight: number
-  rated: boolean
-  onRate: () => void
+  onRate: (key: string, rating: Rating) => void
   onMeasure: (height: number) => void
-  onTalk: () => void
+  question: string | null
+  onAsk: (question: string) => void
 }) {
+  const toast = useToast()
   return (
     <View
       onLayout={(e) => onMeasure(e.nativeEvent.layout.height)}
       style={minHeight > 0 ? { minHeight } : undefined}
-      className="rounded-lg border border-hairline bg-surface p-lg"
+      className="rounded-card border border-hairline bg-surface p-lg"
     >
-      {/* Takes the slack, so the footer below sits on the bottom edge of every card rather
-          than floating wherever its own text happens to end. */}
+      {/* Takes the slack, so the pill and the feedback row under it sit on the bottom edge of
+          every card as one block, rather than floating wherever the words happen to end. */}
       <View className="flex-1">
-        <GlyphPlate name="sparkle" fill={SEVERITY[insight.severity].plate} size={34} />
+        <GlyphPlate
+          name="sparkle"
+          shape="bubble"
+          size={size.plateSm}
+          fill={SEVERITY[insight.severity].plate}
+        />
 
-        <Type role="body" className="mt-md">
-          {insight.headline}
+        <Type role="body" weight="semibold" className="mt-md">
+          {title}
         </Type>
-        <Type role="body" tone="soft" className="mt-xs">
-          {insight.detail}
+        <Type role="body" tone="mid" className="mt-xs">
+          {why}
         </Type>
-
-        <Tap
-          accessibilityRole="button"
-          accessibilityLabel={`Talk to Uday about: ${insight.headline}`}
-          haptic="light"
-          onPress={onTalk}
-          className="mt-lg flex-row items-center gap-sm self-start rounded-pill border border-ink px-lg py-sm"
-        >
-          <Type role="label">Talk me through this</Type>
-          <Glyph name="arrowRight" size={16} />
-        </Tap>
       </View>
 
-      <View className="mt-lg flex-row items-center justify-between border-t border-hairline pt-md">
-        {rated ? (
+      {insight.kind === 'human_handoff' ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          label={IDBI_CARE.label}
+          haptic="none"
+          href={IDBI_CARE.href}
+          accessibilityHint={IDBI_CARE.hint}
+          onOpenFail={() => toast.show(IDBI_CARE.failed)}
+          className="mt-lg"
+        />
+      ) : question === null ? null : (
+        <Button
+          size="sm"
+          variant="secondary"
+          glyph="arrowRight"
+          label="Talk me through this"
+          haptic="none"
+          accessibilityHint={`Asks Uday: ${question}`}
+          onPress={() => onAsk(question)}
+          className="mt-lg"
+        />
+      )}
+
+      <View className="mt-lg min-h-target flex-row items-center justify-between gap-md border-t border-hairline pt-md">
+        {rating !== null ? (
           <>
-            <Type role="label" tone="soft">
-              Thanks for your feedback!
+            <Type role="label" tone="mid" className="flex-1" accessibilityLiveRegion="polite">
+              {rating === 'up'
+                ? "Thanks — I'll keep an eye on this one"
+                : "Noted — I'll put it at the back of this list"}
             </Type>
             <Glyph name="check" size={18} tint={color.brand} />
           </>
         ) : (
           <>
-            <Type role="label" tone="soft">
+            <Type role="label" tone="mid" className="flex-1">
               Was this useful?
             </Type>
-            <View className="flex-row gap-lg">
+            {/* 24 apart, Cleo's spacing, which is also what keeps the two 44pt targets from
+                overlapping: each thumb reaches 12 past its 20pt glyph. */}
+            <View className="flex-row gap-xl">
               <Tap
                 accessibilityRole="button"
-                accessibilityLabel="This insight was helpful"
+                accessibilityLabel="This insight was useful"
                 haptic="selection"
-                onPress={onRate}
-                hitSlop={10}
+                onPress={() => onRate(rateKey, 'up')}
+                hitSlop={12}
               >
                 <Glyph name="thumbUp" size={20} tint={color.inkMid} />
               </Tap>
               <Tap
                 accessibilityRole="button"
-                accessibilityLabel="This insight was not helpful"
+                accessibilityLabel="This insight was not useful"
                 haptic="selection"
-                onPress={onRate}
-                hitSlop={10}
+                onPress={() => onRate(rateKey, 'down')}
+                hitSlop={12}
               >
                 <Glyph name="thumbDown" size={20} tint={color.inkMid} />
               </Tap>
@@ -257,4 +380,4 @@ function InsightPane({
       </View>
     </View>
   )
-}
+})

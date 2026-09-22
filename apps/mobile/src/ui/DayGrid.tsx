@@ -30,9 +30,18 @@
 // Dates parse at local midnight with the `T00:00:00` spelled out, for the reason `SpendBars`
 // argues at length: a bare ISO date is UTC by specification, and a grid whose columns are
 // weekdays is where being one day out shows.
+//
+// **A dot says its state in a mark as well as a colour.** A kept day carries a tick and an
+// over day a dash, the way Cleo mark theirs, because ink against danger-soft against a grey
+// wash is a distinction a colour-blind customer cannot make — and the whole grid is that one
+// distinction repeated. Each day is its own element for VoiceOver ("Day 3, over"), and the
+// weekday header row reads once as the summary, since seven initials read one by one say
+// nothing.
 import { View } from 'react-native'
 import { Type } from '~/ui/Text'
+import { Glyph } from '~/ui/Glyph'
 import { cn } from '~/ui/cn'
+import { color } from '@dhan/design'
 
 export interface DayGridDay {
   date: string
@@ -76,20 +85,18 @@ export function DayGrid({
   const lead = calendar ? weekdayIndex(first.date) : 0
   const over = days.filter((d) => d.elapsed && d.spent > limitPerDay).length
   const elapsed = days.filter((d) => d.elapsed).length
+  const summary =
+    over === 0
+      ? `${elapsed} days in, every one inside your daily share`
+      : `${over} of ${elapsed} days went over your daily share`
 
   return (
-    <View
-      accessibilityLabel={
-        over === 0
-          ? `${elapsed} days in, every one inside your daily share`
-          : `${over} of ${elapsed} days went over your daily share`
-      }
-    >
+    <View>
       {calendar && (
-        <View className="flex-row">
+        <View accessible accessibilityLabel={summary} className="flex-row">
           {WEEKDAY.map((initial, i) => (
             <View key={i} style={cell} className="items-center pb-xs">
-              <Type role="caption" tone="faint">
+              <Type role="caption" tone="mid">
                 {initial}
               </Type>
             </View>
@@ -104,15 +111,41 @@ export function DayGrid({
           <View key={`lead-${i}`} style={cell} className="py-xs" />
         ))}
 
-        {days.map((d) => (
-          <View key={d.date} style={cell} className="items-center py-xs">
-            <View className={cn('h-[22px] w-[22px] rounded-pill', tone(d, limitPerDay))} />
-          </View>
-        ))}
+        {days.map((d, i) => {
+          const state = stateOf(d, limitPerDay)
+          return (
+            <View key={d.date} style={cell} className="items-center py-xs">
+              <View
+                accessible
+                accessibilityLabel={`Day ${i + 1}, ${SPOKEN[state]}`}
+                className={cn(
+                  'h-ring w-ring items-center justify-center rounded-pill',
+                  FILL[state],
+                )}
+              >
+                {state === 'kept' ? (
+                  <Glyph name="check" size={14} tint={color.onInk} />
+                ) : state === 'over' ? (
+                  <Glyph name="minus" size={14} tint={color.ink} />
+                ) : null}
+              </View>
+            </View>
+          )
+        })}
       </View>
     </View>
   )
 }
+
+type DayState = 'kept' | 'over' | 'ahead'
+
+const FILL: Record<DayState, string> = {
+  kept: 'bg-ink',
+  over: 'bg-danger-soft',
+  ahead: 'bg-ink/10',
+}
+
+const SPOKEN: Record<DayState, string> = { kept: 'kept', over: 'over', ahead: 'to come' }
 
 /**
  * Three states and no fourth.
@@ -126,7 +159,7 @@ export function DayGrid({
  * `limitPerDay` at or below zero makes any spend at all a breach, which is the truthful reading
  * of a challenge with no allowance left rather than an edge case to special-case away.
  */
-function tone(day: DayGridDay, limitPerDay: number): string {
-  if (!day.elapsed) return 'bg-ink/10'
-  return day.spent > limitPerDay ? 'bg-danger-soft' : 'bg-ink'
+function stateOf(day: DayGridDay, limitPerDay: number): DayState {
+  if (!day.elapsed) return 'ahead'
+  return day.spent > limitPerDay ? 'over' : 'kept'
 }

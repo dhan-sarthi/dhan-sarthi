@@ -23,6 +23,7 @@ import type {
   DecisionKind,
   DecisionResponse,
   EvaluateResponse,
+  GoalPatch,
   HoldingsResponse,
   ProfilePatch,
   RecordView,
@@ -114,11 +115,24 @@ async function request<T>(
 
   if (res.status === 204) return undefined as T
   const text = await res.text()
-  const json: unknown = text ? JSON.parse(text) : undefined
+  // Not every body is JSON: a proxy answers a 502 with an HTML page, and parsing that threw a
+  // SyntaxError past every `instanceof ApiError` branch a screen has, so the customer saw a
+  // parser's complaint where "couldn't reach the bank" belonged. An unparseable body is no
+  // body; the status still decides, and the first line of the text stands in for a message.
+  let json: unknown
+  try {
+    json = text ? JSON.parse(text) : undefined
+  } catch {
+    json = undefined
+  }
 
   if (!res.ok) {
     const body = json as { code?: string; message?: string } | undefined
-    throw new ApiError(res.status, body?.code ?? 'UNKNOWN', body?.message ?? `HTTP ${res.status}`)
+    throw new ApiError(
+      res.status,
+      body?.code ?? 'UNKNOWN',
+      body?.message ?? (text.slice(0, 120) || `HTTP ${res.status}`),
+    )
   }
   return json as T
 }
@@ -155,8 +169,8 @@ export const api = {
    * The customer's own monthly ceiling, or null to remove it.
    *
    * The engine holds it to what the month can actually afford, so a limit set above that is
-   * stored as typed and applied as the lower figure — which is why the screen reads the
-   * result back rather than assuming what it sent is what now applies.
+   * stored as typed and applied as the lower figure. The screen reads the result back rather
+   * than assuming what it sent is what now applies.
    */
   setSpendLimit: (monthlyLimit: number | null) =>
     request<SessionState>('/api/v1/session/spend-limit', {
@@ -171,8 +185,16 @@ export const api = {
       body: { category, monthlyLimit },
     }),
 
-  setGoal: (targetAmount: number) =>
-    request<unknown>('/api/v1/session/goal', { method: 'PATCH', body: { targetAmount } }),
+  /**
+   * The goal: the kind the customer chose, their own target for it, or both at once.
+   *
+   * Typed as the contract's `GoalPatch`, which the route holds strictly — at least one of `kind`
+   * and `targetAmount`, and an `amountBasis` only beside an amount. A kind other than the one
+   * stored takes the stored target with it unless this same patch sets one, so a figure typed
+   * for clearing a card never becomes the figure for retirement.
+   */
+  setGoal: (goal: GoalPatch) =>
+    request<SessionState>('/api/v1/session/goal', { method: 'PATCH', body: goal }),
 
   view: () => request<View>('/api/v1/view'),
 
@@ -333,12 +355,14 @@ export const api = {
   /**
    * Start the challenge the wizard built.
    *
-   * The key is derived from the draft, `decideAction`-style, because a genuine retry should
-   * collapse: four steps end in one confirm, and a customer who taps it twice on a slow
-   * connection means one challenge. Only one may run at a time, so the second would come
-   * back 409 anyway — but a 409 raised by a retry of your own press reads as a failure, and
-   * collapsing it is kinder than explaining it. Sliced to 128 because a merchant name is
-   * free text and a header is not.
+   * The key is fresh for every press, as the deposit's is. It used to be derived from the
+   * draft, so that a second tap would collapse into one challenge, but the API keeps a key's
+   * answer for the whole session: a challenge ended and then started again with the same
+   * target, length and limit got the first start's 200 replayed, and nothing started. A second
+   * press cannot start a second challenge anyway — the wizard ignores taps while one is in
+   * flight, and the server answers 409 while one is running. What the key still buys is the
+   * one it exists for: a press retried on the wire carries the key it was built with. The
+   * time leads so the 128-character slice (a merchant name is free text) can never cut it.
    */
   startChallenge: (draft: ChallengeDraft) =>
     request<ChallengeView>('/api/v1/challenges', {
@@ -346,10 +370,7 @@ export const api = {
       body: draft,
       headers: {
         'idempotency-key':
-          `challenge-${draft.target.kind}-${draft.target.name}-${draft.days}-${draft.limit}`.slice(
-            0,
-            128,
-          ),
+          `challenge-${Date.now()}-${draft.target.kind}-${draft.target.name}`.slice(0, 128),
       },
     }),
 

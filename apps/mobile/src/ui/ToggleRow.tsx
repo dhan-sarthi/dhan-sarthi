@@ -1,41 +1,54 @@
-// The switch card at the top of every save-hack screen.
+// A white card with a name, a sentence and a switch, from Cleo's "Repay gradually".
 //
-// Five config screens open with the same object: a circular mark, the hack's name, one line of
-// what it does, and the switch that decides whether any of the controls below it matter. Cleo
-// draw it as a ring rather than a filled card, and that is the right call — it sits directly
-// under the screen's title on the cream ground, and a white fill there would read as the first
-// item of a list rather than as the screen's own subject. So the card has no background at all
-// and takes whatever surface it is dropped on.
+// Cleo's settings put each switch in its own white card: a semibold name, a line or four of what
+// it does in plain words, and the switch level with the middle of the card. The save-hack editor
+// opens on one, and /connections stacks one per block of data IDBI may read, so the card has to
+// carry a long sentence without the switch drifting. The text takes the width; the switch keeps
+// its own.
 //
-// What changes when it is on is the ring and the plate, together, on one clock. The ring goes
-// hairline → ink and the plate goes ground → lime, which is the same pair of moves the whole
-// app uses to say "this one is live": the pill in `Pills`, the plate in `checklist`. Two
-// separate timings would drift on a slow frame and the ring would land before the plate, which
-// reads as the card thinking about it. One shared value drives both.
+// The switch is Cleo's: on a phone the platform's own, which every iOS customer can identify from
+// across a room; on the web a drawn one in the same proportions, because react-native-web's is a
+// 40×20 Material track with the thumb hanging off both ends — nothing like Cleo's, and small
+// enough to miss. Either way it is only the picture. The press, the name, the sentence as the
+// hint and the checked state belong to the slot around it, so VoiceOver and the keyboard meet one
+// switch, the same one on every platform.
 //
-// Seeded at its resting state rather than at zero, for the reason `Pills` gives: a screen
-// opened on a hack that is already on should show it already on, not spend `dur.state`
-// switching itself on in front of a customer who did nothing.
+// That slot is the target, 44pt or more on both axes: the switch is 31pt tall, and a finger that
+// lands just under it should still move it. It reaches into the gap and the card's padding rather
+// than pushing the switch inward, so the switch is drawn where it always was. The row is still
+// not a target. A row-wide press would be a bigger, kinder hit area and it is wrong here: the rest
+// of the card is the sentence explaining what the switch does, and a customer reading it with a
+// finger resting on the card would turn it on by accident.
 //
-// The switch is the only target. A row-wide `Tap` that flips it would be a bigger, kinder hit
-// area and it is still wrong here: the invisible half of that target is the sentence explaining
-// what the hack does, so a customer reading it with a finger resting on the card turns it on by
-// accident — and with two routes to the same bit, a fast double tap races itself and lands on
-// the value nobody asked for. The `Switch` is RN's own, with `set-limit.tsx`'s token colours,
-// because a switch is the one control iOS customers can identify from across a room and a
-// hand-drawn one only ever loses that.
+// Off is `inkHint`, 4.7:1 on the white card. The hairline it used to be was 1.25:1 — an off
+// switch that dissolved into the card and left a floating thumb. On stays the brand green, the
+// thumb is white in both, and the plate turns lime when the switch is on, the same fill the app
+// uses everywhere to say "this one is live".
+//
+// Two states a caller can put it in. `disabled` dims the card and holds the switch, for a row
+// that cannot be changed right now — the other blocks on /connections while one is saving, or an
+// editor whose read has not landed. `busy` swaps the switch for a spinner in the same slot, for
+// the row whose own change is in flight, and still reads as a switch with its state and "busy".
 import { useEffect } from 'react'
-import { Switch, View } from 'react-native'
+import { ActivityIndicator, Platform, Switch, View } from 'react-native'
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from 'react-native-reanimated'
+import { Card } from '~/ui/Card'
 import { Type } from '~/ui/Text'
-import { Glyph, type GlyphName } from '~/ui/Glyph'
-import { dur, timing } from '~/ui/motion'
-import { color } from '@dhan/design'
+import { GlyphPlate, type GlyphName } from '~/ui/Glyph'
+import { Tap } from '~/ui/Tap'
+import { to } from '~/ui/motion'
+import { cn } from '~/ui/cn'
+import { color, size, space } from '@dhan/design'
+
+const web = Platform.OS === 'web'
+
+// The drawn switch is a `plateXl` × `ring` track with a thumb `xl` across, `xxs` in from every
+// edge — the platform's proportions in this app's sizes. The thumb travels what is left.
+const TRAVEL = size.plateXl - space.xl - 2 * space.xxs
 
 export function ToggleRow({
   glyph,
@@ -43,52 +56,142 @@ export function ToggleRow({
   detail,
   value,
   onValueChange,
+  disabled = false,
+  busy = false,
 }: {
-  glyph: GlyphName
+  glyph?: GlyphName
   title: string
-  detail: string
+  detail?: string
   value: boolean
   onValueChange: (v: boolean) => void
+  /** Held: dimmed, and the switch cannot move. */
+  disabled?: boolean
+  /** This row's change is in flight: a spinner stands where the switch was. */
+  busy?: boolean
 }) {
-  const on = useSharedValue(value ? 1 : 0)
+  const held = disabled || busy
+
+  function flip() {
+    if (!held) onValueChange(!value)
+  }
+
+  return (
+    <Card className={cn('flex-row items-center gap-md px-lg py-lg', disabled && 'opacity-60')}>
+      {glyph === undefined ? null : (
+        <GlyphPlate
+          name={glyph}
+          size={size.plateMd}
+          fill={value ? 'bg-success' : 'bg-ground-deep'}
+        />
+      )}
+      <View className="flex-1">
+        <Type role="heading" plain>
+          {title}
+        </Type>
+        {detail === undefined ? null : (
+          <Type role="body" tone="mid" className="mt-xxs">
+            {detail}
+          </Type>
+        )}
+      </View>
+      <Tap
+        accessibilityRole="switch"
+        accessibilityLabel={title}
+        {...(detail === undefined ? {} : { accessibilityHint: detail })}
+        accessibilityState={{ checked: value, disabled: held, busy }}
+        aria-checked={value}
+        aria-busy={busy}
+        disabled={held}
+        // A switch does not sink under a finger; it answers by moving.
+        scale={1}
+        onPress={flip}
+        {...switchKeys(flip)}
+        // `rounded-pill` shapes the web's focus ring round the switch rather than a box.
+        className="-mx-sm min-h-target min-w-target items-center justify-center rounded-pill px-sm"
+      >
+        {busy ? (
+          <View className="h-ring w-plate-xl items-center justify-center">
+            <ActivityIndicator color={color.ink} aria-hidden />
+          </View>
+        ) : (
+          <SwitchMark on={value} disabled={disabled} />
+        )}
+      </Tap>
+    </Card>
+  )
+}
+
+/**
+ * The switch as a picture, for a control whose press, name and state are on the element around
+ * it (ToggleRow's slot, set-limit's "Limit by category" row): the platform's own on a phone,
+ * the drawn one on the web. Hidden from the screen reader, so the element around it is the one
+ * switch it announces.
+ */
+export function SwitchMark({ on, disabled = false }: { on: boolean; disabled?: boolean }) {
+  if (web) return <DrawnSwitch on={on} />
+  return (
+    <View
+      style={{ pointerEvents: 'none' }}
+      aria-hidden
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Switch
+        value={on}
+        disabled={disabled}
+        trackColor={{ true: color.brand, false: color.inkHint }}
+        thumbColor={color.surface}
+        ios_backgroundColor={color.inkHint}
+      />
+    </View>
+  )
+}
+
+/**
+ * Space for a switch on the web. react-native-web presses a focused control on Enter, and on
+ * Space only when it is a button; Space is the key a switch answers to, so it is added here, and
+ * it must not scroll the page. Spread onto the element with `accessibilityRole="switch"`.
+ */
+export function switchKeys(flip: () => void): object {
+  if (!web) return {}
+  return {
+    onKeyDown: (e: { key: string; repeat: boolean; preventDefault: () => void }) => {
+      if (e.key !== ' ' && e.key !== 'Spacebar') return
+      e.preventDefault()
+      if (!e.repeat) flip()
+    },
+  }
+}
+
+/**
+ * The web's switch: a pill track and a white thumb with a hairline round it, as Cleo draws the
+ * thumb. One value drives the slide and the fill, so the colour lands with the thumb, and
+ * `to.state` snaps it under Reduce Motion. Seeded at rest, so a screen opened on a switch that is
+ * already on shows it on instead of switching itself on in front of someone who did nothing.
+ */
+function DrawnSwitch({ on }: { on: boolean }) {
+  const progress = useSharedValue(on ? 1 : 0)
 
   useEffect(() => {
-    on.value = withTiming(value ? 1 : 0, timing(dur.state))
-  }, [value, on])
+    progress.value = to.state(on ? 1 : 0)
+  }, [on, progress])
 
-  // Both animated colours live here rather than in classes because a class cannot be
-  // interpolated — this is the same exemption `Pills` takes, and the values still come from
-  // tokens rather than from a hex written in this file.
-  const ring = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(on.value, [0, 1], [color.hairline, color.ink]),
+  const track = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [color.inkHint, color.brand]),
   }))
-  const plate = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(on.value, [0, 1], [color.groundDeep, color.success]),
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * TRAVEL }],
   }))
 
   return (
     <Animated.View
-      style={ring}
-      className="flex-row items-center gap-md rounded-lg border px-lg py-lg"
+      aria-hidden
+      style={track}
+      className="h-ring w-plate-xl justify-center rounded-pill px-xxs"
     >
-      <Animated.View style={plate} className="h-9 w-9 items-center justify-center rounded-pill">
-        <Glyph name={glyph} size={19} />
-      </Animated.View>
-
-      <View className="flex-1">
-        <Type role="heading">{title}</Type>
-        <Type role="body" tone="soft" className="mt-[2px]">
-          {detail}
-        </Type>
-      </View>
-
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        accessibilityLabel={title}
-        accessibilityHint={detail}
-        trackColor={{ false: color.hairline, true: color.brand }}
-        thumbColor={color.surface}
+      <Animated.View
+        style={thumb}
+        className="h-xl w-xl rounded-pill border border-hairline bg-surface"
       />
     </Animated.View>
   )

@@ -27,3 +27,12 @@ cssInterop(AnimatedPressable, asStyle)
 // registering it keeps className usable if a later screen wants one in flow.
 import { LinearGradient } from 'expo-linear-gradient'
 cssInterop(LinearGradient, asStyle)
+
+// What is deliberately NOT registered, and why it stays that way.
+//
+// react-native-svg's `Svg`, `Path`, `Circle`, `RadialGradient` and its own `LinearGradient`.
+// A `className` on any of them is silently dropped: NativeWind can only rewrite it onto
+// `style`, and an SVG primitive takes its fill, stroke and stop colours from attributes that
+// a style never reaches. Registering them would make a class that does nothing look like one
+// that should. So ScoreGlow, Arc, ChatCanvas and the Pills edge fade position their SVG with
+// `style` / `StyleSheet.absoluteFill` and colour it with runtime values from `@dhan/design`.

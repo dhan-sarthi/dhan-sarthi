@@ -16,7 +16,10 @@
 // Three rules it follows:
 //
 //   · It counts from the *previous* value, not from zero, on every change after the first. Zero
-//     is only honest the first time; after that the number came from somewhere.
+//     is only honest the first time; after that the number came from somewhere. "Previous" means
+//     where the eye last saw it: an interrupted count carries on from the digits on screen, and
+//     a figure given an `id` remembers itself across a remount, so switching panes and back does
+//     not spin the pot up from ₹0 a second time.
 //   · It never counts while the entrance is still running. Overlapping the two is what makes a
 //     screen feel busy rather than composed, so the caller's stagger delay is respected.
 //   · Under Reduce Motion it is the final value, immediately. A count-up is spatial movement
@@ -30,16 +33,30 @@ function ease(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
-export function useCountUp(value: number, { delay = 0, duration = dur.count } = {}): number {
+/**
+ * Where each identified figure was last seen, across mounts. Module state on purpose: a pane
+ * that unmounts takes its hooks with it, and this is the only place the number can wait.
+ */
+const lastShown = new Map<string, number>()
+
+export function useCountUp(
+  value: number,
+  { delay = 0, duration = dur.count, id }: { delay?: number; duration?: number; id?: string } = {},
+): number {
   const reduced = useReducedMotion()
-  const [shown, setShown] = useState(reduced ? value : 0)
+  const seed = reduced ? value : id === undefined ? 0 : (lastShown.get(id) ?? 0)
+  const [shown, setShown] = useState(seed)
   // The value the next run counts *from*. Held in a ref so a re-render mid-count does not
   // restart the animation from wherever it happens to be on screen.
-  const from = useRef(reduced ? value : 0)
+  const from = useRef(seed)
+  // What is on screen right now, for the cleanup to read: state is stale inside it.
+  const shownRef = useRef(seed)
 
   useEffect(() => {
     if (reduced || !Number.isFinite(value)) {
       from.current = value
+      shownRef.current = value
+      if (id !== undefined) lastShown.set(id, value)
       setShown(value)
       return
     }
@@ -54,40 +71,60 @@ export function useCountUp(value: number, { delay = 0, duration = dur.count } = 
       if (cancelled) return
       if (!t0) t0 = now
       const p = Math.min(1, (now - t0) / duration)
-      setShown(start + (value - start) * ease(p))
+      const next = start + (value - start) * ease(p)
+      shownRef.current = next
+      if (id !== undefined) lastShown.set(id, next)
+      setShown(next)
       if (p < 1) frame = requestAnimationFrame(run)
       else from.current = value
     }
 
-    const id = setTimeout(() => {
+    const timer = setTimeout(() => {
       frame = requestAnimationFrame(run)
     }, delay)
 
     return () => {
       cancelled = true
-      clearTimeout(id)
+      clearTimeout(timer)
       cancelAnimationFrame(frame)
       // Whatever interrupted this owns the number now, and it should travel from where the
-      // eye last saw it rather than jumping back to the old start.
-      from.current = value
+      // eye last saw it. Writing the old target here instead made an interrupted count jump
+      // to the end it never reached and count again from there.
+      from.current = shownRef.current
     }
-  }, [value, delay, duration, reduced])
+  }, [value, delay, duration, reduced, id])
 
   return shown
 }
 
+/**
+ * `id` names the figure across remounts (`'spend.pot'`, `'grow.saved'`); two Counts sharing an
+ * id share a memory, so keep it to one figure. A screen reader is given the destination, not
+ * the odometer: the label is the final value, and the text is `plain` so a display-sized figure
+ * never lands in the headings rotor.
+ */
 export function Count({
   value,
   format,
   delay = 0,
   duration,
+  id,
   ...rest
 }: Omit<TypeProps, 'children'> & {
   value: number
   format: (n: number) => string
   delay?: number
   duration?: number
+  id?: string
 }) {
-  const shown = useCountUp(value, { delay, ...(duration === undefined ? {} : { duration }) })
-  return <Type {...rest}>{format(shown)}</Type>
+  const shown = useCountUp(value, {
+    delay,
+    ...(duration === undefined ? {} : { duration }),
+    ...(id === undefined ? {} : { id }),
+  })
+  return (
+    <Type accessibilityLabel={format(value)} plain {...rest}>
+      {format(shown)}
+    </Type>
+  )
 }

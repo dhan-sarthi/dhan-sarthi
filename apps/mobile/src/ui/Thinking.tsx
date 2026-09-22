@@ -13,6 +13,11 @@
 // This is the only loop in the app, and it runs solely while something is actually pending —
 // `busy` unmounts it, the splash replaces its route. A loop nobody is waiting on is the kind of
 // animation that turns into battery draw and nobody notices it stopped being meaningful.
+//
+// To VoiceOver it is one element, a progress indicator that says what is being worked on. The
+// label used to be fixed at "Working it out" and the three dots were read aloud as well — three
+// unnamed things after the label. A screen that knows what it is waiting for ("Reading your
+// month…", "Finding demo customers") says so; the dots are drawing, not content, and are hidden.
 import { useEffect } from 'react'
 import { View } from 'react-native'
 import Animated, {
@@ -65,20 +70,26 @@ export function Thinking({
   tone = 'bg-ink-soft',
   size = 7,
   className,
+  accessibilityLabel = 'Working it out',
 }: {
   tone?: string
   size?: number
   className?: string
+  /** What is being waited for, in the screen's own words. */
+  accessibilityLabel?: string
 }) {
   return (
     <View
+      accessible
       accessibilityRole="progressbar"
-      accessibilityLabel="Working it out"
+      accessibilityLabel={accessibilityLabel}
       className={cn('flex-row gap-sm', className)}
     >
-      <Dot delay={0} tone={tone} size={size} />
-      <Dot delay={140} tone={tone} size={size} />
-      <Dot delay={280} tone={tone} size={size} />
+      <View aria-hidden className="flex-row gap-sm">
+        <Dot delay={0} tone={tone} size={size} />
+        <Dot delay={140} tone={tone} size={size} />
+        <Dot delay={280} tone={tone} size={size} />
+      </View>
     </View>
   )
 }

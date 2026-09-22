@@ -1,60 +1,55 @@
 // Step 3c — what is left.
 //
 // Cleo's "You're on a roll" screen: what is done gets a filled check, what is next
-// gets a numbered dark circle, what is locked stays grey. It is the only screen in
-// the flow that shows the shape of the whole flow, which is why it sits in the
-// middle rather than at the start.
-import { View } from 'react-native'
+// gets a numbered dark circle, what is still to come stays sunk into the ground. It is
+// the only screen in the flow that shows the shape of the whole flow, so it sits in
+// the middle rather than at the start.
+//
+// The states are read from the draft, not written down. The list used to be three fixed
+// rows, so a customer who backed out of the risk question onto this screen was told the step
+// they had just finished was still next. Now "Two things about you" ticks once both of its
+// screens are answered, "Where you're headed" becomes the way in after it, and the card that
+// is next is itself a button — Next only says the same thing at the bottom of the screen.
+//
+// No ×. It replaced the whole flow with the mobile step, which threw away a signed-in session
+// and a statement already read; from here the only way is on.
 import { router } from 'expo-router'
 import { Screen } from '~/ui/Screen'
-import { Type } from '~/ui/Text'
 import { Button } from '~/ui/Button'
-import { Card } from '~/ui/Card'
-import { Glyph } from '~/ui/Glyph'
-import { color } from '@dhan/design'
-
-const STEPS = [
-  { title: 'Read your statement', state: 'done' as const },
-  { title: 'A couple of things about you', state: 'next' as const },
-  { title: 'Where you are headed', state: 'locked' as const },
-]
+import { Checklist } from '~/ui/Checklist'
+import { aboutDone, useOnboarding } from '~/state/onboarding'
 
 export default function ChecklistStep() {
+  const { draft } = useOnboarding()
+  const answered = aboutDone(draft)
+  const about = () => router.push('/(onboarding)/about')
+  const goal = () => router.push('/(onboarding)/goal')
+
   return (
     <Screen
-      onClose={() => router.replace('/(onboarding)/mobile')}
-      footer={<Button label="Next" onPress={() => router.push('/(onboarding)/about')} />}
+      title="You're nearly there"
+      subtitle="Two short steps, then I show you what I found."
+      footer={<Button label="Next" haptic="none" onPress={answered ? goal : about} />}
     >
-      <Type role="display">You're nearly there</Type>
-
-      <View className="mt-xl gap-md">
-        {STEPS.map((s, i) => (
-          <Card key={s.title} className={s.state === 'locked' ? 'opacity-50' : undefined}>
-            <View className="flex-row items-center gap-lg px-lg py-lg">
-              <View
-                className={
-                  s.state === 'done'
-                    ? 'h-8 w-8 items-center justify-center rounded-pill bg-success'
-                    : s.state === 'next'
-                      ? 'h-8 w-8 items-center justify-center rounded-pill bg-ink'
-                      : 'h-8 w-8 items-center justify-center rounded-pill bg-ground-deep'
-                }
-              >
-                {s.state === 'done' ? (
-                  <Glyph name="check" size={16} tint={color.ink} />
-                ) : (
-                  <Type role="label" tone={s.state === 'next' ? 'onInk' : 'soft'}>
-                    {i + 1}
-                  </Type>
-                )}
-              </View>
-              <Type role="heading" tone={s.state === 'locked' ? 'faint' : 'ink'}>
-                {s.title}
-              </Type>
-            </View>
-          </Card>
-        ))}
-      </View>
+      <Checklist
+        variant="cards"
+        className="mt-xxl"
+        steps={[
+          { id: 'read', title: 'Read your statement', state: 'done' },
+          {
+            id: 'you',
+            title: 'Two things about you',
+            state: answered ? 'done' : 'current',
+            onPress: about,
+          },
+          {
+            id: 'goal',
+            title: "Where you're headed",
+            state: answered ? 'current' : 'locked',
+            ...(answered ? { onPress: goal } : {}),
+          },
+        ]}
+      />
     </Screen>
   )
 }

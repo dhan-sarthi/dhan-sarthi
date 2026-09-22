@@ -10,36 +10,31 @@
 //
 // Reduce Motion is handled by hand rather than left to Reanimated's default, which disables
 // an entering animation outright. Someone who asked for less movement did not ask for content
-// to teleport: they get the fade with the travel removed, which still says "this is new" and
-// still distinguishes an arrival from something that was always there.
+// to teleport: they get the fade with the travel removed (`flat`, in motion.ts), which still
+// says "this is new" and still distinguishes an arrival from something that was always there.
 import type { ReactNode } from 'react'
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInLeft,
-  FadeInRight,
-  ReduceMotion,
-} from 'react-native-reanimated'
-import { dur, easeOut, stagger, useReducedMotion } from '~/ui/motion'
-
-/** The fade that survives Reduce Motion, for when the alternative to travel is not nothing. */
-function flat(delay: number) {
-  return FadeIn.delay(delay).duration(dur.state).reduceMotion(ReduceMotion.Never)
-}
+import Animated, { FadeInDown, FadeInLeft, FadeInRight, FadeOutUp } from 'react-native-reanimated'
+import { dur, easeOut, flat, flatOut, stagger, useReducedMotion } from '~/ui/motion'
 
 /**
  * One item arriving. `i` is its position among siblings — pass the map index and the stagger
  * takes care of itself, including the cap that stops a long list turning into a queue.
+ *
+ * `exiting` is for the item that also leaves: a control that hands over to the next step, a
+ * card dismissed. It goes the way it came, up and out, on the state clock rather than the
+ * entrance's — leaving should be quicker than arriving, because nothing new needs reading.
  */
 export function Reveal({
   children,
   i = 0,
   delay = 0,
+  exiting = false,
   className,
 }: {
   children: ReactNode
   i?: number
   delay?: number
+  exiting?: boolean
   className?: string
 }) {
   const reduced = useReducedMotion()
@@ -47,6 +42,9 @@ export function Reveal({
   return (
     <Animated.View
       entering={reduced ? flat(wait) : FadeInDown.delay(wait).duration(dur.enter).easing(easeOut)}
+      exiting={
+        exiting ? (reduced ? flatOut(0) : FadeOutUp.duration(dur.state).easing(easeOut)) : undefined
+      }
       className={className}
     >
       {children}

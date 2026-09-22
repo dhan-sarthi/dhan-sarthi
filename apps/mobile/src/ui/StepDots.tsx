@@ -28,7 +28,13 @@
 //
 // The connectors are a fixed 16pt rather than `flex-1`. A rail that stretches to the width it
 // is given is a progress *bar* again, and this one has to sit between a back arrow and a close
-// button in a nav row without either of them moving when the flow gains a step.
+// button in a nav row (`NavRow`'s `center`) without either of them moving when the flow gains a
+// step.
+//
+// To a screen reader it is one element, "Step 2 of 4", read once. The numerals are a drawing of
+// that sentence, and read one by one they would make it "1, 2, 3, 4" — which says nothing about
+// where the customer is. They are also held to a modest Dynamic Type size: the plate is a fixed
+// ring and a numeral that outgrows it is clipped by its own circle.
 import { useEffect } from 'react'
 import { View } from 'react-native'
 import Animated, {
@@ -55,16 +61,20 @@ export function StepDots({ step, steps }: { step: number; steps: number }) {
 
   return (
     <View
+      accessible
       accessibilityRole="progressbar"
       accessibilityLabel={`Step ${here} of ${total}`}
       accessibilityValue={{ min: 1, max: total, now: here }}
+      aria-valuemin={1}
+      aria-valuemax={total}
+      aria-valuenow={here}
       className="flex-row items-center justify-center"
     >
       {Array.from({ length: total }, (_, i) => {
         const n = i + 1
         return (
           <View key={n} className="flex-row items-center">
-            {i > 0 ? <View className="h-[1px] w-lg bg-hairline" /> : null}
+            {i > 0 ? <View className="h-px w-lg bg-hairline" /> : null}
             <Plate n={n} state={n < here ? DONE : n === here ? CURRENT : LATER} />
           </View>
         )
@@ -108,11 +118,13 @@ function Plate({ n, state }: { n: number; state: number }) {
   }))
 
   return (
-    <Animated.View
-      style={plate}
-      className="h-[28px] w-[28px] items-center justify-center rounded-pill"
-    >
-      <Animated.Text style={numeral} className={ROLE.label}>
+    <Animated.View style={plate} className="h-ring w-ring items-center justify-center rounded-pill">
+      <Animated.Text
+        aria-hidden
+        style={numeral}
+        className={ROLE.label}
+        maxFontSizeMultiplier={1.35}
+      >
         {n}
       </Animated.Text>
       {/* Absolute, so the numeral does not shift sideways as the check takes over from it. */}

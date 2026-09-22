@@ -19,6 +19,9 @@
 import { Easing as RNEasing } from 'react-native'
 import {
   Easing,
+  FadeIn,
+  FadeOut,
+  LinearTransition,
   ReduceMotion,
   withSpring,
   withTiming,
@@ -70,6 +73,35 @@ export function stagger(i: number): number {
  * announce itself. Branch on this, and remove the travel — not the meaning.
  */
 export { useReducedMotion }
+
+/**
+ * The arrival that survives Reduce Motion, and its exit.
+ *
+ * Reanimated's default under Reduce Motion is to skip an entering animation outright, which
+ * makes new content teleport. Someone who asked for less movement did not ask for that: they
+ * get the fade with the travel removed, which still says "this is new" and still tells an
+ * arrival from something that was always there. `ReduceMotion.Never` is the honest spelling —
+ * this fade *is* the reduced version, so it must not be reduced a second time.
+ */
+export function flat(delay = 0) {
+  return FadeIn.delay(delay).duration(dur.state).reduceMotion(ReduceMotion.Never)
+}
+
+export function flatOut(delay = 0) {
+  return FadeOut.delay(delay).duration(dur.state).reduceMotion(ReduceMotion.Never)
+}
+
+/**
+ * Siblings moving to make room, or not moving at all.
+ *
+ * The layout builders can be told about Reduce Motion, but the app branches by hand so the
+ * reduced case is *no* layout animation rather than an instant one Reanimated still schedules —
+ * and so the decision reads the same as everywhere else in this file: `undefined` on the
+ * `layout` prop is a View that simply takes its new place.
+ */
+export function layoutMove(reduced: boolean) {
+  return reduced ? undefined : LinearTransition.duration(dur.move).easing(easeOut)
+}
 
 export function timing(duration: number, easing = easeOut): WithTimingConfig {
   return { duration, easing, reduceMotion: ReduceMotion.System }

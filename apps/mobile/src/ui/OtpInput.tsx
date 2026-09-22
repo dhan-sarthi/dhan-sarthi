@@ -5,10 +5,14 @@
 // drawing of it, which keeps SMS autofill working.
 //
 // Because the boxes are a drawing, they have to do the work a real caret would: the box
-// awaiting the next digit darkens its border, and each digit lands with a small settle rather
-// than appearing. On a six-box code entered in two seconds that is the only signal that the
-// keypress registered — and when autofill drops all six at once, they land in sequence, which
-// is the one time in the flow the app gets to look quick rather than merely fast.
+// awaiting the next digit takes a heavier ink edge, and each digit lands with a small settle
+// rather than appearing. On a six-box code entered in two seconds that is the only signal that
+// the keypress registered — and when autofill drops all six at once, they land in sequence,
+// which is the one time in the flow the app gets to look quick rather than merely fast.
+//
+// Being a drawing, the boxes are also hidden from assistive tech. VoiceOver lands on one thing,
+// the real field, named "Six-digit code" and reading back what has been typed — not on six
+// unlabelled boxes and a pressable wrapped around them saying the same thing a second time.
 import { useRef } from 'react'
 import { Pressable, TextInput, View } from 'react-native'
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated'
@@ -31,8 +35,8 @@ export function OtpInput({ value, onChange }: { value: string; onChange: (next: 
   was.current = value.length
 
   return (
-    <Pressable onPress={() => input.current?.focus()} accessibilityLabel="Verification code">
-      <View className="flex-row gap-sm">
+    <Pressable onPress={() => input.current?.focus()} accessible={false}>
+      <View aria-hidden className="flex-row gap-sm">
         {Array.from({ length: LENGTH }, (_, i) => {
           const char = value[i]
           const active = i === value.length
@@ -40,8 +44,8 @@ export function OtpInput({ value, onChange }: { value: string; onChange: (next: 
             <View
               key={i}
               className={cn(
-                'h-[54px] flex-1 items-center justify-center rounded-md border bg-surface',
-                active ? 'border-ink' : 'border-hairline',
+                'min-h-[54px] flex-1 items-center justify-center rounded-md bg-surface',
+                active ? 'border-2 border-ink' : 'border border-hairline',
               )}
             >
               {char ? (
@@ -57,7 +61,9 @@ export function OtpInput({ value, onChange }: { value: string; onChange: (next: 
                           .delay(burst ? stagger(i) : 0)
                   }
                 >
-                  <Type role="title">{char}</Type>
+                  <Type role="title" plain maxFontSizeMultiplier={1.4}>
+                    {char}
+                  </Type>
                 </Animated.View>
               ) : null}
             </View>
@@ -73,6 +79,8 @@ export function OtpInput({ value, onChange }: { value: string; onChange: (next: 
         autoComplete="sms-otp"
         maxLength={LENGTH}
         autoFocus
+        accessibilityLabel="Six-digit code"
+        accessibilityHint="Enter the code sent to your mobile"
         className="absolute h-full w-full opacity-0"
       />
     </Pressable>

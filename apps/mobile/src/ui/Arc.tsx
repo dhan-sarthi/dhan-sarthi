@@ -23,7 +23,7 @@
 // predictable at every width, and the three fact lines underneath stay in the same viewport as
 // the arc at 375pt — which is an acceptance criterion for this card, not a hope.
 //
-// **The caps are inside the viewBox, and that is what the extra `STROKE` of height buys.** A
+// **The caps are inside the viewBox, which is what the extra `STROKE` of height buys.** A
 // 16pt stroke with round caps bulges 8pt past the chord at each end. A box of `2r + STROKE` by
 // `r` — the obvious one — clips both caps flat at exactly the two points the end labels draw
 // the eye to, and a shape sheared off at its ends reads as a rendering bug rather than as a
@@ -39,6 +39,15 @@
 //
 // The progress stroke is drawn only when `value !== null`, which today is never: no bureau pull
 // has been made, so there is nothing to sweep. When one lands, this file does not change.
+//
+// **The half-turn is an SVG transform string, not `rotation` and `origin`.** react-native-svg's
+// web layer turns `originX`/`originY` into a `transform-origin` attribute that the DOM does not
+// have, and React logs a warning for it on every render of this card. `rotate(180 cx cy)` is the
+// SVG spec's own way of turning about a point: the browser reads it as written and the native
+// renderer parses the same string, so one prop is right on both.
+//
+// **Under Reduce Motion the sweep lands rather than travels.** A reading that fills over 900ms is
+// a number being said; someone who asked for less movement still gets the number, at once.
 import { useEffect, useState } from 'react'
 import { View, useWindowDimensions, type LayoutChangeEvent } from 'react-native'
 import Animated, {
@@ -49,7 +58,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import Svg, { Circle } from 'react-native-svg'
 import { Type } from '~/ui/Text'
-import { dur, timing } from '~/ui/motion'
+import { dur, timing, useReducedMotion } from '~/ui/motion'
 import { color, space } from '@dhan/design'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
@@ -65,9 +74,9 @@ const PROGRESS = 8
  *
  * The floor is what keeps the arc a gauge rather than a bangle on a 320pt phone, where the
  * card's interior is 248pt. The ceiling is the layout rule: at 128 the drawing is 144pt tall,
- * and the eyebrow, headline, body and three fact lines that follow it still land above the fold
- * of a 375 × 812 viewport. A hard-coded radius fails at one end or the other — this is the
- * arithmetic the card cannot be allowed to get wrong on a device nobody tested on.
+ * and the card's heading, verdict, body and three fact lines still land inside one 812pt
+ * viewport. A hard-coded radius fails at one end or the other — this is the arithmetic the card
+ * cannot be allowed to get wrong on a device nobody tested on.
  */
 const R_MIN = 96
 const R_MAX = 128
@@ -90,6 +99,7 @@ export function Arc({
   delay?: number
 }) {
   const { width: windowWidth } = useWindowDimensions()
+  const reduced = useReducedMotion()
   const [measured, setMeasured] = useState(0)
 
   // Seeded from the window and the two gutters it sits inside, so the first painted frame is
@@ -116,9 +126,10 @@ export function Arc({
    *
    * Rotated 180° about the centre because a circle starts at 3 o'clock and runs clockwise: half
    * a turn puts the start at 9 o'clock, so the pattern is laid down left to right over the top —
-   * the direction the two end labels promise.
+   * the direction the two end labels promise. The turn is the string below; the header says why.
    */
   const dash: readonly number[] = [half, 2 * half]
+  const halfTurn = `rotate(180 ${centre} ${centre})`
 
   const target = value === null ? 0 : Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
 
@@ -129,8 +140,8 @@ export function Arc({
   const drawn = useSharedValue(0)
 
   useEffect(() => {
-    drawn.value = withDelay(delay, withTiming(target, timing(dur.count)))
-  }, [target, delay, drawn])
+    drawn.value = reduced ? target : withDelay(delay, withTiming(target, timing(dur.count)))
+  }, [target, delay, drawn, reduced])
 
   // `dur.count`, like `Meter` and `SpendBars`: an arc filling is a number being said.
   const sweep = useAnimatedProps(() => ({ strokeDashoffset: half * (1 - drawn.value) }))
@@ -166,9 +177,7 @@ export function Arc({
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={dash}
-            rotation={180}
-            originX={centre}
-            originY={centre}
+            transform={halfTurn}
           />
           {value !== null && (
             <AnimatedCircle
@@ -184,9 +193,7 @@ export function Arc({
               // first runs is an empty arc rather than a full one.
               strokeDashoffset={half}
               animatedProps={sweep}
-              rotation={180}
-              originX={centre}
-              originY={centre}
+              transform={halfTurn}
             />
           )}
         </Svg>
@@ -195,13 +202,18 @@ export function Arc({
             resolves its own font and takes a free-form size, and these three strings would
             become the only ones in the app outside the seven roles — on the card whose job is
             to look like it belongs. */}
-        <View pointerEvents="none" className="absolute inset-0 items-center justify-end pb-lg">
+        <View
+          style={{ pointerEvents: 'none' }}
+          className="absolute inset-0 items-center justify-end pb-lg"
+        >
           {/* An em dash and not a numeral, because there is no numeral: the only figure that
               belongs in this aperture is a bureau score, and the card exists to say we have not
               pulled one. `value` is the sweep alone. When a pull lands this gains a figure and
               the dash is what it replaces. */}
-          <Type role="display">—</Type>
-          <Type role="label" tone="soft" className="mt-xs">
+          <Type role="display" plain>
+            —
+          </Type>
+          <Type role="label" tone="mid" className="mt-xs">
             {chord}
           </Type>
         </View>
@@ -210,10 +222,10 @@ export function Arc({
       {/* Flat under the caps, at the box's own width — the cap centres sit `STROKE / 2` inside
           each edge, which is closer to the label than any nudge would be worth. */}
       <View className="mt-sm flex-row justify-between" style={{ width: boxWidth }}>
-        <Type role="caption" tone="faint">
+        <Type role="caption" tone="mid">
           {startLabel}
         </Type>
-        <Type role="caption" tone="faint">
+        <Type role="caption" tone="mid">
           {endLabel}
         </Type>
       </View>

@@ -25,5 +25,5 @@ export type SeverityLook = {
 export const SEVERITY: Record<Insight['severity'], SeverityLook> = {
   urgent: { tone: 'danger', label: 'Worth doing now', plate: 'bg-danger-soft' },
   important: { tone: 'streak', label: 'Worth a look', plate: 'bg-streak/35' },
-  opportunity: { tone: 'budget', label: 'Noticed', plate: 'bg-budget/50' },
+  opportunity: { tone: 'budget', label: 'Worth knowing', plate: 'bg-budget/50' },
 }

@@ -5,10 +5,7 @@ module.exports = {
   // follow the OS and flip a palette that has no dark counterpart.
   darkMode: 'class',
   content: ['./app/**/*.{js,jsx,ts,tsx}', './src/**/*.{js,jsx,ts,tsx}'],
-  presets: [
-    require('nativewind/preset'),
-    require('@dhan/design/tailwind-preset'),
-  ],
+  presets: [require('nativewind/preset'), require('@dhan/design/tailwind-preset')],
   theme: {},
   plugins: [],
 }

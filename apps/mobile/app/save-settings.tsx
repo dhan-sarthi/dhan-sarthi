@@ -1,98 +1,144 @@
-// Save settings — the gear on the pot card.
+// Save settings — the gear on the goal card.
 //
-// Cleo's sheet has three rows: Edit goal, Manage accounts, Statements. Ours has three too and
-// only two of them are theirs.
+// Cleo's "Add cash" sheet is the shape: a display title, then short groups under plain headings —
+// Automatic, Manual — each a white card of chevron rows. Money reaches this goal the same two ways,
+// so the sheet says it in the same words: the goal itself, the hacks that move money on their own,
+// the deposit a person makes by hand, and the statement all of it was read from. Four headings over
+// four one-row cards reads as more scaffolding than one card of four rows, and it is still the
+// right trade: each heading is the answer to "how does money get in", which one card of four rows
+// never says out loud.
 //
-// **Manage accounts is gone, and it is the most considered omission in this flow.** It is the
-// way into Cleo's whole bank-connection path — link an account, pick which one the hacks pull
-// from, re-authorise when the aggregator's token dies. None of that exists here and none of it
-// should: this is a bank's own app, the account is the customer's account with that bank, and
-// there is nothing to connect or disconnect. A row that opened a screen saying so would be a
-// row whose entire content is an apology for existing.
+// **Manage accounts is gone, and it is the most considered omission here.** It is the way into
+// Cleo's whole bank-connection path — link an account, pick the one the hacks pull from,
+// re-authorise when the aggregator's token dies. None of that exists in a bank's own app: the
+// account is the customer's account with this bank, and there is nothing to connect. A row that
+// opened a screen saying so would be a row whose whole content is an apology for existing.
 //
-// **Save hacks takes its place**, which is not a swap for the sake of keeping three rows. The
-// five hacks are the only thing on the Save pane a customer changes more than once, and Cleo
-// reach them through the pane's own section chevron alone. Two ways in to the thing people
-// actually come back to change is the right number; one way in to the thing that does not
-// exist here is not.
+// **Statement points at `/statement`**, not at Cleo's CSV download: the screen that lists every
+// line we read is the same evidence, without a file to open somewhere else.
 //
-// **Statements points at `/statement`, which already exists**, rather than at Cleo's CSV
-// download. The screen that lists every line we read is worth more than a file the customer
-// has to open something else to look at, and it is the same evidence.
+// The row values are read live — "2 of 5 on", the goal's size — because a settings list whose rows
+// never say anything is a menu, and a menu does not need a screen of its own. While the read is in
+// flight they are withheld rather than blanked; if it fails, the sheet says so above the rows and
+// every row still opens, because none of them needs this read to work.
 //
-// The row values are read live rather than hard-coded, because "3 of 5 on" is the one thing
-// that makes this sheet worth opening — a settings list whose rows never say anything is a
-// menu, and a menu does not need a screen of its own.
+// The stamp at the foot is Cleo's "Last refreshed" chip, and a button like Cleo's and like the
+// same chip on budget settings: it carries the refresh mark, so pressing it reads the pot again.
+import { useState } from 'react'
 import { ScrollView, View } from 'react-native'
 import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { NavRow } from '~/ui/NavRow'
+import { NavRow, leave } from '~/ui/NavRow'
 import { Type } from '~/ui/Text'
 import { Card } from '~/ui/Card'
-import { Glyph } from '~/ui/Glyph'
+import { Chip } from '~/ui/Chip'
+import { Tap } from '~/ui/Tap'
+import { Section } from '~/ui/Section'
 import { SettingRow } from '~/ui/SettingRow'
-import { rupees, shortDate } from '~/lib/money'
+import { RetryLine } from '~/ui/SnapshotScroll'
+import { rupeesShort, shortDate } from '~/lib/money'
 import { useSaveView } from '~/state/save'
-import { color } from '@dhan/design'
 
 export default function SaveSettings() {
-  // /save is a payload of its own, not part of the snapshot. `useSaveView` holds the read —
-  // including the refetch on focus this sheet needs, because both rows below lead to screens
-  // that change what those rows say and coming back to "3 of 5 on" after turning a fourth one
-  // on is the sheet arguing with the screen the customer just used.
-  const { data: save } = useSaveView()
+  // `useSaveView` re-reads on focus: every row below leads to a screen that changes what the rows
+  // say, and coming back to "2 of 5 on" after turning a third one on is the sheet arguing with the
+  // screen the customer just used.
+  const { data: save, state, reload } = useSaveView()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const again = () => {
+    setRefreshing(true)
+    void reload().finally(() => setRefreshing(false))
+  }
 
   const pot = save?.pot
-  const live = save?.cards.filter((c) => c.enabled).length ?? 0
+  const cards = save?.cards
+  const live = cards?.filter((c) => c.enabled).length ?? 0
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ground">
       <StatusBar style="dark" />
-      <NavRow onBack={() => router.back()} />
+      <NavRow onBack={() => leave('/(tabs)/grow')} />
 
-      <ScrollView className="flex-1 px-pad" contentContainerClassName="pb-xxl">
-        <Type role="title">Save settings</Type>
-        <Type role="body" tone="soft" className="mt-xs">
-          What you are saving for, how it gets there, and where every rupee came from.
-        </Type>
+      <ScrollView className="flex-1" contentContainerClassName="px-pad pb-xxl">
+        <Type role="display">Save settings</Type>
 
-        <Card className="mt-xl">
+        {state === 'error' ? (
+          <View className="mt-lg">
+            <RetryLine
+              compact
+              message="Couldn't read your savings."
+              onRetry={() => void reload()}
+            />
+          </View>
+        ) : null}
+
+        <Section title="Goal" />
+        <Card>
           <SettingRow
             glyph="target"
             title="Edit goal"
-            detail={pot === undefined ? 'What you are saving for' : pot.purpose}
-            // Withheld rather than blanked while the view is in flight. `exactOptionalPropertyTypes`
-            // would reject an explicit `undefined` here anyway, and the conditional spread says the
-            // truer thing: there is no figure yet, rather than the figure is nothing.
-            {...(pot === undefined ? {} : { value: rupees(pot.target) })}
+            detail={pot === undefined ? "What you're saving for" : pot.purpose}
+            // Withheld rather than blanked while the read is in flight: there is no figure yet,
+            // which is a different statement from the figure being nothing.
+            {...(pot === undefined ? {} : { value: rupeesShort(pot.target) })}
             onPress={() => router.push('/edit-goal')}
-          />
-          <SettingRow
-            glyph="sparkle"
-            title="Save hacks"
-            detail="Five ways to fill it without thinking"
-            {...(save === null ? {} : { value: `${live} of 5 on` })}
-            onPress={() => router.push('/save-hacks')}
-            divide
-          />
-          <SettingRow
-            glyph="ledger"
-            title="Statements"
-            detail="Every line we read to work this out"
-            onPress={() => router.push('/statement')}
-            divide
           />
         </Card>
 
-        {save && (
-          <View className="mt-lg flex-row items-center justify-center gap-sm">
-            <Glyph name="check" size={14} tint={color.inkFaint} />
-            <Type role="caption" tone="faint">
-              Worked out from your statement as of {shortDate(save.asOf)}
-            </Type>
-          </View>
-        )}
+        <Section title="Automatic" />
+        <Card>
+          <SettingRow
+            glyph="sparkle"
+            title="Save hacks"
+            detail="Small amounts, moved in on their own"
+            {...(cards === undefined ? {} : { value: `${live} of ${cards.length} on` })}
+            onPress={() => router.push('/save-hacks')}
+          />
+        </Card>
+
+        <Section title="Manual" />
+        <Card>
+          <SettingRow
+            glyph="plus"
+            title="Add money"
+            detail="Straight into the goal"
+            onPress={() => router.push('/deposit')}
+          />
+        </Card>
+
+        <Section title="Records" />
+        <Card>
+          <SettingRow
+            glyph="ledger"
+            title="Statement"
+            detail="Every line we read"
+            onPress={() => router.push('/statement')}
+          />
+        </Card>
+
+        {save ? (
+          // Cleo's "Last refreshed" chip, saying the thing that is true here instead: these
+          // figures are worked out from a statement, and the statement has a date. The small size
+          // is Cleo's (a 21pt pill); the larger one broke the date onto a second line at 375. The
+          // press target around it is the full 44pt.
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel={`Refresh. Worked out from your statement, ${shortDate(save.asOf)}`}
+            accessibilityState={{ busy: refreshing, disabled: refreshing }}
+            disabled={refreshing}
+            haptic="none"
+            onPress={again}
+            className="mt-lg min-h-target justify-center self-start"
+          >
+            <Chip tone="ground" size="sm" glyph="refresh">
+              {refreshing
+                ? 'Refreshing…'
+                : `Worked out from your statement · ${shortDate(save.asOf)}`}
+            </Chip>
+          </Tap>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   )

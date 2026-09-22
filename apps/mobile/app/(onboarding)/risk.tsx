@@ -4,14 +4,19 @@
 // Conservative can be shown nothing above Moderate. So it is asked as a single
 // behavioural question rather than a five-part quiz — the ceiling is coarse, and
 // pretending to measure it finely would be dressing.
+//
+// Cleo's quiz shape: the question is the title, one line under it, then a card of answers. The
+// question is set at title size rather than display so it reads as a question and not a
+// headline — at display it ran to four lines on a small phone and left "do?" on its own. The
+// answers are one radio group, so a screen reader hears "2 of 3" and knows the set is closed.
 import { useState } from 'react'
 import { View } from 'react-native'
 import { router } from 'expo-router'
 import { Screen } from '~/ui/Screen'
-import { Type } from '~/ui/Text'
 import { Button } from '~/ui/Button'
 import { Card } from '~/ui/Card'
 import { SelectCard } from '~/ui/SelectCard'
+import { leave } from '~/ui/NavRow'
 import { RISK_QUESTION, useOnboarding, type RiskProfile } from '~/state/onboarding'
 
 export default function RiskStep() {
@@ -21,26 +26,30 @@ export default function RiskStep() {
   return (
     <Screen
       step={5}
-      steps={5}
-      onBack={() => router.back()}
+      steps={6}
+      onBack={() => leave('/(onboarding)/about')}
+      title={RISK_QUESTION.prompt}
+      titleRole="title"
+      subtitle={RISK_QUESTION.lead}
       footer={
         <Button
           label="Next"
-          disabled={!choice}
+          haptic="none"
+          disabled={choice === null}
           onPress={() => {
+            if (choice === null) return
             set({ risk: choice })
             router.push('/(onboarding)/goal')
           }}
         />
       }
     >
-      <Type role="display">{RISK_QUESTION.prompt}</Type>
-      <Type role="body" tone="soft" className="mt-sm">
-        There is no right answer. This sets the ceiling on what I am allowed to suggest.
-      </Type>
-
       <View className="mt-xl">
-        <Card className="overflow-hidden">
+        <Card
+          accessibilityRole="radiogroup"
+          accessibilityLabel={RISK_QUESTION.prompt}
+          className="overflow-hidden"
+        >
           {RISK_QUESTION.options.map((o, i) => (
             <SelectCard
               key={o.value}

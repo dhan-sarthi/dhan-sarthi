@@ -15,26 +15,33 @@
 // same engine through tools. So text is not a degraded fallback that makes things up when the
 // face is busy; it is the same answers, without the face — and with no key at all it is still
 // the same answers, in the engine's own plainer words. Every reply carries the evidence it was
-// computed from, which is why a closed set of questions is offered rather than an open box that
-// invites one the engine cannot answer.
+// computed from, so the screen offers the questions the engine answers exactly, and after every
+// answer offers the next one it can — rather than an open box that invites one it cannot.
 //
 // Three tiers, in the order they are tried: live avatar → text → offline. This screen owns the
 // middle one and reports honestly on the first — including the one case the customer must not
 // be lied to about, a provider that has refused and will keep refusing.
+//
+// The conversation is the customer's, and nothing the app does in the background may take it
+// away. It used to be seeded by one effect keyed on the whole view, so a pull-to-refresh on
+// Spend — a new view object, the same day — wiped the transcript back to the opening line. The
+// work is split by what actually changes it now: the opening line follows the snapshot's date
+// and is replaced where it stands; availability is re-read whenever the tab comes into focus;
+// and a question handed over from anywhere else in the app (`?ask=`) is asked once, then
+// cleared, so coming back to the tab never asks it twice.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocalSearchParams } from 'expo-router'
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
+import {
+  AccessibilityInfo,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import * as Haptics from 'expo-haptics'
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  LinearTransition,
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated'
+import Animated, { FadeIn, FadeInDown, ReduceMotion } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { UDAY_PORTRAIT } from '@dhan/assets'
@@ -42,20 +49,21 @@ import { Type } from '~/ui/Text'
 import { Tap } from '~/ui/Tap'
 import { Thinking } from '~/ui/Thinking'
 import { Reveal } from '~/ui/Reveal'
-import { dur, easeOut, to, useReducedMotion } from '~/ui/motion'
+import { dur, easeOut, layoutMove, useReducedMotion } from '~/ui/motion'
 import { Chip } from '~/ui/Chip'
 import { Button } from '~/ui/Button'
 import { Glyph } from '~/ui/Glyph'
 import { ChatCanvas } from '~/ui/ChatCanvas'
 import { AnswerText } from '~/ui/AnswerText'
 import { Evidence } from '~/ui/Evidence'
-import { Suggestion } from '~/ui/Suggestion'
+import { Bubble, Suggestion } from '~/ui/Suggestion'
 import { Composer } from '~/ui/Composer'
 import { api } from '~/api/client'
 import { useSnapshot } from '~/state/snapshot'
-import { color, space } from '@dhan/design'
+import { payoffSummary } from '@dhan/core'
+import { color, control, space } from '@dhan/design'
 import { AvatarStage } from '~/avatar/AvatarStage'
-import { useAvatarCall } from '~/avatar/useAvatarCall'
+import { useAvatarCall, type CallMode } from '~/avatar/useAvatarCall'
 import type { Answer, AskTurn, AvatarAvailability } from '@dhan/contracts'
 
 type Turn = {
@@ -64,19 +72,64 @@ type Turn = {
   text: string
   evidence?: string[]
   matched?: boolean
+  /** What the engine took the question to mean — the category and the dates it summed. */
+  scope?: Answer['resolved']
+  /** Its follow-ups have been used: one was asked, or the screen one pointed at was opened. */
+  resolved?: boolean
+  /** A sentence standing in for one that could not be fetched, and what retrying it re-does. */
+  error?: 'opening' | 'ask'
 }
 
 /** Which way round the tab is. `call` is where you land. */
 type Mode = 'call' | 'chat'
 
+/** A choice on the chat sheet: the words on it, the words VoiceOver says, what it does. */
+type Pill = { key: string; label: string; spoken?: string; onPress: () => void }
+
+/** The sparkle's word on the tray, and the turn it was said about. */
+type Toggle = { at: string; open: boolean }
+
+/**
+ * Below this height the sheet's pills go in one row that scrolls sideways. Wrapped, two
+ * follow-ups took a row each, and at 320×568 the sheet was 40% of the screen and cut the answer
+ * off after two lines.
+ */
+const COMPACT_HEIGHT = 700
+
 /**
  * How much of the exchange travels back with the next question.
  *
  * The server keeps no transcript — it holds a snapshot and a ledger, not a conversation — so
- * "and the month before that?" only resolves because the screen sends what it already shows.
- * Six is three exchanges: enough for a follow-up, short enough that the request stays small.
+ * a follow-up only resolves because the screen sends what it already shows. Six is three
+ * exchanges: enough for a follow-up, short enough that the request stays small.
  */
 const HISTORY_TURNS = 6
+
+/** The one sentence for a file the app could not reach, whichever read it was. */
+export const FILE_UNREACHABLE = "I couldn't reach your file. Try again in a moment."
+
+/** The opening turn's id. It is replaced where it stands, never appended. */
+const OPENING = 'opening'
+
+/**
+ * The openers as they sit on a pill.
+ *
+ * The engine offers whole questions, and a whole question on a pill wraps to two lines at
+ * 375pt — three of them were a third of the screen. Cleo's replies are a few words each. The
+ * pill carries the short form and VoiceOver hears the question in full; a question this map has
+ * never seen shows as it is, so a new opener on the server is never hidden.
+ */
+const OPENER_LABEL: Record<string, string> = {
+  'What did I spend on food last month?': 'Food last month',
+  'What do my subscriptions cost me?': 'My subscriptions',
+  'Should I invest or clear my debt first?': 'Invest or clear debt?',
+  'My cousin says I should take a LIC savings plan': "My cousin's LIC plan",
+  'What can I spend today?': 'Safe to spend today',
+  'Why are you telling me this?': 'Why tell me this?',
+  'Can I afford a ₹5,000 purchase?': 'Can I afford ₹5,000?',
+  'How is my emergency fund?': 'My safety net',
+  'What should I do first?': 'What comes first?',
+}
 
 /*
  * Turn ids, from a counter rather than from the clock.
@@ -96,68 +149,195 @@ const HISTORY_TURNS = 6
 let seq = 0
 const turnId = (who: string): string => `${who}-${++seq}`
 
+/** The opening goes first: in its old place when it has one, at the top when it arrives late. */
+function placeOpening(turns: Turn[], opening: Turn): Turn[] {
+  const at = turns.findIndex((t) => t.id === OPENING)
+  return at === -1 ? [opening, ...turns] : turns.map((t, i) => (i === at ? opening : t))
+}
+
+/**
+ * The exchange as the model should see it: no error sentences, and no question that only ever
+ * got one — a retried question would otherwise travel twice.
+ */
+function historyOf(turns: Turn[]): AskTurn[] {
+  return turns
+    .filter((t, i) => t.error === undefined && !(t.from === 'you' && turns[i + 1]?.error))
+    .slice(-HISTORY_TURNS)
+    .map((t) => ({ role: t.from === 'you' ? 'user' : 'assistant', text: t.text }))
+}
+
+/**
+ * The opener without its vocative. The engine opens "Karan, ₹1,92,000 comes in…", and under
+ * "Hello Karan" that is the name twice in two lines.
+ */
+function withoutName(text: string, first: string | null): string {
+  if (!first || !text.startsWith(`${first}, `)) return text
+  const rest = text.slice(first.length + 2)
+  return rest.charAt(0).toUpperCase() + rest.slice(1)
+}
+
+/** Months between two ISO dates, counted by calendar month. */
+function monthsBetween(from: string, to: string): number {
+  const [fy = 0, fm = 0] = from.split('-').map(Number)
+  const [ty = 0, tm = 0] = to.split('-').map(Number)
+  return (ty - fy) * 12 + (tm - fm)
+}
+
+/** Every period the engine reads out of a question (`core/query.ts` resolveWindow). */
+const PERIOD =
+  /\b(?:last|previous) month\b|\bthis month(?: so far)?\b|\bso far\b|\bthis year\b|\b(?:over )?(?:the )?last 12 months\b|\blast (?:week|7 days)\b/i
+
+/**
+ * The same question over a different stretch of time — the one follow-up the engine can
+ * always answer from the file.
+ *
+ * The plan asked for "And the month before?", and the engine cannot answer it: it reads "last
+ * month", "this month", "last week" and "the last 12 months", and nothing else, so that pill
+ * came back "I do not have the month before" every time. A pill that always fails is a dead
+ * button. So the follow-up swaps the period inside the customer's own question — their words
+ * are what the engine resolved the category from the first time, so it resolves it again.
+ */
+function widened(
+  question: string,
+  scope: Answer['resolved'],
+): { label: string; question: string } | null {
+  if (!scope?.from || !scope.to) return null
+  const year = monthsBetween(scope.from, scope.to) >= 12
+  const period = year ? 'last month' : 'over the last 12 months'
+  const bare = question.trim().replace(/[?.!\s]+$/, '')
+  const next = PERIOD.test(bare) ? bare.replace(PERIOD, period) : `${bare} ${period}`
+  return { label: year ? 'And last month?' : 'And the last 12 months?', question: `${next}?` }
+}
+
+/**
+ * A question about what the customer owes: the engine's own debt words (`core/query.ts`), plus
+ * "borrow" and "repayment", which a customer typing uses for the same thing. Asked about a debt
+ * the plan is paying off, the next step is the payoff itself, so the sheet offers it.
+ */
+const DEBT_WORDS =
+  /\b(?:debts?|loans?|emis?|credit cards?|cards?|interest|owe|owed|owing|borrow(?:ing|ed)?|repay(?:ment|ments)?)\b/i
+
 export default function Uday() {
-  const { data: view } = useSnapshot()
+  const { data: view, asOf } = useSnapshot()
   /*
    * What the customer tapped to get here.
    *
-   * `spend.tsx` has always pushed `{ ask: insight.headline }` with "Talk me through this", and
-   * this screen never read it — so the button was an ordinary deep link into the tab and the
-   * customer landed on the generic call screen having to re-ask the question they had just
-   * pressed a button about. Reading it here is what makes that button mean what it says.
-   *
-   * It drives both tiers: the chat opens having already asked it, and a call started from this
-   * screen hands it to the brief builder so Uday's first sentence is about that finding.
+   * Every "Ask Uday about this" in the app navigates here with `{ ask }`, and onboarding's
+   * hand-off replaces to here with one. It drives both tiers: the chat opens having asked it,
+   * and a call started afterwards hands the last question to the brief builder so Uday's
+   * first sentence is about it.
    */
   const { ask: asked } = useLocalSearchParams<{ ask?: string }>()
+  const navigation = useNavigation<{
+    setParams: (params: Record<string, string | undefined>) => void
+  }>()
   const topic = typeof asked === 'string' && asked.trim() ? asked.trim() : null
   const [mode, setMode] = useState<Mode>('call')
   const [turns, setTurns] = useState<Turn[]>([])
   const [questions, setQuestions] = useState<string[]>([])
   const [availability, setAvailability] = useState<AvatarAvailability | null>(null)
+  const [unreachable, setUnreachable] = useState(false)
+  // The first opening read has come back, one way or the other. A handed-over question waits
+  // for it, so "Hello Karan" is always above the question rather than arriving on top of it.
+  const [settled, setSettled] = useState(false)
   const [busy, setBusy] = useState(false)
+  /*
+   * The chat's own state, held here rather than in `ChatMode`, because going face to face
+   * unmounts the chat and used to take a half-typed question and the sparkle's word with it.
+   * `seen` is every turn already on screen when the customer left, so coming back shows them
+   * where they were instead of animating each one in a second time.
+   */
+  const [typed, setTyped] = useState('')
+  const [toggled, setToggled] = useState<Toggle | null>(null)
+  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set())
   const scroller = useRef<ScrollView>(null)
-  // Where the newest answer starts. Scrolling to the end of the content puts the *last line* of
-  // a long answer at the bottom of the screen, which means the customer opens on its middle;
-  // this scrolls to its first word instead.
-  const latestTop = useRef(0)
   // See `ask` below: the synchronous half of the one-question-at-a-time guard.
   const inFlight = useRef(false)
+  // The question behind the latest answer, for retrying it and for the call's opening topic.
+  const lastAsked = useRef<string | null>(null)
+  // `ask` builds its history from this rather than from `turns`, so it does not become a new
+  // function on every turn and re-run everything that depends on it.
+  const turnsNow = useRef<Turn[]>(turns)
+  const reduced = useReducedMotion()
   const call = useAvatarCall()
+  const { height } = useWindowDimensions()
 
   useEffect(() => {
+    turnsNow.current = turns
+  }, [turns])
+
+  /*
+   * Availability, every time the tab comes into view.
+   *
+   * It was read once, with the opening, and then never again — so a queue that cleared, or a
+   * day's minutes that ran out, stayed wrong for as long as the tab stayed mounted, which in a
+   * tab navigator is the whole session.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      let live = true
+      api
+        .avatarAvailability()
+        .then((next) => {
+          if (!live) return
+          setAvailability(next)
+          setUnreachable(false)
+        })
+        .catch(() => {
+          if (!live) return
+          setAvailability(null)
+          setUnreachable(true)
+        })
+      return () => {
+        live = false
+      }
+    }, []),
+  )
+
+  /*
+   * The opening line, keyed on the snapshot's date and on nothing else.
+   *
+   * The sequence number is what lets a slow read lose to a fast one: only the latest request
+   * may write. A success replaces the opening where it stands; a failure only fills an empty
+   * chat, because a conversation already on screen is worth more than a fresh first line.
+   */
+  const openSeq = useRef(0)
+  const loadOpening = useCallback(() => {
+    const mine = ++openSeq.current
     api
       .suggestions()
       .then(({ opening, questions: qs }) => {
-        setTurns([
-          {
-            id: 'opening',
+        if (mine !== openSeq.current) return
+        setQuestions(qs)
+        setTurns((t) =>
+          placeOpening(t, {
+            id: OPENING,
             from: 'uday',
             text: opening.text,
             evidence: opening.evidence,
             matched: true,
-          },
-        ])
-        setQuestions(qs)
+          }),
+        )
       })
-      .catch(() =>
-        setTurns([
-          {
-            id: 'opening',
-            from: 'uday',
-            text: 'I cannot reach your file right now.',
-            matched: false,
-          },
-        ]),
-      )
-    api
-      .avatarAvailability()
-      .then(setAvailability)
-      .catch(() => setAvailability(null))
-  }, [view])
+      .catch(() => {
+        if (mine !== openSeq.current) return
+        setTurns((t) =>
+          t.length === 0
+            ? [{ id: OPENING, from: 'uday', text: FILE_UNREACHABLE, error: 'opening' }]
+            : t,
+        )
+      })
+      .finally(() => {
+        if (mine === openSeq.current) setSettled(true)
+      })
+  }, [])
+
+  useEffect(() => {
+    loadOpening()
+  }, [asOf, loadOpening])
 
   const ask = useCallback(
-    async (question: string) => {
+    async (raw: string) => {
       /*
        * A ref, not `busy`, because `busy` cannot guard the case this exists for.
        *
@@ -166,23 +346,22 @@ export default function Uday() {
        * two `/ask` requests. `busy` stays as the prop that greys out the composer and the
        * pills; the ref is what makes the guard true at the moment it is read.
        */
-      if (inFlight.current) return
+      const question = raw.trim().slice(0, 500)
+      if (inFlight.current || !question) return
       inFlight.current = true
-      void Haptics.selectionAsync()
+      lastAsked.current = question
       setBusy(true)
+      // An opening that failed stays at the top of the chat, and its own "Try again" goes the
+      // moment anything is asked under it. Every question is a chance to replace it: the read
+      // goes out beside this one, and a success swaps it in where it stands.
+      if (turnsNow.current[0]?.error === 'opening') loadOpening()
       // Taken before the question is appended, so the model is not handed the question twice.
-      const history: AskTurn[] = turns.slice(-HISTORY_TURNS).map((t) => ({
-        role: t.from === 'you' ? 'user' : 'assistant',
-        text: t.text,
-      }))
+      const history = historyOf(turnsNow.current)
       setTurns((t) => [...t, { id: turnId('you'), from: 'you', text: question }])
-      // Scroll on the way *in*, not on the way out.
-      //
-      // This used to happen only once the answer had landed, which meant tapping a question
-      // appended your own words and the thinking dots below the fold and then showed you a
-      // motionless screen for the whole round trip. The one moment the customer needs
-      // acknowledging is the moment they asked.
-      requestAnimationFrame(() => scroller.current?.scrollToEnd({ animated: true }))
+      // Scroll on the way *in*, not on the way out: the one moment the customer needs
+      // acknowledging is the moment they asked, so their words and the dots come into view
+      // before the round trip, not after it.
+      requestAnimationFrame(() => scroller.current?.scrollToEnd({ animated: !reduced }))
       try {
         const answer: Answer = await api.ask(question, history)
         setTurns((t) => [
@@ -193,42 +372,70 @@ export default function Uday() {
             text: answer.text,
             evidence: answer.evidence,
             matched: answer.matched,
+            ...(answer.resolved === undefined ? {} : { scope: answer.resolved }),
           },
         ])
+        // iOS only: Android and the web hear the answer through its live region, and saying
+        // it twice is worse than saying it once.
+        if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(answer.text)
       } catch {
         setTurns((t) => [
           ...t,
-          {
-            id: turnId('err'),
-            from: 'uday',
-            text: 'I could not reach your file. Try again.',
-            matched: false,
-          },
+          { id: turnId('err'), from: 'uday', text: FILE_UNREACHABLE, error: 'ask' },
         ])
+        if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(FILE_UNREACHABLE)
       } finally {
         inFlight.current = false
         setBusy(false)
       }
     },
-    [turns, scroller],
+    [reduced, loadOpening],
   )
 
   /*
-   * Arriving from a tapped insight opens the conversation on it.
+   * A question handed over from elsewhere opens the conversation on it.
    *
-   * Gated on `turns.length` so the question lands *after* the opening line rather than racing
-   * it, and latched on the topic itself so a re-render — or a second visit to the tab with the
-   * same param still in the URL — cannot ask it twice. Chat rather than the call screen,
-   * because tapping a written finding is a request to read, not to be phoned; the call is one
-   * tap away in the header and carries the same topic when it is.
+   * Asked once per new value, then cleared from the route, so coming back to the tab does not
+   * ask it again. The latch resets when the param goes away, which is what lets the same
+   * question be handed over a second time — onboarding's `replace`, or the same "Ask Uday about
+   * this" tapped twice — where the old latch held the first value forever and ignored it.
+   * Chat rather than the call screen, because tapping a written finding is a request to read,
+   * not to be phoned; the call is one tap away in the header.
    */
   const opened = useRef<string | null>(null)
   useEffect(() => {
-    if (!topic || opened.current === topic || turns.length === 0) return
+    if (topic === null) {
+      opened.current = null
+      return
+    }
+    if (!settled || busy || opened.current === topic) return
     opened.current = topic
     setMode('chat')
     void ask(topic)
-  }, [topic, turns.length, ask])
+    navigation.setParams({ ask: undefined })
+  }, [topic, settled, busy, ask, navigation])
+
+  const retryOpening = (): void => {
+    setTurns((t) => t.filter((x) => x.id !== OPENING))
+    loadOpening()
+  }
+
+  const retryAsk = (): void => {
+    const question = lastAsked.current
+    if (!question) return
+    // Drop the failed pair, then ask again: the question reappears with its answer under it,
+    // rather than twice with an apology between.
+    setTurns((t) => {
+      const last = t[t.length - 1]
+      const before = t[t.length - 2]
+      if (last?.error !== 'ask') return t
+      return t.slice(0, before?.from === 'you' ? -2 : -1)
+    })
+    void ask(question)
+  }
+
+  const resolve = (id: string): void =>
+    setTurns((t) => t.map((x) => (x.id === id ? { ...x, resolved: true } : x)))
 
   // Switching to text does not hang up. The call keeps running behind the feed and the video
   // element is handed back to the stage on the way in, because a customer who wanted to read a
@@ -236,17 +443,148 @@ export default function Uday() {
   const onCall = call.mode === 'connecting' || call.mode === 'live'
   const callable = Boolean(availability?.available) && !call.providerDown
 
+  // Leaving the chat for the call: what is on screen now is remembered as read.
+  const toCall = (): void => {
+    setSeen(new Set(turnsNow.current.map((t) => t.id)))
+    setMode('call')
+  }
+
   if (mode === 'chat') {
+    const firstName = view?.snapshot.customer.name.trim().split(/\s+/)[0] ?? null
+    const latest = turns[turns.length - 1]
+    const started = turns.some((t) => t.from === 'you')
+    const compact = height < COMPACT_HEIGHT
+    const room = compact ? 2 : 3
+    const said = new Set(turns.filter((t) => t.from === 'you').map((t) => t.text))
+    const opener = (q: string): Pill => ({
+      key: q,
+      label: OPENER_LABEL[q] ?? q,
+      spoken: q,
+      onPress: () => void ask(q),
+    })
+    const unasked = questions.filter((q) => !said.has(q))
+    const openers = (unasked.length > 0 ? unasked : questions).slice(0, room).map(opener)
+
+    /*
+     * What the sheet offers, in Cleo's shape: the pills are replies to the latest turn, not a
+     * menu. A failure offers the retry; an answer the engine could not give offers what it can;
+     * an answer with a category and a period offers the next question about it, and one about
+     * a debt the plan is paying off offers the payoff; any other answer, a follow-up already
+     * used, and a fresh chat offer the openers not yet asked, so the sheet never ends at the
+     * composer alone.
+     */
+    let tray: { title?: string; pills: Pill[] } = { pills: [] }
+    if (latest?.error) {
+      tray = {
+        pills: [
+          {
+            key: 'retry',
+            label: 'Try again',
+            onPress: latest.error === 'opening' ? retryOpening : retryAsk,
+          },
+        ],
+      }
+    } else if (latest?.from === 'uday' && latest.matched === false) {
+      tray = {
+        title: 'Try one of these',
+        pills: [
+          ...openers,
+          ...(callable ? [{ key: 'face', label: 'Ask Uday face to face', onPress: toCall }] : []),
+        ],
+      }
+    } else if (latest?.from === 'uday' && latest.id !== OPENING) {
+      const prev = turns[turns.length - 2]
+      const question = prev?.from === 'you' ? prev.text : null
+      const category = latest.scope?.category
+      // A limit only means something on money the customer chooses to spend, and the
+      // snapshot's discretionary list is the engine's own word on which that is: food and
+      // shopping, never an EMI. It is also the list the limit screen offers rows for.
+      const cappable =
+        category !== undefined &&
+        (view?.snapshot.discretionary.byCategory ?? []).some(([c]) => c === category)
+      const wider = question === null ? null : widened(question, latest.scope)
+      // Plan opens its payoff numbers only where the plan's payment clears the debt stage
+      // (plan.tsx `NumbersPane`), so the pill is offered on exactly that condition and never
+      // lands on some other pane.
+      const rate = view?.snapshot.debt.highestRate ?? 0
+      const debtStage = view?.roadmap.stages.find(
+        (s) => s.kind === 'clear_debt' && s.targetAmount > 0,
+      )
+      const payoff =
+        question !== null &&
+        DEBT_WORDS.test(question) &&
+        debtStage !== undefined &&
+        rate > 0 &&
+        payoffSummary(debtStage.targetAmount, rate, debtStage.monthly) !== null
+      const next: Pill[] = latest.resolved
+        ? []
+        : [
+            ...(cappable
+              ? [
+                  {
+                    key: 'limit',
+                    label: `Set a limit for ${category}`,
+                    onPress: () => {
+                      resolve(latest.id)
+                      router.push({ pathname: '/set-limit', params: { category } })
+                    },
+                  },
+                ]
+              : []),
+            ...(payoff
+              ? [
+                  {
+                    key: 'payoff',
+                    label: 'See your path to zero',
+                    onPress: () => {
+                      resolve(latest.id)
+                      router.navigate({
+                        pathname: '/(tabs)/plan',
+                        params: { pane: 'projection', stage: 'clear_debt' },
+                      })
+                    },
+                  },
+                ]
+              : []),
+            ...(wider === null
+              ? []
+              : [
+                  {
+                    key: 'wider',
+                    label: wider.label,
+                    spoken: wider.question,
+                    onPress: () => {
+                      resolve(latest.id)
+                      void ask(wider.question)
+                    },
+                  },
+                ]),
+          ]
+      tray = { pills: next.length > 0 ? next : openers }
+    } else if (!started) {
+      tray = { pills: openers }
+    }
+
     return (
       <ChatMode
         turns={turns}
-        questions={questions}
+        tray={tray}
+        openers={openers}
         busy={busy}
         onAsk={ask}
-        onBack={() => setMode('call')}
+        typed={typed}
+        onType={setTyped}
+        toggled={toggled}
+        onToggle={setToggled}
+        seen={seen}
+        onBack={toCall}
         onCall={onCall}
+        callable={callable}
+        compact={compact}
         scroller={scroller}
-        latestTop={latestTop}
+        firstName={firstName}
+        asOf={asOf}
+        reduced={reduced}
       />
     )
   }
@@ -262,41 +600,62 @@ export default function Uday() {
           positioned element paints over a static sibling whatever the DOM order says. Without
           this the stage's bottom scrim sits on top of the controls and greys them out. */}
       <SafeAreaView edges={['top']} className="relative z-10 flex-1 justify-between">
-        <View className="items-center px-pad pt-sm">
-          <Type role="title" tone="onInk">
-            Uday
-          </Type>
-          <CallStatus
-            availability={availability}
-            providerDown={call.providerDown}
-            mode={call.mode}
-            reason={call.reason}
-          />
+        <View className="px-pad pt-sm">
+          <View className="flex-row items-center justify-between">
+            {/* The plate's width again on the left, so the name stays centred on the screen. */}
+            <View className="w-plate-lg" />
+            <Type role="title" tone="onInk">
+              Uday
+            </Type>
+            <Tap
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+              onPress={() => router.push('/profile')}
+              scale={0.92}
+              hitSlop={4}
+              className="h-plate-lg w-plate-lg items-center justify-center rounded-pill bg-on-ink/15"
+            >
+              <Glyph name="person" size={22} tint={color.onInk} />
+            </Tap>
+          </View>
+          <CallBadge mode={call.mode} />
         </View>
 
-        <Animated.View entering={FadeIn.duration(280)} className="gap-sm px-pad pb-lg">
+        <Animated.View entering={FadeIn.duration(dur.enter)} className="gap-md px-pad pb-lg">
+          <CallLine
+            availability={availability}
+            unreachable={unreachable}
+            onCall={onCall}
+            reason={call.reason}
+          />
           {onCall ? (
             <Button label="End the call" variant="light" onPress={call.hangUp} />
           ) : callable ? (
             // Offered, never dialled for you: one slot, a daily minute budget, and a
             // microphone prompt are three things a customer should tap into knowingly.
-            <Button
-              label={call.mode === 'ended' ? 'Call Uday again' : 'Start the call'}
-              variant="light"
-              onPress={() => void call.start(topic)}
-            />
+            <View className="gap-sm">
+              <Button
+                label={call.mode === 'ended' ? 'Call Uday again' : 'Start a call'}
+                variant="light"
+                haptic="selection"
+                onPress={() => void call.start(lastAsked.current ?? topic)}
+              />
+              <Type role="caption" tone="onInk" className="text-center">
+                {`${Math.floor(availability?.minutesLeftToday ?? 0)} min left today`}
+              </Type>
+            </View>
           ) : null}
 
-          <Tap
-            accessibilityRole="button"
-            haptic="selection"
-            onPress={() => setMode('chat')}
-            className="h-control w-full flex-row items-center justify-center rounded-pill border border-on-ink/35"
-          >
-            <Type role="heading" tone="onInk">
-              {callable || onCall ? 'Chat instead' : 'Continue in text'}
-            </Type>
-          </Tap>
+          {/* One button on a call, as on any video call: the owner's call, 22 September 2026.
+              Ending it brings this screen back, with text one tap away again. */}
+          {!onCall && (
+            <Button
+              label="Chat in text"
+              variant="outlineLight"
+              haptic="selection"
+              onPress={() => setMode('chat')}
+            />
+          )}
         </Animated.View>
       </SafeAreaView>
     </View>
@@ -323,6 +682,10 @@ export default function Uday() {
  * the *same* bloom — no shadows anywhere, because this app has none anywhere, and no new
  * colour, because colour in this product is load-bearing and a conversation is not a claim.
  *
+ * The sheet's pills are replies to the latest turn, the way Cleo's are, and the sparkle to the
+ * left of the field (Cleo's bolt) shows and hides them. It replaced a chevron handle that
+ * opened a list of six: a menu that grew over the answer it was meant to sit under.
+ *
  * Three departures from the reference, each deliberate:
  *
  *   1. **Uday keeps his face in the header.** Cleo's chat chrome is two bare circles. Ours is
@@ -336,73 +699,125 @@ export default function Uday() {
  */
 function ChatMode({
   turns,
-  questions,
+  tray,
+  openers,
   busy,
   onAsk,
+  typed,
+  onType,
+  toggled,
+  onToggle,
+  seen,
   onBack,
   onCall,
+  callable,
+  compact,
   scroller,
-  latestTop,
+  firstName,
+  asOf,
+  reduced,
 }: {
   turns: Turn[]
-  questions: string[]
+  tray: { title?: string; pills: Pill[] }
+  /** What the sparkle shows when the latest turn has no replies of its own. */
+  openers: Pill[]
   busy: boolean
   onAsk: (q: string) => void
+  /** The field's words, kept by the screen so a trip to the call does not clear them. */
+  typed: string
+  onType: (text: string) => void
+  toggled: Toggle | null
+  onToggle: (next: Toggle) => void
+  /** Turns already shown before the customer went to the call: drawn, not animated in. */
+  seen: ReadonlySet<string>
   onBack: () => void
   onCall: boolean
+  /** A call can be started from the call screen, so the header is a door to it. */
+  callable: boolean
+  /** A short screen: the pills go in one sideways row and the fade is shallower. */
+  compact: boolean
   scroller: React.RefObject<ScrollView | null>
-  latestTop: React.RefObject<number>
+  firstName: string | null
+  asOf: string | null
+  reduced: boolean
 }) {
+  // The sparkle's word on the tray, for the latest turn only: a new turn brings its own replies
+  // back without the customer having to ask for them.
+  const latestKey = turns[turns.length - 1]?.id ?? 'none'
+  const contextual = tray.pills.length > 0
+  const open = toggled?.at === latestKey ? toggled.open : contextual
+  const pills = open ? (contextual ? tray.pills : openers) : []
+  const title = contextual ? tray.title : undefined
+  const canToggle = contextual || openers.length > 0
+
+  // Where each turn starts, and which answer the scroller has already been sent to. When an
+  // answer lands, the question it answers goes to the top of the screen, so a long reply opens
+  // at its first word with the question still above it — scrolling to the end instead opened
+  // the customer halfway down the answer.
+  const tops = useRef(new Map<string, number>())
+  const anchored = useRef<string | null>(null)
   const lastUdayAt = turns.map((t) => t.from).lastIndexOf('uday')
   const lastUday = lastUdayAt === -1 ? undefined : turns[lastUdayAt]
-  // What the newest answer is an answer *to*. Anchoring on the answer alone scrolled the
-  // question that prompted it clean off the top of the screen, which loses the half of the
-  // exchange that says what is being answered; the reference always keeps your own words
-  // visible above the reply. Falls back to the answer itself for the opening line, which
-  // was not asked for.
-  const before = lastUdayAt > 0 ? turns[lastUdayAt - 1] : undefined
-  const anchor = before?.from === 'you' ? before : lastUday
+  const anchor =
+    lastUdayAt > 0 && turns[lastUdayAt - 1]?.from === 'you' ? turns[lastUdayAt - 1] : undefined
 
-  // Cleo offers two choices. The engine can answer six, and six stacked pills is a sheet that
-  // eats the answer it is meant to sit under — so three, and the chevron opens the rest.
-  const [expanded, setExpanded] = useState(false)
+  // The wash at the foot of the transcript. Its height follows the transcript's, so a short one
+  // on a small phone is not half fog — and on a short screen it is half the usual depth, because
+  // there the line it washes out is one of the three or four lines of answer on show.
+  const [paneHeight, setPaneHeight] = useState(0)
+  const fade = Math.min(compact ? control.chatFade / 2 : control.chatFade, paneHeight * 0.25)
 
-  /*
-   * The openers are an opener. Once the customer has asked anything, they go.
-   *
-   * They used to stay for the whole conversation, which cost about a third of the display
-   * permanently — three pills and a chevron sitting under every answer, offering to start a
-   * conversation that had already started. Worse, they are *generic* prompts: after a specific
-   * question they read as the app ignoring what was asked.
-   *
-   * Keyed on whether the customer has spoken, not on a count, because the opening line is
-   * itself a turn: `turns` is never empty, so `turns.length > 1` would hide them on arrival.
-   */
-  const started = turns.some((t) => t.from === 'you')
-  const visible = started ? [] : expanded ? questions : questions.slice(0, 3)
-  const hidden = questions.length - visible.length
-  const [typed, setTyped] = useState('')
-  const reduced = useReducedMotion()
-
-  // Which answer the scroller has already been sent to. The anchor used to fire from an 80ms
-  // timer, which raced `onLayout` and could still be holding the *previous* answer's y when it
-  // went off; driving it from the layout callback itself means the number is always the one
-  // that was just measured.
-  const anchored = useRef<string | null>(null)
-
-  const ask = (q: string): void => {
-    // A sheet opened to show all six questions is two thirds of the display, and leaving it
-    // open over the answer you just asked for is showing you the menu instead of the food.
-    setExpanded(false)
-    onAsk(q)
-  }
+  // The header goes back to the call only when there is a call to go back to, or one to start.
+  // Otherwise the call screen would only say that face to face is not on offer, so the header
+  // is a name, not a button.
+  const door = onCall || callable
 
   const send = (): void => {
     const q = typed.trim()
     if (!q || busy) return
-    setTyped('')
-    ask(q)
+    onType('')
+    onAsk(q)
   }
+
+  const pillViews = pills.map((p, i) => (
+    <Reveal key={`${latestKey}:${p.key}`} i={i}>
+      <Suggestion
+        label={p.label}
+        {...(p.spoken === undefined ? {} : { accessibilityLabel: p.spoken })}
+        disabled={busy}
+        onPress={p.onPress}
+      />
+    </Reveal>
+  ))
+
+  const identity = (
+    <>
+      {/* 48pt. It was 66 — half again the 44 it started at — and at 66 the header was
+          ~86pt of a 852pt screen spent on a picture, a name and a caption, on a screen
+          whose entire content is one answer. The tab bar keeps his plate permanently
+          filled, so he is already asserted; this only has to be the door back. */}
+      <Image
+        source={UDAY_PORTRAIT}
+        className="h-plate-xl w-plate-xl rounded-pill"
+        contentFit="cover"
+        accessible={false}
+        accessibilityIgnoresInvertColors
+      />
+      <View className="flex-1">
+        {/* The screen's heading when the header is only a name; inside the door, the button's
+            label speaks for it. */}
+        <Type role="heading" plain={door}>
+          Uday
+        </Type>
+        {door ? (
+          <Type role="caption" tone="mid">
+            {onCall ? 'On a call — tap to go back' : 'Tap to go face to face'}
+          </Type>
+        ) : null}
+      </View>
+      {onCall && <Chip tone="success">Live</Chip>}
+    </>
+  )
 
   return (
     <View className="flex-1">
@@ -415,41 +830,29 @@ function ChatMode({
       <SafeAreaView edges={['top']} className="flex-1">
         {/* The way back to the face. It says "live" when a call is still running behind this,
             because leaving a call up unknowingly is leaving money running. */}
-        <Tap
-          accessibilityRole="button"
-          // Without this VoiceOver reads the concatenated children — "Uday, Tap for face to
-          // face, button" — with the word "Tap" as literal content.
-          accessibilityLabel={
-            onCall ? 'On a call with Uday. Tap to go back.' : 'Uday. Tap to go face to face.'
-          }
-          onPress={onBack}
-          scale={0.985}
-          className="flex-row items-center gap-md px-pad pb-md pt-xs"
-        >
-          {/* 48pt. It was 66 — half again the 44 it started at — and at 66 the header was
-              ~86pt of a 852pt screen spent on a picture, a name and a caption, on a screen
-              whose entire content is one answer. The tab bar keeps his plate permanently
-              filled, so he is already asserted; this only has to be the door back. */}
-          <Image
-            source={UDAY_PORTRAIT}
-            className="h-12 w-12 rounded-pill"
-            contentFit="cover"
-            accessible={false}
-          />
-          <View className="flex-1">
-            <Type role="heading">Uday</Type>
-            <Type role="caption" tone="mid">
-              {onCall ? 'On a call — tap to go back' : 'Tap for face to face'}
-            </Type>
-          </View>
-          {onCall && <Chip tone="success">Live</Chip>}
-        </Tap>
+        {door ? (
+          <Tap
+            accessibilityRole="button"
+            // Without this VoiceOver reads the concatenated children — "Uday, Tap to go face to
+            // face, button" — with the word "Tap" as literal content.
+            accessibilityLabel={
+              onCall ? 'On a call with Uday. Go back to the call.' : 'Uday. Go face to face.'
+            }
+            onPress={onBack}
+            scale={0.985}
+            className="flex-row items-center gap-md px-pad pb-md pt-xs"
+          >
+            {identity}
+          </Tap>
+        ) : (
+          <View className="flex-row items-center gap-md px-pad pb-md pt-xs">{identity}</View>
+        )}
 
         {/* The scroll area and the wash that ends it. Without it the sheet guillotines
             whatever line happens to be at the boundary, mid-word, which reads as a rendering
             fault rather than as something you can scroll. It fades to the same white wash the
             sheet is made of, so the two meet as one value instead of as a two-tone step. */}
-        <View className="flex-1">
+        <View className="flex-1" onLayout={(e) => setPaneHeight(e.nativeEvent.layout.height)}>
           <ScrollView
             ref={scroller}
             className="flex-1"
@@ -458,101 +861,120 @@ function ChatMode({
             keyboardDismissMode="interactive"
             showsVerticalScrollIndicator={false}
           >
+            {turns.length === 0 ? (
+              // The opening is on its way. The same three dots as the splash: Uday is about to
+              // speak, which is the one thing this app has a gesture for.
+              <Thinking className="py-xs" accessibilityLabel="Reading your file" />
+            ) : null}
+
             {turns.map((turn) => (
               <TurnView
                 key={turn.id}
                 turn={turn}
                 latest={turn === lastUday}
+                greeting={turn.id === OPENING ? firstName : null}
+                asOf={asOf}
                 reduced={reduced}
+                fresh={!seen.has(turn.id)}
                 onMeasure={(y) => {
-                  if (turn === lastUday) latestTop.current = y
-                  // Put the top of the exchange at the top of the screen — the question, then
-                  // the answer under it. Scrolling to the end of the content instead would
-                  // land the *last* line of a long answer at the bottom of the display, which
-                  // opens the customer halfway through it.
-                  //
-                  // Keyed on the answer's id rather than the anchor's, so this fires once per
-                  // reply and not again every time the row is re-measured.
-                  if (turn === anchor && lastUday && anchored.current !== lastUday.id) {
-                    anchored.current = lastUday.id
-                    scroller.current?.scrollTo({ y: Math.max(0, y - space.md), animated: true })
-                  }
+                  tops.current.set(turn.id, y)
+                  if (turn !== lastUday || anchor === undefined) return
+                  if (anchored.current === turn.id) return
+                  anchored.current = turn.id
+                  const top = tops.current.get(anchor.id) ?? y
+                  // Back from the call, the latest exchange is where the customer left it:
+                  // put there at once, not scrolled to from the top.
+                  scroller.current?.scrollTo({
+                    y: Math.max(0, top - space.md),
+                    animated: !reduced && !seen.has(turn.id),
+                  })
                 }}
               />
             ))}
 
-            {/* The same three dots as the splash. Uday is composing a reply, which is the one
-                thing this app has a gesture for; a greyed-out word would be a second
-                vocabulary for the same event. */}
             {busy && <Thinking className="py-xs" />}
           </ScrollView>
 
           <LinearGradient
             colors={[color.canvasFadeIn, color.canvasFadeOut]}
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 64 }}
-            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: fade,
+              pointerEvents: 'none',
+            }}
           />
         </View>
 
-        {/* The keyboard was not handled anywhere in this app, and the composer is where that
-            bites: ~336pt of keyboard covers the field, all three questions and the bottom of
-            the answer, so you cannot see what you are typing. Only the sheet lifts — the
-            transcript stays where it is and simply has less room. */}
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* Only the sheet lifts for the keyboard — the transcript stays where it is and simply
+            has less room. iOS pads; Android, whose window already resizes, takes the height. */}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           {/* The sheet: a wash of white over the bloom rather than an opaque panel. Opaque
               white cut the canvas in half exactly where the eye spends the most time; a wash
               lets the light carry through it, which is what makes it read as a pane lifted off
-              a lit surface instead of a second screen stapled to the first. 20pt corners, and
-              a hairline at 7% rather than 12% — against a wash, 12% draws a line where what is
-              wanted is an edge. */}
-          <View className="rounded-t-lg border-t border-hairline bg-sheet-wash px-pad pb-sm pt-sm">
-            {/* The handle states the direction of travel: it points down at what is hidden and
-                turns to point up once it is shown. It used to be a 4pt bar at 2.22:1 that
-                rendered identically when it was disabled — an affordance that was inert and
-                indistinguishable from the live one. Now it is simply absent when there is
-                nothing to disclose. */}
-            {!started && questions.length > 3 && (
-              <Tap
-                accessibilityRole="button"
-                accessibilityLabel={
-                  expanded ? 'Show fewer questions' : `Show ${hidden} more questions`
-                }
-                accessibilityState={{ expanded }}
-                haptic="selection"
-                onPress={() => setExpanded((e) => !e)}
-                dim
-                className="items-center gap-xs pb-sm"
-              >
-                <Chevron up={expanded} reduced={reduced} />
-                <Type role="caption" tone="mid">
-                  {expanded
-                    ? 'Fewer questions'
-                    : `${hidden} more question${hidden === 1 ? '' : 's'}`}
-                </Type>
-              </Tap>
-            )}
-
+              a lit surface instead of a second screen stapled to the first. 28pt corners, the
+              reference's, and a hairline at 7% rather than 12% — against a wash, 12% draws a
+              line where what is wanted is an edge. */}
+          <View className="rounded-t-xl border-t border-hairline bg-sheet-wash px-pad pb-sm pt-md">
             {/* Flushed right, which is the whole reason these read as things *you* are about
                 to say: the right edge is the only aligned edge on the screen, and it is the
-                same edge your own messages sit on. Left-aligned they were a settings list.
-                Wrapped rather than scrolled horizontally — a question half off the edge of the
-                screen is a question nobody reads. */}
-            {visible.length > 0 && (
-              <Animated.View
-                layout={reduced ? undefined : LinearTransition.duration(dur.move).easing(easeOut)}
-                className="flex-row flex-wrap justify-end gap-sm"
-              >
-                {visible.map((q, i) => (
-                  <Reveal key={q} i={i}>
-                    <Suggestion label={q} disabled={busy} onPress={() => ask(q)} />
-                  </Reveal>
-                ))}
+                same edge your own messages sit on. Wrapped rather than scrolled horizontally —
+                a question half off the edge of the screen is a question nobody reads — except
+                on a short screen, where a second row of pills costs two lines of the answer.
+                There they sit in one row, still flush right while they fit, running to the
+                screen's edge so the one that does not fit is visibly cut rather than hidden. */}
+            {pills.length > 0 && (
+              <Animated.View layout={layoutMove(reduced)} className="mb-md gap-sm">
+                {title === undefined ? null : (
+                  <Type role="label" tone="mid" className="text-right">
+                    {title}
+                  </Type>
+                )}
+                {compact ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    style={{ flexGrow: 0, flexShrink: 0 }}
+                    className="-mx-pad"
+                    contentContainerClassName="grow justify-end gap-sm px-pad"
+                  >
+                    {pillViews}
+                  </ScrollView>
+                ) : (
+                  <View className="flex-row flex-wrap justify-end gap-sm">{pillViews}</View>
+                )}
               </Animated.View>
             )}
 
-            <View className={visible.length > 0 ? 'mt-md' : undefined}>
-              <Composer value={typed} onChangeText={setTyped} onSend={send} busy={busy} />
-            </View>
+            <Composer
+              value={typed}
+              onChangeText={onType}
+              onSend={send}
+              busy={busy}
+              leading={
+                canToggle ? (
+                  // A bare mark, as Cleo's bolt is: the pills appearing above it are the state.
+                  // Pulled 8pt into the gutter so the mark and the field land where the
+                  // reference puts them, 36pt and 60pt in.
+                  <Tap
+                    accessibilityRole="button"
+                    accessibilityLabel={open ? 'Hide suggestions' : 'Show suggestions'}
+                    accessibilityState={{ expanded: open }}
+                    // react-native-web reads the ARIA prop, not `accessibilityState`.
+                    aria-expanded={open}
+                    haptic="selection"
+                    onPress={() => onToggle({ at: latestKey, open: !open })}
+                    scale={0.92}
+                    className="-ml-sm h-target w-target items-center justify-center rounded-pill"
+                  >
+                    <Glyph name="sparkle" size={24} tint={color.ink} />
+                  </Tap>
+                ) : null
+              }
+            />
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -575,152 +997,149 @@ function ChatMode({
 function TurnView({
   turn,
   latest,
+  greeting,
+  asOf,
   reduced,
+  fresh,
   onMeasure,
 }: {
   turn: Turn
   latest: boolean
+  /** The customer's first name, on the opening turn only. */
+  greeting: string | null
+  asOf: string | null
   reduced: boolean
-  onMeasure?: (y: number) => void
+  /** Not on screen before: it enters. A turn the customer already read is simply there. */
+  fresh: boolean
+  onMeasure: (y: number) => void
 }) {
   // The one event this screen exists for gets its own entrance — no stagger, no delay, because
   // it is not an item in a list, it is the thing the customer has been waiting for. Reduce
   // Motion keeps the fade and drops the travel, which is this codebase's convention
   // everywhere: someone who asked for less movement did not ask for content to teleport.
-  const entering = reduced
-    ? FadeIn.duration(dur.state).reduceMotion(ReduceMotion.Never)
-    : FadeInDown.duration(dur.enter).easing(easeOut)
+  const entering = !fresh
+    ? undefined
+    : reduced
+      ? FadeIn.duration(dur.state).reduceMotion(ReduceMotion.Never)
+      : FadeInDown.duration(dur.enter).easing(easeOut)
 
   return (
-    <Animated.View
-      entering={entering}
-      {...(onMeasure ? { onLayout: (e) => onMeasure(e.nativeEvent.layout.y) } : {})}
-    >
+    <Animated.View entering={entering} onLayout={(e) => onMeasure(e.nativeEvent.layout.y)}>
       {turn.from === 'you' ? (
         // Near-white and opaque, which on a screen where nothing else is opaque is what makes
         // it lift — without spending any colour on it. It used to be `bg-ink`, making the
         // customer's own question the darkest object on the display and the first place the
-        // eye landed. A question is a receipt; it should be quieter than the reply.
-        // `max-w-[80%]` because there was no cap at all and a 500-character question stretched
-        // the full width, at which point `self-end` stopped meaning anything.
+        // eye landed. A question is a receipt; it should be quieter than the reply. Capped at
+        // 80% of the column, because uncapped a long question stretched the full width, at
+        // which point sitting on the right stopped meaning anything.
         <View
+          accessible
           accessibilityLabel={`You asked: ${turn.text}`}
-          className="max-w-[80%] self-end rounded-chip border border-hairline-soft bg-surface-raised px-lg py-md"
+          style={{ maxWidth: '80%' }}
+          className="self-end"
         >
-          <Type role="body" tone="ink">
-            {turn.text}
-          </Type>
+          <Bubble tone="raised">
+            <Type role="body" tone="ink">
+              {turn.text}
+            </Type>
+          </Bubble>
         </View>
       ) : (
-        <View className="gap-md" accessibilityLabel={`Uday said: ${turn.text}`}>
+        <View className="gap-md">
+          {/* Cleo opens "Hey you" at display size; the name is what we have that it does not. */}
+          {greeting === null ? null : <Type role="display">{`Hello ${greeting}`}</Type>}
+
           <AnswerText
-            text={turn.text}
+            text={turn.id === OPENING ? withoutName(turn.text, greeting) : turn.text}
             role="answer"
             tone={latest ? 'ink' : 'mid'}
             // A new answer landing is the one thing on this screen a screen-reader user must
-            // be told about without having to go looking for it.
+            // be told about without having to go looking for it. iOS is told directly in
+            // `ask`; this is the region Android and the web listen to.
             {...(latest ? { accessibilityLiveRegion: 'polite' as const } : {})}
           />
 
           {/* Every answer shows what it was computed from. An advisor that states a number
               without being able to point at the transactions behind it is indistinguishable
               from one that guessed. */}
-          {turn.evidence && turn.evidence.length > 0 && <Evidence lines={turn.evidence} />}
-
-          {turn.matched === false && (
-            <Chip tone="streak">I could not answer that one from your file</Chip>
+          {turn.evidence && turn.evidence.length > 0 && (
+            <Evidence lines={turn.evidence} asOf={asOf} />
           )}
+
+          {/* No marker under an answer the engine could not match. It said "Not in your file",
+              which is the wrong reason — the file is fine, the question is one Uday does not
+              answer — under a sentence that is itself citing the file. The answer already says
+              he is not sure, and the sheet's "Try one of these" says what he can answer. */}
         </View>
       )}
     </Animated.View>
   )
 }
 
-/** The sheet's handle, pointing at where the rest of the questions are. */
-function Chevron({ up, reduced }: { up: boolean; reduced: boolean }) {
-  const turn = useSharedValue(up ? 1 : 0)
-
-  useEffect(() => {
-    turn.value = reduced ? (up ? 1 : 0) : to.state(up ? 1 : 0)
-  }, [up, reduced, turn])
-
-  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 180}deg` }] }))
-
-  return (
-    <Animated.View style={style}>
-      <Glyph name="chevronDown" size={20} tint={color.inkSoft} />
-    </Animated.View>
-  )
-}
-
-/**
- * One line under his name, over the video, in the customer's terms.
- *
- * A refusal from the provider outranks whatever availability still claims: the minutes counter
- * is ours and the credits are the provider's, and only one of those two actually stops a call.
- */
-function CallStatus({
-  availability,
-  providerDown,
-  mode,
-  reason,
-}: {
-  availability: AvatarAvailability | null
-  providerDown: boolean
-  mode: string
-  reason: string | null
-}) {
+/** The line under his name while a call is starting or running. */
+function CallBadge({ mode }: { mode: CallMode }) {
   if (mode === 'live') {
     return (
-      <Chip tone="success" className="mt-sm">
-        Live
-      </Chip>
+      <View className="mt-sm flex-row justify-center">
+        <Chip tone="success">Live</Chip>
+      </View>
     )
   }
   if (mode === 'connecting') {
     return (
-      <Type role="caption" tone="onInk" className="mt-xs opacity-80">
+      <Type role="caption" tone="onInk" className="mt-xs text-center">
         Connecting…
       </Type>
     )
   }
-  if (reason) {
-    return (
-      <Type role="caption" tone="onInk" className="mt-sm px-lg text-center opacity-80">
-        {reason}
-      </Type>
-    )
-  }
-  if (providerDown) {
-    return (
-      <Chip tone="ground" className="mt-sm">
-        Face to face is offline — I can answer in text
-      </Chip>
-    )
-  }
-  if (!availability) {
-    return (
-      <Type role="caption" tone="onInk" className="mt-xs opacity-70">
-        Checking whether Uday is free…
-      </Type>
-    )
-  }
-  if (!availability.enabled) {
-    return (
-      <Chip tone="ground" className="mt-sm">
-        Text only in this build
-      </Chip>
-    )
-  }
-  // Nothing when he is free. A customer standing in front of an available advisor does not
-  // need to be told he is available — the "Start the call" button under his face says it — and
-  // the minutes left are our cost accounting, not their business.
-  if (availability.available) return null
+  return null
+}
+
+/**
+ * Why there is, or is not, a call button — said where the button is.
+ *
+ * Three states the customer must be able to tell apart, because they mean different things to
+ * do next: face to face is not switched on for this account at all; it is on but not free now
+ * (a queue, or the day's minutes gone); or it is free, and the button says so by being there. A
+ * refusal from the call itself outranks all three: the minutes counter is ours and the credits
+ * are the provider's, and only one of those two actually stops a call.
+ */
+function CallLine({
+  availability,
+  unreachable,
+  onCall,
+  reason,
+}: {
+  availability: AvatarAvailability | null
+  unreachable: boolean
+  onCall: boolean
+  reason: string | null
+}) {
+  const line = onCall
+    ? null
+    : reason !== null
+      ? reason
+      : unreachable
+        ? 'Not available right now'
+        : availability === null
+          ? 'Checking whether Uday is free…'
+          : !availability.enabled
+            ? "Face to face isn't switched on for this account."
+            : availability.available
+              ? null
+              : availability.queueLength > 0
+                ? `${availability.queueLength} ahead of you${
+                    availability.estimatedWaitSeconds === null
+                      ? ''
+                      : ` · about ${Math.max(1, Math.ceil(availability.estimatedWaitSeconds / 60))} min`
+                  }`
+                : availability.minutesLeftToday <= 0
+                  ? 'No minutes left today'
+                  : 'Not available right now'
+  if (line === null) return null
   return (
-    <Chip tone="streak" className="mt-sm">
-      {availability.queueLength > 0
-        ? `${availability.queueLength} ahead of you`
-        : 'With another customer'}
-    </Chip>
+    <Type role="body" tone="onInk" className="text-center">
+      {line}
+    </Type>
   )
 }

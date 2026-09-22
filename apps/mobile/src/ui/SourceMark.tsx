@@ -1,6 +1,6 @@
 // The mark for a place that holds your money.
 //
-// `@dhan/assets` carries retail logos, because that is what a statement line needs, and no
+// `@dhan/assets` carries retail logos, because a statement line needs those, and no
 // institution among them: there is no Zerodha mark, no EPFO mark, no IDBI mark. So the
 // alternatives here were a grey circle with a letter in it — five of those in a row is a
 // legend, not a design — or drawing something that is actually true about the place. The kind
@@ -18,8 +18,11 @@ import { cn } from '~/ui/cn'
 import { color } from '@dhan/design'
 import type { SourceKind } from '~/lib/sources'
 
+// IDBI's own mark is the bank, on the brand plate. It was the ledger, which is also the
+// Statement button's mark in the action dial under the balance card, so the bank's own account
+// read as a link to its statement rather than as the bank.
 const GLYPH: Record<SourceKind, GlyphName> = {
-  home: 'ledger',
+  home: 'bank',
   market: 'coins',
   retirement: 'lock',
   cover: 'shield',
@@ -88,19 +91,19 @@ export function SourceStack({
       {shown.map((kind, i) => (
         <View
           key={`${kind}-${i}`}
-          className={cn('rounded-pill p-[2px]', ring)}
+          className={cn('rounded-pill p-xxs', ring)}
           style={i === 0 ? undefined : { marginLeft: -overlap }}
         >
           <SourceMark kind={kind} size={size} />
         </View>
       ))}
       {rest > 0 && (
-        <View className={cn('rounded-pill p-[2px]', ring)} style={{ marginLeft: -overlap }}>
+        <View className={cn('rounded-pill p-xxs', ring)} style={{ marginLeft: -overlap }}>
           <View
             className="items-center justify-center rounded-pill border border-hairline bg-surface"
             style={{ width: size, height: size }}
           >
-            <Type role="caption" tone="soft">
+            <Type role="caption" tone="mid">
               +{rest}
             </Type>
           </View>

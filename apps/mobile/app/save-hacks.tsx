@@ -1,136 +1,160 @@
-// Pick your save hacks — the five ways money gets into the goal.
+// Save hacks — the five ways money gets into the goal on its own.
 //
-// Cleo's list, one for one, and the order is the server's rather than this file's: `cards`
-// arrives from `/api/v1/save` already sequenced, and the copy under each title is written
-// there too. That looks like an odd place to keep five sentences until you notice that the
-// same five have to appear on the Save pane, in the config screen's toggle row and here, and
-// that a hack's subtitle is not a label — it is the *configuration*, read back. "₹500 every
-// week" and "Normal level" are facts about the customer's setup, and a client that composed
-// them itself would be a second implementation of the engine's own rounding, drifting the
-// first time either side changed. So this screen prints what it is given.
+// Cleo's list, one for one: a mark, a name and an On/Off chip per row, and nothing under the
+// name. The order is the server's (`cards` arrives already sequenced); the names are the app's
+// own sentence case (`HACK_NAME`), the same words the editor's title and its toast use — the
+// server's titles said "Smart Save" here and the editor "Smart save" one tap later. The sentence
+// the server writes under each hack (the pitch while it is off, its configuration read back while
+// it is on) ran to three or four lines at 375, and five of them pushed the last row and "Start
+// with Round-ups" under the Done button. So it is each row's VoiceOver hint instead, and the
+// editor a tap away says it in full. The line under the card still reads back what the hacks
+// that are on have been moving.
 //
-// The row is `SettingRow` and the On state is the chip alone, where Cleo also tints the glyph
-// plate lime. That is a deliberate loss. The plate's fill is not a prop on the shared row, and
-// the two honest ways to get it — widening `SettingRow` for one caller, or hand-rolling a
-// sixth kind of settings row here — both cost more than the tint is worth when the chip
-// already says the same thing in words, in the place the eye is looking for a row's state.
+// Every row carries its state as a chip, On in lime and Off in the quiet fill, which is Cleo's
+// Save-hacks card exactly. An earlier version showed only the On chips, on the theory that four
+// Off chips read as four warnings; beside Cleo's card they read as what they are, a switchboard,
+// and a row with no chip left the customer to infer its state from an absence. The state is
+// given in words too, for VoiceOver, which reads it as the row's value.
 //
-// It refetches on focus rather than once on mount. This screen's whole job is to be left and
-// come back to: the customer taps Round-ups, turns it on, comes back, and a list still saying
-// Off is the screen contradicting the one they just used. `useFocusEffect` is the cheap
-// version of that — there is no push notification to be had, and a hack cannot change while
-// this screen is in front of them.
+// The line under the card is guidance, not a guarantee. The engine accrues each hack on its own —
+// a Monday transfer, a round-up per purchase, a slice of each salary — and nothing holds their sum
+// to what the month can spare, so this screen does not claim anything does. It prints what the
+// month leaves spare each week beside what the hacks that are on have been moving, and lets the
+// customer see when the second outgrows the first.
 //
-// Nothing is written here, so there is nothing to refresh on the way out: the config screen
-// did that when it saved. `Done` is `router.back()` and nothing else, which is the right
-// shape for a list whose every row already committed on its own screen.
+// With every hack off the screen offers one to start with. The server's first card is its
+// editorial pick of the one a customer is likeliest to keep, so "Start with Round-ups" is that
+// order acted on, not a recommendation made up here.
+//
+// It re-reads on focus rather than once on mount. Its whole job is to be left and come back to:
+// the customer opens Round-ups, turns it on, saves, and a list still saying Off would be the
+// screen contradicting the one they just used.
 import { ScrollView, View } from 'react-native'
 import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { NavRow } from '~/ui/NavRow'
+import { NavRow, leave } from '~/ui/NavRow'
 import { Type } from '~/ui/Text'
 import { Card } from '~/ui/Card'
 import { Chip } from '~/ui/Chip'
 import { Button } from '~/ui/Button'
 import { SettingRow } from '~/ui/SettingRow'
+import { RetryLine } from '~/ui/SnapshotScroll'
 import { rupees } from '~/lib/money'
+import { HACK_GLYPH, HACK_NAME } from '~/lib/savehack'
 import { useSaveView } from '~/state/save'
-import type { GlyphName } from '~/ui/Glyph'
-import type { SaveHackId } from '@dhan/contracts'
-
-// The mark each hack carries.
-//
-// Keyed by the wire id and not by the list index, so the marks cannot slide out of step with
-// the rows if the server ever reorders them. A `Record` over the literal union is also the
-// only version of this the compiler will hold to five: adding a sixth hack to `SaveHackId`
-// breaks this file until someone draws it a glyph.
-//
-// `save-hack.tsx` carries the same five marks inside its own copy table, and the two are not
-// shared. They should be — the right home is a module under `src/`, beside the other things
-// both screens read — but neither of these is a route the other can sensibly import from, and
-// a route file exporting a lookup for a sibling route is a worse shape than two tables the
-// compiler will at least hold to the same five keys.
-const GLYPH: Record<SaveHackId, GlyphName> = {
-  roundups: 'coins',
-  set_forget: 'clock',
-  smart_save: 'star',
-  swear_jar: 'moneybag',
-  payday_saver: 'paycheck',
-}
+import type { SaveHackCard } from '@dhan/contracts'
 
 export default function SaveHacks() {
-  // /save is a payload of its own, not part of the snapshot. `useSaveView` is where the
-  // reading of it lives — including the refetch on focus this screen's docblock argues for,
-  // which the settings sheet and the Save pane need for the same reason.
-  const { data: save, state } = useSaveView()
+  const { data: save, state, reload } = useSaveView()
 
   const cards = save?.cards ?? []
-  const live = cards.filter((c) => c.enabled).length
+  const best = cards[0]
+  const allOff = cards.length > 0 && cards.every((c) => !c.enabled)
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ground">
       <StatusBar style="dark" />
-      <NavRow onBack={() => router.back()} />
+      <NavRow onBack={() => leave('/save-settings')} />
 
-      <ScrollView className="flex-1 px-pad" contentContainerClassName="pb-xxl">
-        <Type role="display">Pick your{'\n'}save hacks</Type>
-        <Type role="body" tone="soft" className="mt-sm">
-          Five ways to fill your goal without thinking. Turn on as many as you like.
+      <ScrollView className="flex-1" contentContainerClassName="px-pad pb-xxl">
+        <Type role="display">Save hacks</Type>
+        <Type role="body" tone="mid" className="mt-sm">
+          Each one moves a little into your goal on its own. Turn on the ones that fit.
         </Type>
 
-        <Card className="mt-xl">
-          {cards.map((card, i) => (
-            <SettingRow
-              key={card.id}
-              glyph={GLYPH[card.id]}
-              title={card.title}
-              detail={card.detail}
-              // Only the hacks that are on get the chip. An `Off` badge on the other four
-              // would make the card read as four warnings rather than four invitations, and
-              // the absence of a chip already says it.
-              {...(card.enabled ? { badge: <Chip tone="success">On</Chip> } : {})}
-              onPress={() => router.push({ pathname: '/save-hack', params: { id: card.id } })}
-              divide={i > 0}
+        {state === 'error' ? (
+          <View className="mt-lg">
+            <RetryLine
+              compact
+              message="Couldn't read your save hacks."
+              onRetry={() => void reload()}
             />
-          ))}
-          {/* Three sentences for three outcomes. An empty list under "reading your
-              statements" while the read is dead is the screen waiting for something that is
-              never coming, and an empty list from a read that *did* come back is a real
-              answer about this customer's five hacks. */}
-          {cards.length === 0 && (
-            <View className="px-lg py-lg">
-              {save === null && state === 'error' ? (
-                <Type role="body" tone="danger">
-                  Could not read your save hacks. Start the API on :3001 and reopen this screen.
-                </Type>
-              ) : save === null ? (
-                <Type role="body" tone="soft">
-                  Reading your statements.
-                </Type>
-              ) : (
-                <Type role="body" tone="soft">
-                  No save hacks are available on your account yet.
-                </Type>
-              )}
-            </View>
-          )}
-        </Card>
+          </View>
+        ) : null}
 
-        {save && (
-          <Type role="caption" tone="faint" className="mt-md">
-            {live === 0
-              ? `Nothing is on yet. Over the last four weeks these would have put ${rupees(
-                  cards.reduce((sum, c) => sum + c.lastFourWeeks, 0),
-                )} into ${save.pot.purpose}.`
-              : `${live} of 5 on · about ${rupees(save.pot.monthlyInflow)} a month into ${save.pot.purpose}.`}
+        {cards.length > 0 ? (
+          <Card className="mt-xl">
+            {cards.map((card, i) => (
+              <SettingRow
+                key={card.id}
+                glyph={HACK_GLYPH[card.id]}
+                title={HACK_NAME[card.id]}
+                accessibilityHint={card.detail}
+                badge={
+                  <Chip size="md" tone={card.enabled ? 'success' : 'ground'}>
+                    {card.enabled ? 'On' : 'Off'}
+                  </Chip>
+                }
+                state={card.enabled ? 'On' : 'Off'}
+                onPress={() => router.push({ pathname: '/save-hack', params: { id: card.id } })}
+                divide={i > 0}
+              />
+            ))}
+          </Card>
+        ) : save === null ? (
+          // The read has not landed. Failed is said above, by the retry line; this is only ever
+          // the first read in flight, so it may say it is reading.
+          state === 'error' ? null : (
+            <Type role="body" tone="mid" className="mt-xl">
+              Reading your save hacks…
+            </Type>
+          )
+        ) : (
+          <Type role="body" tone="mid" className="mt-xl">
+            Nothing to switch on yet.
           </Type>
         )}
+
+        {save && cards.length > 0 ? (
+          <Type role="caption" tone="mid" className="mt-md">
+            {spareLine(cards, save.recommendedWeekly)}
+          </Type>
+        ) : null}
+
+        {allOff && best ? (
+          <Button
+            label={`Start with ${HACK_NAME[best.id]}`}
+            haptic="none"
+            className="mt-lg"
+            onPress={() => router.push({ pathname: '/save-hack', params: { id: best.id } })}
+          />
+        ) : null}
       </ScrollView>
 
       <View className="px-pad pt-md pb-sm">
-        <Button label="Done" onPress={() => router.back()} />
+        <Button
+          variant="secondary"
+          label="Done"
+          haptic="none"
+          onPress={() => leave('/save-settings')}
+        />
       </View>
     </SafeAreaView>
   )
+}
+
+/**
+ * What the month leaves spare each week, beside what the hacks that are on have been moving.
+ *
+ * `lastFourWeeks` over four is the weekly pace each live hack actually ran at on this customer's
+ * own statement, so the comparison is two measured figures rather than a promise. A spare figure
+ * of zero is its own sentence: "keep them under ₹0" is not advice anyone can take.
+ */
+function spareLine(cards: readonly SaveHackCard[], spare: number): string {
+  const on = cards.filter((c) => c.enabled)
+  const weekly = Math.round(on.reduce((sum, c) => sum + c.lastFourWeeks, 0) / 4)
+  const who = on.length === 1 && on[0] ? `${HACK_NAME[on[0].id]} moves` : `${on.length} hacks move`
+
+  if (spare <= 0) {
+    return on.length === 0
+      ? 'Nothing is spare after bills and your usual spending right now, so a hack would dip into money you need.'
+      : `${who} about ${rupees(weekly)} a week, and nothing is spare after bills and your usual spending right now.`
+  }
+  if (on.length === 0) {
+    return `About ${rupees(spare)} a week is usually left after bills and your usual spending. Keep your hacks under that together.`
+  }
+  return weekly > spare
+    ? `${who} about ${rupees(weekly)} a week — more than the ${rupees(spare)} a week your month leaves spare.`
+    : `${who} about ${rupees(weekly)} a week, inside the ${rupees(spare)} a week your month leaves spare.`
 }

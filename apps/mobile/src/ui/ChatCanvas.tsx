@@ -30,24 +30,16 @@
 // Drawn in SVG because expo-linear-gradient is linear only and this shape is an ellipse.
 // No className anywhere on the Svg — that would need a `cssInterop` registration, and a
 // plain `style` reaches the same place without one.
+//
+// The falloff is sampled off the reference rather than left to SVG's linear interpolation: a
+// straight ramp from 1 to 0 bands visibly across 800-odd points of screen and reads as a cone
+// rather than as light. The five eased stops live with `ScoreGlow`, which pulls this same bloom
+// in to a circle behind the credit figure, so the two lights cannot drift apart.
 import { memo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
+import { GLOW_FALLOFF } from '~/ui/ScoreGlow'
 import { color } from '@dhan/design'
-
-/**
- * The falloff, sampled off the reference rather than left to SVG's linear interpolation.
- *
- * A straight ramp from 1 to 0 bands visibly across 800-odd points of screen and reads as a
- * cone rather than as light. These five stops are the eased curve that does not.
- */
-const FALLOFF: ReadonlyArray<readonly [string, number]> = [
-  ['0', 1],
-  ['0.25', 0.85],
-  ['0.5', 0.63],
-  ['0.75', 0.3],
-  ['1', 0],
-]
 
 export const ChatCanvas = memo(function ChatCanvas() {
   return (
@@ -55,10 +47,10 @@ export const ChatCanvas = memo(function ChatCanvas() {
     // build forwards anything it does not recognise straight onto the DOM node, so
     // `accessibilityElementsHidden` and `importantForAccessibility` reach React as unknown
     // attributes and it warns on every render. A View implements both properly on all three
-    // targets, and the Svg inside it inherits the result.
+    // targets, and the Svg inside it inherits the result. `pointerEvents` is a style for the
+    // same reason: the web build warns on the prop form.
     <View
-      style={StyleSheet.absoluteFill}
-      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -75,7 +67,7 @@ export const ChatCanvas = memo(function ChatCanvas() {
           {/* The bloom. `ry` at 38% keeps the vertical falloff on screen; `rx` at 113% pushes
             the horizontal one off it. */}
           <RadialGradient id="bloom" cx="50%" cy="47%" rx="113%" ry="38%">
-            {FALLOFF.map(([offset, opacity]) => (
+            {GLOW_FALLOFF.map(([offset, opacity]) => (
               <Stop
                 key={offset}
                 offset={offset}

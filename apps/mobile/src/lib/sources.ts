@@ -31,8 +31,8 @@ export const UNNAMED_CUSTODIAN = 'Place not recorded'
 /**
  * What sort of place this is, which is the only thing the app can honestly draw for it.
  *
- * There are no institution logos in `@dhan/assets` — it carries retail merchants, because
- * that is what a statement line needs — so a mark here is either a grey letter or a drawing of
+ * There are no institution logos in `@dhan/assets` — it carries retail merchants, the marks a
+ * statement line needs — so a mark here is either a grey letter or a drawing of
  * something true. The kind is true: a custodian holding an EPF balance is a retirement account
  * whatever its name, and that is more use to a customer scanning the list than a monogram.
  */

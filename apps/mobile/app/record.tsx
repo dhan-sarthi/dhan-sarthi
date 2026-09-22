@@ -6,250 +6,412 @@
 // and the record to be kept for five years and produced on demand — so this screen is not
 // a trust gesture, it is the obligation, shown to the person it is about.
 //
-// Three things are on it that a customer could not otherwise see: every verdict including
-// the refusals, the nine rules as data rather than as marketing, and the consent the whole
-// thing runs on, with its scopes and its expiry.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ScrollView, View } from 'react-native'
+// Three panes, named for what is on them. Advice is every verdict, the refusals included.
+// Rules is the nine as data rather than as marketing. Consent is what the whole thing runs on:
+// its scopes, its expiry, where the ledger came from, and the clock. `?pane=` opens any of
+// them, which is how the profile's clock row and the consent row on Where my data comes from
+// both land on Consent.
+//
+// Each pane owns the read it depends on and says so when that read fails, with the retry
+// beside the sentence. There used to be one gate over all three, so a record that would not
+// load also hid the rules, which come with the snapshot and were sitting right there; and a
+// failure printed a sentence with nothing to press, which on the web build is a dead end.
+//
+// Every card here ends in a way to ask about it, because the one question a record raises is
+// "why" — and Uday answers that with the same evidence the entry was written from.
+import { useMemo, useState } from 'react'
+import { FlatList, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { router } from 'expo-router'
-import { NavRow } from '~/ui/NavRow'
+import { router, useNavigation } from 'expo-router'
+import { NavRow, leave } from '~/ui/NavRow'
 import { Pills, usePane } from '~/ui/Pills'
 import { Pane } from '~/ui/Reveal'
 import { Type } from '~/ui/Text'
 import { Card } from '~/ui/Card'
 import { Row } from '~/ui/Row'
 import { Section } from '~/ui/Section'
-import { Chip } from '~/ui/Chip'
-import { Glyph } from '~/ui/Glyph'
+import { Chip, type ChipTone } from '~/ui/Chip'
+import { Button } from '~/ui/Button'
+import { AskUday } from '~/ui/AskUday'
+import { RulesChip } from '~/ui/RulesChip'
+import { Note } from '~/ui/Note'
+import { GlyphPlate } from '~/ui/Glyph'
+import { EmptyState, RetryLine } from '~/ui/SnapshotScroll'
+import { MenuGroup, MenuRow } from '~/ui/MenuRow'
+import { RULE_ORDER, ruleIndex, ruleName } from '~/ui/GateSheet'
+import { TimeMachine } from '~/ui/TimeMachine'
+import { cn } from '~/ui/cn'
 import { api } from '~/api/client'
 import { useSnapshot, type SnapshotState } from '~/state/snapshot'
+import { usePayload, type Payload } from '~/state/payload'
 import { headline } from '~/lib/headline'
+import { askFacts, questionForAdvice } from '~/lib/ask'
 import { fullDate, rupees } from '~/lib/money'
 import { color } from '@dhan/design'
-import { TimeMachine } from '~/ui/TimeMachine'
-import type { RecordView, Rule, SessionState } from '@dhan/contracts'
+import type {
+  AdviceRecord,
+  Consent,
+  ConsentScope,
+  RecordView,
+  Rule,
+  SessionState,
+} from '@dhan/contracts'
 
 type Pane = 'advice' | 'rules' | 'data'
 
 const PANES = [
-  { value: 'advice' as const, label: 'What I was told' },
-  { value: 'rules' as const, label: 'The rules' },
-  { value: 'data' as const, label: 'My data' },
+  { value: 'advice' as const, label: 'Advice' },
+  { value: 'rules' as const, label: 'Rules' },
+  { value: 'data' as const, label: 'Consent' },
 ]
 
+/** The same five names Where my data comes from gives its switches, so a block is one thing. */
+const SCOPE_LABEL: Record<ConsentScope, string> = {
+  PROFILE: 'Who you are',
+  ACCOUNTS: 'What you hold here',
+  TXN: 'What moves',
+  LIABILITIES: 'What you owe',
+  HOLDINGS: 'What you own',
+}
+
+const STATUS: Record<Consent['status'], { tone: ChipTone; label: string }> = {
+  ACTIVE: { tone: 'success', label: 'Active' },
+  EXPIRED: { tone: 'ground', label: 'Expired' },
+  REVOKED: { tone: 'danger', label: 'Revoked' },
+}
+
+/** A read that is being asked again, so its retry line can show that it is working. */
+function useRetry(read: () => Promise<unknown>): [boolean, () => void] {
+  const [busy, setBusy] = useState(false)
+  return [
+    busy,
+    () => {
+      setBusy(true)
+      void read().finally(() => setBusy(false))
+    },
+  ]
+}
+
 export default function RecordScreen() {
-  const { pane, dir, set } = usePane<Pane>('advice')
+  const { pane, dir, set } = usePane<Pane>('advice', PANES)
   // The rules and the shelf are both already in the snapshot — `ViewSchema` carries them —
   // so this screen reads them from the one module every other screen reads rather than
-  // re-fetching two routes it would then have to fail quietly. That also means a /rules
-  // that sheds load can no longer render "these nine rules run on every product" above an
-  // empty card, and a shelf that fails can no longer print "lic ulip 401" where the record
-  // should say "LIC Market Plus ULIP": one read, one failure, one sentence about it.
+  // re-fetching two routes it would then have to fail quietly. The record and the session are
+  // not in it, so they are read beside it and re-read whenever it changes: a moved clock
+  // refreshes the snapshot, and the record and the date follow.
   const { data: view, state: viewState, refresh } = useSnapshot()
-  const [record, setRecord] = useState<RecordView | null>(null)
-  const [session, setSession] = useState<SessionState | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const record = usePayload(api.record, view)
+  const session = usePayload(api.session, view)
+  const [refreshing, setRefreshing] = useState(false)
+  const [retryingRecord, retryRecord] = useRetry(record.reload)
 
-  const rules: Rule[] = view?.rules ?? []
   const names = useMemo(
     () => new Map((view?.shelf ?? []).map((p) => [p.productId, p.name])),
     [view],
   )
+  // What each entry hands Uday: the rule that refused it, the action it recommended, or the kind
+  // of product it checked — never "Why was '<title>' refused?", which he answered with whatever
+  // finding ranked first. Null where no rule of his speaks to it; the entry's own reason stands.
+  const facts = view === null ? null : askFacts(view.snapshot)
+  const askOf = (entry: AdviceRecord): string | null => {
+    if (facts === null) return null
+    const product =
+      entry.productId === null
+        ? undefined
+        : view?.shelf.find((p) => p.productId === entry.productId)
+    return questionForAdvice(entry, product, facts)
+  }
 
-  const load = useCallback(async () => {
-    await Promise.all([
-      api
-        .record()
-        .then((r) => {
-          setRecord(r)
-          setError(null)
-        })
-        .catch(() => setError('Could not load your record.')),
-      api
-        .session()
-        .then(setSession)
-        .catch(() => setSession(null)),
-    ])
-  }, [])
+  function pull() {
+    setRefreshing(true)
+    void Promise.all([refresh(), record.reload(), session.reload()]).finally(() =>
+      setRefreshing(false),
+    )
+  }
 
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  // Moving the clock moves it for the whole app, not for this card. The TimeMachine hands
-  // back the new SessionState, and setting that alone is what left Spend, Plan, Grow and
-  // Protect rendering the old day's snapshot while this screen said the date had changed —
-  // the tabs stay mounted, so nothing of theirs re-fetches on its own. Refreshing the
-  // snapshot here is what makes "move it and watch them change" true; the record is re-read
-  // with it because advice is written against the date as well.
-  const onClockMoved = useCallback(
-    (next: SessionState) => {
-      setSession(next)
-      void refresh()
-      void load()
-    },
-    [refresh, load],
-  )
+  // Moving the clock moves it for the whole app, not for this card. The tabs stay mounted and
+  // re-fetch nothing on their own, so the snapshot is refreshed here — without it, "move it and
+  // watch them change" would be false — and the record and the session follow it.
+  function onClockMoved() {
+    void refresh()
+    void session.reload()
+  }
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ground">
       <StatusBar style="dark" />
-      <NavRow onBack={() => router.back()} />
-      <View className="px-pad pb-lg">
-        <Type role="display">Your record</Type>
-      </View>
-      <Pills options={PANES} value={pane} onChange={set} />
+      <NavRow onClose={() => leave('/(tabs)/spend')} />
 
-      <ScrollView className="flex-1" contentContainerClassName="px-pad pt-lg pb-xxl gap-md">
-        {error ? (
-          <Type role="body" tone="danger">
-            {error}
-          </Type>
-        ) : !record ? (
-          <Type role="body" tone="soft">
-            Opening your record…
-          </Type>
-        ) : (
-          <Pane key={pane} dir={dir} className="gap-md">
-            {pane === 'advice' ? (
-              <Advice record={record} names={names} />
-            ) : pane === 'rules' ? (
-              <Rules rules={rules} state={viewState} />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-pad pb-xxl gap-md"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} tintColor={color.inkSoft} onRefresh={pull} />
+        }
+      >
+        <Type role="display">Your record</Type>
+        {/* The strip draws its own gutter so a fifth pill can scroll edge to edge. */}
+        <View className="-mx-pad mt-sm">
+          <Pills options={PANES} value={pane} onChange={set} />
+        </View>
+
+        <Pane key={pane} dir={dir} className="mt-sm gap-md">
+          {pane === 'rules' ? (
+            <Rules rules={view?.rules ?? []} state={viewState} onRetry={refresh} />
+          ) : record.data === null ? (
+            record.state === 'error' || retryingRecord ? (
+              <RetryLine
+                compact
+                message="Couldn't open your record."
+                busy={retryingRecord}
+                onRetry={retryRecord}
+              />
             ) : (
-              <Data record={record} session={session} onClockMoved={onClockMoved} />
-            )}
-          </Pane>
-        )}
+              <Type role="body" tone="mid">
+                Reading your record…
+              </Type>
+            )
+          ) : pane === 'advice' ? (
+            <Advice record={record.data} names={names} askOf={askOf} />
+          ) : (
+            <Data record={record.data} session={session} onClockMoved={onClockMoved} />
+          )}
+        </Pane>
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-function Advice({ record, names }: { record: RecordView; names: Map<string, string> }) {
-  if (record.adviceRecords.length === 0) {
+function Advice({
+  record,
+  names,
+  askOf,
+}: {
+  record: RecordView
+  names: ReadonlyMap<string, string>
+  askOf: (entry: AdviceRecord) => string | null
+}) {
+  // Newest first: the entry a customer comes here to check is the one they were just given.
+  const entries = useMemo(() => record.adviceRecords.slice().reverse(), [record])
+
+  if (entries.length === 0) {
     return (
-      <Type role="body" tone="soft">
-        Nothing yet. Every piece of advice lands here, including the ones I refuse.
-      </Type>
+      <EmptyState
+        glyph="ledger"
+        title="Nothing recorded yet"
+        body="Every piece of advice lands here with its evidence."
+        action={{
+          label: "See today's action",
+          onPress: () =>
+            router.dismissTo({ pathname: '/(tabs)/spend', params: { pane: 'overview' } }),
+        }}
+      />
     )
   }
+
+  const intact = record.chainVerified
   return (
     <>
-      {/* The chain is the claim. Each row carries the hash of the one before it, so a row
-          cannot be altered or removed later without every subsequent hash failing — and the
-          app says out loud whether that check currently passes. */}
-      <View
-        className={
-          record.chainVerified ? 'rounded-lg bg-success p-lg' : 'rounded-lg bg-danger-soft p-lg'
-        }
-      >
-        <View className="flex-row items-center gap-sm">
-          <Glyph name={record.chainVerified ? 'check' : 'lock'} size={18} tint={color.ink} />
-          <Type role="heading">
-            {record.chainVerified ? 'Chain verified' : 'Chain does not verify'}
-          </Type>
+      {/* The seal is the claim. Each entry carries the hash of the one before it, so an entry
+          cannot be altered or removed later without every one after it failing — and the
+          screen says out loud whether that check passes right now. */}
+      <Card className="p-lg">
+        <View className="flex-row items-center gap-md">
+          <GlyphPlate
+            name={intact ? 'check' : 'alert'}
+            fill={intact ? 'bg-success/50' : 'bg-danger-soft'}
+          />
+          <View className="flex-1 flex-row flex-wrap items-center justify-between gap-sm">
+            <Type role="heading">{intact ? 'Record intact' : 'Record has been altered'}</Type>
+            <Chip
+              tone="ground"
+              label={entries.length === 1 ? '1 entry' : `${entries.length} entries`}
+            />
+          </View>
         </View>
-        <Type role="body" className="mt-sm opacity-80">
-          {record.adviceRecords.length} entries, each sealed with the hash of the one before it.
-          Kept for five years. Nothing here can be edited after the fact without the check failing.
+        <Type role="body" tone="mid" className="mt-md">
+          {intact
+            ? 'Each sealed against the one before. Kept five years. Nothing can be changed later without this check failing.'
+            : "An entry no longer matches the seal on the one before it, so this record can't be relied on until it is checked."}
         </Type>
-      </View>
+      </Card>
 
-      {record.adviceRecords
-        .slice()
-        .reverse()
-        .map((r) => {
-          const blocked = r.verdict === 'BLOCKED'
-          return (
-            <Card key={r.id}>
-              <View className="px-lg py-lg">
-                <View className="flex-row items-center justify-between gap-md">
-                  <Chip tone={blocked ? 'streak' : 'success'}>
-                    {blocked ? `Refused · ${r.ruleId}` : 'Passed all nine'}
-                  </Chip>
-                  <Type role="caption" tone="faint">
-                    #{r.seq}
-                  </Type>
-                </View>
-
-                <Type role="heading" className="mt-md">
-                  {headline(r.actionKind, r.productId, names)}
-                  {r.amount !== null && r.amount > 0 ? ` · ${rupees(r.amount)}` : ''}
-                </Type>
-
-                <Type role="body" tone="soft" className="mt-xs">
-                  {r.spoken ?? r.recorded}
-                </Type>
-
-                {/* The auditor's line, not the customer's. Kept visible deliberately: the
-                    person the record is about should see exactly what a reviewer sees. */}
-                {r.spoken && r.recorded !== r.spoken && (
-                  <View className="mt-md rounded-md bg-ground-deep p-md">
-                    <Type role="caption" tone="soft">
-                      AS RECORDED
-                    </Type>
-                    <Type role="caption" tone="mid" className="mt-xs">
-                      {r.recorded}
-                    </Type>
-                  </View>
-                )}
-
-                <Type role="caption" tone="faint" className="mt-md">
-                  {r.rulesPassed.length} of 9 passed · hash {r.recordHash.slice(0, 12)}…
-                </Type>
-              </View>
-            </Card>
-          )
-        })}
+      {/* A list inside the page's own scroller, so it does not scroll by itself — and it
+          renders every entry at once, because windowing a list that is never scrolled would
+          leave the bottom of the record blank until something asked for it. */}
+      <FlatList
+        data={entries}
+        keyExtractor={(entry) => entry.id}
+        scrollEnabled={false}
+        initialNumToRender={entries.length}
+        ItemSeparatorComponent={Gap}
+        renderItem={({ item, index }) => (
+          <Entry
+            entry={item}
+            names={names}
+            question={askOf(item)}
+            day={index === 0 || entries[index - 1]?.atSim !== item.atSim ? item.atSim : null}
+            first={index === 0}
+          />
+        )}
+      />
     </>
   )
 }
 
-function Rules({ rules, state }: { rules: Rule[]; state: SnapshotState }) {
+function Gap() {
+  return <View className="h-md" />
+}
+
+function Entry({
+  entry,
+  names,
+  question,
+  day,
+  first,
+}: {
+  entry: AdviceRecord
+  names: ReadonlyMap<string, string>
+  question: string | null
+  /** The date to print above this entry, when it starts a new day. */
+  day: string | null
+  first: boolean
+}) {
+  const title = headline(entry.actionKind, entry.productId, names)
+  const refused = entry.verdict === 'BLOCKED'
+  const unknown = entry.verdict === 'UNKNOWN_PRODUCT'
+  const rule = ruleIndex(entry.ruleId)
+  const nine = RULE_ORDER.length
+
+  return (
+    <View className="gap-md">
+      {day === null ? null : (
+        <Type role="body" tone="mid" accessibilityRole="header" className={cn(!first && 'mt-md')}>
+          {fullDate(day)}
+        </Type>
+      )}
+      <Card className="p-lg">
+        <View className="flex-row items-center justify-between gap-md">
+          {/* The gate sheet's own chip, so a verdict reads the same here as where it was given.
+              A product no longer on the shelf was never judged, so it keeps a plain chip. */}
+          {unknown ? (
+            <Chip tone="ground" label="Not on the shelf" />
+          ) : (
+            <RulesChip blocked={refused} of={nine} at={rule} />
+          )}
+          {entry.amount !== null && entry.amount > 0 ? (
+            <Type role="label">{rupees(entry.amount)}</Type>
+          ) : null}
+        </View>
+
+        <Type role="heading" className="mt-md">
+          {title}
+        </Type>
+        <Type role="body" tone="mid" className="mt-xs">
+          {entry.spoken ?? entry.recorded}
+        </Type>
+
+        {entry.alternative === null ? null : (
+          <View className="mt-md rounded-lg bg-ground p-md">
+            <Type role="body">
+              <Type role="body" weight="semibold">
+                Instead:{' '}
+              </Type>
+              {entry.alternative.name} · {rupees(entry.alternative.monthly)} a month
+            </Type>
+          </View>
+        )}
+
+        {/* The auditor's line, not the customer's, byte for byte as the engine wrote it. Kept
+            on screen deliberately: the person the record is about should see exactly what a
+            reviewer sees. */}
+        {entry.spoken !== null && entry.recorded !== entry.spoken ? (
+          <View className="mt-md rounded-lg bg-ground p-md">
+            <Type role="caption" tone="mid">
+              As recorded
+            </Type>
+            <Type role="label" tone="mid" className="mt-xxs">
+              {entry.recorded}
+            </Type>
+          </View>
+        ) : null}
+
+        {/* No footer. The seal is a hash — what the check at the top of the list compares, not
+            something a person reads — and `seq` is the entry's place in the bank-wide chain,
+            so "59" under a chip saying 16 entries would only raise a question. */}
+        {question === null ? null : <AskUday question={question} className="mt-sm" />}
+      </Card>
+    </View>
+  )
+}
+
+function Rules({
+  rules,
+  state,
+  onRetry,
+}: {
+  rules: readonly Rule[]
+  state: SnapshotState
+  onRetry: () => Promise<void>
+}) {
+  const [retrying, retry] = useRetry(onRetry)
+
   // A compliance screen may not assert that a set of rules exists and then list none. If the
-  // snapshot is not holding them, say which it is — still reading, or could not read — rather
-  // than rendering an empty card under a sentence that claims nine.
+  // snapshot is not holding them, say which it is — still reading, or could not read — with
+  // the way to read again, rather than rendering an empty card under a sentence that claims nine.
   if (rules.length === 0) {
-    return state === 'error' ? (
-      <Type role="body" tone="danger">
-        Could not load the rules. Start the API on :3001 and reopen this screen.
-      </Type>
+    return state === 'error' || retrying ? (
+      <RetryLine compact message="Couldn't load the rules." busy={retrying} onRetry={retry} />
     ) : (
-      <Type role="body" tone="soft">
+      <Type role="body" tone="mid">
         Reading the rules…
       </Type>
     )
   }
+
   return (
     <>
-      <Type role="body" tone="soft">
-        These run in order, on every product, every time. The first one to fail stops the
-        recommendation. So the rule named on a refusal is the first thing wrong, not the only thing.
+      <Type role="body" tone="mid">
+        They run in order on every product, every time. The first to fail stops it — so a refusal
+        names the first problem, not the only one.
       </Type>
       <Card>
-        {rules.map((rule, i) => (
-          <View
-            key={rule.id}
-            className={i > 0 ? 'border-t border-hairline px-lg py-lg' : 'px-lg py-lg'}
-          >
-            <View className="flex-row items-baseline gap-md">
-              <Type role="caption" tone="faint">
+        {rules.map((rule, i) => {
+          const name = ruleName(rule.id)
+          return (
+            <View
+              key={rule.id}
+              accessible
+              accessibilityLabel={`Rule ${i + 1} of ${rules.length}. ${name === null ? '' : `${name}. `}${rule.description}`}
+              className={cn('flex-row gap-md px-lg py-md', i > 0 && 'border-t border-hairline')}
+            >
+              {/* A fixed column, so "1" does not pull its rule's text left of the other eight. */}
+              <Type role="label" tone="mid" className="mt-xxs w-md text-center">
                 {i + 1}
               </Type>
               <View className="flex-1">
-                <Type role="caption" tone="brand">
-                  {rule.id}
-                </Type>
-                <Type role="body" className="mt-xs">
+                {name === null ? null : (
+                  <Type role="body" weight="semibold">
+                    {name}
+                  </Type>
+                )}
+                <Type role="body" tone="mid">
                   {rule.description}
                 </Type>
               </View>
             </View>
-          </View>
-        ))}
+          )
+        })}
       </Card>
+      <Button
+        size="sm"
+        variant="secondary"
+        label="Check a product against them"
+        haptic="none"
+        className="mt-sm"
+        onPress={() => router.dismissTo({ pathname: '/(tabs)/grow', params: { pane: 'invest' } })}
+      />
     </>
   )
 }
@@ -260,121 +422,117 @@ function Data({
   onClockMoved,
 }: {
   record: RecordView
-  session: SessionState | null
-  onClockMoved: (next: SessionState) => void
+  session: Payload<SessionState>
+  onClockMoved: () => void
 }) {
   const { consent, provenance } = record
+  const off = new Set<ConsentScope>(record.scopeOverrides)
+  const [retryingClock, retryClock] = useRetry(session.reload)
+  const navigation = useNavigation()
+  // Back to Where my data comes from when it is already under this screen — its consent row
+  // opens this pane — rather than stacking a second copy on top, so × never has to be pressed
+  // twice to get out of a loop between the two.
+  const openConnections = () => {
+    const below = navigation.getState()?.routes.some((route) => route.name === 'connections')
+    if (below) router.dismissTo('/connections')
+    else router.push('/connections')
+  }
+
   return (
     <>
       {/* Null where no consent artefact was ever written against this session. Saying so is
-          the honest answer — optional-chaining the six fields into blanks would print a
-          consent card with no consent behind it, on the one screen that exists to be audited. */}
+          the honest answer — optional-chaining the fields into blanks would print a consent
+          card with no consent behind it, on the one screen that exists to be audited. */}
       {consent === null ? (
-        <View className="rounded-lg bg-hero p-lg">
-          <Type role="caption" tone="onInk" className="opacity-85">
-            CONSENT
-          </Type>
-          <Type role="title" tone="onInk" className="mt-xs">
-            Nothing on file
-          </Type>
-          <Type role="body" tone="onInk" className="mt-sm opacity-85">
-            No consent was recorded for this session, so there is nothing to show you and nothing a
-            reviewer could check.
-          </Type>
-        </View>
+        <Note action={{ label: 'See what IDBI may read', onPress: openConnections }}>
+          No consent record yet. It is written the first time you grant one.
+        </Note>
       ) : (
         <>
-          <View className="rounded-lg bg-hero p-lg">
-            <Type role="caption" tone="onInk" className="opacity-85">
-              CONSENT · {consent.status}
-            </Type>
-            <Type role="title" tone="onInk" className="mt-xs">
-              {consent.purpose}
-            </Type>
-            <Type role="body" tone="onInk" className="mt-sm opacity-85">
-              Valid {fullDate(consent.validFrom)} to {fullDate(consent.validTo)}. Reference{' '}
-              {consent.consentId}.
-            </Type>
-          </View>
-
-          <Section title="What you let me read" />
           <Card>
-            {consent.scopes.map((scope, i) => (
-              <View
-                key={scope}
-                className={
-                  i > 0
-                    ? 'flex-row items-center justify-between border-t border-hairline px-lg py-md'
-                    : 'flex-row items-center justify-between px-lg py-md'
-                }
-              >
-                <Type role="body" tone="mid">
-                  {SCOPE_LABEL[scope] ?? scope}
+            <View className="px-lg pb-sm pt-lg">
+              <View className="flex-row items-center justify-between gap-md">
+                <Type role="heading" className="flex-1">
+                  Consent
                 </Type>
-                <Chip tone="success">Granted</Chip>
+                <Chip tone={STATUS[consent.status].tone} label={STATUS[consent.status].label} />
               </View>
-            ))}
+              <Type role="body" tone="mid" className="mt-xs">
+                {consent.purpose}
+              </Type>
+            </View>
+            <Row label="Valid from" value={fullDate(consent.validFrom)} divide />
+            <Row label="Valid to" value={fullDate(consent.validTo)} divide />
+            <Row label="Reference" value={consent.consentId} divide />
           </Card>
+
+          {/* Each block is a way into its switch. The chip is the state the engine is running
+              on now, overrides included, not the state the artefact was granted in. */}
+          <Section title="What IDBI may read" />
+          <Card>
+            {consent.scopes.map((scope, i) => {
+              const state = off.has(scope) ? 'Switched off' : 'Granted'
+              return (
+                <Row
+                  key={scope}
+                  label={SCOPE_LABEL[scope]}
+                  value={state}
+                  trailing={<Chip tone={off.has(scope) ? 'ground' : 'success'} label={state} />}
+                  divide={i > 0}
+                  onPress={openConnections}
+                />
+              )
+            })}
+          </Card>
+          {/* The switches live on one screen, and this is the labelled way to it — the rows
+              above lead there too, but a row reads as the block, not as "change". */}
+          <MenuGroup>
+            <MenuRow
+              glyph="sliders"
+              label="Change what IDBI may read"
+              detail="Switch any block off; the advice recomputes without it."
+              onPress={openConnections}
+            />
+          </MenuGroup>
         </>
       )}
 
       {/* Null under a real bank feed, where the ledger was lived rather than seeded. The
-          "this is synthetic data" panel is guarded along with the figures, because the panel
-          is a claim about where the rows came from and not a fixed piece of copy — printing
-          it over an empty card would be the same untruth in the other direction. Inside the
-          guard every field is present: the contract makes them all required. */}
-      {provenance !== null && (
+          "this is synthetic data" sentence is guarded along with the figures, because it is a
+          claim about where the rows came from and not a fixed piece of copy — printing it over
+          an empty card would be the same untruth in the other direction. Said plainly rather
+          than buried: a product whose argument is "we show our reasoning" cannot be coy about
+          the numbers that reasoning is built on. The generator's version and the ledger's
+          content hash stay on the wire for whoever audits the build; on screen they read as
+          debug output. */}
+      {provenance === null ? null : (
         <>
           <Section title="Where this ledger came from" />
-          {/* Said plainly rather than buried. This build runs on a generated ledger, and a
-              product whose entire argument is "we show our reasoning" cannot be coy about the
-              provenance of the numbers that reasoning is built on. The content hash is what
-              makes the claim checkable: the same seed run reproduces the same ledger exactly. */}
-          <View className="rounded-lg bg-streak p-lg">
-            <Type role="heading">This is synthetic data</Type>
-            <Type role="body" className="mt-xs opacity-85">
-              Every transaction here was generated, not lived. The engine, the rules and the record
-              are real. The customer is not.
-            </Type>
-          </View>
           <Card>
-            <Row label="Generated by" value={provenance.generatorVersion} tone="soft" />
-            <Row
-              label="Ledger covers"
-              value={`${fullDate(provenance.historyFrom)} – ${fullDate(provenance.horizonTo)}`}
-              divide
-              tone="soft"
-            />
-            <Row label="Clock anchored at" value={fullDate(provenance.anchor)} divide tone="soft" />
-            <Row
-              label="Content hash"
-              value={`${provenance.contentSha256.slice(0, 16)}…`}
-              divide
-              tone="soft"
-            />
+            <View className="px-lg pb-sm pt-lg">
+              <Type role="heading">This is synthetic data</Type>
+              <Type role="body" tone="mid" className="mt-xs">
+                Every transaction here was generated, not lived. The engine, the rules and the
+                record are real.
+              </Type>
+            </View>
+            <Row label="Ledger from" value={fullDate(provenance.historyFrom)} divide />
+            <Row label="Ledger to" value={fullDate(provenance.horizonTo)} divide />
+            <Row label="Clock starts on" value={fullDate(provenance.anchor)} divide />
           </Card>
         </>
       )}
 
-      <Type role="caption" tone="faint">
-        Withdraw anything above and the advice is worked out again without it. The numbers change;
-        the screen does not just hide them.
-      </Type>
-
-      {session && (
-        <>
-          <Section title="The clock" />
-          <TimeMachine session={session} onMoved={onClockMoved} />
-        </>
-      )}
+      {session.data !== null ? (
+        <TimeMachine session={session.data} onMoved={onClockMoved} />
+      ) : session.state === 'error' || retryingClock ? (
+        <RetryLine
+          compact
+          message="Couldn't read the clock."
+          busy={retryingClock}
+          onRetry={retryClock}
+        />
+      ) : null}
     </>
   )
-}
-
-const SCOPE_LABEL: Record<string, string> = {
-  PROFILE: 'Who you are',
-  ACCOUNTS: 'Accounts and balances',
-  TXN: 'Transactions',
-  LIABILITIES: 'Loans and cards',
-  HOLDINGS: 'Investments and cover',
 }

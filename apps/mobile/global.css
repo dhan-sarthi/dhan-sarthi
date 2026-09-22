@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * The web build's focus ring, in the app's ink rather than the browser's blue.
+ *
+ * Only the web reads this: NativeWind compiles class selectors for the native build and drops
+ * every other rule. Someone tabbing through the pills, the rows and a sheet's × sees the same
+ * 2pt ink ring the tab bar draws, standing clear of the control and following its radius.
+ *
+ * A text field is the exception. Its ring would be drawn round the bare input inside the field
+ * rather than round the field the customer sees; the field marks its own focus — Field's edge
+ * turns ink, the code's active box thickens — and the caret does the rest.
+ */
+:focus-visible {
+  outline: theme('borderWidth.2') solid theme('colors.ink.DEFAULT');
+  outline-offset: theme('spacing.xxs');
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}

@@ -12,6 +12,10 @@
 //
 // The dots themselves live in `Thinking`, shared with the chat. They mean the same thing in
 // both places: someone is composing a reply.
+//
+// Reading the stored bearer can fail — secure storage locked, web storage blocked — and the
+// splash is the one screen with no way out of its own. A failed read counts as no bearer, so
+// the customer lands on the welcome carousel instead of a green screen that never moves.
 import { useEffect } from 'react'
 import { View } from 'react-native'
 import { router } from 'expo-router'
@@ -33,7 +37,10 @@ export default function Splash() {
     let cancelled = false
     // Hold the splash for its own beat even when the answer comes back instantly —
     // a wordmark that flashes for 80ms reads as a glitch rather than as an entrance.
-    const ready = Promise.all([getToken(), new Promise((r) => setTimeout(r, 1400))])
+    const ready = Promise.all([
+      getToken().catch(() => null),
+      new Promise((r) => setTimeout(r, 1400)),
+    ])
     void ready.then(([token]) => {
       if (!cancelled) router.replace(token ? '/(tabs)/spend' : '/(onboarding)/welcome')
     })
@@ -50,13 +57,19 @@ export default function Splash() {
   return (
     <View className="flex-1 items-center justify-center bg-hero">
       <StatusBar style="light" />
-      <Animated.View style={bubble} className="rounded-xl bg-on-ink px-xl py-md">
-        <Type role="display" tone="ink">
+      <Animated.View
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel="Dhan Sarthi"
+        style={bubble}
+        className="rounded-xl bg-on-ink px-xl py-md"
+      >
+        <Type role="display" tone="ink" plain>
           dhan sarthi
         </Type>
       </Animated.View>
       <Animated.View entering={FadeIn.delay(dur.state).duration(dur.enter)} className="mt-xl">
-        <Thinking tone="bg-on-ink" size={9} />
+        <Thinking tone="bg-on-ink" size={9} accessibilityLabel="Opening Dhan Sarthi" />
       </Animated.View>
     </View>
   )

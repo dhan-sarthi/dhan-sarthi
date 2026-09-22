@@ -23,13 +23,12 @@
 import { useEffect, type ReactNode } from 'react'
 import * as Haptics from 'expo-haptics'
 import Animated, {
-  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
 } from 'react-native-reanimated'
-import { dur, easeOut, timing, useReducedMotion } from '~/ui/motion'
+import { dur, easeOut, layoutMove, timing, useReducedMotion } from '~/ui/motion'
 
 /** The four beats, in milliseconds from the surface landing. A caller lines its copy up to these. */
 export const BEAT = { surface: 0, ruling: 90, reasoning: 200, provenance: 330 } as const
@@ -125,13 +124,13 @@ export function Beat({
  * above spent 560ms building. `LinearTransition` morphs the height instead, and the surface
  * rises into the space as it opens.
  *
+ * Under Reduce Motion the height snaps. The morph is travel — everything under the card slides —
+ * and it was the one part of the sequence still running for a customer who asked for none.
+ *
  * It is a plain wrapper with no styling of its own so that the card inside keeps owning its
  * fill, radius and padding.
  */
 export function VerdictFrame({ children }: { children: ReactNode }) {
-  return (
-    <Animated.View layout={LinearTransition.duration(dur.move).easing(easeOut)}>
-      {children}
-    </Animated.View>
-  )
+  const reduced = useReducedMotion()
+  return <Animated.View layout={layoutMove(reduced)}>{children}</Animated.View>
 }

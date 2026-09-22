@@ -1,18 +1,26 @@
 // The five-tab bar.
 //
-// Cleo draws each destination as a circular plate with the mark inside and the label
-// beneath, and marks the active one by filling the plate rather than by tinting the
-// icon. Filling reads at a glance on a cream ground where a tint would not, and it is
-// the same move the primary button makes — dark fill means "this one".
+// Cleo draws each destination as a ring with the mark inside and the label beneath, and
+// marks the active one by filling the ring rather than by tinting the icon. Filling reads at
+// a glance on a cream ground where a tint would not, and it is the same move the primary
+// button makes — dark fill means "this one". The bar itself is white: on the cream ground
+// the change of surface is the edge, and a hairline on top of it would be a second edge.
 //
-// Uday sits in the centre slot Cleo gives its assistant. It keeps a filled plate even
-// when inactive: the avatar is the product's first person, and the bar should say so.
+// Uday sits in the centre slot Cleo gives its assistant, and like Cleo's assistant his ring is
+// an outline until you are on him. An earlier build kept his plate filled on every tab, on a
+// builder's note that the avatar is the product's first person. Cleo parity replaced that: with
+// two filled plates on every other tab, the one you are on was the hard one to find.
 //
 // The fill crosses rather than snaps, and the plate lifts 2pt as it takes the selection. Two
 // pixels is under the threshold at which anyone would call it an animation, which is the point:
 // a tab bar is furniture, and furniture that performs is furniture you notice instead of the
 // screen. What it buys is continuity — the eye follows the fill from the old plate to the new
 // one instead of re-finding it, and that is the difference between navigating and re-reading.
+//
+// Measured against Cleo's bar: 32pt rings at a 2pt stroke, a 13pt caption 8pt beneath, and a
+// bar of about 70pt above the home indicator. The inactive ring and caption are `inkMid`, not
+// the softer tint — 6.9:1 on white, and the resting tabs are still read by the customer who
+// is deciding where to go next.
 import { useEffect } from 'react'
 import { View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -45,7 +53,7 @@ type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tab
 
 export function TabBar({ state, navigation }: TabBarProps) {
   return (
-    <SafeAreaView edges={['bottom']} className="border-t border-hairline bg-ground">
+    <SafeAreaView edges={['bottom']} className="bg-surface">
       <View className="flex-row items-start justify-around px-sm pt-sm pb-xs">
         {state.routes.map((route, i) => {
           const mark = MARKS[route.name]
@@ -57,8 +65,6 @@ export function TabBar({ state, navigation }: TabBarProps) {
               key={route.key}
               mark={mark}
               focused={focused}
-              // Uday's plate is filled whether or not you are on him.
-              always={route.name === 'uday'}
               onPress={() => {
                 const event = navigation.emit({
                   type: 'tabPress',
@@ -78,59 +84,66 @@ export function TabBar({ state, navigation }: TabBarProps) {
 function Destination({
   mark,
   focused,
-  always,
   onPress,
 }: {
   mark: { glyph: GlyphName; label: string }
   focused: boolean
-  always: boolean
   onPress: () => void
 }) {
-  const filled = focused || always
-  // Two values, because they answer two questions. `fill` is whether the plate is dark, which
-  // Uday's is regardless. `sel` is whether this is the tab you are on, which is what the label
-  // and the lift respond to — otherwise Uday would look permanently selected.
-  const fill = useSharedValue(filled ? 1 : 0)
+  // One question, two clocks. `fill` darkens the plate and crosses on the state timing; `sel`
+  // lifts the plate and darkens the caption on a spring, because the lift is weight settling
+  // rather than a colour becoming true. Both are seeded at rest so a cold open does not animate.
+  const fill = useSharedValue(focused ? 1 : 0)
   const sel = useSharedValue(focused ? 1 : 0)
 
   useEffect(() => {
-    fill.value = withTiming(filled ? 1 : 0, timing(dur.state))
+    fill.value = withTiming(focused ? 1 : 0, timing(dur.state))
     sel.value = to.settle(focused ? 1 : 0)
-  }, [filled, focused, fill, sel])
+  }, [focused, fill, sel])
 
   // The dark fill is a layer whose opacity animates, not an interpolated background colour:
   // the "off" end of that interpolation would have to be ink at zero alpha, and a hex written
   // into a component is exactly what tokens.json exists to prevent.
   const plate = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(fill.value, [0, 1], [color.inkFaint, color.ink]),
+    borderColor: interpolateColor(fill.value, [0, 1], [color.inkMid, color.ink]),
     transform: [{ translateY: sel.value * -2 }],
   }))
   const ink = useAnimatedStyle(() => ({ opacity: fill.value }))
   const caption = useAnimatedStyle(() => ({
-    color: interpolateColor(sel.value, [0, 1], [color.inkSoft, color.ink]),
+    color: interpolateColor(sel.value, [0, 1], [color.inkMid, color.ink]),
   }))
 
   return (
     <Tap
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
+      aria-selected={focused}
       accessibilityLabel={mark.label}
       haptic="selection"
       onPress={onPress}
       scale={0.92}
-      className="flex-1 items-center gap-[3px] py-xs"
+      className="min-h-target flex-1 items-center gap-sm"
     >
       <Animated.View
         style={plate}
-        className="h-9 w-9 items-center justify-center overflow-hidden rounded-pill border"
+        className="h-plate-sm w-plate-sm items-center justify-center overflow-hidden rounded-pill border-2"
       >
         <Animated.View style={ink} className="absolute inset-0 bg-ink" />
         {/* The glyph is drawn twice and cross-faded rather than re-tinted, because an SVG
             stroke colour is a prop and a prop cannot be interpolated on the UI thread. Two
-            18pt marks is a cheaper trade than dropping to the JS thread every frame. */}
+            20pt marks is a cheaper trade than dropping to the JS thread every frame. */}
         <Mark name={mark.glyph} on={fill} />
       </Animated.View>
-      <Animated.Text style={caption} className={ROLE.caption}>
+      {/* Hidden from the reader: the Tap already carries the label, and a caption read as a
+          second element makes every tab announce itself twice. */}
+      <Animated.Text
+        style={caption}
+        className={ROLE.label}
+        numberOfLines={1}
+        maxFontSizeMultiplier={1.3}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         {mark.label}
       </Animated.Text>
     </Tap>
@@ -143,10 +156,10 @@ function Mark({ name, on }: { name: GlyphName; on: SharedValue<number> }) {
   return (
     <View>
       <Animated.View style={dark}>
-        <Glyph name={name} size={18} tint={color.inkSoft} />
+        <Glyph name={name} size={20} tint={color.inkMid} />
       </Animated.View>
       <Animated.View style={light} className="absolute">
-        <Glyph name={name} size={18} tint={color.onInk} />
+        <Glyph name={name} size={20} tint={color.onInk} />
       </Animated.View>
     </View>
   )

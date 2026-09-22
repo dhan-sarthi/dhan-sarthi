@@ -43,4 +43,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return (defaultResolve ?? context.resolveRequest)(context, moduleName, platform)
 }
 
-module.exports = withNativeWind(config, { input: './global.css' })
+// `inlineRem` is what NativeWind multiplies every rem-derived class by, and its default is 14.
+// Tailwind's own scale — `w-2/5` is fine, but `mt-0.5`, `rounded-full`'s neighbours and any
+// default spacing step — is written in rem at 16, so at 14 each of those came out 12.5% short
+// of the px the design was measured in. 16 makes a rem the same inch on every surface. Metro
+// must be restarted with `--clear` for it to take.
+module.exports = withNativeWind(config, { input: './global.css', inlineRem: 16 })
