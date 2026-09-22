@@ -45,8 +45,9 @@ should be left alone. The amendment on [ADR-0001](docs/architecture/adr/ADR-0001
 record of the removal and of what it cost. The HDFC SmartWealth reference that preceded Cleo is
 retired: nothing new is built from it.
 
-The five tabs are **Spend · Plan · Uday · Grow · Protect**, a one-to-one map onto Cleo's five,
-with Uday (the avatar) in Cleo's centre chat slot. `Grow` and `Protect` have no Cleo equivalent
+The five tabs are **Home · Plan · Uday · Grow · Protect**, a one-to-one map onto Cleo's five,
+with Uday (the avatar) in Cleo's centre chat slot. Home's route and file are still `spend`, and it
+has four panes: Overview, Budget, Debt and Credit. `Grow` and `Protect` have no Cleo equivalent
 and are designed in the same language. Build vertically, one flow at a time, front to back; each
 flow has a note in [`docs/slices/`](docs/slices/).
 
@@ -292,7 +293,7 @@ These are settled. Rationale and reversal costs are in
   and written to the record. See [`docs/product/autopilot.md`](docs/product/autopilot.md).
 - **Future Self is cut.** No photo age-progression, no first-person future voice.
 - **The avatar is male ("Uday").** UI copy must not say "she".
-- **Five tabs:** Spend · Plan · Uday · Grow · Protect, Cleo's five with Uday in the centre. The
+- **Five tabs:** Home · Plan · Uday · Grow · Protect, Cleo's five with Uday in the centre. The
   Uday tab takes the whole screen.
 - **The avatar is a moment, not a surface.** It handles the diagnosis, a trigger-event decision
   and the refusal; the daily loop is text and tap over the same engine.
