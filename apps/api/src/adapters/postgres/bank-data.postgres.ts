@@ -46,7 +46,6 @@ import {
   accountTypeForCasa,
   accountTypeForDeposit,
   heldOutsideIdbi,
-  holdingTypeForDeposit,
   kycLabel,
   loanTypeLabel,
   modeForChannel,
@@ -129,9 +128,18 @@ interface TransactionRow {
   balance_after: number | null
   is_salary_credit_bank: boolean | null
   is_recurring_bank: boolean | null
+  is_self_transfer: boolean
+  /** The account's masked number where the customer holds more than one ledger, else null. */
+  account_stamp: string | null
 }
 
-interface CasaRow {
+interface Placement {
+  institution_name: string | null
+  institution_ifsc_prefix: string | null
+  institution_is_home: boolean | null
+}
+
+interface CasaRow extends Placement {
   id: string
   account_number_masked: string
   account_type: string
@@ -139,9 +147,10 @@ interface CasaRow {
   opening_date: IsoDate | null
   interest_rate: number | null
   branch_ifsc: string | null
+  is_primary: boolean
 }
 
-interface DepositRow {
+interface DepositRow extends Placement {
   account_number_masked: string
   deposit_type: DepositType
   description: string | null
@@ -181,6 +190,28 @@ interface MfRow {
   cost_value: number | null
   current_value: number | null
   held_via: HeldVia
+  position: number | null
+}
+
+interface OtherHoldingRow {
+  position: number | null
+  holding_type: Holding['holdingType']
+  name: string
+  asset_class: Holding['assetClass']
+  invested_amount: number
+  current_value: number
+  sip_active: boolean
+  sip_amount: number | null
+  sip_debit_day: number | null
+  maturity_date: IsoDate | null
+  interest_rate: number | null
+  held_via: HeldVia
+  custodian: string | null
+  ticker: string | null
+  isin: string | null
+  units: number | null
+  avg_cost: number | null
+  purchased_on: IsoDate | null
 }
 
 interface PolicyRow {
@@ -191,6 +222,9 @@ interface PolicyRow {
   premium_frequency: string | null
   fund_value: number | null
   maturity_date: IsoDate | null
+  policy_start_date: IsoDate | null
+  sold_via: string
+  custodian: string | null
 }
 
 interface OpeningRow {
@@ -219,6 +253,7 @@ interface FileRow {
   loans: LoanRow[]
   sips: SipRow[]
   funds: MfRow[]
+  others: OtherHoldingRow[]
   policies: PolicyRow[]
 }
 
@@ -253,6 +288,9 @@ const FILE_SQL = `
   WITH cust AS (${CUSTOMER_SQL} AND c.cif = $1),
   win AS (
     SELECT cust.id AS customer_id,
+           -- More than one ledger means an aggregated statement, which names each line's account.
+           (SELECT count(*) FROM bank.accounts x
+            WHERE x.customer_id = cust.id AND x.product_kind = 'CASA') AS ledgers,
            date_trunc('month', coalesce(cust.ledger_anchor, cust.ledger_horizon, DATE '1970-01-01')
                                - make_interval(months => greatest(1, $2::int) - 1))::date AS from_date
     FROM cust
@@ -263,8 +301,10 @@ const FILE_SQL = `
        SELECT t.account_id, t.tran_id, t.tran_date, t.value_date, t.seq, t.amount, t.tran_type,
               t.channel_code, t.channel_raw, t.narration, t.spend_category_bank, t.balance_after,
               t.is_salary_credit_bank, t.is_recurring_bank, t.mcc, t.counterparty_vpa,
-              t.merchant_name_bank
-       FROM bank.transactions t, win
+              t.merchant_name_bank, t.is_self_transfer,
+              CASE WHEN win.ledgers > 1 THEN a.account_number_masked END AS account_stamp
+       FROM bank.transactions t
+       JOIN bank.accounts a ON a.id = t.account_id, win
        WHERE t.customer_id = win.customer_id AND t.tran_date >= win.from_date AND t.tran_date <= $3
          AND t.status = 'POSTED') x) AS transactions,
     (SELECT coalesce(json_agg(x), '[]'::json) FROM (
@@ -272,15 +312,18 @@ const FILE_SQL = `
        FROM bank.transactions t, win
        WHERE t.customer_id = win.customer_id AND t.status = 'POSTED'
        ORDER BY t.account_id, t.tran_date, t.seq, t.tran_id) x) AS openings,
-    (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
-       SELECT a.id, a.account_number_masked, a.created_at, a.account_ref,
+    (SELECT coalesce(json_agg(x ORDER BY x.display_order NULLS LAST, x.created_at, x.account_ref), '[]'::json) FROM (
+       SELECT a.id, a.account_number_masked, a.created_at, a.account_ref, a.display_order, a.is_primary,
+              a.institution_name, a.institution_ifsc_prefix, a.institution_is_home,
               s.account_type, s.account_type_raw, s.opening_date, s.interest_rate, s.branch_ifsc
        FROM bank.accounts a
        JOIN bank.account_snapshots_current s ON s.account_id = a.id, win
        WHERE a.customer_id = win.customer_id AND a.product_kind = 'CASA' AND s.status <> 'CLOSED'
          AND (s.opening_date IS NULL OR s.opening_date <= $3)) x) AS casa,
-    (SELECT coalesce(json_agg(x ORDER BY x.created_at, x.account_ref), '[]'::json) FROM (
-       SELECT a.account_number_masked, a.created_at, a.account_ref, td.deposit_type, td.description,
+    (SELECT coalesce(json_agg(x ORDER BY x.display_order NULLS LAST, x.created_at, x.account_ref), '[]'::json) FROM (
+       SELECT a.account_number_masked, a.created_at, a.account_ref, a.display_order,
+              a.institution_name, a.institution_ifsc_prefix, a.institution_is_home,
+              td.deposit_type, td.description,
               td.principal_amount, td.current_value, td.opening_date, td.maturity_date,
               td.interest_rate, td.branch_ifsc
        FROM bank.accounts a
@@ -300,26 +343,37 @@ const FILE_SQL = `
        FROM bank.sip_registrations_current s, win
        WHERE s.customer_id = win.customer_id AND s.status = 'ACTIVE'
          AND (s.start_date IS NULL OR s.start_date <= $3)) x) AS sips,
-    (SELECT coalesce(json_agg(x ORDER BY x.folio_no, x.scheme_name), '[]'::json) FROM (
-       SELECT m.folio_no, m.scheme_name, m.asset_class, m.cost_value, m.current_value, m.held_via
+    (SELECT coalesce(json_agg(x ORDER BY x.position NULLS LAST, x.folio_no, x.scheme_name), '[]'::json) FROM (
+       SELECT m.folio_no, m.scheme_name, m.asset_class, m.cost_value, m.current_value, m.held_via, m.position
        FROM bank.mf_holdings_current m, win
        WHERE m.customer_id = win.customer_id
          AND NOT EXISTS (SELECT 1 FROM bank.sip_registrations_current s
                          WHERE s.customer_id = m.customer_id AND s.status = 'ACTIVE'
                            AND (s.start_date IS NULL OR s.start_date <= $3)
                            AND s.scheme_name = m.scheme_name)) x) AS funds,
+    (SELECT coalesce(json_agg(x ORDER BY x.position NULLS LAST, x.holding_ref), '[]'::json) FROM (
+       SELECT o.holding_ref, o.position, o.holding_type, o.name, o.asset_class, o.invested_amount,
+              o.current_value, o.sip_active, o.sip_amount, o.sip_debit_day, o.maturity_date, o.interest_rate,
+              o.held_via, o.custodian, o.ticker, o.isin, o.units, o.avg_cost, o.purchased_on
+       FROM bank.other_holdings_current o, win
+       WHERE o.customer_id = win.customer_id) x) AS others,
     (SELECT coalesce(json_agg(x ORDER BY x.insurer, x.policy_number), '[]'::json) FROM (
        SELECT p.insurer, p.policy_number, p.plan_name, p.sum_assured, p.cover_amount, p.premium_amount,
-              p.premium_frequency, p.fund_value, p.maturity_date
+              p.premium_frequency, p.fund_value, p.maturity_date, p.policy_start_date, p.sold_via,
+              p.custodian
        FROM bank.insurance_policies_current p, win
        WHERE p.customer_id = win.customer_id AND p.status = 'IN_FORCE'
          AND (p.policy_start_date IS NULL OR p.policy_start_date <= $3)) x) AS policies`
 
 const TRANSACTIONS_SQL = `
+  WITH n AS (SELECT count(*) AS ledgers FROM bank.accounts
+             WHERE customer_id = $1 AND product_kind = 'CASA')
   SELECT t.account_id, t.tran_id, t.tran_date, t.value_date, t.amount, t.tran_type, t.channel_code,
          t.channel_raw, t.narration, t.spend_category_bank, t.balance_after, t.is_salary_credit_bank,
-         t.is_recurring_bank, t.mcc, t.counterparty_vpa, t.merchant_name_bank
+         t.is_recurring_bank, t.mcc, t.counterparty_vpa, t.merchant_name_bank, t.is_self_transfer,
+         CASE WHEN n.ledgers > 1 THEN a.account_number_masked END AS account_stamp
   FROM bank.transactions t
+  JOIN bank.accounts a ON a.id = t.account_id, n
   WHERE t.customer_id = $1 AND t.tran_date >= $2 AND t.tran_date <= $3 AND t.status = 'POSTED'
   ORDER BY t.tran_date, t.seq, t.tran_id`
 
@@ -388,6 +442,27 @@ function toTransaction(row: TransactionRow): Transaction {
     ...(row.mcc === null ? {} : { mccCode: row.mcc }),
     ...(row.merchant_name_bank === null ? {} : { merchantName: row.merchant_name_bank }),
     ...(row.counterparty_vpa === null ? {} : { counterpartyVpa: row.counterparty_vpa }),
+    // A single-bank statement never names its account; an aggregated one names it on every line.
+    ...(row.account_stamp === null ? {} : { accountNumberMasked: row.account_stamp }),
+    ...(row.is_self_transfer ? { isSelfTransfer: true } : {}),
+  }
+}
+
+/** Absent means IDBI, as it did on every row older than the columns. */
+function institutionOf(row: Placement): Pick<Account, 'institution'> {
+  if (
+    row.institution_name === null ||
+    row.institution_ifsc_prefix === null ||
+    row.institution_is_home === null
+  ) {
+    return {}
+  }
+  return {
+    institution: {
+      name: row.institution_name,
+      ifscPrefix: row.institution_ifsc_prefix,
+      isHome: row.institution_is_home,
+    },
   }
 }
 
@@ -400,19 +475,7 @@ function depositAccount(row: DepositRow): Account {
     ...(row.branch_ifsc === null ? {} : { branchIfsc: row.branch_ifsc }),
     ...(row.maturity_date === null ? {} : { maturityDate: row.maturity_date }),
     interestRate: row.interest_rate,
-  }
-}
-
-function depositHolding(row: DepositRow): Holding {
-  return {
-    holdingType: holdingTypeForDeposit(row.deposit_type),
-    name: row.description ?? `IDBI ${row.deposit_type === 'RD' ? 'Recurring' : 'Fixed'} Deposit`,
-    assetClass: 'Debt',
-    investedAmount: row.principal_amount,
-    currentValue: row.current_value ?? row.principal_amount,
-    sipActive: false,
-    ...(row.maturity_date === null ? {} : { maturityDate: row.maturity_date }),
-    interestRate: row.interest_rate,
+    ...institutionOf(row),
   }
 }
 
@@ -453,18 +516,53 @@ function mfHolding(row: MfRow): Holding {
   }
 }
 
+function otherHolding(row: OtherHoldingRow): Holding {
+  const outside = heldOutsideIdbi(row.held_via)
+  return {
+    holdingType: row.holding_type,
+    name: row.name,
+    assetClass: row.asset_class,
+    investedAmount: row.invested_amount,
+    currentValue: row.current_value,
+    sipActive: row.sip_active,
+    ...(row.sip_amount === null ? {} : { sipAmount: row.sip_amount }),
+    ...(row.sip_debit_day === null ? {} : { sipDebitDay: row.sip_debit_day }),
+    ...(row.maturity_date === null ? {} : { maturityDate: row.maturity_date }),
+    ...(row.interest_rate === null ? {} : { interestRate: row.interest_rate }),
+    ...(outside === undefined ? {} : { heldOutsideIdbi: outside }),
+    ...(row.custodian === null ? {} : { custodian: row.custodian }),
+    ...(row.ticker === null ? {} : { ticker: row.ticker }),
+    ...(row.isin === null ? {} : { isin: row.isin }),
+    ...(row.units === null ? {} : { units: row.units }),
+    ...(row.avg_cost === null ? {} : { avgCost: row.avg_cost }),
+    ...(row.purchased_on === null ? {} : { purchasedOn: row.purchased_on }),
+  }
+}
+
 function policyHolding(row: PolicyRow): Holding {
   const monthly = row.premium_frequency === 'MONTHLY' && row.premium_amount !== null
+  const annual = row.premium_frequency === 'ANNUAL' && row.premium_amount !== null
+  const soldOutside =
+    row.sold_via === 'OTHER' ? true : row.sold_via === 'IDBI_BANCASSURANCE' ? false : undefined
   return {
     holdingType: 'INSURANCE',
     name: row.plan_name,
     assetClass: 'Protection',
     // Cover in force is what the protection gap reads; a policy's "value" is what it pays out.
-    investedAmount: row.sum_assured ?? row.cover_amount ?? 0,
+    // Rows seeded before cover_amount was written kept the cover in sum_assured.
+    investedAmount: row.cover_amount ?? row.sum_assured ?? 0,
     currentValue: row.fund_value ?? 0,
     sipActive: monthly,
     ...(monthly ? { sipAmount: row.premium_amount as number } : {}),
     ...(row.maturity_date === null ? {} : { maturityDate: row.maturity_date }),
+    // The policy's own sum assured, only where it was stated beside the cover.
+    ...(row.cover_amount !== null && row.sum_assured !== null
+      ? { sumAssured: row.sum_assured }
+      : {}),
+    ...(annual ? { annualPremium: row.premium_amount as number } : {}),
+    ...(row.custodian === null ? {} : { custodian: row.custodian }),
+    ...(soldOutside === undefined ? {} : { heldOutsideIdbi: soldOutside }),
+    ...(row.policy_start_date === null ? {} : { purchasedOn: row.policy_start_date }),
   }
 }
 
@@ -508,11 +606,19 @@ function accountsOf(b: Blocks, asOf: IsoDate): Account[] {
   const out: Account[] = b.casa.map((row) => {
     const own = b.transactions.filter((t) => t.account_id === row.id).map(toTransaction)
     const opening = openingBalance.get(row.id)
+    // When the customer last moved money themselves: interest the bank credited does not count,
+    // or an account whose only movement in a year is four interest lines would read as in use.
+    // An as-of fact, so it is computed here rather than stored. Never said of the primary.
+    const byCustomer = own.filter((t) => t.spendCategory !== 'Income' || t.isSalaryCredit)
+    const last = byCustomer[byCustomer.length - 1]
     return {
       accountNumberMasked: row.account_number_masked,
       accountType: accountTypeForCasa(row.account_type, row.account_type_raw),
       accountOpeningDate: row.opening_date ?? b.customer.customer_since ?? '',
       ...(row.branch_ifsc === null ? {} : { branchIfsc: row.branch_ifsc }),
+      ...(row.interest_rate === null ? {} : { interestRate: row.interest_rate }),
+      ...institutionOf(row),
+      ...(row.is_primary || last === undefined ? {} : { lastCustomerActivity: last.txnDate }),
       ...accountFactsAsOf(own, asOf, opening === undefined ? {} : { openingBalance: opening }),
     }
   })
@@ -529,16 +635,25 @@ function liabilitiesOf(b: Blocks, asOf: IsoDate): Liability[] {
   )
 }
 
+/** Rows written before positions existed sort after every placed one, in the order read. */
+const UNPLACED = Number.MAX_SAFE_INTEGER
+
 function holdingsOf(
   b: Blocks,
   asOf: IsoDate,
   historyMonths: number,
 ): { holdings: Holding[]; policies: Holding[] } {
+  // Fund folios and every other holding share one position, so they merge back into the order
+  // they were given in. A deposit is not repeated here: it is already an account, and counting
+  // it as a holding too puts it in every net-worth figure twice (contracts/routes/holdings.ts).
+  const positioned = [
+    ...b.funds.map((row) => ({ position: row.position, holding: mfHolding(row) })),
+    ...b.others.map((row) => ({ position: row.position, holding: otherHolding(row) })),
+  ].sort((x, y) => (x.position ?? UNPLACED) - (y.position ?? UNPLACED))
   return {
     holdings: [
       ...b.sips.map((row) => sipHoldingAsOf(sipContract(row), row.as_of_date, asOf, historyMonths)),
-      ...b.funds.map(mfHolding),
-      ...b.deposits.map(depositHolding),
+      ...positioned.map((p) => p.holding),
     ],
     policies: b.policies.map(policyHolding),
   }

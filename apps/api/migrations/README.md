@@ -24,6 +24,7 @@ demo-critical subset of that DDL, adapted to the reviewer-session model in
 | `0010_session_spend_limit.sql` | additive: `sessions.spend_limit` — the customer's own monthly ceiling on discretionary spending. Null means none |
 | `0011_session_save_and_challenges.sql` | additive: `sessions.save_state` (the savings pot as one jsonb document, default `'{}'`) and `sessions.challenge` (the one running spend challenge, or null) |
 | `0012_session_goal_kind.sql` | additive: `sessions.goal_kind` — the goal kind the customer chose, checked against the five. Null means never chosen and the engine's ladder picks, so rows older than the column keep the plan they had |
+| `0013_aggregated_accounts_and_holdings.sql` | additive: `accounts` gains the institution, `is_primary` and `display_order`, so accounts at other banks keep their bank and their own ledger; `transactions.is_self_transfer`; `mf_holdings.position` and `insurance_policies.custodian`; the `other_holdings` table and view for EPF, NPS, PPF and listed shares. Null means IDBI, not a self-transfer, or unplaced |
 
 ## Decisions worth knowing before you add a migration
 

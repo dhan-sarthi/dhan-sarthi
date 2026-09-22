@@ -24,7 +24,7 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { accountFactsAsOf, addMonths, derive, liabilityAsOf, ruleBook } from '@dhan/core'
-import type { Holding, Transaction } from '@dhan/core'
+import type { Holding, Institution, Transaction } from '@dhan/core'
 import { PERSONAS, generateCustomerFile } from '@dhan/fixtures'
 import type { SeedAccountRow, SeedBundle } from '@dhan/fixtures'
 import type pg from 'pg'
@@ -57,7 +57,8 @@ import { buildSeedPlan } from '../db/seed-bundle.ts'
 import type { SeedOptions, SeedPersona, SeedPlan } from '../db/seed-bundle.ts'
 
 const ENDPOINT = 'fixtures/customer-file'
-const PROJECTOR = { name: 'projectFixturesCustomerFile', version: '1' }
+// 2: statement lines go to the account that carried them, and every holding is projected.
+const PROJECTOR = { name: 'projectFixturesCustomerFile', version: '2' }
 
 export interface SeedReport {
   skipped: boolean
@@ -71,6 +72,8 @@ export interface CheckReport {
   ok: boolean
   expectedSha256: string | null
   actualSha256: string
+  /** False when the rows were written by an older projector: same content, stale shape. */
+  projectorCurrent: boolean
   recordedRowCounts: Record<string, number>
   liveRowCounts: Record<string, number>
 }
@@ -313,6 +316,14 @@ async function projectProfile(db: Db, ctx: RunContext, b: SeedBundle): Promise<v
   count(ctx, 'bank.customer_profiles', 1)
 }
 
+interface AccountPlacement {
+  /** Null means IDBI, which is what an account row meant before a customer could bank elsewhere. */
+  institution?: Institution
+  isPrimary?: boolean
+  /** Position in the bundle's accounts list, which is the order the customer file lists them in. */
+  displayOrder?: number
+}
+
 async function upsertAccount(
   db: Db,
   ctx: RunContext,
@@ -320,14 +331,34 @@ async function upsertAccount(
   masked: string,
   productKind: string,
   schemeType: string,
+  placement: AccountPlacement = {},
 ): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO bank.accounts
-       (customer_id, account_ref, account_number_masked, product_kind, scheme_type, source, first_seen_run_id, last_seen_run_id)
-     VALUES ($1, $2, $3, $4, $5, 'fixtures', $6, $6)
-     ON CONFLICT (customer_id, account_ref) DO UPDATE SET last_seen_run_id = EXCLUDED.last_seen_run_id
+       (customer_id, account_ref, account_number_masked, product_kind, scheme_type, source, first_seen_run_id,
+        last_seen_run_id, institution_name, institution_ifsc_prefix, institution_is_home, is_primary, display_order)
+     VALUES ($1, $2, $3, $4, $5, 'fixtures', $6, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (customer_id, account_ref) DO UPDATE SET
+       last_seen_run_id = EXCLUDED.last_seen_run_id,
+       institution_name = EXCLUDED.institution_name,
+       institution_ifsc_prefix = EXCLUDED.institution_ifsc_prefix,
+       institution_is_home = EXCLUDED.institution_is_home,
+       is_primary = EXCLUDED.is_primary,
+       display_order = EXCLUDED.display_order
      RETURNING id`,
-    [ctx.customerId, ref, masked, productKind, schemeType, ctx.syncRunId],
+    [
+      ctx.customerId,
+      ref,
+      masked,
+      productKind,
+      schemeType,
+      ctx.syncRunId,
+      placement.institution?.name ?? null,
+      placement.institution?.ifscPrefix ?? null,
+      placement.institution?.isHome ?? null,
+      placement.isPrimary ?? false,
+      placement.displayOrder ?? null,
+    ],
   )
   count(ctx, 'bank.accounts', 1)
   return rows[0]?.id as string
@@ -344,6 +375,8 @@ async function projectCasa(
   ctx: RunContext,
   b: SeedBundle,
   account: SeedAccountRow,
+  displayOrder: number,
+  own: readonly Transaction[],
 ): Promise<string> {
   const kind = casaType(account.accountType)
   const accountId = await upsertAccount(
@@ -353,10 +386,16 @@ async function projectCasa(
     account.accountNumberMasked,
     'CASA',
     kind === 'CURRENT' ? 'CAA' : 'SBA',
+    {
+      ...(account.institution === undefined ? {} : { institution: account.institution }),
+      isPrimary: account.isPrimary,
+      displayOrder,
+    },
   )
-  // What API 394 would have reported on the run's as-of date, from the ledger.
+  // What API 394 (or the aggregator's DEPOSIT summary) would have reported on the run's as-of
+  // date, from this account's own ledger. Four accounts have four running balances, not one.
   const facts = accountFactsAsOf(
-    b.transactions.filter((t) => t.txnDate <= b.horizon.anchor),
+    own.filter((t) => t.txnDate <= b.horizon.anchor),
     b.horizon.anchor,
     account.openingBalance === undefined ? {} : { openingBalance: account.openingBalance },
   )
@@ -364,8 +403,8 @@ async function projectCasa(
     `INSERT INTO bank.account_snapshots
        (account_id, sync_run_id, source, as_of, raw_payload_id, account_type, account_type_raw, is_salary_account,
         mode_of_operation, status, opening_date, current_balance, avg_monthly_balance_3m, avg_monthly_balance_12m,
-        min_balance_12m, balance_as_of, branch_ifsc)
-     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, 'SINGLE', 'ACTIVE', $8, $9, $10, $11, $12, $3::timestamptz, $13)
+        min_balance_12m, balance_as_of, branch_ifsc, interest_rate)
+     VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, 'SINGLE', 'ACTIVE', $8, $9, $10, $11, $12, $3::timestamptz, $13, $14)
      ON CONFLICT (account_id, sync_run_id) DO NOTHING`,
     [
       accountId,
@@ -381,6 +420,7 @@ async function projectCasa(
       facts.avgMonthlyBalance12m,
       facts.minBalance12m,
       account.branchIfsc ?? null,
+      account.interestRate ?? null,
     ],
   )
   count(ctx, 'bank.account_snapshots', 1)
@@ -393,26 +433,28 @@ async function projectTransactions(
   accountId: string,
   accountRef: string,
   txns: readonly Transaction[],
+  /** Each line's position in the customer's whole ledger, so interleaved accounts read back in order. */
+  order: readonly number[],
 ): Promise<void> {
   const BATCH = 1_000
   for (let start = 0; start < txns.length; start += BATCH) {
     const batch = txns.slice(start, start + BATCH)
-    const seqs = batch.map((_, i) => start + i)
+    const seqs = order.slice(start, start + BATCH)
     await db.query(
       `INSERT INTO bank.transactions
          (account_id, customer_id, source, first_seen_run_id, raw_payload_id, tran_id, dedupe_hash, seq,
           tran_date, value_date, tran_type, amount, balance_after, channel_code, channel_raw, narration,
           spend_category_bank, is_salary_credit_bank, is_recurring_bank, mcc, counterparty_vpa,
-          merchant_name_bank)
+          merchant_name_bank, is_self_transfer)
        SELECT $1, $2, 'fixtures', $3, $4, t.tran_id, t.dedupe_hash, t.seq, t.tran_date, t.value_date, t.tran_type,
               t.amount, t.balance_after, t.channel_code, t.channel_raw, t.narration, t.spend_category,
-              t.is_salary, t.is_recurring, t.mcc, t.vpa, t.merchant_name
+              t.is_salary, t.is_recurring, t.mcc, t.vpa, t.merchant_name, t.is_self_transfer
        FROM unnest($5::text[], $6::text[], $7::int[], $8::date[], $9::text[], $10::numeric[], $11::numeric[],
                    $12::text[], $13::text[], $14::text[], $15::text[], $16::boolean[], $17::boolean[],
-                   $18::date[], $19::text[], $20::text[], $21::text[])
+                   $18::date[], $19::text[], $20::text[], $21::text[], $22::boolean[])
             AS t(tran_id, dedupe_hash, seq, tran_date, tran_type, amount, balance_after, channel_code,
                  channel_raw, narration, spend_category, is_salary, is_recurring, value_date, mcc, vpa,
-                 merchant_name)
+                 merchant_name, is_self_transfer)
        ON CONFLICT (account_id, tran_id, part_tran_srl_num) DO NOTHING`,
       [
         accountId,
@@ -452,6 +494,7 @@ async function projectTransactions(
         ),
         batch.map((t) => t.counterpartyVpa ?? null),
         batch.map((t) => t.merchantName ?? null),
+        batch.map((t) => t.isSelfTransfer === true),
       ],
     )
   }
@@ -463,6 +506,7 @@ async function projectDeposit(
   ctx: RunContext,
   b: SeedBundle,
   account: SeedAccountRow,
+  displayOrder: number,
 ): Promise<void> {
   const type = depositType(account.accountType)
   const balance = account.currentBalance ?? 0
@@ -480,6 +524,10 @@ async function projectDeposit(
     account.accountNumberMasked,
     type === 'RD' ? 'RECURRING_DEPOSIT' : 'TERM_DEPOSIT',
     'TDA',
+    {
+      ...(account.institution === undefined ? {} : { institution: account.institution }),
+      displayOrder,
+    },
   )
   await db.query(
     `INSERT INTO bank.term_deposit_snapshots
@@ -578,38 +626,100 @@ async function projectSips(db: Db, ctx: RunContext, b: SeedBundle): Promise<Set<
   return names
 }
 
-async function projectFunds(
+/** The fields a bank.mf_holdings row carries back. A fund with anything more goes to other_holdings. */
+const FUND_MIRROR_FIELDS: ReadonlySet<string> = new Set([
+  'holdingType',
+  'name',
+  'assetClass',
+  'investedAmount',
+  'currentValue',
+  'sipActive',
+  'heldOutsideIdbi',
+])
+
+/**
+ * A plain folio: what the fund mirror can hold without losing a field. A SIP's own scheme is not
+ * one — the loader rolls it from the registration and would hide a folio of the same name.
+ */
+const fitsFundMirror = (h: Holding, sipNames: ReadonlySet<string>): boolean =>
+  h.holdingType === 'MUTUAL_FUND' &&
+  h.assetClass !== 'Protection' &&
+  !h.sipActive &&
+  !sipNames.has(h.name) &&
+  Object.keys(h).every((k) => FUND_MIRROR_FIELDS.has(k))
+
+/**
+ * Every holding that is not a SIP, each where its kind lives: a plain fund folio in the fund
+ * mirror, and EPF, NPS, PPF, shares and anything else in bank.other_holdings. The position is the
+ * bundle's, shared across both tables, so the loader reads them back in the order they were given.
+ */
+async function projectHoldings(
   db: Db,
   ctx: RunContext,
   holdings: readonly Holding[],
   sipNames: ReadonlySet<string>,
 ): Promise<void> {
-  const funds = holdings.filter(
-    (h) =>
-      h.holdingType === 'MUTUAL_FUND' && !sipNames.has(h.name) && h.assetClass !== 'Protection',
-  )
-  for (const [i, h] of funds.entries()) {
+  for (const [i, h] of holdings.entries()) {
+    if (fitsFundMirror(h, sipNames)) {
+      await db.query(
+        `INSERT INTO bank.mf_holdings
+           (customer_id, sync_run_id, source, as_of, raw_payload_id, folio_no, amc, scheme_name, asset_class, units,
+            cost_value, current_value, held_via, position)
+         VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12)
+         ON CONFLICT DO NOTHING`,
+        [
+          ctx.customerId,
+          ctx.syncRunId,
+          ctx.asOf,
+          ctx.rawPayloadId,
+          `fx:${ctx.slug}:mf:${pad2(i)}`,
+          h.name.split(' ')[0] ?? 'Unknown',
+          h.name,
+          h.assetClass,
+          h.investedAmount,
+          h.currentValue,
+          heldVia(h.heldOutsideIdbi),
+          i,
+        ],
+      )
+      count(ctx, 'bank.mf_holdings', 1)
+      continue
+    }
     await db.query(
-      `INSERT INTO bank.mf_holdings
-         (customer_id, sync_run_id, source, as_of, raw_payload_id, folio_no, amc, scheme_name, asset_class, units,
-          cost_value, current_value, held_via)
-       VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, 0, $9, $10, $11)
-       ON CONFLICT DO NOTHING`,
+      `INSERT INTO bank.other_holdings
+         (customer_id, sync_run_id, source, as_of, raw_payload_id, holding_ref, position, holding_type, name,
+          asset_class, invested_amount, current_value, sip_active, sip_amount, sip_debit_day, maturity_date,
+          interest_rate, held_via, custodian, ticker, isin, units, avg_cost, purchased_on)
+       VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+               $18, $19, $20, $21, $22, $23)
+       ON CONFLICT (customer_id, holding_ref, sync_run_id) DO NOTHING`,
       [
         ctx.customerId,
         ctx.syncRunId,
         ctx.asOf,
         ctx.rawPayloadId,
-        `fx:${ctx.slug}:mf:${pad2(i)}`,
-        h.name.split(' ')[0] ?? 'Unknown',
+        `fx:${ctx.slug}:hold:${pad2(i)}`,
+        i,
+        h.holdingType,
         h.name,
         h.assetClass,
         h.investedAmount,
         h.currentValue,
+        h.sipActive,
+        h.sipAmount ?? null,
+        h.sipDebitDay ?? null,
+        h.maturityDate ?? null,
+        h.interestRate ?? null,
         heldVia(h.heldOutsideIdbi),
+        h.custodian ?? null,
+        h.ticker ?? null,
+        h.isin ?? null,
+        h.units ?? null,
+        h.avgCost ?? null,
+        h.purchasedOn ?? null,
       ],
     )
-    count(ctx, 'bank.mf_holdings', 1)
+    count(ctx, 'bank.other_holdings', 1)
   }
 }
 
@@ -623,8 +733,10 @@ async function projectPolicies(
     await db.query(
       `INSERT INTO bank.insurance_policies
          (customer_id, sync_run_id, source, as_of, raw_payload_id, policy_number, insurer, plan_name, policy_type,
-          cover_type, sum_assured, premium_amount, premium_frequency, maturity_date, status, sold_via)
-       VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'IN_FORCE', $14)
+          cover_type, cover_amount, sum_assured, premium_amount, premium_frequency, fund_value, policy_start_date,
+          maturity_date, status, sold_via, custodian)
+       VALUES ($1, $2, 'fixtures', $3::timestamptz, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+               'IN_FORCE', $17, $18)
        ON CONFLICT (customer_id, insurer, policy_number, sync_run_id) DO NOTHING`,
       [
         ctx.customerId,
@@ -632,19 +744,25 @@ async function projectPolicies(
         ctx.asOf,
         ctx.rawPayloadId,
         `fx:${ctx.slug}:pol:${pad2(i)}`,
-        p.name.split(' ')[0] ?? 'Unknown',
+        p.custodian ?? p.name.split(' ')[0] ?? 'Unknown',
         p.name,
         type,
         coverTypeForPolicy(type),
+        // The cover the engine reads. A policy's own sum assured is kept beside it when stated:
+        // on a ULIP the two differ, and the figure paid in is not the figure it pays out.
         p.investedAmount,
-        p.sipAmount ?? null,
+        p.sumAssured ?? null,
+        p.sipActive ? (p.sipAmount ?? null) : (p.annualPremium ?? null),
         p.sipActive ? 'MONTHLY' : 'ANNUAL',
+        p.currentValue,
+        p.purchasedOn ?? null,
         p.maturityDate ?? null,
         p.heldOutsideIdbi === false
           ? 'IDBI_BANCASSURANCE'
           : p.heldOutsideIdbi
             ? 'OTHER'
             : 'UNKNOWN',
+        p.custodian ?? null,
       ],
     )
     count(ctx, 'bank.insurance_policies', 1)
@@ -672,21 +790,43 @@ async function projectPersona(
 
   await projectProfile(db, ctx, b)
 
-  const casa = b.accounts.filter((a) => a.accountType === 'Savings' || a.accountType === 'Current')
-  const deposits = b.accounts.filter((a) => a.accountType === 'FD' || a.accountType === 'RD')
+  const isCasa = (a: SeedAccountRow): boolean =>
+    a.accountType === 'Savings' || a.accountType === 'Current'
+  const isDeposit = (a: SeedAccountRow): boolean => a.accountType === 'FD' || a.accountType === 'RD'
 
-  // Every statement line belongs to the primary operative account.
-  let statement: { id: string; ref: string } | null = null
-  for (const account of casa) {
-    const id = await projectCasa(db, ctx, b, account)
-    if (account.isPrimary || statement === null) statement = { id, ref: casaRef(b.slug, account) }
+  // An unstamped line is the primary account's, which is what a single-bank statement means. A
+  // customer with accounts elsewhere has every line stamped with the account that carried it.
+  const primary = b.accounts.find((a) => a.isPrimary && isCasa(a)) ?? b.accounts.find(isCasa)
+  if (!primary) throw new Error(`${b.slug}: no operative account to attach the statement to`)
+  const byAccount = new Map<string, { txns: Transaction[]; order: number[] }>()
+  for (const [seq, t] of b.transactions.entries()) {
+    const masked = t.accountNumberMasked ?? primary.accountNumberMasked
+    const lines = byAccount.get(masked) ?? { txns: [], order: [] }
+    lines.txns.push(t)
+    lines.order.push(seq)
+    byAccount.set(masked, lines)
   }
-  if (!statement) throw new Error(`${b.slug}: no operative account to attach the statement to`)
-  await projectTransactions(db, ctx, statement.id, statement.ref, b.transactions)
-  for (const account of deposits) await projectDeposit(db, ctx, b, account)
+
+  for (const [displayOrder, account] of b.accounts.entries()) {
+    if (isCasa(account)) {
+      const lines = byAccount.get(account.accountNumberMasked) ?? { txns: [], order: [] }
+      byAccount.delete(account.accountNumberMasked)
+      const id = await projectCasa(db, ctx, b, account, displayOrder, lines.txns)
+      await projectTransactions(db, ctx, id, casaRef(b.slug, account), lines.txns, lines.order)
+    } else if (isDeposit(account)) {
+      await projectDeposit(db, ctx, b, account, displayOrder)
+    }
+  }
+  // A line stamped with an account the bundle does not hold would vanish from every balance.
+  const orphans = [...byAccount.keys()]
+  if (orphans.length > 0) {
+    throw new Error(
+      `${b.slug}: statement lines for accounts not in the bundle: ${orphans.join(', ')}`,
+    )
+  }
   await projectLoans(db, ctx, b)
   const sipNames = await projectSips(db, ctx, b)
-  await projectFunds(db, ctx, b.holdings, sipNames)
+  await projectHoldings(db, ctx, b.holdings, sipNames)
   await projectPolicies(db, ctx, b.policies)
 
   const rows = Object.values(ctx.counts).reduce((s, n) => s + n, 0)
@@ -795,6 +935,7 @@ const TABLES = [
   'bank.loan_snapshots',
   'bank.sip_registrations',
   'bank.mf_holdings',
+  'bank.other_holdings',
   'bank.insurance_policies',
   'ref.products',
 ] as const
@@ -825,6 +966,7 @@ const WIPE: readonly string[] = [
   `DELETE FROM bank.transactions WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
   `DELETE FROM bank.mandates WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
   `DELETE FROM bank.mf_holdings WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
+  `DELETE FROM bank.other_holdings WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
   `DELETE FROM bank.insurance_policies WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
   `DELETE FROM bank.customer_profiles WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
   `DELETE FROM bank.accounts WHERE customer_id IN (${FIXTURE_CUSTOMERS})`,
@@ -843,6 +985,25 @@ export async function liveRowCounts(db: Db): Promise<Record<string, number>> {
     out[table] = rows[0]?.n ?? 0
   }
   return out
+}
+
+/**
+ * Whether every fixture payload was projected by this projector version. The content hash alone
+ * cannot say: the bundles stay the same when only the projection changes, and a database the old
+ * projector wrote would then be called up to date and fail parity on every run after.
+ */
+async function projectedByCurrentProjector(db: Db): Promise<boolean> {
+  const { rows } = await db.query<{ current: boolean }>(
+    `SELECT NOT EXISTS (
+       SELECT 1 FROM staging.raw_payloads r
+       WHERE r.customer_id IN (${FIXTURE_CUSTOMERS})
+         AND NOT EXISTS (SELECT 1 FROM staging.projections p
+                         WHERE p.raw_payload_id = r.id AND p.projector = $1
+                           AND p.projector_version = $2 AND p.status = 'projected')
+     ) AS current`,
+    [PROJECTOR.name, PROJECTOR.version],
+  )
+  return rows[0]?.current ?? false
 }
 
 async function liveSessions(db: Db): Promise<number> {
@@ -901,10 +1062,11 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
 
   const plan = buildSeedPlan(opts)
   const versions = seedVersions(opts.gitSha)
-  const [last, sessions, before] = await Promise.all([
+  const [last, sessions, before, projectorCurrent] = await Promise.all([
     latestSeedRun(pool),
     liveSessions(pool),
     liveRowCounts(pool),
+    projectedByCurrentProjector(pool),
   ])
   const seeded = (before['app.customers'] ?? 0) > 0
 
@@ -912,6 +1074,7 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
     seeded &&
     !opts.force &&
     last?.contentSha256 === plan.contentSha256 &&
+    projectorCurrent &&
     (before['bank.transactions'] ?? 0) > 0
   ) {
     log(`already seeded: content ${plan.contentSha256.slice(0, 12)} matches run ${last.seedRunId}`)
@@ -990,10 +1153,12 @@ export async function checkSeed(pool: pg.Pool, opts: SeedOptions): Promise<Check
   const countsOk = Object.entries(recorded)
     .filter(([table]) => table in live)
     .every(([table, n]) => live[table] === n)
+  const projectorCurrent = await projectedByCurrentProjector(pool)
   return {
-    ok: last !== null && last.contentSha256 === plan.contentSha256 && countsOk,
+    ok: last !== null && last.contentSha256 === plan.contentSha256 && countsOk && projectorCurrent,
     expectedSha256: last?.contentSha256 ?? null,
     actualSha256: plan.contentSha256,
+    projectorCurrent,
     recordedRowCounts: recorded,
     liveRowCounts: live,
   }
@@ -1047,6 +1212,11 @@ async function main(): Promise<void> {
       out(`seed check: ${report.ok ? 'OK' : 'DRIFT'}`)
       out(`  recorded    ${report.expectedSha256 ?? '(no seed run)'}`)
       out(`  regenerated ${report.actualSha256}`)
+      if (!report.projectorCurrent) {
+        out(
+          `  projector   rows predate ${PROJECTOR.name} v${PROJECTOR.version}; reseed to reproject`,
+        )
+      }
       for (const [table, n] of Object.entries(report.liveRowCounts)) {
         const recorded = report.recordedRowCounts[table]
         const note = recorded !== undefined && recorded !== n ? `  (recorded ${recorded})` : ''

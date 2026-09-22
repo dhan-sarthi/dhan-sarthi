@@ -152,7 +152,10 @@ describe(
       const info = new PostgresSeedInfo(pool, options)
       const provenance = await info.provenance()
       assert.ok(provenance)
-      assert.deepEqual(provenance.personas, ['rohan', 'priya', 'sunil'])
+      assert.deepEqual(
+        provenance.personas,
+        PERSONAS.map((p) => p.slug),
+      )
       assert.equal(provenance.anchor, options.anchor)
       const drift = await info.drift()
       assert.deepEqual(drift, {
@@ -189,6 +192,36 @@ describe(
         options.anchor,
       )
       assert.deepEqual(snapshot, expected)
+    })
+
+    it("keeps Karan's other banks, the sweeps between them, and his EPF, NPS, PPF and shares", async () => {
+      // All of it was once lost on this path alone: every line filed under his IDBI account, the
+      // sweeps between his own accounts counted as spending, twelve of sixteen holdings dropped.
+      // The contract suite below catches any drift; this names the drift it was.
+      const karan = PERSONAS.find((p) => p.slug === 'karan')
+      assert.ok(karan)
+      const bank = await PostgresBankData.connect(pool)
+      const { file } = await bank.loadCustomerFile(
+        karan.customer.cif,
+        options.anchor,
+        HISTORY_WINDOW_MONTHS,
+      )
+      assert.deepEqual(
+        file.accounts.map((a) => a.institution?.ifscPrefix),
+        ['IBKL', 'HDFC', 'ICIC', 'KKBK'],
+      )
+      assert.ok(file.transactions.every((t) => t.accountNumberMasked !== undefined))
+      assert.ok(file.transactions.some((t) => t.isSelfTransfer === true))
+      const kinds = new Set(file.holdings.map((h) => h.holdingType))
+      for (const kind of ['EPF', 'NPS', 'PPF', 'EQUITY'] as const) assert.ok(kinds.has(kind), kind)
+
+      // Rohan's Suvidha FD is an account, and only an account: a holding as well counts it twice.
+      const rohan = await bank.loadCustomerFile(ROHAN_CIF, options.anchor, HISTORY_WINDOW_MONTHS)
+      assert.ok(rohan.file.accounts.some((a) => a.accountType === 'FD'))
+      assert.equal(
+        rohan.file.holdings.some((h) => h.holdingType === 'FD'),
+        false,
+      )
     })
 
     // The same suite the memory adapter passes: every persona at six clock positions.
@@ -768,7 +801,8 @@ describe(
         )
         assert.deepEqual(Object.fromEntries(tables.rows.map((r) => [r.table_schema, r.n])), {
           app: 16,
-          bank: 12,
+          // 0013 added bank.other_holdings.
+          bank: 13,
           ref: 7,
           staging: 6,
         })
