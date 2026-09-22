@@ -95,12 +95,15 @@ async function render(label, file, subject, palette, apiKey) {
     process.stdout.write(`  ${label.padEnd(18)} ok  ${saved} at ${SIZE}px\n`)
     return true
   } catch (err) {
-    process.stdout.write(`  ${label.padEnd(18)} FAILED  ${err instanceof Error ? err.message : String(err)}\n`)
+    process.stdout.write(
+      `  ${label.padEnd(18)} FAILED  ${err instanceof Error ? err.message : String(err)}\n`,
+    )
     return false
   }
 }
 
 /** Draw a list of `{ label, file, subject, palette }`, a few at a time. Returns how many landed. */
-const drawAll = (jobs, apiKey) => runAll(jobs, (j) => render(j.label, j.file, j.subject, j.palette, apiKey))
+const drawAll = (jobs, apiKey) =>
+  runAll(jobs, (j) => render(j.label, j.file, j.subject, j.palette, apiKey))
 
 export { STYLE, key, draw, render, drawAll }

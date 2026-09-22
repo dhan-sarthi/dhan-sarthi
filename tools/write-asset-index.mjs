@@ -15,9 +15,16 @@ const SRC = join(ROOT, 'packages/assets/src/index.ts')
 const LOGOS = join(ROOT, 'packages/assets/logos')
 const MERCHANT = join(ROOT, 'packages/assets/icons/merchant')
 
-const pngs = (dir) => readdirSync(dir).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)).sort()
+const pngs = (dir) =>
+  readdirSync(dir)
+    .filter((f) => f.endsWith('.png'))
+    .map((f) => f.slice(0, -4))
+    .sort()
 const ident = (slug, prefix = '') => {
-  const camel = slug.split('-').map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join('')
+  const camel = slug
+    .split('-')
+    .map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1)))
+    .join('')
   return prefix ? prefix + camel[0].toUpperCase() + camel.slice(1) : camel
 }
 
@@ -91,7 +98,9 @@ let src = readFileSync(SRC, 'utf8')
 // Drop every previously generated import and block, then re-add.
 src = src
   .split('\n')
-  .filter((l) => !(l.startsWith('import ') && (l.includes("/logos/") || l.includes("/icons/merchant/"))))
+  .filter(
+    (l) => !(l.startsWith('import ') && (l.includes('/logos/') || l.includes('/icons/merchant/'))),
+  )
   .join('\n')
 
 if (src.includes(BEGIN)) {

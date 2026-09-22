@@ -93,8 +93,7 @@ async function getGrant(log: (s: string) => void): Promise<Grant> {
   const customers = await json(await fetch(`${API_BASE}/api/v1/customers`), 'customers')
   if (!Array.isArray(customers) || customers.length === 0) throw new Error('no customers returned')
 
-  const picked =
-    customers.find((c: { cif?: string }) => c.cif === PREFERRED_CIF) ?? customers[0]
+  const picked = customers.find((c: { cif?: string }) => c.cif === PREFERRED_CIF) ?? customers[0]
   log(`picked ${picked.custName ?? picked.cif}`)
 
   log('POST /api/v1/sessions')
@@ -320,7 +319,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   ctaText: { color: T.onAccent, fontSize: 16, fontWeight: '600' },
-  api: { fontSize: 12, color: '#929292', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  api: {
+    fontSize: 12,
+    color: '#929292',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
   logBox: { flex: 1, backgroundColor: '#f4f4f4', borderRadius: 14 },
   logLine: {
     fontSize: 12,
@@ -348,7 +351,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   waitingText: { color: 'rgba(255,255,255,0.72)', fontSize: 13 },
-  live: { position: 'absolute', top: 58, left: 20, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  live: {
+    position: 'absolute',
+    top: 58,
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
   liveDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: '#6fdcb8' },
   liveText: { color: 'rgba(255,255,255,0.72)', fontSize: 11, letterSpacing: 1 },
 

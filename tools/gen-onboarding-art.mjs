@@ -111,16 +111,24 @@ const QUALITY = 86
 async function shoot(slug, subject, apiKey) {
   const file = join(OUT, `${slug}.jpg`)
   try {
-    const raw = await image(`${subject} ${STYLE}`, { size: '1024x1536', background: 'opaque' }, apiKey)
+    const raw = await image(
+      `${subject} ${STYLE}`,
+      { size: '1024x1536', background: 'opaque' },
+      apiKey,
+    )
     const out = await sharp(raw)
       .resize(WIDTH, HEIGHT, { fit: 'cover' })
       .jpeg({ quality: QUALITY, mozjpeg: true })
       .toBuffer()
     writeFileSync(file, out)
-    process.stdout.write(`  ${slug.padEnd(12)} ok  ${(out.length / 1024).toFixed(0)}KB at ${WIDTH}x${HEIGHT}\n`)
+    process.stdout.write(
+      `  ${slug.padEnd(12)} ok  ${(out.length / 1024).toFixed(0)}KB at ${WIDTH}x${HEIGHT}\n`,
+    )
     return true
   } catch (err) {
-    process.stdout.write(`  ${slug.padEnd(12)} FAILED  ${err instanceof Error ? err.message : String(err)}\n`)
+    process.stdout.write(
+      `  ${slug.padEnd(12)} FAILED  ${err instanceof Error ? err.message : String(err)}\n`,
+    )
     return false
   }
 }

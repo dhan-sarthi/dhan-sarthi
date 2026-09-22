@@ -25,20 +25,25 @@ const MODEL = process.env['MODEL'] ?? 'gpt-image-2.5-sunburst'
  */
 async function key() {
   const candidates = []
-  if (process.env['OPENAI_API_KEY']) candidates.push(['OPENAI_API_KEY', process.env['OPENAI_API_KEY']])
+  if (process.env['OPENAI_API_KEY'])
+    candidates.push(['OPENAI_API_KEY', process.env['OPENAI_API_KEY']])
   for (const f of ['.env.local', '.env']) {
     const p = join(ROOT, f)
     if (!existsSync(p)) continue
     const m = readFileSync(p, 'utf8').match(/^OPENAI_API_KEY\s*=\s*["']?([^"'\r\n]+)/m)
     if (m?.[1]) candidates.push([f, m[1].trim()])
   }
-  if (candidates.length === 0) throw new Error('no OPENAI_API_KEY in the environment, .env.local or .env')
+  if (candidates.length === 0)
+    throw new Error('no OPENAI_API_KEY in the environment, .env.local or .env')
 
   const rejected = []
   for (const [where, k] of candidates) {
-    const res = await fetch('https://api.openai.com/v1/models', { headers: { authorization: `Bearer ${k}` } })
+    const res = await fetch('https://api.openai.com/v1/models', {
+      headers: { authorization: `Bearer ${k}` },
+    })
     if (res.ok) {
-      if (rejected.length > 0) process.stdout.write(`  (ignored a rejected key in ${rejected.join(', ')})\n`)
+      if (rejected.length > 0)
+        process.stdout.write(`  (ignored a rejected key in ${rejected.join(', ')})\n`)
       process.stdout.write(`  using the key from ${where}\n\n`)
       return k
     }
@@ -62,7 +67,11 @@ const ATTEMPTS = 6
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
 /** One image, as a PNG buffer. `size` is the API's own, e.g. `1024x1024` or `1024x1536`. */
-async function image(prompt, { size = '1024x1024', background = 'transparent', quality = 'high' } = {}, apiKey) {
+async function image(
+  prompt,
+  { size = '1024x1024', background = 'transparent', quality = 'high' } = {},
+  apiKey,
+) {
   for (let attempt = 1; ; attempt += 1) {
     const res = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',

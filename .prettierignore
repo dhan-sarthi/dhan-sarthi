@@ -19,3 +19,17 @@ idbi-capture-*/
 # Markdown is written by hand with deliberate line breaks; Prettier leaves prose alone but would
 # still rewrap tables and lists in ways that hurt review diffs.
 *.md
+
+# Expo writes these on every Metro start (both are in apps/mobile/.gitignore, which Prettier
+# does not read when run from the root). Formatting them only lasts until the next start.
+apps/mobile/.expo/
+apps/mobile/expo-env.d.ts
+
+# The palette is a hand-aligned table (one token per line, values in a column) so a colour change
+# reads as one line in review. Prettier would re-flow all of it.
+packages/design/tokens.json
+
+# Local Terraform state and provider binaries are gitignored (infra/terraform/.gitignore) but Prettier does not read
+# nested .gitignore files when run from the root.
+infra/terraform/*.tfstate*
+infra/terraform/.terraform/

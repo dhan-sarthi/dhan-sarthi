@@ -31,27 +31,103 @@ const OUT = join(ROOT, 'packages/assets/icons/spend')
  * and a banded bundle — because two similar icons in one list is worse than one vague one.
  */
 const ICONS = [
-  ['Income', 'income', 'an open pay envelope with a single coin emerging from it', 'cream envelope with a mint-green lining, a bright gold coin'],
-  ['Rent & bills', 'rent-and-bills', 'a small house with a folded paper bill leaning against it', 'cream house with a coral-red roof, a sky-blue paper bill, a warm amber door'],
-  ['Groceries', 'groceries', 'a woven shopping basket filled with vegetables and a loaf', 'tan woven basket, tomato red, carrot orange and leafy green produce, a golden loaf'],
-  ['Food & dining', 'food-and-dining', 'a covered restaurant dish on a plate with a fork beside it', 'a glossy red cloche with a gold handle, a cream plate, a silver fork'],
-  ['Transport', 'transport', 'a chunky city bus seen from a front three-quarter angle', 'sunflower-yellow body, sky-blue windows, a scarlet stripe, chrome bumper'],
-  ['Shopping', 'shopping', 'a paper shopping bag with rope handles and a folded top', 'magenta-pink bag, a gold rope handle, a lilac side panel'],
-  ['Entertainment', 'entertainment', 'a film clapperboard with a pair of tickets tucked behind it', 'deep navy clapperboard with cream stripes, coral-orange tickets'],
-  ['Health', 'health', 'a first aid kit case with a cross on its lid and a clasp', 'cherry-red case, a white cross, a steel clasp and handle'],
-  ['Education', 'education', 'a stack of three books with a graduation cap resting on top', 'coral, teal and gold books, a deep navy cap with a gold tassel'],
-  ['Investment', 'investment', 'three ascending blocks with a small sprouting plant on the tallest', 'teal, sky-blue and violet blocks, a fresh spring-green sprout'],
-  ['Insurance', 'insurance', 'a rounded shield with an umbrella motif raised on its face', 'cobalt-blue shield with gold trim, a cream umbrella motif'],
-  ['Loan EMI', 'loan-emi', 'a desk calendar with one date marked and a coin resting on it', 'cream calendar with a coral header, one sky-blue marked date, a gold coin'],
-  ['Cash', 'cash', 'a banded bundle of folded banknotes lying flat', 'mint-green notes, a coral paper band, gold edges'],
-  ['Transfers', 'transfers', 'two rounded cards side by side with two curved arrows circling between them', 'a violet card and a sky-blue card, two gold curved arrows'],
-  ['Fees & charges', 'fees-and-charges', 'a curling paper receipt with a torn lower edge and a small coin', 'cream receipt with coral ruled lines, a gold coin'],
+  [
+    'Income',
+    'income',
+    'an open pay envelope with a single coin emerging from it',
+    'cream envelope with a mint-green lining, a bright gold coin',
+  ],
+  [
+    'Rent & bills',
+    'rent-and-bills',
+    'a small house with a folded paper bill leaning against it',
+    'cream house with a coral-red roof, a sky-blue paper bill, a warm amber door',
+  ],
+  [
+    'Groceries',
+    'groceries',
+    'a woven shopping basket filled with vegetables and a loaf',
+    'tan woven basket, tomato red, carrot orange and leafy green produce, a golden loaf',
+  ],
+  [
+    'Food & dining',
+    'food-and-dining',
+    'a covered restaurant dish on a plate with a fork beside it',
+    'a glossy red cloche with a gold handle, a cream plate, a silver fork',
+  ],
+  [
+    'Transport',
+    'transport',
+    'a chunky city bus seen from a front three-quarter angle',
+    'sunflower-yellow body, sky-blue windows, a scarlet stripe, chrome bumper',
+  ],
+  [
+    'Shopping',
+    'shopping',
+    'a paper shopping bag with rope handles and a folded top',
+    'magenta-pink bag, a gold rope handle, a lilac side panel',
+  ],
+  [
+    'Entertainment',
+    'entertainment',
+    'a film clapperboard with a pair of tickets tucked behind it',
+    'deep navy clapperboard with cream stripes, coral-orange tickets',
+  ],
+  [
+    'Health',
+    'health',
+    'a first aid kit case with a cross on its lid and a clasp',
+    'cherry-red case, a white cross, a steel clasp and handle',
+  ],
+  [
+    'Education',
+    'education',
+    'a stack of three books with a graduation cap resting on top',
+    'coral, teal and gold books, a deep navy cap with a gold tassel',
+  ],
+  [
+    'Investment',
+    'investment',
+    'three ascending blocks with a small sprouting plant on the tallest',
+    'teal, sky-blue and violet blocks, a fresh spring-green sprout',
+  ],
+  [
+    'Insurance',
+    'insurance',
+    'a rounded shield with an umbrella motif raised on its face',
+    'cobalt-blue shield with gold trim, a cream umbrella motif',
+  ],
+  [
+    'Loan EMI',
+    'loan-emi',
+    'a desk calendar with one date marked and a coin resting on it',
+    'cream calendar with a coral header, one sky-blue marked date, a gold coin',
+  ],
+  [
+    'Cash',
+    'cash',
+    'a banded bundle of folded banknotes lying flat',
+    'mint-green notes, a coral paper band, gold edges',
+  ],
+  [
+    'Transfers',
+    'transfers',
+    'two rounded cards side by side with two curved arrows circling between them',
+    'a violet card and a sky-blue card, two gold curved arrows',
+  ],
+  [
+    'Fees & charges',
+    'fees-and-charges',
+    'a curling paper receipt with a torn lower edge and a small coin',
+    'cream receipt with coral ruled lines, a gold coin',
+  ],
 ]
 
 const args = process.argv.slice(2)
 const force = args.includes('--force')
 const only = args.filter((a) => !a.startsWith('--'))
-const wanted = only.length > 0 ? ICONS.filter((i) => only.includes(i[0]) || only.includes(i[1])) : ICONS
+const wanted =
+  only.length > 0 ? ICONS.filter((i) => only.includes(i[0]) || only.includes(i[1])) : ICONS
 if (wanted.length === 0) throw new Error(`nothing matched: ${only.join(', ')}`)
 
 mkdirSync(OUT, { recursive: true })

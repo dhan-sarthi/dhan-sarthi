@@ -50,36 +50,140 @@ const OUT = join(ROOT, 'packages/assets/icons/product')
  */
 const ICONS = [
   // The shelf: fourteen product categories.
-  ['sweep-in-fd', 'a bank safe with an arc of coins sweeping into a slot in its top', 'deep teal safe with brass corners, a gold dial, a sweep of bright gold coins'],
-  ['fixed-deposit', 'a chunky bank safe with a round combination dial and a handle', 'deep teal body, brass corners and a polished gold dial'],
-  ['recurring-deposit', 'a tiered stack of coins with a circular arrow curving around it', 'stacked gold and amber coins, a mint-green circular arrow'],
-  ['liquid-fund', 'a single round water drop resting in a shallow dish', 'vivid cyan-blue drop with a white highlight, a teal dish'],
-  ['debt-fund', 'a bond certificate with ruled lines and a wax seal at its corner', 'cream paper with teal ruled lines, a cobalt-blue wax seal and ribbon'],
-  ['index-fund', 'three ascending bars with an arrow rising across them', 'sky-blue, violet and teal bars, a bright coral arrow'],
-  ['elss', 'a potted seedling with a small shield badge leaning against the pot', 'terracotta pot, a vivid spring-green seedling, a gold shield badge'],
-  ['term-insurance', 'a rounded shield with a heart at its centre', 'deep cobalt-blue shield with a lighter rim, a bright crimson heart'],
-  ['health-insurance', 'a rounded plate with a medical cross on it and a pulse line across', 'cream plate, a mint-green cross, a coral pulse line'],
-  ['govt-insurance', 'a shield with a star at its centre and a small banner across its foot', 'royal-blue shield, a bright gold star, a cream banner'],
-  ['nps', 'a pair of cupped hands holding a single coin, with a small sun rising behind them', 'warm sand hands, a bright gold coin, a soft coral sunrise arc'],
-  ['ppf', 'a round leafy tree with small round fruit and a short trunk', 'rich leaf-green canopy, golden-orange fruit, a warm brown trunk'],
-  ['ulip', 'a clipboard holding a lined sheet with a small chart clipped to it', 'violet clipboard, cream lined sheet, a sky-blue chart and clip'],
-  ['endowment', 'a policy document with a rosette seal and a ribbon at its lower corner', 'cream document with teal ruled lines, a gold rosette, a violet ribbon'],
+  [
+    'sweep-in-fd',
+    'a bank safe with an arc of coins sweeping into a slot in its top',
+    'deep teal safe with brass corners, a gold dial, a sweep of bright gold coins',
+  ],
+  [
+    'fixed-deposit',
+    'a chunky bank safe with a round combination dial and a handle',
+    'deep teal body, brass corners and a polished gold dial',
+  ],
+  [
+    'recurring-deposit',
+    'a tiered stack of coins with a circular arrow curving around it',
+    'stacked gold and amber coins, a mint-green circular arrow',
+  ],
+  [
+    'liquid-fund',
+    'a single round water drop resting in a shallow dish',
+    'vivid cyan-blue drop with a white highlight, a teal dish',
+  ],
+  [
+    'debt-fund',
+    'a bond certificate with ruled lines and a wax seal at its corner',
+    'cream paper with teal ruled lines, a cobalt-blue wax seal and ribbon',
+  ],
+  [
+    'index-fund',
+    'three ascending bars with an arrow rising across them',
+    'sky-blue, violet and teal bars, a bright coral arrow',
+  ],
+  [
+    'elss',
+    'a potted seedling with a small shield badge leaning against the pot',
+    'terracotta pot, a vivid spring-green seedling, a gold shield badge',
+  ],
+  [
+    'term-insurance',
+    'a rounded shield with a heart at its centre',
+    'deep cobalt-blue shield with a lighter rim, a bright crimson heart',
+  ],
+  [
+    'health-insurance',
+    'a rounded plate with a medical cross on it and a pulse line across',
+    'cream plate, a mint-green cross, a coral pulse line',
+  ],
+  [
+    'govt-insurance',
+    'a shield with a star at its centre and a small banner across its foot',
+    'royal-blue shield, a bright gold star, a cream banner',
+  ],
+  [
+    'nps',
+    'a pair of cupped hands holding a single coin, with a small sun rising behind them',
+    'warm sand hands, a bright gold coin, a soft coral sunrise arc',
+  ],
+  [
+    'ppf',
+    'a round leafy tree with small round fruit and a short trunk',
+    'rich leaf-green canopy, golden-orange fruit, a warm brown trunk',
+  ],
+  [
+    'ulip',
+    'a clipboard holding a lined sheet with a small chart clipped to it',
+    'violet clipboard, cream lined sheet, a sky-blue chart and clip',
+  ],
+  [
+    'endowment',
+    'a policy document with a rosette seal and a ribbon at its lower corner',
+    'cream document with teal ruled lines, a gold rosette, a violet ribbon',
+  ],
 
   // The eight dreams, plus the two pots the plan opens itself.
-  ['goal-custom', 'a rounded gift tag on a short string, with two small sparkles beside it', 'aqua-turquoise tag, a warm gold string and eyelet, bright gold sparkles'],
-  ['goal-car', 'a small hatchback car seen from a front three-quarter angle', 'cherry-red bodywork, sky-blue windows, chrome trim, charcoal tyres'],
-  ['goal-home', 'a small house with a pitched roof, a door and two shrubs at its base', 'cream walls, a coral-red roof, warm amber windows, leaf-green shrubs'],
-  ['goal-education', 'a graduation cap with a tassel resting beside a rolled scroll', 'deep navy cap, a gold tassel, a cream scroll with a violet ribbon'],
-  ['goal-retirement', 'a wooden rocking chair seen from a three-quarter angle', 'honey-wood frame, a soft coral cushion, cream backrest slats'],
-  ['goal-wedding', 'two interlocking rings, one set with a single stone', 'polished gold bands, a ruby-red stone with a white sparkle'],
-  ['goal-holiday', 'a beach umbrella with a deckchair beside it on a small patch of sand', 'coral and cream striped umbrella, a teal deckchair, golden sand'],
-  ['goal-wealth', 'a single large cut gemstone with faceted sides', 'brilliant cyan-turquoise facets, deep teal shadow faces, white sparkle'],
-  ['goal-buffer', 'an open umbrella with a few raindrops falling above it', 'mint-green and cream canopy, a crimson tip, sky-blue raindrops'],
-  ['goal-debt', 'a payment card seen at a slight angle, with a chip and a stripe', 'indigo-violet card, a gold chip, a magenta stripe'],
+  [
+    'goal-custom',
+    'a rounded gift tag on a short string, with two small sparkles beside it',
+    'aqua-turquoise tag, a warm gold string and eyelet, bright gold sparkles',
+  ],
+  [
+    'goal-car',
+    'a small hatchback car seen from a front three-quarter angle',
+    'cherry-red bodywork, sky-blue windows, chrome trim, charcoal tyres',
+  ],
+  [
+    'goal-home',
+    'a small house with a pitched roof, a door and two shrubs at its base',
+    'cream walls, a coral-red roof, warm amber windows, leaf-green shrubs',
+  ],
+  [
+    'goal-education',
+    'a graduation cap with a tassel resting beside a rolled scroll',
+    'deep navy cap, a gold tassel, a cream scroll with a violet ribbon',
+  ],
+  [
+    'goal-retirement',
+    'a wooden rocking chair seen from a three-quarter angle',
+    'honey-wood frame, a soft coral cushion, cream backrest slats',
+  ],
+  [
+    'goal-wedding',
+    'two interlocking rings, one set with a single stone',
+    'polished gold bands, a ruby-red stone with a white sparkle',
+  ],
+  [
+    'goal-holiday',
+    'a beach umbrella with a deckchair beside it on a small patch of sand',
+    'coral and cream striped umbrella, a teal deckchair, golden sand',
+  ],
+  [
+    'goal-wealth',
+    'a single large cut gemstone with faceted sides',
+    'brilliant cyan-turquoise facets, deep teal shadow faces, white sparkle',
+  ],
+  [
+    'goal-buffer',
+    'an open umbrella with a few raindrops falling above it',
+    'mint-green and cream canopy, a crimson tip, sky-blue raindrops',
+  ],
+  [
+    'goal-debt',
+    'a payment card seen at a slight angle, with a chip and a stripe',
+    'indigo-violet card, a gold chip, a magenta stripe',
+  ],
 
   // The two measures the plan screen branches into.
-  ['measure-add', 'a short stack of coins with a small plus badge at its upper corner', 'stacked gold and amber coins, a warm orange plus badge'],
-  ['measure-align', 'a thick donut ring split into segments with one segment lifted clear', 'violet, teal and sky-blue segments, the lifted one in bright violet'],
+  [
+    'measure-add',
+    'a short stack of coins with a small plus badge at its upper corner',
+    'stacked gold and amber coins, a warm orange plus badge',
+  ],
+  [
+    'measure-align',
+    'a thick donut ring split into segments with one segment lifted clear',
+    'violet, teal and sky-blue segments, the lifted one in bright violet',
+  ],
 ]
 
 const args = process.argv.slice(2)

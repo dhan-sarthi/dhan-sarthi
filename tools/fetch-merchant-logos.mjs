@@ -99,10 +99,15 @@ const BRANDS = {
  * escape hatch for a brand whose own site is not the best source of its own logo.
  */
 const MANUAL = {
-  Spencer: 'https://icon2.cleanpng.com/20180617/vos/kisspng-spencer-s-retail-spencer-s-hyper-store-grocery-sto-5b26a32ee5a037.7041912315292587989406.jpg',
+  Spencer:
+    'https://icon2.cleanpng.com/20180617/vos/kisspng-spencer-s-retail-spencer-s-hyper-store-grocery-sto-5b26a32ee5a037.7041912315292587989406.jpg',
 }
 
-export const slugOf = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+export const slugOf = (name) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 
 mkdirSync(OUT, { recursive: true })
 
@@ -118,7 +123,10 @@ const SIZES_FILE = join(OUT, 'sizes.json')
 const sizes = existsSync(SIZES_FILE) ? JSON.parse(readFileSync(SIZES_FILE, 'utf8')) : {}
 
 for (const [name, source] of [
-  ...Object.entries(BRANDS).map(([n, d]) => [n, `https://www.google.com/s2/favicons?domain=${d}&sz=256`]),
+  ...Object.entries(BRANDS).map(([n, d]) => [
+    n,
+    `https://www.google.com/s2/favicons?domain=${d}&sz=256`,
+  ]),
   ...Object.entries(MANUAL),
 ]) {
   const domain = source.replace(/^https?:\/\//, '').split('/')[0]
