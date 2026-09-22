@@ -21,9 +21,9 @@
 //     it is granted the microphone by name, because Uday's call listens.
 //
 // Only the tab's own window draws a frame, so the app inside one never draws a second.
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Platform } from 'react-native'
-import { wantsPhoneFrame } from '~/lib/phone-frame'
+import { fitScale, wantsPhoneFrame } from '~/lib/phone-frame'
 import { color, space } from '@dhan/design'
 
 /** The phone drawn: an iPhone 12 to 15, and the size the app's screenshots are taken at. */
@@ -31,8 +31,24 @@ const SCREEN = { width: 390, height: 844 }
 const BEZEL = 12
 /** Near an iPhone's own corner, and tight enough not to clip a header's first letter. */
 const CORNER = 44
-/** The least room kept round the phone. A window too short for 844 gets a shorter phone. */
+/** The least room kept round the phone. */
 const GUTTER = space.xl
+
+function useFitScale(): number {
+  const read = () =>
+    fitScale(
+      { width: window.innerWidth, height: window.innerHeight },
+      { width: SCREEN.width + 2 * BEZEL, height: SCREEN.height + 2 * BEZEL },
+      GUTTER,
+    )
+  const [scale, setScale] = useState(read)
+  useEffect(() => {
+    const on = () => setScale(read())
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  return scale
+}
 
 export const showPhoneFrame =
   Platform.OS === 'web' &&
@@ -50,9 +66,11 @@ export function PhoneFrame() {
     return pathname + search + hash
   })
 
+  const scale = useFitScale()
+
   return (
     <div style={STAGE}>
-      <div style={BODY}>
+      <div style={{ ...BODY, transform: `scale(${scale})` }}>
         <iframe
           src={src}
           title="Dhan Sarthi"
@@ -103,6 +121,9 @@ function mirror(frame: HTMLIFrameElement): void {
 
 const STAGE: CSSProperties = {
   flex: 1,
+  // The phone is laid out at full size and drawn smaller, so its box can be taller than the
+  // window it is centred in. Nothing should scroll: what shows is the scaled drawing.
+  overflow: 'hidden',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -115,13 +136,15 @@ const BODY: CSSProperties = {
   borderRadius: CORNER + BEZEL,
   background: color.ink,
   boxShadow: `0 32px 64px -24px ${color.scrim}`,
+  flexShrink: 0,
+  transformOrigin: 'center',
 }
 
 const GLASS: CSSProperties = {
   display: 'block',
   border: 0,
-  width: `min(${SCREEN.width}px, calc(100vw - ${2 * (GUTTER + BEZEL)}px))`,
-  height: `min(${SCREEN.height}px, calc(100dvh - ${2 * (GUTTER + BEZEL)}px))`,
+  width: SCREEN.width,
+  height: SCREEN.height,
   borderRadius: CORNER,
 }
 

@@ -19,7 +19,8 @@ Assembled 22 September 2026.
 | **[`DIAGRAMS.md`](DIAGRAMS.md)** | The three drawings — process flow, architecture, the gate — specified shape by shape, with Mermaid source |
 | **[`assets/INDEX.md`](assets/INDEX.md)** | 50 screenshots, what each one shows, which slide wants it |
 | **[`FORM-ANSWERS.md`](FORM-ANSWERS.md)** | The portal fields, paste-ready, with exact character counts |
-| **[`DEMO-SCRIPT.md`](DEMO-SCRIPT.md)** | The 3-minute video: shot list, timings, voiceover, and the credit budget it needs |
+| **[`DEMO-SCRIPT.md`](DEMO-SCRIPT.md)** | The 3-minute video: a printable cue card, then what to say on each screen |
+| **[`CONVERSATION-PLAN.md`](CONVERSATION-PLAN.md)** | Planning the avatar call: the verified question bank, what makes a question work, rehearsal and pre-flight |
 
 ---
 

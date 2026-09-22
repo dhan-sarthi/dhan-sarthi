@@ -23,3 +23,21 @@ export function wantsPhoneFrame(window: Size, screen: Size): boolean {
   const onPhone = Math.min(screen.width, screen.height) <= PHONE_WIDEST
   return !onPhone && window.width > PHONE_WIDEST
 }
+
+/**
+ * How far to shrink the drawn phone so all of it fits the window: 1 when it already fits.
+ *
+ * The phone used to keep its width and give up height instead, so on a laptop shorter than about
+ * 940 pixels its bottom was cut off and the app read as zoomed in, with the tab bar half gone.
+ * Browser zoom at 80% fixed that on one laptop by shrinking everything; this does the same sum
+ * for whatever window it is in. The glass inside stays phone-sized, so every screen still lays
+ * out exactly as it does on a phone. Never above 1: a phone blown up past life size stops looking
+ * like one. Never below 0.3, so a window dragged tiny still shows something to grab.
+ */
+export function fitScale(window: Size, phone: Size, gutter: number): number {
+  const fits = Math.min(
+    (window.width - 2 * gutter) / phone.width,
+    (window.height - 2 * gutter) / phone.height,
+  )
+  return Math.max(0.3, Math.min(1, fits))
+}

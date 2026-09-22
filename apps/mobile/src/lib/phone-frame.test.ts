@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { PHONE_WIDEST, wantsPhoneFrame } from './phone-frame.ts'
+import { PHONE_WIDEST, fitScale, wantsPhoneFrame } from './phone-frame.ts'
 
 const size = (width: number, height: number) => ({ width, height })
 
@@ -38,5 +38,33 @@ describe('wantsPhoneFrame', () => {
   it('frames only a window wider than the widest phone', () => {
     assert.equal(wantsPhoneFrame(size(PHONE_WIDEST, 900), size(1920, 1080)), false)
     assert.equal(wantsPhoneFrame(size(PHONE_WIDEST + 1, 900), size(1920, 1080)), true)
+  })
+})
+
+describe('fitScale', () => {
+  // The drawn phone: 390 × 844 glass inside a 12-point bezel, 24 points of room kept round it.
+  const phone = size(414, 868)
+  const gutter = 24
+
+  it('draws the phone at life size when the window is tall enough', () => {
+    assert.equal(fitScale(size(1920, 1080), phone, gutter), 1)
+  })
+
+  it('shrinks it to fit a laptop window, the way 80% browser zoom did by hand', () => {
+    const s = fitScale(size(1440, 760), phone, gutter)
+    assert.ok(s > 0.75 && s < 0.85, `got ${s}`)
+    assert.ok(868 * s <= 760 - 2 * gutter + 1e-9)
+  })
+
+  it('never draws it larger than life on a huge screen', () => {
+    assert.equal(fitScale(size(3840, 2160), phone, gutter), 1)
+  })
+
+  it('fits the narrower side when the window is narrow rather than short', () => {
+    assert.equal(fitScale(size(400, 1400), phone, gutter), (400 - 48) / 414)
+  })
+
+  it('keeps something on screen in a window dragged tiny', () => {
+    assert.equal(fitScale(size(200, 200), phone, gutter), 0.3)
   })
 })
