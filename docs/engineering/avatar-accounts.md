@@ -111,12 +111,18 @@ Runway's own client.
 
 ## Framing
 
-Runway sends 1088×704. Filling a phone's full height showed a third of that width: a face, cut at
-the forehead. The stage now shows half the width (head and shoulders), raised so the eyes sit near
-the upper third, fading into the ink ground. The still shown before the video is Runway's own first
-frame, framed the same way, so the picture comes alive in place. A portrait track (Anam) still fills
-the stage. 42% and 60% were compared on the real frame: 42% cropped the shoulders, and 60% left him
-small.
+Runway sends 1088×704 and offers no portrait size. Its docs recommend 1088×704 for the reference
+image, and the stream follows it. Filling a phone's full height shows a third of that width: a
+face, with the ears and hair cut off. That is what "too zoomed in" meant. Half the width, the
+second try, left a third of the screen as a gradient, which read as half a video call.
+
+The stage now shows **36% of the width, from the top of the screen down**. That is his whole head
+and his shoulders, filling about nine-tenths of the stage. The last strip, where the call's one
+button sits, fades into the ink. It was compared on the real frame against 33% (full screen) and
+40% (which brought the empty strip back). During a call the only control is "End the call";
+ending it brings back "Start a call" and "Chat in text". The still shown before the video is
+Runway's own first frame, framed the same way, so the picture comes alive in place. A portrait
+track (Anam) still fills the stage.
 
 ## Language: understood, not yet answered
 
