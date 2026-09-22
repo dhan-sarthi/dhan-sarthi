@@ -21,6 +21,9 @@ demo-critical subset of that DDL, adapted to the reviewer-session model in
 | `0007_views_security.sql`   | the `*_current` views, `customer_360`, `liabilities_current`, grants and REVOKEs for `dhan_app`, default privileges, RLS policies                                                                                                                |
 | `0008_roadmap_at_sim_display_order.sql` | additive: `roadmap_versions.at_sim` (the simulated date a version was cut at; older rows read `roadmap->>'createdAt'`) and `scope_overrides`; `customers.display_order` for the picker, backfilled once for rows seeded before it existed |
 | `0009_session_goal_basis.sql` | additive: `sessions.goal_basis` — whether the reviewer's `goal_target` is in today's money or the rupees of the year it lands. Null reads as today, so rows older than the column keep the plan they had |
+| `0010_session_spend_limit.sql` | additive: `sessions.spend_limit` — the customer's own monthly ceiling on discretionary spending. Null means none |
+| `0011_session_save_and_challenges.sql` | additive: `sessions.save_state` (the savings pot as one jsonb document, default `'{}'`) and `sessions.challenge` (the one running spend challenge, or null) |
+| `0012_session_goal_kind.sql` | additive: `sessions.goal_kind` — the goal kind the customer chose, checked against the five. Null means never chosen and the engine's ladder picks, so rows older than the column keep the plan they had |
 
 ## Decisions worth knowing before you add a migration
 

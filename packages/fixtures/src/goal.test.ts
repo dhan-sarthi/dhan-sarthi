@@ -10,16 +10,19 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, suggestGoal } from '@dhan/core'
+import { buildRoadmap, derive, suggestGoal } from '@dhan/core'
 import type { Snapshot } from '@dhan/core'
 import { generateCustomerFile } from './generate.ts'
-import { PRIYA, ROHAN } from './personas.ts'
+import { KARAN, PRIYA, ROHAN, SUNIL } from './personas.ts'
+import { PRODUCT_SHELF } from './shelf.ts'
 
 const ASOF = '2026-09-01'
 const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
 
 const rohan = derive(generateCustomerFile(ROHAN, OPTS), ASOF)
 const priya = derive(generateCustomerFile(PRIYA, OPTS), ASOF)
+const sunil = derive(generateCustomerFile(SUNIL, OPTS), ASOF)
+const karan = derive(generateCustomerFile(KARAN, OPTS), ASOF)
 
 /** Rohan with the two prerequisites satisfied, so the ladder reaches retirement. */
 const settled: Snapshot = {
@@ -111,5 +114,88 @@ describe('the suggested goal', () => {
       suggestGoal(rohan, ASOF, null).createdAt,
       suggestGoal(rohan, '2027-01-01', null).createdAt,
     )
+  })
+})
+
+describe('the goal the customer chose, over a real statement', () => {
+  it('plans Rohan’s family cover, which he has two dependents and no policy for', () => {
+    assert.ok(rohan.protection.gap > 0)
+    const goal = suggestGoal(rohan, ASOF, null, null, 'protection')
+    assert.equal(goal.kind, 'protection')
+    assert.equal(goal.targetAmount, rohan.protection.lifeCoverNeeded)
+    const route = buildRoadmap(rohan, goal, PRODUCT_SHELF, ASOF)
+    assert.equal(route.stages.find((s) => s.isGoal)?.kind, 'get_cover')
+  })
+
+  it('does not plan Rohan’s education loan as a payoff: its EMIs clear it in months', () => {
+    // Aimed at every rupee owed, this was a three-year deposit against a loan five instalments
+    // from done, which then flipped to retirement the month the loan ended.
+    assert.equal(rohan.debt.hasHighInterest, false)
+    assert.ok(rohan.debt.total > 0)
+    assert.deepEqual(
+      suggestGoal(rohan, ASOF, null, null, 'debt_payoff'),
+      suggestGoal(rohan, ASOF, null),
+    )
+  })
+
+  it('keeps Sunil’s feasible buffer plan when he asks to clear loans nothing expensive is on', () => {
+    assert.equal(sunil.debt.hasHighInterest, false)
+    const ladder = buildRoadmap(sunil, suggestGoal(sunil, ASOF, null), PRODUCT_SHELF, ASOF)
+    const chosen = buildRoadmap(
+      sunil,
+      suggestGoal(sunil, ASOF, null, null, 'debt_payoff'),
+      PRODUCT_SHELF,
+      ASOF,
+    )
+    assert.deepEqual(chosen, ladder)
+    assert.equal(chosen.feasible, true)
+  })
+
+  it('plans Karan’s something specific with money going in, not his funds alone', () => {
+    // A year of his outgoings is under what his ₹13.84 lakh of funds reach by 2031, which left
+    // the goal stage asking ₹0 a month with nothing to project.
+    assert.ok(karan.holdings.equity > 0)
+    const goal = suggestGoal(karan, ASOF, null, null, 'wealth_target')
+    const route = buildRoadmap(karan, goal, PRODUCT_SHELF, ASOF)
+    const stage = route.stages.find((s) => s.isGoal)
+    assert.equal(stage?.kind, 'grow')
+    assert.ok((stage?.monthly ?? 0) > 0, `${stage?.monthly}`)
+    assert.notEqual(route.projection, null)
+  })
+
+  it('keeps Priya’s card on her route to the long game with no habit to cut', () => {
+    // IDBI's own feed names no habit, so nothing is freed up and nothing is spare for the card.
+    const habitless: Snapshot = {
+      ...priya,
+      discretionary: { ...priya.discretionary, topHabits: [] },
+    }
+    const route = buildRoadmap(
+      habitless,
+      suggestGoal(habitless, ASOF, null, null, 'retirement'),
+      PRODUCT_SHELF,
+      ASOF,
+    )
+    const kinds = route.stages.map((s) => s.kind)
+    assert.ok(kinds.includes('clear_debt'), kinds.join(', '))
+    assert.ok(kinds.indexOf('clear_debt') < kinds.indexOf('grow'), kinds.join(', '))
+    assert.equal(route.feasible, false)
+  })
+
+  it('keeps Priya on her card when she asks for cover nobody depends on her for', () => {
+    assert.equal(priya.protection.gap, 0)
+    assert.deepEqual(
+      suggestGoal(priya, ASOF, null, null, 'protection'),
+      suggestGoal(priya, ASOF, null),
+    )
+  })
+
+  it('still routes Priya through her card when she picks the long game', () => {
+    const goal = suggestGoal(priya, ASOF, null, null, 'retirement')
+    assert.equal(goal.kind, 'retirement')
+    const kinds = buildRoadmap(priya, goal, PRODUCT_SHELF, ASOF).stages.map((s) => s.kind)
+    // The card at her highest rate before the goal the plan is for, which comes last.
+    assert.ok(kinds.indexOf('clear_debt') >= 0, kinds.join(', '))
+    assert.ok(kinds.indexOf('clear_debt') < kinds.indexOf('grow'), kinds.join(', '))
+    assert.equal(kinds[kinds.length - 1], 'grow')
   })
 })

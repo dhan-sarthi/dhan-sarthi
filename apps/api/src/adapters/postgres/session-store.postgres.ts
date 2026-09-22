@@ -11,6 +11,7 @@ import type {
   CategoryCap,
   ConsentScope,
   GoalAmountBasis,
+  GoalKind,
   IsoDate,
   Timestamp,
 } from '@dhan/contracts'
@@ -37,6 +38,7 @@ interface SessionRow {
   last_seen: IsoDate
   goal_target: number | null
   goal_basis: GoalAmountBasis | null
+  goal_kind: GoalKind | null
   caps: CategoryCap[]
   spend_limit: string | null
   // pg parses jsonb for us, so these arrive as values and not as text. `save_state` is unknown
@@ -56,8 +58,8 @@ interface SessionRow {
 /** Qualified `s.`, because both the SELECT and patch's RETURNING read it across the same join. */
 const SESSION_COLUMNS = `
   s.id, s.subject_id, sub.cif, s.token_hash, s.as_of, s.last_seen, s.goal_target, s.goal_basis,
-  s.caps, s.spend_limit, s.save_state, s.challenge, s.scope_overrides, s.version, s.client_hint,
-  s.created_at, s.last_active_at, s.expires_at, s.revoked_at`
+  s.goal_kind, s.caps, s.spend_limit, s.save_state, s.challenge, s.scope_overrides, s.version,
+  s.client_hint, s.created_at, s.last_active_at, s.expires_at, s.revoked_at`
 
 const SELECT_SQL = `
   SELECT ${SESSION_COLUMNS}
@@ -75,6 +77,7 @@ function toSession(row: SessionRow): Session {
     lastSeen: row.last_seen,
     goalTarget: row.goal_target,
     goalBasis: row.goal_basis,
+    goalKind: row.goal_kind,
     caps: row.caps,
     // numeric(18,2) arrives as a string from pg, the way every other money column does.
     spendLimit: row.spend_limit === null ? null : Number(row.spend_limit),
@@ -167,6 +170,7 @@ export class PostgresSessionStore implements SessionStore {
     if (patch.lastSeen !== undefined) set('last_seen', patch.lastSeen)
     if (patch.goalTarget !== undefined) set('goal_target', patch.goalTarget)
     if (patch.goalBasis !== undefined) set('goal_basis', patch.goalBasis)
+    if (patch.goalKind !== undefined) set('goal_kind', patch.goalKind)
     if (patch.caps !== undefined) set('caps', JSON.stringify(patch.caps))
     if (patch.spendLimit !== undefined) set('spend_limit', patch.spendLimit)
     // jsonb is written as text and let the server parse it, exactly as caps is; scope_overrides

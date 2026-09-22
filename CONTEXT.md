@@ -8,7 +8,7 @@ changing its name on the way.
 `@dhan/core` owns every domain type. `@dhan/contracts` mirrors the ones that cross the wire in zod
 and adds the shapes that exist only there. `@dhan/fixtures` generates data in those shapes and owns
 nothing. Where core and contracts could disagree, core is right and the compiler says so:
-the `_Parity` tuple at `packages/contracts/src/domain.ts:1608` asserts that a core value is always
+the `_Parity` tuple at `packages/contracts/src/domain.ts:1629` asserts that a core value is always
 a valid instance of its mirror. A wire-only shape — one with no core counterpart — is not an oversight; it is a shape the
 routes return that the engine has no opinion about, and `packages/contracts/src/domain.ts:1-12`
 says so.
@@ -122,7 +122,7 @@ _Avoid_: target, objective, ambition
 **Roadmap / Stage**:
 The Goal turned into a dated route, and one leg of it. The route is the suitability ladder with the
 Goal at the end, so a customer who asks to invest while holding a card at 34.8% gets three stages
-before investing. `packages/core/src/roadmap.ts:122` and `:79`, mirrored at
+before investing. `packages/core/src/roadmap.ts:124` and `:79`, mirrored at
 `packages/contracts/src/domain.ts:681` and `:663`.
 _Avoid_: plan (taken by DailyPlan), journey, path, milestone
 
@@ -145,7 +145,7 @@ _Avoid_: budget, allowance, disposable income
 The savings balance, filled by rules the customer turns on once rather than by deposits they
 approve. `SaveState` is `packages/core/src/save.ts:99`, one `SaveDeposit` is `:89`, the five
 `SaveHackId`s are `packages/core/src/save.ts:32`; the wire shape is `SavePot`
-(`packages/contracts/src/domain.ts:1019`).
+(`packages/contracts/src/domain.ts:1026`).
 _Avoid_: jar, vault, wallet, goal (taken)
 
 **Challenge**:
@@ -153,9 +153,9 @@ A ceiling the customer sets themselves on one merchant or category, over a bound
 Deliberately neither an ActionKind nor an InsightKind: the bank does not do it to an account, and
 nobody found it in the data. `packages/core/src/challenge.ts:188` (`ChallengeTerms`) and `:203`
 (`ChallengeProgress`); the wire shape is `ActiveChallenge`
-(`packages/contracts/src/domain.ts:1149`).
+(`packages/contracts/src/domain.ts:1156`).
 _Avoid_: budget, streak, cap. A `set_category_cap` Action is a different, permanent thing.
-`StoredChallenge` (`apps/api/src/ports/session-store.port.ts:32`) is a fourth name in this area
+`StoredChallenge` (`apps/api/src/ports/session-store.port.ts:33`) is a fourth name in this area
 and is allowed for the reason `DecisionRow` is: it is the row a store holds, flat because a jsonb
 column shaped like a core interface never gets migrated, and deliberately carrying no progress at
 all. It is not a sanctioned duplication of `ChallengeTerms` — it is a storage shape — and a second
@@ -200,7 +200,7 @@ _Avoid_: seed data, dataset, dump
 
 **AdviceRecord**:
 One append-only, hash-chained row per proposal: the exact sentence shown, the rule, the Snapshot it
-was judged against, and the chain. Wire-only, `packages/contracts/src/domain.ts:1284`. There is no
+was judged against, and the chain. Wire-only, `packages/contracts/src/domain.ts:1291`. There is no
 core counterpart and there should not be — core does no I/O, and a hash chain is a property of
 storage. See ADR-0006.
 _Avoid_: audit log entry, trail, event

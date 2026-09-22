@@ -34,6 +34,7 @@ export class InMemorySessionStore implements SessionStore {
       lastSeen: input.lastSeen,
       goalTarget: null,
       goalBasis: null,
+      goalKind: null,
       caps: [],
       spendLimit: null,
       // A clone, not the const. Every session in this process would otherwise share one pot, and
@@ -74,6 +75,7 @@ export class InMemorySessionStore implements SessionStore {
       ...(patch.lastSeen === undefined ? {} : { lastSeen: patch.lastSeen }),
       ...(patch.goalTarget === undefined ? {} : { goalTarget: patch.goalTarget }),
       ...(patch.goalBasis === undefined ? {} : { goalBasis: patch.goalBasis }),
+      ...(patch.goalKind === undefined ? {} : { goalKind: patch.goalKind }),
       ...(patch.caps === undefined ? {} : { caps: patch.caps }),
       ...(patch.spendLimit === undefined ? {} : { spendLimit: patch.spendLimit }),
       ...(patch.save === undefined ? {} : { save: patch.save }),

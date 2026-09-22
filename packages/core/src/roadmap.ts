@@ -98,6 +98,8 @@ export interface Stage {
    * honest answer to "when is it clear" is that there is no such month. This used to be filled
    * with a flat 120 months so the stage had *a* length, which put a payoff date on a debt that
    * mathematically never clears — and dated every sequential stage behind it off that fiction.
+   * The other is a cover goal no policy on the shelf could be placed for, for the same reason:
+   * there is no day it will be done.
    *
    * Read it with `completesOn`, which lands on `startsOn` whenever this is zero.
    */
@@ -138,11 +140,14 @@ export interface Roadmap {
    * It answers "which stage does the plan open at", which is what the avatar brief and
    * `get_plan` want. It does **not** answer "which stages have money going into them this
    * month" — several can at once, because an ongoing premium runs alongside whatever is
-   * sequential. That rule is `s.index === 1 || s.cadence === 'ongoing'`, and it is what
-   * `monthlyCommitment` below is summed over.
+   * sequential. That is every ongoing stage plus the first sequential stage still to finish,
+   * and it is what `monthlyCommitment` below is summed over.
    */
   currentStageIndex: number
-  /** What leaves the account this month across every stage now running. */
+  /**
+   * What the plan asks for each month right now: every ongoing stage, plus the sequential stage
+   * being paid — the first still to finish, which is not stage 1 when a premium comes first.
+   */
   monthlyCommitment: number
   totalMonths: number
   completesOn: string
@@ -193,6 +198,15 @@ function cheapest(
   predicate: (p: Product) => boolean,
 ): Product | undefined {
   return [...shelf].filter(predicate).sort((a, b) => a.minInvestment - b.minInvestment)[0]
+}
+
+/**
+ * Whether a stage is still to finish on `asOf`. A stage with no end — `monthsToComplete` of
+ * zero, which only an unclearable debt or unplaceable cover has — always is, though it ends on
+ * the day it starts.
+ */
+function unfinished(stage: Stage, asOf: string): boolean {
+  return stage.monthsToComplete === 0 || stage.completesOn > asOf
 }
 
 export interface RoadmapOptions {
@@ -295,6 +309,13 @@ export function buildRoadmap(
    */
   let undatedDebt = false
   let undatedDebtShortfall = 0
+
+  /*
+   * A cover goal with no policy the shelf could place, and what the cheapest one would take.
+   * Held beside the undated debt for the same reason: it blocks the route, not only its stage.
+   */
+  let uncovered = false
+  let uncoveredShortfall = 0
 
   const push = (
     stage: Omit<Stage, 'index' | 'startsOn' | 'completesOn' | 'verdict'> & {
@@ -438,7 +459,18 @@ export function buildRoadmap(
 
   /* Stage: clear expensive debt ---------------------------------------- */
 
-  if (snapshot.debt.hasHighInterest && available > 0) {
+  /*
+   * With nothing to pay it with, the card still goes on the route: undated, and blocking it.
+   *
+   * It used to be left off whenever nothing was spare, which was harmless only while the ladder
+   * chose the goal — then the debt *was* the goal, and the free-up stage above carries it. Priya,
+   * with a card at 34.8% and no habit to name, chose the long game and got "Find the first thing
+   * to spare" and then the long game: the card was nowhere on her route. So the stage is skipped
+   * only where free-up already carries the payoff. Everywhere else it is priced at what is spare,
+   * and at nothing that is a balance that never clears, with the payment that would clear it.
+   */
+  const payoffCarried = needsFreeingUp && goal.kind === 'debt_payoff'
+  if (snapshot.debt.hasHighInterest && (available > 0 || !payoffCarried)) {
     const rate = snapshot.debt.highestRate
     /*
      * The balances actually at that rate, not every rupee the customer owes.
@@ -569,7 +601,48 @@ export function buildRoadmap(
 
   const alreadyPrerequisite = stages.some((s) => s.isGoal)
 
-  if (!alreadyPrerequisite) {
+  /*
+   * Cover is placed or it is not, and a payoff is paid; neither is saved towards.
+   *
+   * A cover goal is carried by the cover stage above, and a payoff by the free-up or the debt
+   * stage whenever anything is expensive — where nothing is, the instalments already clear it.
+   * Where no life policy on the shelf could be placed there is no cover stage, and the goal used
+   * to fall through to the growth stage below, which planned a family's whole ₹1.02 crore
+   * requirement as a deposit to fill within a year, eight lakh a month short. What is true is that
+   * no cover can be placed yet, so that is the goal's stage: undated, with the route blocked
+   * behind it and the cheapest premium on the shelf as what it would take.
+   */
+  const neverSaved = goal.kind === 'protection' || goal.kind === 'debt_payoff'
+
+  if (!alreadyPrerequisite && neverSaved) {
+    if (goal.kind === 'protection' && snapshot.protection.gap > 0) {
+      const life = cheapest(
+        shelf,
+        (p) => p.coverType === 'life' && !p.bundlesProtectionAndInvestment,
+      )
+      uncovered = true
+      uncoveredShortfall = life === undefined ? 0 : Math.max(0, life.minInvestment - available)
+      push({
+        kind: 'get_cover',
+        label: 'No cover I can place yet',
+        why:
+          `${snapshot.customer.dependents} ` +
+          `${snapshot.customer.dependents === 1 ? 'person depends' : 'people depend'} on your ` +
+          `income and ${inr(snapshot.protection.gap)} of cover is missing. ` +
+          (life === undefined
+            ? `There is no life policy on the shelf I can place for it.`
+            : `The cheapest life policy on the shelf is ${inr(life.minInvestment)} a month, and ` +
+              `you have ${inr(available)} spare.`),
+        productId: null,
+        productName: null,
+        monthly: 0,
+        targetAmount: goal.targetAmount,
+        monthsToComplete: 0,
+        cadence: 'ongoing',
+        isGoal: true,
+      })
+    }
+  } else if (!alreadyPrerequisite) {
     const wantsGrowth = goal.kind === 'wealth_target' || goal.kind === 'retirement'
 
     // A long target in today's money is funded at the real rate: sizing a thirty-year goal at
@@ -636,7 +709,11 @@ export function buildRoadmap(
    */
   const firstUnfinished = stages.findIndex((s) => s.completesOn > asOf)
   const currentStageIndex = firstUnfinished === -1 ? 0 : firstUnfinished
-  const running = stages.filter((s) => s.index === 1 || s.cadence === 'ongoing')
+  // What leaves the account now: every ongoing stage, and the one sequential stage being paid.
+  // That was read as stage 1, which a premium can be — and then the payoff starting beside it
+  // was left out, and safe to spend counted the debt payment as spendable.
+  const paying = stages.find((s) => s.cadence === 'sequential' && unfinished(s, asOf))
+  const running = stages.filter((s) => s.cadence === 'ongoing' || s === paying)
   // Sequential stages run one after another; an ongoing goal runs to its own horizon. The route
   // is as long as the longer of the two, not the sum — a term premium does not extend the plan.
   const sequentialMonths = stages
@@ -658,8 +735,12 @@ export function buildRoadmap(
     // A balance that outruns its payment blocks the route whether or not it is the goal, and
     // it did not use to: the goal stage is skipped when a prerequisite already carries the
     // goal, so a plan whose one debt never clears reported itself feasible with nothing short.
-    feasible: feasible && !undatedDebt,
-    shortfallMonthly: Math.max(shortfallMonthly, undatedDebt ? undatedDebtShortfall : 0),
+    feasible: feasible && !undatedDebt && !uncovered,
+    shortfallMonthly: Math.max(
+      shortfallMonthly,
+      undatedDebt ? undatedDebtShortfall : 0,
+      uncovered ? uncoveredShortfall : 0,
+    ),
     projection,
     disclaimer: DISCLAIMER,
   }
@@ -674,10 +755,11 @@ export function buildRoadmap(
  * which by then may have finished. This asks the question against a clock instead, so a caller
  * holding a stored roadmap gets the stage that is actually running.
  *
- * A stage with no end — `monthsToComplete` of zero, which only an unclearable debt has — is
- * never behind us: nothing after it has a date either, so the route stops there and says so.
+ * A stage with no end — `monthsToComplete` of zero, which only an unclearable debt or
+ * unplaceable cover has — is never behind us: nothing after it has a date either, so the route
+ * stops there and says so.
  * Null once every stage has finished, which is a real answer rather than the last one again.
  */
 export function currentStage(roadmap: Roadmap, asOf: string): Stage | null {
-  return roadmap.stages.find((s) => s.monthsToComplete === 0 || s.completesOn > asOf) ?? null
+  return roadmap.stages.find((s) => unfinished(s, asOf)) ?? null
 }

@@ -55,6 +55,7 @@ export const HISTORY_WINDOW_MONTHS = 24
  */
 export const FIRST_PLAN_REASON = 'First plan, built from the statements on file.'
 export const TARGET_CHANGED_REASON = 'Target changed by the customer.'
+export const GOAL_CHOSEN_REASON = 'Goal chosen by the customer.'
 
 /** Where a view's snapshot came from: this process, the database, or a derivation just now. */
 export type SnapshotSource = 'memo' | 'stored' | 'derived'
@@ -160,9 +161,28 @@ function sinceFirstProposed(goal: Goal, latest: RoadmapVersion | null): Goal {
 /**
  * Why this version differs from the last, from what actually changed between them. Scopes are
  * checked first because they are the most specific thing a reviewer just did; the clock next;
- * the target last, because a target change alone leaves the snapshot untouched.
+ * the goal last, because a goal change alone leaves the snapshot untouched.
+ *
+ * Whether the customer moved the goal is not read off the goal. A chosen kind falls back to the
+ * ladder, or comes back into force, when the statements move under it — a same-day re-sync, a
+ * profile edit that opens a cover gap — and a reason that watched only the plan's kind recorded
+ * "Goal chosen by the customer" for changes nobody chose. So `theirs` is asked for: the goal the
+ * session's goal inputs give on the snapshot the last version was cut from. Where that already
+ * differs from the last version, the customer's own inputs moved the plan; where it does not, the
+ * statements did, whatever the kind went on to do. It is only asked for once the scopes and the
+ * clock have been ruled out, because on a different snapshot it costs a read.
+ *
+ * Of the customer's changes, a different kind is a choice. A different figure on the same kind
+ * is a target typed — unless no target is stored at all, which only a choice can leave: a patch
+ * naming a new kind clears the target, and a kind with nothing to aim at leaves the plan on the
+ * same goal with its own figure back. That holds where nobody has chosen a kind too: a figure
+ * typed still reads as a changed target, and a goal the statements moved no longer does.
  */
-export function recutReason(latest: RoadmapVersion, session: Session, goal: Goal): string {
+export async function recutReason(
+  latest: RoadmapVersion,
+  session: Session,
+  theirs: () => Promise<Goal>,
+): Promise<string> {
   const before = new Set(latest.scopeOverrides)
   const after = new Set(session.scopeOverrides)
   const withdrawn = session.scopeOverrides.filter((s) => !before.has(s))
@@ -176,7 +196,12 @@ export function recutReason(latest: RoadmapVersion, session: Session, goal: Goal
   if (latest.atSim !== session.asOf) {
     return `Re-cut after the clock moved to ${spokenDate(session.asOf)}.`
   }
-  if (canonical(latest.goal) !== canonical(goal)) return TARGET_CHANGED_REASON
+  const mine = await theirs()
+  if (canonical(mine) !== canonical(latest.goal)) {
+    return mine.kind !== latest.goal.kind || session.goalTarget === null
+      ? GOAL_CHOSEN_REASON
+      : TARGET_CHANGED_REASON
+  }
   return `Re-cut on ${spokenDate(session.asOf)} with the latest statements.`
 }
 
@@ -239,13 +264,46 @@ export class AdvisoryService {
       snapshotSource,
       snapshot: stored.snapshot,
       goal: sinceFirstProposed(
-        suggestGoal(stored.snapshot, session.asOf, session.goalTarget, session.goalBasis),
+        suggestGoal(
+          stored.snapshot,
+          session.asOf,
+          session.goalTarget,
+          session.goalBasis,
+          session.goalKind,
+        ),
         latest,
       ),
       shelfProducts,
       latest,
       ledgerHorizon,
     }
+  }
+
+  /**
+   * The goal the session's goal inputs give on the snapshot `latest` was cut from, dated the way
+   * `derived` dates one. On the same snapshot that is the goal already in hand.
+   */
+  private async onLastSnapshot(
+    session: Session,
+    d: Derived,
+    latest: RoadmapVersion,
+  ): Promise<Goal> {
+    if (latest.snapshotHash === d.stored.snapshotHash) return d.goal
+    const last = await this.deps.snapshots.getById(latest.snapshotId)
+    // Snapshot rows are append-only and cited by the record, so this is not expected to miss.
+    // If it does, the last goal answers "the customer's inputs moved nothing": the record then
+    // claims no action of theirs that it cannot show.
+    if (!last) return latest.goal
+    return sinceFirstProposed(
+      suggestGoal(
+        last.snapshot,
+        session.asOf,
+        session.goalTarget,
+        session.goalBasis,
+        session.goalKind,
+      ),
+      latest,
+    )
   }
 
   /** The session's latest version, from this process when it cut it or saw it recently. */
@@ -301,7 +359,9 @@ export class AdvisoryService {
 
     const built = buildRoadmap(d.snapshot, d.goal, d.shelfProducts, session.asOf, {
       version: (latest?.version ?? 0) + 1,
-      reasonForChange: latest ? recutReason(latest, session, d.goal) : FIRST_PLAN_REASON,
+      reasonForChange: latest
+        ? await recutReason(latest, session, () => this.onLastSnapshot(session, d, latest))
+        : FIRST_PLAN_REASON,
     })
 
     try {

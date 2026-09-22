@@ -14,13 +14,13 @@ import type {
   ClockRequest,
   ConsentScope,
   CustomerSummary,
-  GoalAmountBasis,
+  GoalPatch,
   IsoDate,
   SessionState,
 } from '@dhan/contracts'
 import { BeyondHorizon, StaleClock, Unavailable } from './errors.ts'
 import { sha256Hex } from './hash.ts'
-import type { BankDataPort, Clock, Session, SessionStore } from '../ports/index.ts'
+import type { BankDataPort, Clock, Session, SessionPatch, SessionStore } from '../ports/index.ts'
 
 /** Six days before the anchor, so "since you were away" has a week to talk about. */
 const LAST_SEEN_OFFSET_DAYS = -6
@@ -115,6 +115,7 @@ export class SessionService {
       lastSeen: session.lastSeen,
       goalTarget: session.goalTarget,
       goalBasis: session.goalBasis,
+      goalKind: session.goalKind,
       caps: session.caps,
       spendLimit: session.spendLimit,
       scopeOverrides: session.scopeOverrides,
@@ -158,19 +159,35 @@ export class SessionService {
   }
 
   /**
-   * The customer's own target, and which money they stated it in.
+   * The goal the customer chose, their own target for it, and which money they stated it in.
    *
-   * Both are written every time, and the basis is written even when the caller omits it —
-   * `null`, meaning today's money. Patching only what was sent would leave a stale
-   * `at_horizon` sitting under an amount the customer has since retyped in today's money,
-   * and the engine would fund it at the nominal rate for a reason nobody could see.
+   * A target and its basis are written together every time, and the basis is written even when
+   * the caller omits it — `null`, meaning today's money. Patching only what was sent would leave
+   * a stale `at_horizon` sitting under an amount the customer has since retyped in today's
+   * money, and the engine would fund it at the nominal rate for a reason nobody could see.
+   *
+   * A kind other than the stored one takes the stored target and basis with it unless the same
+   * patch sets a target: a figure typed for clearing a card is not a figure for retirement, and
+   * carried over it would quietly become one. The same kind again changes nothing and writes
+   * nothing, so a customer re-confirming their goal keeps the figure they set on it.
+   *
+   * So the stored target is always the figure for the stored kind, and `suggestGoal` plans it only
+   * while that kind is the plan's goal. The goal screen sends the kind the plan is showing beside
+   * the figure typed on it, which pins the kind where the plan had fallen back to its own.
    */
-  async setGoal(
-    session: Session,
-    targetAmount: number,
-    amountBasis?: GoalAmountBasis,
-  ): Promise<Session> {
-    return this.patch(session, { goalTarget: targetAmount, goalBasis: amountBasis ?? null })
+  async setGoal(session: Session, goal: GoalPatch): Promise<Session> {
+    const patch: SessionPatch = {}
+    if (goal.kind !== undefined && goal.kind !== session.goalKind) {
+      patch.goalKind = goal.kind
+      patch.goalTarget = null
+      patch.goalBasis = null
+    }
+    if ('targetAmount' in goal) {
+      patch.goalTarget = goal.targetAmount
+      patch.goalBasis = goal.amountBasis ?? null
+    }
+    if (Object.keys(patch).length === 0) return session
+    return this.patch(session, patch)
   }
 
   /**

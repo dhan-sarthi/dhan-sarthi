@@ -45,6 +45,13 @@ export interface Answer {
 
 const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
 
+/**
+ * A label as it reads mid-sentence: the first letter lowered, and not even that where the label
+ * opens on an acronym. Lowercasing the whole of it read "rent, bills and emis" aloud.
+ */
+const midSentence = (label: string): string =>
+  /^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label
+
 /* ------------------------------------------------------------------ *
  * Resolving the question
  * ------------------------------------------------------------------ */
@@ -181,7 +188,7 @@ export function answer(
     const s = context.safeToSpend
     if (s) {
       // The pot Today shows, held back item by item, so the figure and the screen agree.
-      const heldBack = s.reserved.map((r) => `${r.label.toLowerCase()} ${inr(r.amount)}`)
+      const heldBack = s.reserved.map((r) => `${midSentence(r.label)} ${inr(r.amount)}`)
       return {
         matched: true,
         text:

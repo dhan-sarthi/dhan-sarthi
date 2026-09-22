@@ -71,6 +71,7 @@ describe('the money a goal amount is counted in', () => {
       lastSeen: '2026-08-26',
       goalTarget: 5_581_191,
       goalBasis: 'at_horizon',
+      goalKind: null,
       caps: [],
       spendLimit: null,
       scopeOverrides: [],
@@ -83,6 +84,65 @@ describe('the money a goal amount is counted in', () => {
     assert.equal(SessionStateSchema.parse({ ...state, goalBasis: null }).goalBasis, null)
     const { goalBasis: _omitted, ...without } = state
     assert.equal(SessionStateSchema.safeParse(without).success, false)
+  })
+})
+
+describe('the goal the customer chose', () => {
+  it('is accepted on the patch alone, beside an amount, or as the amount alone', () => {
+    assert.deepEqual(GoalPatchSchema.parse({ kind: 'retirement' }), { kind: 'retirement' })
+    assert.deepEqual(GoalPatchSchema.parse({ kind: 'wealth_target', targetAmount: 2_500_000 }), {
+      kind: 'wealth_target',
+      targetAmount: 2_500_000,
+    })
+    assert.deepEqual(
+      GoalPatchSchema.parse({
+        kind: 'wealth_target',
+        targetAmount: 5_581_191,
+        amountBasis: 'at_horizon',
+      }),
+      { kind: 'wealth_target', targetAmount: 5_581_191, amountBasis: 'at_horizon' },
+    )
+    // A client written before the kind existed sends what it always sent.
+    assert.deepEqual(GoalPatchSchema.parse({ targetAmount: 2_500_000 }), {
+      targetAmount: 2_500_000,
+    })
+  })
+
+  it('refuses a patch that changes nothing, a basis with no amount, and a sixth kind', () => {
+    assert.equal(GoalPatchSchema.safeParse({}).success, false)
+    // The basis qualifies an amount; with none beside it there is nothing for it to say.
+    assert.equal(
+      GoalPatchSchema.safeParse({ kind: 'retirement', amountBasis: 'today' }).success,
+      false,
+    )
+    assert.equal(GoalPatchSchema.safeParse({ kind: 'house' }).success, false)
+    assert.equal(GoalPatchSchema.safeParse({ kind: 'retirement', label: 'Goa' }).success, false)
+  })
+
+  it('is on the session state, null until chosen, and never simply absent', () => {
+    const state = {
+      id: '00000000-0000-4000-8000-000000000000',
+      cif: 'IDBI0009182731',
+      asOf: '2026-09-01',
+      lastSeen: '2026-08-26',
+      goalTarget: null,
+      goalBasis: null,
+      goalKind: 'protection',
+      caps: [],
+      spendLimit: null,
+      scopeOverrides: [],
+      version: 2,
+      ledgerHorizon: { from: '2024-09-01', to: '2028-03-01' },
+      expiresAt: '2026-10-01T09:00:00.000Z',
+      capabilities: { simulatedClock: true, avatar: 'none' },
+    }
+    assert.equal(SessionStateSchema.parse(state).goalKind, 'protection')
+    // Null is "never chosen, the ladder picks", and it has to survive the response parse as
+    // itself: stripped to absent, a client could not tell it from a server that never said.
+    assert.equal(SessionStateSchema.parse({ ...state, goalKind: null }).goalKind, null)
+    const { goalKind: _omitted, ...without } = state
+    assert.equal(SessionStateSchema.safeParse(without).success, false)
+    assert.equal(SessionStateSchema.safeParse({ ...state, goalKind: 'house' }).success, false)
   })
 })
 

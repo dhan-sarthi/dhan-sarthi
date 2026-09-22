@@ -922,6 +922,13 @@ export const SessionStateSchema = z.object({
    * the half-carry that had the engine discounting an inflated target twice.
    */
   goalBasis: GoalAmountBasisSchema.nullable(),
+  /**
+   * The goal kind the customer chose, or null where they never chose one — and then the
+   * engine's ladder picks. A choice with nothing to aim at (a payoff with nothing owed, cover
+   * with no gap) is kept as said and planned as the ladder's proposal, so this is what the
+   * customer asked for; `View.goal.kind` is what the plan is for.
+   */
+  goalKind: GoalKindSchema.nullable(),
   caps: z.array(CategoryCapSchema),
   /**
    * A monthly ceiling on discretionary spending, set by the customer. Null means none, and

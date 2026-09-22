@@ -14,6 +14,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { REAL_RATE_HORIZON_YEARS, buildRoadmap, currentStage, fundingRatePct } from './roadmap.ts'
 import type { Goal } from './roadmap.ts'
+import { buildDailyPlan } from './dailyplan.ts'
+import { suggestGoal } from './goal.ts'
 import { monthsToClear, paymentToClear } from './projection.ts'
 import { SHELF, habit, snapshot } from './snapshot.testkit.ts'
 
@@ -457,7 +459,9 @@ describe('buildRoadmap: assembly', () => {
 
   it('counts every stage running now into the monthly commitment', () => {
     const r = buildRoadmap(exposed, goal(), SHELF, ASOF)
-    const running = r.stages.filter((s) => s.index === 1 || s.cadence === 'ongoing')
+    // Every ongoing stage, and the one sequential stage being paid: the first still to finish.
+    const paying = r.stages.find((s) => s.cadence === 'sequential' && s.completesOn > ASOF)
+    const running = r.stages.filter((s) => s.cadence === 'ongoing' || s === paying)
     assert.equal(
       r.monthlyCommitment,
       running.reduce((sum, s) => sum + s.monthly, 0),
@@ -487,6 +491,75 @@ describe('buildRoadmap: assembly', () => {
   })
 })
 
+describe('buildRoadmap: the monthly commitment', () => {
+  // Karan's shape: a premium as stage 1, a payoff starting today, and a buffer behind it.
+  const covered = snapshot({
+    customer: { dependents: 2 },
+    protection: { dependents: 2, lifeCoverNeeded: 12_000_000, gap: 12_000_000 },
+    debt: { total: 186_000, hasHighInterest: true, highInterestTotal: 186_000, highestRate: 34.8 },
+    balances: { savings: 20_000, total: 20_000 },
+    buffer: { monthsCovered: 0, shortfall: 160_000 },
+  })
+  const payoff = goal({ kind: 'debt_payoff', targetAmount: 186_000 })
+
+  it('counts the payoff running beside a premium, not the premium alone', () => {
+    const r = buildRoadmap(covered, payoff, SHELF, ASOF)
+
+    assert.deepEqual(
+      r.stages.map((s) => [s.kind, s.cadence, s.startsOn === ASOF]),
+      [
+        ['get_cover', 'ongoing', true],
+        ['clear_debt', 'sequential', true],
+        ['build_buffer', 'sequential', false],
+      ],
+    )
+    // The 1,200 premium and the 38,800 payment: all 40,000 spare. Not 1,200, which took stage 1
+    // for the sequential one, and not 78,800, which would also pay the buffer before its turn.
+    assert.equal(r.monthlyCommitment, 40_000)
+  })
+
+  it('holds the payment back from safe to spend', () => {
+    const r = buildRoadmap(covered, payoff, SHELF, ASOF)
+    const { safeToSpend } = buildDailyPlan(covered, r, [], SHELF, ASOF)
+    // 1,00,000 in, less 40,000 committed and the 40,000 the plan pays this month.
+    assert.equal(safeToSpend.affordable, 20_000)
+  })
+
+  it('still counts a debt that never clears, because it is the stage being paid', () => {
+    // An undated stage ends on the day it starts, so a check on the date alone would skip it
+    // and count the ₹0 catch-up stage behind it instead.
+    const drowning = snapshot({
+      customer: { dependents: 2 },
+      protection: { dependents: 2, lifeCoverNeeded: 12_000_000, gap: 12_000_000 },
+      surplus: { monthly: 6_898, alreadyInvested: 0, deployable: 6_898 },
+      debt: {
+        total: 583_000,
+        hasHighInterest: true,
+        highInterestTotal: 583_000,
+        highestRate: 34.8,
+        missedRepayment: true,
+      },
+    })
+    const r = buildRoadmap(
+      drowning,
+      goal({ kind: 'debt_payoff', targetAmount: 583_000 }),
+      SHELF,
+      ASOF,
+    )
+
+    assert.deepEqual(
+      r.stages.map((s) => [s.kind, s.monthsToComplete]),
+      [
+        ['get_cover', 1],
+        ['clear_debt', 0],
+        ['clear_debt', 1],
+      ],
+    )
+    // The 1,200 premium and the 5,698 left for the card.
+    assert.equal(r.monthlyCommitment, 6_898)
+  })
+})
+
 describe('currentStage', () => {
   const thin = snapshot({
     balances: { savings: 20_000, total: 20_000 },
@@ -508,5 +581,147 @@ describe('currentStage', () => {
   it('is null once every stage has finished, which is a real answer', () => {
     const r = buildRoadmap(snapshot(), goal(), SHELF, ASOF)
     assert.equal(currentStage(r, '2099-01-01'), null)
+  })
+})
+
+describe('buildRoadmap: a goal the customer chose', () => {
+  /*
+   * The customer names the destination; the ladder still decides the route. Choosing the long
+   * game does not let anyone skip the cover, the 34.8% card or the buffer — those stay in front,
+   * each with its reason, and the choice decides only which stage the plan is *for*.
+   */
+  const struggling = snapshot({
+    customer: { dependents: 2 },
+    protection: { dependents: 2, lifeCoverNeeded: 12_000_000, gap: 12_000_000 },
+    debt: { total: 186_000, hasHighInterest: true, highInterestTotal: 186_000, highestRate: 34.8 },
+    balances: { savings: 20_000, total: 20_000, idleFloor: 0, idleMonths: 0 },
+    buffer: { monthsCovered: 0.3, targetMonths: 6, shortfall: 340_000 },
+  })
+  const chosen = (kind: Goal['kind']) =>
+    buildRoadmap(struggling, suggestGoal(struggling, ASOF, null, null, kind), SHELF, ASOF)
+
+  for (const kind of ['retirement', 'wealth_target'] as const) {
+    it(`keeps cover, the expensive debt and the buffer ahead of ${kind}`, () => {
+      const r = chosen(kind)
+      assert.equal(r.goal.kind, kind)
+      assert.deepEqual(
+        r.stages.map((s) => [s.kind, s.isGoal]),
+        [
+          ['get_cover', false],
+          ['clear_debt', false],
+          ['build_buffer', false],
+          ['grow', true],
+        ],
+      )
+      // The goal stage starts only once the sequential stages in front of it have finished.
+      const grow = r.stages[3]
+      assert.equal(grow?.startsOn, r.stages[2]?.completesOn)
+    })
+  }
+
+  it('carries a chosen safety net on the buffer stage, after the card', () => {
+    const r = chosen('emergency_fund')
+    assert.deepEqual(
+      r.stages.map((s) => [s.kind, s.isGoal]),
+      [
+        ['get_cover', false],
+        ['clear_debt', false],
+        ['build_buffer', true],
+      ],
+    )
+  })
+
+  it('carries a chosen cover goal on the cover stage, with the rest of the route behind it', () => {
+    const r = chosen('protection')
+    assert.deepEqual(
+      r.stages.map((s) => [s.kind, s.isGoal]),
+      [
+        ['get_cover', true],
+        ['clear_debt', false],
+        ['build_buffer', false],
+      ],
+    )
+  })
+
+  /*
+   * A card at 34.8%, nothing spare and no habit to name: IDBI's own feed makes this the normal
+   * case rather than an edge one. The ladder's goal is the payoff, carried by the free-up stage.
+   */
+  const stretched = snapshot({
+    debt: { total: 310_012, hasHighInterest: true, highInterestTotal: 310_012, highestRate: 34.8 },
+    surplus: { monthly: 0, alreadyInvested: 0, deployable: 0 },
+    balances: { savings: 80_000, total: 80_000, idleFloor: 0, idleMonths: 0 },
+    buffer: { monthsCovered: 1.3, targetMonths: 6, shortfall: 280_000 },
+  })
+
+  for (const kind of ['retirement', 'wealth_target', 'emergency_fund'] as const) {
+    it(`puts the card on the route to ${kind} even with nothing spare to pay it with`, () => {
+      const r = buildRoadmap(stretched, suggestGoal(stretched, ASOF, null, null, kind), SHELF, ASOF)
+      assert.equal(r.goal.kind, kind)
+      const card = r.stages.find((s) => s.kind === 'clear_debt')
+      assert.ok(card, r.stages.map((s) => s.kind).join(', '))
+      // Undated: at ₹0 a month the balance never clears, and the route says so.
+      assert.equal(card.monthsToComplete, 0)
+      assert.equal(card.isGoal, false)
+      assert.ok(r.stages.indexOf(card) < r.stages.findIndex((s) => s.isGoal))
+      assert.equal(r.feasible, false)
+      assert.ok(r.shortfallMonthly >= paymentToClear(310_012, 34.8, 36))
+    })
+  }
+
+  it('leaves the ladder’s own route alone there: the free-up stage carries the payoff', () => {
+    const r = buildRoadmap(stretched, suggestGoal(stretched, ASOF, null), SHELF, ASOF)
+    assert.deepEqual(
+      r.stages.map((s) => [s.kind, s.isGoal]),
+      [['free_up', true]],
+    )
+  })
+
+  it('names a cover goal it cannot place rather than saving the requirement into a deposit', () => {
+    const exposed = snapshot({
+      customer: { dependents: 2 },
+      protection: { dependents: 2, lifeCoverNeeded: 10_200_000, gap: 10_200_000 },
+    })
+    const noLife = SHELF.filter((p) => p.coverType !== 'life')
+    const r = buildRoadmap(
+      exposed,
+      suggestGoal(exposed, ASOF, null, null, 'protection'),
+      noLife,
+      ASOF,
+    )
+    assert.equal(r.goal.kind, 'protection')
+    assert.equal(
+      r.stages.some((s) => s.kind === 'grow'),
+      false,
+    )
+    const goalStage = r.stages.find((s) => s.isGoal)
+    assert.equal(goalStage?.kind, 'get_cover')
+    assert.equal(goalStage?.productId, null)
+    assert.equal(goalStage?.monthsToComplete, 0)
+    assert.equal(r.feasible, false)
+  })
+
+  it('quotes the cheapest premium on the shelf as what an unplaceable cover goal would take', () => {
+    const exposed = snapshot({
+      customer: { dependents: 2 },
+      protection: { dependents: 2, lifeCoverNeeded: 10_200_000, gap: 10_200_000 },
+      surplus: { monthly: 20, alreadyInvested: 0, deployable: 20 },
+    })
+    // Only policies dearer than the ₹100 floor the cover stage will stretch to.
+    const dear = SHELF.filter((p) => p.coverType !== 'life' || p.minInvestment > 100)
+    const cheapestLife = Math.min(
+      ...dear
+        .filter((p) => p.coverType === 'life' && !p.bundlesProtectionAndInvestment)
+        .map((p) => p.minInvestment),
+    )
+    const r = buildRoadmap(
+      exposed,
+      suggestGoal(exposed, ASOF, null, null, 'protection'),
+      dear,
+      ASOF,
+    )
+    assert.equal(r.stages.find((s) => s.isGoal)?.productId, null)
+    assert.equal(r.feasible, false)
+    assert.ok(r.shortfallMonthly >= cheapestLife - 20, `${r.shortfallMonthly}`)
   })
 })

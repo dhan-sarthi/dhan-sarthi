@@ -219,12 +219,13 @@ export function buildDailyPlan(
     /*
      * Labels a person would use, not labels the code would.
      *
-     * "Your plan this month" named the roadmap rather than the money: it is the amount actually
-     * leaving the account towards cover and investments, and a reader cannot be expected to know
-     * that "plan" is a noun this app owns. Each of these now says what the money *is*.
+     * The plan's row says what Budget's does. "Saved and invested" read a ₹985 premium as the
+     * customer's own investing, beside a Holdings tab showing ₹40,000 a month of SIPs — and the
+     * money is as often a debt payment as an investment. Uday reads these aloud, so one label
+     * on screen and another in his answer would be two names for one sum.
      */
     { label: 'Rent, bills and EMIs', amount: Math.round(snapshot.commitments.total) },
-    { label: 'Saved and invested', amount: Math.round(commitment) },
+    { label: 'Set aside for your plan', amount: Math.round(commitment) },
     { label: 'Already spent this month', amount: Math.round(spentThisMonth) },
   ].filter((r) => r.amount > 0)
 

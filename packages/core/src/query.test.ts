@@ -13,10 +13,14 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { buildDailyPlan } from './dailyplan.ts'
 import { answer, openingLine, suggestedQuestions } from './query.ts'
-import { customerFile, snapshot, txn } from './snapshot.testkit.ts'
+import { buildRoadmap } from './roadmap.ts'
+import { SHELF, customerFile, snapshot, txn } from './snapshot.testkit.ts'
 
 const ASOF = '2026-09-01'
+
+const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
 
 /** Four August lines and one July line, so a window boundary is actually crossed. */
 const LEDGER = customerFile([
@@ -69,6 +73,59 @@ describe('routing', () => {
     assert.match(a.text, /613 a day/)
     // And not the bare envelope, which is a different number.
     assert.doesNotMatch(a.text, /60,000 this month after everything committed/)
+  })
+
+  it('reads out what is held back in the engine’s words, acronyms intact', () => {
+    const ledger = customerFile([...LEDGER.transactions, txn({ txnDate: ASOF, txnAmount: 700 })])
+    const roadmap = buildRoadmap(
+      base,
+      {
+        id: 'goal-test',
+        kind: 'wealth_target',
+        purpose: 'A house deposit',
+        targetAmount: 2_000_000,
+        targetDate: '2036-09-01',
+        createdAt: ASOF,
+      },
+      SHELF,
+      ASOF,
+    )
+    const { safeToSpend } = buildDailyPlan(base, roadmap, ledger.transactions, SHELF, ASOF)
+    const plan = inr(roadmap.monthlyCommitment)
+    const a = answer('How much can I spend?', base, ledger, { safeToSpend })
+
+    // The plan's row in Budget's words. "Saved and invested" read a ₹985 premium as the
+    // customer's own investing, beside a Holdings tab showing ₹40,000 a month of SIPs.
+    assert.deepEqual(
+      safeToSpend.reserved.map((r) => r.label),
+      ['Rent, bills and EMIs', 'Set aside for your plan', 'Already spent this month'],
+    )
+    // Lowercasing the whole label read "rent, bills and emis" aloud.
+    assert.ok(
+      a.text.includes(
+        `That is after rent, bills and EMIs ₹40,000, set aside for your plan ${plan}, ` +
+          `already spent this month ₹700, out of ₹1,00,000 coming in.`,
+      ),
+      a.text,
+    )
+    assert.ok(a.evidence.includes(`Set aside for your plan: ${plan}`))
+  })
+
+  it('leaves a held-back label that opens on an acronym as it is', () => {
+    const a = answer('How much can I spend?', base, LEDGER, {
+      safeToSpend: {
+        pot: 18_400,
+        envelope: 23_400,
+        limit: null,
+        affordable: 23_400,
+        perDay: 613,
+        daysToSalary: 30,
+        nextSalaryDate: '2026-10-01',
+        incomeStability: 'regular',
+        reserved: [{ label: 'EMIs and bills', amount: 5_000 }],
+      },
+    })
+    assert.match(a.text, /That is after EMIs and bills ₹5,000,/)
   })
 
   it('sends a ULIP question to the refusal before the general protection handler', () => {

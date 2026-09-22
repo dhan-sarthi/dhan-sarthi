@@ -246,6 +246,7 @@ describe(
         assert.deepEqual(created.caps, [])
         assert.deepEqual(created.scopeOverrides, [])
         assert.equal(created.goalTarget, null)
+        assert.equal(created.goalKind, null)
         // save_state defaults to '{}' in 0011 and normalises on the way out, so a session that
         // has never saved reads as the empty pot rather than as a hole.
         assert.deepEqual(created.save, EMPTY_SAVE_STATE)
@@ -261,6 +262,7 @@ describe(
             asOf: '2026-10-01',
             lastSeen: options.anchor,
             goalTarget: 500_000,
+            goalKind: 'protection',
             caps: [{ category: 'Food & dining', monthlyLimit: 5_000 }],
           },
           1,
@@ -269,6 +271,10 @@ describe(
         assert.equal(moved.version, 2)
         assert.equal(moved.asOf, '2026-10-01')
         assert.equal(moved.goalTarget, 500_000)
+        // 0012's column, through the same round trip: missing from SESSION_COLUMNS it would be
+        // written and then read back undefined on every session.
+        assert.equal(moved.goalKind, 'protection')
+        assert.equal((await sessions.getById(sessionId))?.goalKind, 'protection')
         assert.deepEqual(moved.caps, [{ category: 'Food & dining', monthlyLimit: 5_000 }])
 
         // The two jsonb columns 0011 added, through the same patch-and-re-read the caps line

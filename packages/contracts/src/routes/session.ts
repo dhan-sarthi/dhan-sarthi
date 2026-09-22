@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { ErrorBodySchema, MoneySchema, NoContentSchema } from '../common.ts'
-import { ConsentScopeSchema, GoalAmountBasisSchema, SessionStateSchema } from '../domain.ts'
+import {
+  ConsentScopeSchema,
+  GoalAmountBasisSchema,
+  GoalKindSchema,
+  SessionStateSchema,
+} from '../domain.ts'
 import { SESSION_ERRORS, defineRoute } from '../route.ts'
 
 export const getSessionRoute = defineRoute({
@@ -8,7 +13,7 @@ export const getSessionRoute = defineRoute({
   method: 'GET',
   path: '/api/v1/session',
   summary:
-    'The caller’s session: clock, caps, goal override, scope overrides, version, capabilities.',
+    'The caller’s session: clock, caps, goal override, the goal kind the customer chose, scope overrides, version, capabilities.',
   auth: 'session',
   response: { 200: SessionStateSchema, ...SESSION_ERRORS },
 })
@@ -56,19 +61,51 @@ export const advanceClockRoute = defineRoute({
 })
 
 /**
- * The customer's target, and which money they stated it in.
+ * The customer's goal: the kind they chose, their own target, and which money they stated it in.
+ *
+ * `kind` is the goal the customer named — onboarding asks it as its last question, and the goal
+ * screen can change it. The engine plans around it wherever it has something to aim at and falls
+ * back to its own proposal where it does not: a payoff with nothing costly owed, cover with no
+ * gap. A kind other than the stored one clears the stored target unless this same patch sets
+ * one, because a figure typed for clearing a card is not a figure for retirement.
+ *
+ * A target belongs to the stored kind: it is planned while that kind is the plan's goal, and
+ * kept, unplanned, while the plan falls back to its own proposal. So a client setting a target
+ * on the goal the plan is showing sends that goal's kind beside it, which pins the kind to the
+ * figure. Sent alone, a target is for the stored kind — or, where none was ever chosen, for
+ * whichever goal the plan is on.
  *
  * `amountBasis` is optional and absent means `today`, so a client written before the field
  * existed sends the same body and gets the same plan. Sending `at_horizon` says the customer
  * has already inflated the figure themselves — the engine then funds it at the nominal rate
- * however long the horizon, rather than taking that inflation straight back out.
+ * however long the horizon, rather than taking that inflation straight back out. It qualifies
+ * an amount, so it is refused where there is none beside it.
+ *
+ * Two shapes, as a union rather than one object with refinements, so the published contract says
+ * what the route enforces. A refinement is invisible to JSON Schema: the OpenAPI document went
+ * out with no `required` at all, and `{}` and `{kind, amountBasis}` read as valid bodies that
+ * the route then answered with a 400. Each shape is strict, so a basis beside a lone kind is an
+ * unrecognised key, and a patch that names neither a kind nor a target matches neither.
  */
-export const GoalPatchSchema = z
-  .object({
-    targetAmount: MoneySchema.positive(),
-    amountBasis: GoalAmountBasisSchema.optional(),
-  })
-  .strict()
+export const GoalPatchSchema = z.union(
+  [
+    z.object({ kind: GoalKindSchema }).strict(),
+    z
+      .object({
+        kind: GoalKindSchema.optional(),
+        targetAmount: MoneySchema.positive(),
+        amountBasis: GoalAmountBasisSchema.optional(),
+      })
+      .strict(),
+  ],
+  {
+    errorMap: () => ({
+      message:
+        'Send a goal kind, a target amount or both: kind is one of the five goal kinds, and ' +
+        'amountBasis only comes beside a targetAmount.',
+    }),
+  },
+)
 export type GoalPatch = z.infer<typeof GoalPatchSchema>
 
 export const setGoalRoute = defineRoute({
@@ -76,7 +113,7 @@ export const setGoalRoute = defineRoute({
   method: 'PATCH',
   path: '/api/v1/session/goal',
   summary:
-    'Override the suggested goal target, and say whether it is in today’s money or the rupees of the year it lands. The next /view cuts a new roadmap version with reason "Target changed by the customer".',
+    'Record the goal kind the customer chose, override the suggested goal target, and say whether it is in today’s money or the rupees of the year it lands. A target belongs to the stored kind, and a kind other than the stored one clears it unless the same patch sets one. The next /view cuts a new roadmap version with reason "Goal chosen by the customer" when the customer’s choice moved the plan’s goal, or "Target changed by the customer" when their figure did.',
   auth: 'session',
   request: { body: GoalPatchSchema },
   response: { 200: SessionStateSchema, 400: ErrorBodySchema, ...SESSION_ERRORS },

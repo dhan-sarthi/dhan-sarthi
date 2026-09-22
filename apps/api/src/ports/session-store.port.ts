@@ -11,6 +11,7 @@ import type {
   CategoryCap,
   ConsentScope,
   GoalAmountBasis,
+  GoalKind,
   IsoDate,
   Timestamp,
 } from '@dhan/contracts'
@@ -61,6 +62,17 @@ export interface Session {
    * the same number on the wire and want opposite funding rates.
    */
   goalBasis: GoalAmountBasis | null
+  /**
+   * The goal kind the customer chose — onboarding's last question, or the goal screen's picker —
+   * or null where they never chose one and the ladder picks. Kept as said even where it has
+   * nothing to aim at: `suggestGoal` falls back to the ladder then, and the choice is still the
+   * customer's to see and change.
+   *
+   * `goalTarget` is the figure for this kind, and is planned only while this kind is the plan's
+   * goal; the ladder's fallback carries its own. Null here, the figure rides on whatever goal the
+   * ladder proposes, as it did before a kind could be chosen.
+   */
+  goalKind: GoalKind | null
   caps: CategoryCap[]
   /**
    * A monthly ceiling on discretionary spending, set by the customer.
@@ -109,6 +121,7 @@ export interface SessionPatch {
   lastSeen?: IsoDate
   goalTarget?: number | null
   goalBasis?: GoalAmountBasis | null
+  goalKind?: GoalKind | null
   caps?: CategoryCap[]
   spendLimit?: number | null
   /** Written whole: the pot is one document, and a half-patched one is a pot that disagrees. */

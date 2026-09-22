@@ -94,7 +94,7 @@ link is the right affordance and a pill is not.
 - `(tabs)/plan.tsx:165-171` — `StageRow` gains `onCredit`, passed only where
   `stage.kind === 'clear_debt' && stage.targetAmount === 0 && snapshot.debt.missedRepayment`.
   `targetAmount === 0` is what tells the arrears stage from a payoff stage, because
-  `roadmap.ts:508` is the only `clear_debt` push with a zero target — and the boolean is read
+  `roadmap.ts:540` is the only `clear_debt` push with a zero target — and the boolean is read
   again here rather than inferred from the stage's presence, so the row and the screen it opens
   cannot describe different customers.
 
@@ -255,7 +255,7 @@ rather than the deck. Recorded here because the deck is otherwise the record.
 
 - **`docs/slices/03-plan.md:66` is only half closed.** The `StageRow` link lands on the arrears
   stage alone — `stage.kind === 'clear_debt' && stage.targetAmount === 0 && missedRepayment`,
-  the one `clear_debt` push `roadmap.ts:508` raises with a zero target. Every other stage row
+  the one `clear_debt` push `roadmap.ts:540` raises with a zero target. Every other stage row
   still goes nowhere, so the logged gap stands for the rest of them.
 - **The layout acceptance criterion is arithmetic, not a screenshot.** The bureau card measures
   eyebrow 15 + `mt-lg` 16 + arc block ~167 (144 of drawing, plus the 8pt cap bulge and the chord
