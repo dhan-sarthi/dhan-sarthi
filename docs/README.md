@@ -61,6 +61,9 @@ Reading order for someone new to the project. About thirty minutes end to end.
 - [`engineering/avatar-accounts.md`](engineering/avatar-accounts.md): the account chain (Runway
   1 → 2 → 3, then Anam), what Runway bills, measured, and the tap-to-first-word latency and how
   readying the call ahead of the tap halved it.
+- [`engineering/android-apk.md`](engineering/android-apk.md): the Android APK: building and
+  installing it, how the live call runs on a phone, how it was verified without spending a
+  credit, and the five problems the web target could not catch.
 - [`../infra/fly/README.md`](../infra/fly/README.md): the API alone on Fly.io in Mumbai, built
   from the repository's own Dockerfile, one login and one command: the review link from before
   the AWS deployment. `fly.api.toml` is the only target; the second app it used to deploy was

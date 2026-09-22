@@ -1,5 +1,6 @@
 import '../global.css'
 import '~/ui/interop'
+import '~/avatar/globals'
 import { useEffect } from 'react'
 import { Stack, router, useSegments } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'

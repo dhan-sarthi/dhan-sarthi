@@ -30,6 +30,7 @@ import { dur } from '~/ui/motion'
 import { color, control, size } from '@dhan/design'
 import type { CallState } from '~/avatar/useAvatarCall'
 import { frameFor } from '~/avatar/frame'
+import { CallVideo } from '~/avatar/CallVideo'
 
 /**
  * How much of the picture's own height fades into the ink at its top and bottom edges. The top
@@ -57,8 +58,8 @@ export function AvatarStage({ call }: { call: CallState }) {
   const { attach } = call
 
   // react-native-web hands back the real DOM node for a View, which is what the video element
-  // gets appended to. On native this ref is a host component and the native stage will render
-  // the provider's own video component instead of reaching for the DOM.
+  // gets appended to. On a phone this ref is a host component, not a DOM node, and nothing is
+  // appended to it: the call is drawn by `CallVideo` from the stream URL the transport hands up.
   //
   // Keyed on `attach` alone, which is stable for the life of the hook. It was keyed on `call`,
   // a fresh object every render, so the stage detached and re-attached the video on every
@@ -94,6 +95,9 @@ export function AvatarStage({ call }: { call: CallState }) {
         {!call.videoLive && <View className="absolute inset-0 bg-hero/25" />}
 
         <View ref={host} className="absolute inset-0 h-full w-full" collapsable={false} />
+        {call.videoURL !== null && (
+          <CallVideo streamURL={call.videoURL} live={call.videoLive} onFrame={call.presented} />
+        )}
         {!frame.fills && (
           <>
             {frame.top > 0 && (

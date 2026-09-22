@@ -12,12 +12,22 @@
 //      subscription shows a black rectangle that reads as broken.
 //   2. **Losing the connection is not hanging up.** The customer ending a call and the stream
 //      dying under them look identical to the DOM and must not look identical on screen.
+//
+// Each transport has a web module and a `.native.ts` twin, picked by Metro. On the web the
+// transport builds a `<video>` and puts it in `stage`; on a phone there is no DOM, so it hands
+// the stream up through `onVideoStream` and the stage renders it (`src/avatar/CallVideo`). The
+// first rule holds either way: native reports the painted frame from the video view itself.
 import type { AvatarGrant } from '@dhan/contracts'
 
 export interface ConnectOptions {
   grant: AvatarGrant
-  /** Where the video goes. May be null if the screen has not laid out yet. */
+  /** Where the video goes, on the web. May be null if the screen has not laid out yet. */
   stage: HTMLDivElement | null
+  /**
+   * Native only: the remote video, as the stream URL a WebRTC view renders, or null when it goes
+   * away. The web transports never call it; they put a `<video>` in `stage` instead.
+   */
+  onVideoStream?: (streamURL: string | null) => void
   /**
    * The customer's microphone, opened on the tap while the grant was being fetched. Null when it
    * was refused or is unavailable; the call goes ahead without it.

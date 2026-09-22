@@ -18,7 +18,8 @@
 //   3. **It says goodbye.** `END_CALL` on the data channel ends the session cleanly on Runway's
 //      side, which is what makes the transcript retrievable, before the room is left.
 //
-// Web only. The native path needs `@livekit/react-native` and a build containing WebRTC.
+// Web only. A phone runs `livekit.native.ts`, the same rules over `@livekit/react-native`, in the
+// APK (`infra/scripts/build-apk.sh`); Expo Go has no WebRTC to run it on.
 import type { Connect, LiveConnection } from './types'
 
 /** Start fetching the SDK before anyone taps, so the tap does not wait on a download. */

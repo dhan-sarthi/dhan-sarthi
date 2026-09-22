@@ -39,6 +39,12 @@ packages/assets      generated imagery the app ships with (icons, portraits)
 pulled screen by screen from Mobbin, in IDBI green. It runs on iOS and Android through Expo, and
 in a browser through Expo's web target, which is what the deployment serves.
 
+On Android it ships as an APK, `infra/scripts/build-apk.sh`, because the live call is WebRTC and
+Expo Go has none ([`docs/engineering/android-apk.md`](docs/engineering/android-apk.md)). **A change
+that has only run in a browser has not run on a phone.** The first APK found five bugs the web
+target had hidden, from a worklet crash on launch to every button losing its fill, and that
+document lists them.
+
 `apps/web` was frozen and then, on 20 September 2026, deleted outright. A reference to it is stale
 and worth fixing, unless it is dated and says "at adoption", in which case it is provenance and
 should be left alone. The amendment on [ADR-0001](docs/architecture/adr/ADR-0001.md) is the
@@ -212,8 +218,8 @@ carrying a card at 34.8%" without a generator. `*.testkit.ts` is a test helper: 
 `dist` by `packages/core/tsconfig.json`, loaded by `tsconfig.test.json`, and never picked up by
 `node --test`.
 
-The whole tree is **865 tests, zero failures** as of 22 September 2026: core 218, contracts 25,
-fixtures 171, api 256, mobile 195. The API's Postgres integration suite adds 73 more when
+The whole tree is **872 tests, zero failures** as of 22 September 2026: core 218, contracts 25,
+fixtures 171, api 256, mobile 202. The API's Postgres integration suite adds 73 more when
 `DATABASE_URL` is set, and CI runs it against a fresh database on every push to `main`.
 
 **The coverage has a deliberate gap.** Seven suites stay in `packages/fixtures/src` (`roadmap`,

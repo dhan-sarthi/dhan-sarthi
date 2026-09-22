@@ -11,9 +11,11 @@
 // when the track *subscribes* shows a black rectangle and reads as broken; and a stream that
 // goes away under us is not the same event as the customer hanging up.
 //
-// Web only for now. The video element is a DOM node, which exists because Expo's web target
-// renders through react-dom. The native path needs a build that contains WebRTC, and lands with
-// the Android build.
+// Both platforms run through here. On the web a transport puts its own `<video>` in the stage;
+// on a phone, which has no DOM, it hands up a stream URL (`videoURL`) for `CallVideo` to render,
+// and the view reports the first painted frame back through `presented`. Metro picks each
+// transport's `.native.ts` twin on a phone, and the phone needs a build containing WebRTC — the
+// APK, not Expo Go.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { ApiError, api } from '~/api/client'
@@ -40,10 +42,17 @@ export type CallState = {
    * by it: Runway sends landscape, Anam portrait, and one crop cannot suit both.
    */
   videoAspect: number | null
+  /**
+   * Native only: the remote video for `CallVideo` to render, once the transport has one. Always
+   * null on the web, where the transport puts its own element in the stage.
+   */
+  videoURL: string | null
   reason: string | null
   start: (topic?: string | null) => Promise<void>
   hangUp: () => void
   attach: (node: HTMLDivElement | null) => void
+  /** Native only: the video view painted a frame of this size. The web transports report their own. */
+  presented: (width: number, height: number) => void
 }
 
 // Uday's own words, so first person and contracted like everything else he says. FAILED and
@@ -104,6 +113,7 @@ export function useAvatarCall(): CallState {
   const [mode, setMode] = useState<CallMode>('idle')
   const [videoLive, setVideoLive] = useState(false)
   const [videoAspect, setVideoAspect] = useState<number | null>(null)
+  const [videoURL, setVideoURL] = useState<string | null>(null)
   const [reason, setReason] = useState<string | null>(null)
   const [providerDown, setProviderDown] = useState(false)
 
@@ -111,6 +121,13 @@ export function useAvatarCall(): CallState {
   const live = useRef<LiveConnection | null>(null)
   const sessionId = useRef<string | null>(null)
   const mic = useRef<MediaStream | null>(null)
+  /*
+   * Which tap the screen is waiting on. A hang-up while connecting, or a fresh tap after one,
+   * moves it on, and a connect that lands for an older tap hands back what it opened instead of
+   * taking the screen over. Before this, "End the call" during "Connecting…" was undone a moment
+   * later by the connection arriving, and the session it had leased kept billing.
+   */
+  const attempt = useRef(0)
 
   // Fetch the SDK while the customer is still looking at the screen, not after they tap. Runway
   // is tried first, so its SDK is the one that matters; Anam's follows at leisure.
@@ -163,6 +180,7 @@ export function useAvatarCall(): CallState {
   const cleanUp = useCallback(() => {
     setVideoLive(false)
     setVideoAspect(null)
+    setVideoURL(null)
     // Off the moment the call is, so the browser's recording light does not outlive it.
     mic.current?.getTracks().forEach((t) => t.stop())
     mic.current = null
@@ -174,6 +192,7 @@ export function useAvatarCall(): CallState {
 
   const hangUp = useCallback(() => {
     hangingUp.current = true
+    attempt.current += 1
     const active = live.current
     live.current = null
     setMode('ended')
@@ -191,12 +210,18 @@ export function useAvatarCall(): CallState {
   const start = useCallback(
     async (topic?: string | null) => {
       if (mode === 'connecting' || mode === 'live') return
+      const mine = ++attempt.current
+      const superseded = (): boolean => mine !== attempt.current
       setMode('connecting')
       setReason(null)
       hangingUp.current = false
       mark('tap')
       // Opened now, while the server is still picking an account and waking the worker.
       const micReady = openMic().then((stream) => {
+        if (superseded()) {
+          stream?.getTracks().forEach((t) => t.stop())
+          return null
+        }
         mic.current = stream
         return stream
       })
@@ -204,6 +229,11 @@ export function useAvatarCall(): CallState {
       try {
         const grant = (await api.avatarSession(topic)) as AvatarGrant
         mark('grant')
+        if (superseded()) {
+          // Hung up while the server was leasing, so the hang-up had no session to hand back.
+          void api.endAvatarSession(grant.runwaySessionId).catch(() => undefined)
+          return
+        }
         const load = TRANSPORTS[grant.transport ?? 'livekit']
         if (!load) throw new Error(`no client transport for ${String(grant.transport)}`)
 
@@ -212,30 +242,44 @@ export function useAvatarCall(): CallState {
         sessionId.current = grant.runwaySessionId
 
         const [{ connect }, stream] = await Promise.all([load(), micReady])
-        live.current = await connect({
+        const connection = await connect({
           grant,
           stage: stage.current,
           mic: stream,
-          onVideoSize: (w, h) => setVideoAspect(w / h),
+          onVideoStream: (url) => {
+            if (!superseded()) setVideoURL(url)
+          },
+          onVideoSize: (w, h) => {
+            if (!superseded()) setVideoAspect(w / h)
+          },
           onVideoLive: () => {
+            if (superseded()) return
             mark('video')
             setVideoLive(true)
           },
           onLost: () => {
             // The stream going away under us — the cap reached, the worker gone, the network
             // dropped — is not the customer hanging up, and should not read as if it were.
-            if (hangingUp.current) return
+            if (hangingUp.current || superseded()) return
             live.current = null
             setMode('unavailable')
             setReason(DROPPED)
             cleanUp()
           },
         })
+        if (superseded()) {
+          // Hung up while connecting. The hang-up handed the session back; this closes the room.
+          void connection.disconnect().catch(() => undefined)
+          return
+        }
+        live.current = connection
         mark('connected')
         setMode('live')
       } catch (err) {
         // A refused grant must not leave the microphone open behind it.
         void micReady.then((stream) => stream?.getTracks().forEach((t) => t.stop()))
+        // A hang-up already put the screen right; a stale failure must not overwrite it.
+        if (superseded()) return
         const stale = live.current
         live.current = null
         void stale?.disconnect().catch(() => undefined)
@@ -259,6 +303,7 @@ export function useAvatarCall(): CallState {
   useEffect(
     () => () => {
       hangingUp.current = true
+      attempt.current += 1
       void live.current?.disconnect()
       live.current = null
       cleanUp()
@@ -271,5 +316,24 @@ export function useAvatarCall(): CallState {
     live.current?.reattach(node)
   }, [])
 
-  return { mode, videoLive, videoAspect, reason, providerDown, start, hangUp, attach }
+  // Marked every time the size changes, which after the first frame is rare: a timeline with a
+  // repeated mark reads the same as one without, and the native view has no "first" to offer.
+  const presented = useCallback((width: number, height: number) => {
+    if (width > 0 && height > 0) setVideoAspect(width / height)
+    mark('video')
+    setVideoLive(true)
+  }, [])
+
+  return {
+    mode,
+    videoLive,
+    videoAspect,
+    videoURL,
+    reason,
+    providerDown,
+    start,
+    hangUp,
+    attach,
+    presented,
+  }
 }

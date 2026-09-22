@@ -71,9 +71,10 @@ Runway's landscape 1088×704 frame shows 36% of its width, from the top of the s
 portrait track, Anam's, fills the stage. Scrims at top and bottom keep the controls legible over
 the video.
 
-Web only. The video element is a DOM node, which works because Expo's web target renders
-through react-dom. The native path needs `@livekit/react-native` and a build containing WebRTC,
-and lands with the Android build.
+The video element is a DOM node, which works because Expo's web target renders through
+react-dom. On a phone the transports' `.native.ts` twins hand the stream to react-native-webrtc's
+view instead (`src/avatar/CallVideo.native.tsx`), in the Android APK:
+[`docs/engineering/android-apk.md`](../engineering/android-apk.md).
 
 ## Two bugs found
 
@@ -156,6 +157,7 @@ the whole tree at 865 tests, zero failures, on 22 September 2026.
 1. **One live Hindi call.** On a recorded test call Runway's model understood a Hindi question
    and answered in English. The brief now carries a language rule, and only a live call can show
    whether Runway follows it (`docs/engineering/avatar-accounts.md`, "Language").
-2. **Android:** `eas build -p android --profile development` — free, no Xcode, no Apple
-   account. Then write `AvatarStage.native.tsx` against `@livekit/react-native`. Not started:
-   `apps/mobile` has no `eas.json`, no `@livekit/react-native` dependency and no native stage.
+2. **Android: done 22 September 2026**, as a local release build rather than EAS
+   (`infra/scripts/build-apk.sh`). The call runs on the emulator end to end against a local
+   LiveKit server; a billed call on a real phone is still to do.
+   [`docs/engineering/android-apk.md`](../engineering/android-apk.md) has what was verified.
