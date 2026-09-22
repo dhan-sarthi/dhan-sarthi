@@ -76,6 +76,12 @@ Trust is not a slogan. It is an ordering decision in the UI.
 
 ## What an avatar even is
 
+*Written for the future-self avatar, which was cut on 1 September ([`autopilot.md`](autopilot.md)),
+and so were the Merrill Edge mechanic and the "we need a future self" above. The avatar that
+shipped sits at the other end of this spectrum: Uday, a photoreal advisor on Runway Characters
+with Anam as the fallback, kept for the few high-intent moments. The argument below stays as the
+record of why we first went the other way.*
+
 From Sanskrit *avatāra* — the descent of a deity into physical form. Something abstract taking a
 body so people can relate to it. That is the actual product argument.
 

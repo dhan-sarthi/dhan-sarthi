@@ -2,6 +2,14 @@
 
 Built 27 Aug 2026, modelled on the architecture Cleo describe publicly.
 
+> **Status, 22 September 2026.** The memory half is still the plan: the store, its safeguards and
+> the retrieval score live in the archived prototype and are not yet ported (CONTRIBUTING, "What
+> is still to port"). The voice half was overtaken. The future self it was written for was cut on
+> 1 September ([`autopilot.md`](autopilot.md)), so the eight regret-to-pride registers gave way to
+> six ([`decisions.md`](decisions.md), C1), which are still to port as well. And the voice is not
+> ours: Runway Characters, with Anam as the fallback, carry speech in and out, so there is no
+> gpt-realtime pipeline, and barge-in is unverified and must not be claimed.
+
 ## What Cleo actually do
 
 **Memory (their V1).** They rejected knowledge graphs — too much upkeep — and agent-managed
@@ -36,7 +44,7 @@ range runs from regret to pride instead.
 
 **Why our voice pipeline is simpler and faster.** Cleo assemble theirs from parts because they
 predate real-time speech models. We go straight to speech-to-speech: sub-second, with genuine
-barge-in.
+barge-in. *(The 27 August plan: see the status note.)*
 
 ## Files
 

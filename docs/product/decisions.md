@@ -51,7 +51,8 @@ be visible on screen.
 *Reverse cost: low. It is an enum plus one handler each.*
 
 ### A3. Safe-to-spend — the formula
-The headline number on Today, so it is the one that must never be wrong.
+The headline number of the daily plan (on Home's Budget pane, now that there is no Today tab), so
+it is the one that must never be wrong.
 
 ```
 pot   = currentBalance
@@ -193,6 +194,10 @@ A `Store` interface with an in-memory implementation and optional JSON-file pers
 Postgres and pgvector become one more adapter. This is what makes the API a single container
 deployable anywhere in ten minutes, which is the insurance you asked for.
 
+*Overtaken on 3 September: Postgres became the source of truth, behind ports with the memory
+adapter beside it ([ADR-0001](../architecture/adr/ADR-0001.md),
+[ADR-0003](../architecture/adr/ADR-0003.md)).*
+
 ### D2. The model phrases; it never computes
 Written when there was no `OPENAI_API_KEY` here, and kept now that there is, because the shape
 it forced is the shape worth keeping. The text tier computes its figures in `core/query.ts` and
@@ -223,10 +228,10 @@ half-built Hindi demo reads worse than a confident English one, and Sunil's
 requiring the translation to exist.
 
 ### D6. No branded name for the loop
-Internally these docs say Autopilot, because that names the idea. The **UI says "Today" and
-"your plan"** and nothing else. "Autopilot" is Cleo's word, and to a bank it implies
-unsupervised control of customer money — the exact impression we spend the rest of the app
-dismantling.
+Internally these docs say Autopilot, because that names the idea. The **UI says "your plan"** and
+nothing else (it said "Today" as well, until the first tab became Home). "Autopilot" is Cleo's
+word, and to a bank it implies unsupervised control of customer money — the exact impression we
+spend the rest of the app dismantling.
 
 *Reverse cost: trivial.*
 
@@ -237,6 +242,9 @@ dismantling.
 **Nobody has confirmed the Runway video track renders in a real browser.**
 `CONTRIBUTING.md` has flagged it. The session runs, the text comes back, an MP4 is produced — but
 headless Chromium has no H.264, so the WebRTC video path has never been seen working by anyone.
+
+> **Closed, 2 September 2026.** Seen working in a real browser, 1088×704 at about 26 fps,
+> measured on decoded pixels ([`runway.md`](../engineering/runway.md)).
 
 ---
 
@@ -328,6 +336,11 @@ number a banker can look up and one they cannot.
 and it is right: putting the assistant in the middle of the bar makes it the thing you reach for
 rather than a feature you go and find. The register said four tabs plus a mic.
 
+> **Updated 22 September 2026.** Still five, still the advisor in the centre, but not these five.
+> The rebuild against Cleo AI made them **Home · Plan · Uday · Grow · Protect**, one for one with
+> Cleo's. Record left the bar for a screen reached from Profile, Plan and Protect; Money's
+> contents went to Home's panes, the statement screen and Grow.
+
 ### Ask Uday takes the whole screen
 No tab bar, no header, no card. Video edge to edge, everything else floating over it, and the
 portrait recedes once a conversation starts. The fallback ladder is built in: no session means
@@ -354,9 +367,17 @@ Labelled "Simulated clock", with +1 day / +1 week / +1 month and a reset, sittin
 Today. Advancing it produces real transactions, the safe-to-spend figure falls, and the plan
 recomputes. Nothing scripted.
 
+*Moved since: it is `TimeMachine` on Record's Consent pane, marked "Simulation", with a reset and
+steps of +7 and +30 days.*
+
 ## Still not done
 
 - **`apps/api` is untouched** beyond the health route. Not needed for the demo, needed for Runway.
 - **Runway is unwired end to end.** The client asks `/api/avatar/session`, gets nothing, and falls
   to text — which is the designed behaviour, but the live path has never run.
 - **The Runway browser check is still open**, and still the biggest risk in the project.
+
+> **All three closed.** `apps/api` now serves the whole product (52 routes); Runway runs end to
+> end, with the gate proven on a billed call on 3 September
+> ([`avatar-live-call.md`](../engineering/avatar-live-call.md)); and the browser check closed on
+> 2 September.

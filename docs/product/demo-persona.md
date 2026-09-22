@@ -12,6 +12,9 @@ idle cash is what pays for the fix.
    Sunil stay in `packages/fixtures` as **test-only** fixtures — they are what 600+ lines
    of realism and suitability tests assert against — but they are removed from the picker
    and never appear in the product. Depth over breadth.
+   *Reversed since (as of 22 September 2026): all four are in the sign-in list, Karan first
+   (`PERSONAS`, `packages/fixtures/src/personas.ts:1486`), and seeded into Postgres. The demo is
+   still told on Karan; each of the other three makes one rule fire cleanly on its own facts.*
 2. **Full ledgers on all four accounts.** 24 months of transaction-level data per account,
    not just balances. Aggregation is the pitch; computing insights off 27% of his money
    would undercut it.

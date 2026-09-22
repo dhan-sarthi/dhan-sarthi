@@ -6,6 +6,15 @@ sources at the bottom. Anything marked **[verify]** should be re-checked before 
 This doc exists because the product shelf **is** the suitability logic. A gate that refuses
 the wrong product can only be built once we know what is on the shelf.
 
+> **Status, 22 September 2026.** The shelf this asks for exists: `PRODUCT_SHELF` in
+> `packages/fixtures/src/shelf.ts` holds fifteen products under real names — IDBI's sweep-in FD,
+> SSP and Suvidha FD, real schemes from real AMCs, LIC term, PMJJBY, PMSBY, NPS and PPF, and the
+> ULIP and endowment it exists to refuse. The rules are the nine in
+> `packages/core/src/suitability.ts`, where `VOLATILITY_VS_HORIZON` now covers what
+> `HORIZON_VS_LOCKIN` could not. `suitability.js`, `facts.js` and `rohan.js` below are the
+> archived prototype's files, and the fixture list at the end was written against them, before
+> the ledger was generated. Term cover is quoted at ₹985 a month, LIC's Digi Term at 29.
+
 ---
 
 ## First, the two words the whole demo turns on

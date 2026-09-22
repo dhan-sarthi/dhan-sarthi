@@ -4,6 +4,16 @@
 notes.** Those were written when the future-self avatar was the spine. It is now cut. What
 replaces it is here.
 
+> **Status, 22 September 2026.** The loop, the gate and the refusal stand. Five things below did
+> not survive the build. The screens: the app has five tabs, Home · Plan · Uday · Grow · Protect,
+> and the avatar is one of them ([`decisions.md`](decisions.md), "Five tabs, not four"). The
+> self-serve entry: a mobile number and any six-digit code, over four customers rather than three.
+> Two of the out-of-scope items: `apps/mobile`, an Expo app, is the only client, and the IDBI
+> adapter reads twenty-four of the bank's real sandbox operations. And the object model's names:
+> a roadmap's legs are `Stage`s, the actions are the thirteen in `packages/core/src/actions.ts`,
+> and there is no pre-recorded Uday clip in the fallback ladder. [`CONTEXT.md`](../../CONTEXT.md)
+> has the names as the code spells them.
+
 Source of the idea: Cleo's Autopilot. The transplant needs two changes to survive contact
 with a bank.
 
@@ -112,6 +122,8 @@ Ranked by how hard they are to fake and how Indian they are:
 ---
 
 ## Screens
+
+*As written on 1 September; the build replaced these — see the status note at the top.*
 
 Settles the earlier four-tabs / three-tabs contradiction:
 
@@ -249,7 +261,7 @@ separate lines, with paise, because that is where a bank puts paise.
 
 ### What the ledger is built to guarantee
 
-Forty-nine tests hold these — twenty on the generator and twenty-nine on realism — and they exist
+Fifty-one tests hold these — twenty-two on the generator and twenty-nine on realism — and they exist
 because each one is a way the demo could quietly become untrue:
 
 - **Determinism.** Same seed, same ledger, on any machine.
@@ -282,8 +294,8 @@ turns on — and worth a second pass before it goes in front of anyone.
 
 ## Explicitly out of scope
 
-Photo age progression · a native mobile app · real bank rails · IDBI's actual APIs · any
-model deciding suitability.
+Photo age progression · a native mobile app (reversed: see the status note) · real bank rails ·
+IDBI's actual APIs (reversed too) · any model deciding suitability.
 
 ## What is superseded
 

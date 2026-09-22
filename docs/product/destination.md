@@ -5,7 +5,12 @@ Worked out in conversation, 16 September 2026. This is the **what**. The journey
 [`what-good-looks-like.md`](what-good-looks-like.md). Read those two first — this document assumes
 them and does not repeat their arguments.
 
-Status: **adopted as the design target.** Sections marked ⬚ are still open.
+Status: **adopted as the design target** on 16 September. Sections marked ⬚ were open then.
+
+> **Superseded as the target, as of 22 September 2026.** The app was rebuilt against Cleo AI's
+> interaction design: five tabs, Home · Plan · Uday · Grow · Protect, in place of the five surfaces
+> below, and the HDFC SmartWealth reference that section draws on is retired. This page is kept as
+> the record of 16 September; [`CONTRIBUTING.md`](../../CONTRIBUTING.md) has the current shape.
 
 ---
 

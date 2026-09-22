@@ -8,7 +8,8 @@ where and why. The module-level detail is in [`LLD.md`](LLD.md), the request flo
 and the reasoning behind each decision in [`adr/`](adr/).
 
 Status: adopted 3 September 2026 · amended 2026-09-20 (the client changed, and the
-`AvatarProvider` listing was re-read off the port; see below).
+`AvatarProvider` listing was re-read off the port) · amended 2026-09-22 (the folder tree, the
+port list, CI and the live deployment; see below).
 
 > **Amendment, 2026-09-20 — there is one client, and it is `apps/mobile`.** `apps/web` has been
 > deleted from the repository; the Expo app is the product. Everything in this document about the
@@ -25,6 +26,15 @@ Status: adopted 3 September 2026 · amended 2026-09-20 (the client changed, and 
 > `apps/api/src/ports/avatar-provider.port.ts` and `avatar-rpc-host.port.ts`, and the adapter
 > tables gain the second provider that ADR brought in. A port listing that does not compile
 > against the port is worse than no listing, because it is believed.
+>
+> **Amendment, 2026-09-22.** "Stands as adopted" held for the design and not for its listings.
+> The folder tree still named seven migrations by names they never had (there are thirteen), nine
+> of the sixteen ports, no Anam or model adapter, CI jobs that were never added, and a
+> `cli/replay.ts` and an `infra/fault-inject.ts` that were never written. Those lines are
+> corrected in place, and the requirements that leaned on those two files, on a TLS hop the live
+> stack does not have, on load results nobody committed or on a minutes alarm no metric feeds now
+> say so. The deployment is no longer only a design: the team-sandbox stack is live at
+> https://d31q2ik7f7eu67.cloudfront.net.
 
 ## Starting point
 
@@ -89,7 +99,8 @@ deterministic text conversation runs underneath. The daily minute budget is
 The client becomes exactly that — a client. `apps/mobile/src/api/client.ts` is typed from the
 registry and holds only a bearer token — SecureStore on a device, `localStorage` on the Expo web
 build, and nothing else either way (`apps/mobile/src/api/storage.ts`); every screen renders from
-`/api/v1/view`, `/record` and `/transactions`. It carries no engine at all: there is
+what the API returns — `/api/v1/view` above all, with `/record`, `/transactions`, `/save`,
+`/challenges` and `/holdings` beside it. It carries no engine at all: there is
 no `offline/` chunk, no `VITE_OFFLINE_FALLBACK`, and no build in which `@dhan/fixtures` reaches a
 device, so the CI grep that used to assert the fixtures package out of one bundle is no longer the
 thing keeping it out — nothing imports it. `@dhan/core` *is* imported, for named helpers and
@@ -101,50 +112,54 @@ lived inside `apps/web` and went with it; [ADR-0011](adr/ADR-0011.md)'s amendmen
 ladder is now two rungs and why the invariant it protects is unaffected.
 
 Deployment is Terraform to `ap-south-1`: one Fargate task (the RPC host is a held LiveKit
-connection, so no Lambda) in a private subnet behind an ALB, NAT with an egress allow-list
-(`api.dev.runwayml.com`, `*.livekit.cloud`, UDP 50000–60000 with TURN/TLS 443 fallback), RDS
+connection, so no Lambda) in a private subnet behind an ALB, NAT with the egress list a bank's
+network team would enforce (`api.dev.runwayml.com`, `*.livekit.cloud`, UDP 50000–60000 with
+TURN/TLS 443 fallback; the task's security group limits egress by port, not by hostname), RDS
 Postgres 16 with the vector extension, S3 + CloudFront serving `/` and `/api/*` from one origin,
 Secrets Manager injected at task start, CloudWatch alarms and an AWS Budgets alarm. The same image
 runs under `docker compose up` locally, and `BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api`
 runs the API with no database and no keys — the client is a second terminal,
 `pnpm --filter @dhan/mobile start`, because `apps/mobile` has no `dev` script and root `pnpm dev`
 therefore runs the API and nothing else. An `infra/ec2-compose/` cloud-init covers a
-sandbox that grants only the t3.medium the sandbox request asked for.
+sandbox that grants only the t3.medium the sandbox request asked for. It is live: the
+team-sandbox stack, in the team's own AWS account, serves https://d31q2ik7f7eu67.cloudfront.net,
+and [`infra/terraform/README.md`](../../infra/terraform/README.md) is its runbook.
 
 ```mermaid
 flowchart TB
   subgraph device["Reviewer device"]
     HOST["GO Mobile+ host app (Phase 2)<br/>WebView · host-token exchange (ADR-0008, not built)"]
-    WEB["apps/mobile — Expo · Expo Router · NativeWind<br/>renders /api/v1/view · types from @dhan/contracts<br/>bearer only, in SecureStore · no engine on the device"]
+    WEB["apps/mobile — Expo · Expo Router · NativeWind<br/>renders /api/v1/view · types from @dhan/contracts<br/>bearer only: SecureStore, or localStorage on web · no engine on the device"]
     HOST -. embeds .-> WEB
   end
 
-  subgraph aws["AWS ap-south-1 · IDBI sandbox VPC · infra/terraform"]
+  subgraph aws["AWS ap-south-1 · infra/terraform · live as team-sandbox; idbi-sandbox targets IDBI's account"]
     CF["CloudFront<br/>/ → S3 · /api/* → ALB (one origin, no CORS)"]
     S3[("S3 · Expo web export")]
-    ALB["ALB · HTTPS (ACM) · /api/v1/health"]
+    ALB["ALB · /api/v1/health<br/>HTTPS (ACM) with a domain · HTTP from CloudFront without one, as live"]
     subgraph ecs["ECS Fargate · one persistent task (holds the LiveKit RPC participant)"]
       subgraph api["apps/api — Fastify 5, layered"]
         HTTP["http/ · register.ts<br/>zod in + out · bearer · operator key<br/>rate-limit · helmet · request id"]
         APP["application/<br/>Advisory · Session · Decision · Conversation<br/>avatar/: brief · tools · lifecycle · pool · budget · waitlist · reconcile"]
-        PORTS{{"ports/ — interfaces only<br/>BankData · ProductShelf · SessionStore · SnapshotStore<br/>AuditStore · LeaseStore · AvatarProvider · AvatarRpcHost · Clock"}}
-        ADP["adapters/<br/>postgres · memory · idbi-sandbox (stub + composite)<br/>runway · null · fake"]
-        ROOT["composition/root.ts<br/>BANK_SOURCE=postgres|memory|idbi-sandbox<br/>AVATAR_PROVIDER=runway|none"]
+        PORTS{{"ports/ — interfaces only<br/>BankData · ProductShelf · SessionStore · SnapshotStore<br/>AuditStore · LeaseStore · AvatarProvider · AvatarRpcHost · Clock<br/>AvatarToolWebhook · LanguageModel · DeclaredProfile · Holdings<br/>AaConsent · AaGateway · LeadSink"}}
+        ADP["adapters/<br/>postgres · memory · idbi-sandbox (+ composite)<br/>runway · anam · openai · null · fake"]
+        ROOT["composition/root.ts<br/>BANK_SOURCE=postgres|memory|idbi-sandbox<br/>AVATAR_PROVIDER=runway,anam (try order) | none"]
       end
       CORE["packages/core — pure, zero I/O<br/>derive · evaluate (9 rules) · buildRoadmap · buildDailyPlan<br/>findInsights · answer · asof · suggestGoal"]
       CON["packages/contracts<br/>registry.ts → validation · OpenAPI · tool JSON Schema · tests"]
     end
     SEED["seed (one-off run-task / pnpm seed)<br/>migrate → toSeedBundle → COPY → verify"]
-    RDS[("RDS Postgres 16 (vector ext)<br/>customers · accounts · transactions (42 mo) · liabilities · holdings · products<br/>sessions · snapshots · roadmap_versions<br/>advice_records · decisions · avatar_sessions · avatar_leases · avatar_waitlist")]
-    SM["Secrets Manager<br/>RUNWAY_* · DATABASE_URL · OPERATOR_KEY"]
+    RDS[("RDS Postgres 16 (vector ext) · schemas app · bank · ref · staging · common<br/>customers · accounts · transactions (42 mo) · loans · SIPs · holdings · products<br/>sessions · snapshots · roadmap_versions<br/>audit_records · decisions · avatar_sessions · avatar_leases · avatar_waitlist")]
+    SM["Secrets Manager<br/>avatar accounts (RUNWAY_*_n · ANAM_*) · DATABASE_URL · OPERATOR_KEY"]
     CW["CloudWatch logs · alarms · dashboard<br/>AWS Budgets alarm"]
-    NAT["NAT · egress allow-list<br/>api.dev.runwayml.com · *.livekit.cloud"]
+    NAT["NAT · TCP 443 + UDP 50000–60000<br/>egress list: api.dev.runwayml.com · *.livekit.cloud"]
   end
 
-  RUNWAY[("Runway Characters<br/>realtime_sessions · avatar_conversations")]
+  RUNWAY[("Runway Characters — tried first<br/>realtime_sessions · avatar_conversations")]
+  ANAM[("Anam — the fallback<br/>sessions · tool calls posted back over HTTPS")]
   LK[("LiveKit Cloud · India South")]
   FIX["packages/fixtures<br/>generator · cities · mcc · narration · toSeedBundle<br/>seed + tests only · never reaches a client"]
-  IDBI[("IDBI sandbox APIs · ~1 week<br/>393 statement · 394 accounts · 402 overdues · 456 master · liens")]
+  IDBI[("IDBI sandbox APIs<br/>24 operations · replayed from captures when unreachable")]
 
   WEB -->|HTTPS| CF
   CF --> S3
@@ -157,7 +172,10 @@ flowchart TB
   ADP <-->|backend_rpc hidden participant<br/>check_suitability · query_spend · get_plan| LK
   WEB <-->|mic in · voice + video out| LK
   RUNWAY --> LK
-  ADP -.->|stub at adoption · mapping tested| IDBI
+  NAT --> ANAM
+  ANAM -.->|tool webhook| CF
+  WEB <-->|fallback call| ANAM
+  ADP -.->|live or replayed · mapping tested| IDBI
   FIX --> SEED --> RDS
   FIX -.-> ADP
   api --> SM
@@ -182,29 +200,33 @@ dhan-sarthi/
 ├── apps/
 │   ├── api/                                  Fastify 5 · the only process with a secret or a provider call
 │   │   ├── Dockerfile                        multi-stage · node:22-bookworm-slim (LiveKit native N-API) · non-root · HEALTHCHECK
-│   │   ├── migrations/                       plain numbered SQL, applied by src/db/migrate.ts
-│   │   │   ├── 0001_extensions_roles.sql     CREATE EXTENSION IF NOT EXISTS vector, pgcrypto · roles dhan_migrate, dhan_app
-│   │   │   ├── 0002_bank.sql                 customers · consents · accounts · transactions · liabilities · holdings · products · seed_runs
-│   │   │   ├── 0003_sessions.sql             subjects · sessions · idempotency_keys
-│   │   │   ├── 0004_snapshots.sql            snapshots · roadmap_versions
-│   │   │   ├── 0005_record.sql               advice_records · decisions (hash chain columns)
-│   │   │   ├── 0006_avatar.sql               avatar_sessions · avatar_tool_calls · avatar_leases · avatar_waitlist
-│   │   │   └── 0007_append_only.sql          REVOKE UPDATE/DELETE from dhan_app + BEFORE triggers that RAISE
+│   │   ├── migrations/                       plain numbered SQL, applied by src/db/migrate.ts · its README maps every file
+│   │   │   ├── 0001_foundation.sql           extensions (vector, pgcrypto) · schemas common, ref, staging, bank, app · roles dhan_migrate, dhan_app
+│   │   │   ├── 0002_ref.sql                  products · spend categories · MCC and channel codes · engine versions · suitability_rules
+│   │   │   ├── 0003_staging.sql              endpoint registry · field mappings · sync runs · raw payloads · seed_runs
+│   │   │   ├── 0004_app_identity.sql         customers · consents · subjects · sessions · idempotency_keys
+│   │   │   ├── 0005_bank.sql                 accounts · transactions · loan and deposit snapshots · mandates · mf_holdings · sip_registrations · insurance_policies
+│   │   │   ├── 0006_app_engine.sql           snapshots · roadmap_versions · audit_records (hash chain) · decisions · avatar_* · the append-only triggers
+│   │   │   ├── 0007_views_security.sql       *_current views · grants · REVOKE UPDATE/DELETE from dhan_app · RLS policies
+│   │   │   └── 0008 … 0013                   additive: picker order, goal basis, spend limit, save and challenges, goal kind, other banks
 │   │   ├── src/
 │   │   │   ├── index.ts                      boot: loadConfig → buildRoot → listen. Nothing else.
 │   │   │   ├── config.ts                     the ONLY process.env reader · zod-parsed Config
 │   │   │   ├── composition/
 │   │   │   │   ├── root.ts                   buildRoot(config): adapters → services → app · constructor injection · startup invariants
-│   │   │   │   └── profiles.ts               memory | postgres | idbi-sandbox × runway | none
-│   │   │   ├── ports/                        interfaces only · no imports from adapters/
+│   │   │   │   └── profiles.ts               memory | postgres | idbi-sandbox × an avatar chain (runway, anam) or none · the text model
+│   │   │   ├── ports/                        interfaces only · no imports from adapters/ · index.ts is the barrel, its count tested
 │   │   │   │   ├── bank-data.port.ts · product-shelf.port.ts · session-store.port.ts · snapshot-store.port.ts
 │   │   │   │   ├── audit-store.port.ts · lease-store.port.ts · avatar-provider.port.ts · avatar-rpc-host.port.ts
+│   │   │   │   ├── avatar-tool-webhook.port.ts · language-model.port.ts · declared-profile.port.ts · holdings.port.ts
+│   │   │   │   ├── aa-consent.port.ts · aa-gateway.port.ts · lead-sink.port.ts
 │   │   │   │   └── clock.port.ts
 │   │   │   ├── application/                  orchestration · imports core, contracts, ports · never adapters or http
 │   │   │   │   ├── advisory.service.ts       view(session): scope → derive → suggestGoal → roadmap → plan → insights · snapshot store
 │   │   │   │   ├── session.service.ts        create · advanceClock · resetClock · setGoal · setCategoryCap · setConsent · erase
 │   │   │   │   ├── decision.service.ts       re-derive action → evaluate() → advice_record + decision + roadmap_version, one txn
-│   │   │   │   ├── conversation.service.ts   /ask over core.answer() · /suitability/evaluate
+│   │   │   │   ├── conversation.service.ts   /ask over core.answer(), phrased by LanguageModelPort where a key is set · /suitability/evaluate
+│   │   │   │   ├── save.service.ts · challenge.service.ts · profile.service.ts · record.service.ts · history.service.ts · operator.service.ts
 │   │   │   │   ├── aa-consent.service.ts     590→592→497→593→591→595 · a notification grants nothing; only verify() can make a consent ACTIVE
 │   │   │   │   ├── consent-scope.ts          strips CustomerFile blocks not in granted scopes
 │   │   │   │   ├── hash.ts                   canonical JSON → sha256 (snapshot input hash, record chain)
@@ -215,11 +237,12 @@ dhan-sarthi/
 │   │   │   │       ├── brief.builder.ts            build(view): {personality, startScript} · ≤10,000 / ≤2,000 asserted
 │   │   │   │       ├── tools/check-suitability.tool.ts · query-spend.tool.ts · get-plan.tool.ts
 │   │   │   │       ├── credential-pool.ts · minute-budget.ts · lease-reaper.ts · waitlist.ts
+│   │   │   │       ├── provider-router.ts · credential-health.ts · live-calls.ts   the chain: Runway accounts, then Anam
 │   │   │   │       ├── transcript.service.ts       GET avatar_conversations with backoff → avatar_sessions.transcript
 │   │   │   │       └── reconciler.ts               toolResults ↔ avatar_tool_calls · gate_coverage
 │   │   │   ├── adapters/
-│   │   │   │   ├── postgres/                 pg Pool · SQL template strings · no ORM
-│   │   │   │   │   ├── pool.ts (type parsers: NUMERIC→number, DATE→'YYYY-MM-DD') · unit-of-work.ts
+│   │   │   │   ├── postgres/                 pg Pool (src/db/pool.ts) · SQL template strings · no ORM
+│   │   │   │   │   ├── unit-of-work.ts · codes.ts · seed-provenance.postgres.ts
 │   │   │   │   │   ├── bank-data.postgres.ts · product-shelf.postgres.ts · session-store.postgres.ts
 │   │   │   │   │   └── snapshot-store.postgres.ts · audit-store.postgres.ts · lease-store.postgres.ts
 │   │   │   │   ├── memory/                   shipped implementations (no-DB profile) · seeded from toSeedBundle()
@@ -239,62 +262,70 @@ dhan-sarthi/
 │   │   │   │   │   ├── composite.ts          IDBI for what it answers · the app's own stores for what no operation carries
 │   │   │   │   │   └── lead-sink.idbi.ts     428: an accepted recommendation becomes a lead the bank's staff work
 │   │   │   │   ├── runway/                   transport.ts (providers/runway.ts + tools + timeouts + breaker) · provider.ts · rpc-host.ts
-│   │   │   │   ├── null/                     avatar-provider.null.ts · rpc-host.null.ts
+│   │   │   │   ├── anam/                     provider.ts · transport.ts · tool-gate.ts · tool-webhook.ts · call-registry.ts — the fallback; its gate is HTTP (ADR-0013)
+│   │   │   │   ├── openai/                   chat.openai.ts — LanguageModelPort for /ask; never throws, never retries, null without a key
+│   │   │   │   ├── null/                     avatar-provider.null.ts · rpc-host.null.ts · tool-webhook.null.ts · language-model.null.ts
 │   │   │   │   └── clock/                    system-clock.ts · fixed-clock.ts
 │   │   │   ├── http/
 │   │   │   │   ├── server.ts                 helmet · cors (dev only) · rate-limit · body limit 16 KB · request timeout · error mapper
 │   │   │   │   ├── auth.ts                   bearer → session preHandler · X-Operator-Key preHandler
 │   │   │   │   ├── register.ts               registerRoute(app, entry, handler) — validates in and out; the only way to add a route
 │   │   │   │   ├── openapi.ts                registry → OpenAPI 3.1 at /api/v1/openapi.json
-│   │   │   │   └── routes/                   health · customers · sessions · session · view · transactions · ask · suitability · actions · record · rules · shelf · profile · holdings · consent-aa · avatar · operator
-│   │   │   ├── infra/                        circuit.ts · timeout.ts · lru.ts · fault-inject.ts (refused in production)
-│   │   │   ├── db/migrate.ts                 ordered SQL runner · schema_migrations
+│   │   │   │   └── routes/                   health · customers · sessions · session · save · challenges · view · transactions · ask · suitability · actions · record · rules · shelf · profile · holdings · consent-aa · avatar · operator
+│   │   │   ├── infra/                        circuit.ts · timeout.ts · logger.ts
+│   │   │   ├── db/                           migrate.ts (ordered SQL runner · schema_migrations) · pool.ts (NUMERIC→number, DATE→'YYYY-MM-DD', SET ROLE) · seed-bundle.ts
 │   │   │   └── cli/
-│   │   │       ├── seed.ts                   pnpm seed [--check] [--force] [--anchor 2026-09-01] [--forward 18]
-│   │   │       ├── replay.ts                 pnpm replay <advice_record_id>
+│   │   │       ├── seed.ts                   pnpm seed [--check] [--force] [--anchor 2026-09-01] [--forward 18] [--history 24]
 │   │   │       └── audit-verify.ts           pnpm audit:verify
 │   │   └── test/
-│   │       ├── contract/                     no-undeclared-route · app-owned-blocks · smoke
-│   │       ├── adapters/                     the IDBI adapter against its own captures · coverage · leads
-│   │       ├── ports/                        bankDataPortContract · auditStoreContract · leaseStoreContract · sessionStoreContract
-│   │       ├── application/                  the AA consent rule: a notification grants nothing
-│   │       ├── integration/                  every route over inject, on memory and on Postgres
-│   │       ├── avatar/                       rpc-before-consume · budget survives restart · waitlist claim · reconciler
-│   │       ├── architecture/                 dependency-cruiser rules
+│   │       ├── contract/                     no-undeclared-route · documented-surface · app-owned-blocks · rate-limit · smoke
+│   │       ├── adapters/                     the IDBI adapter against its own captures · coverage · failover · leads
+│   │       ├── ports/                        bankDataPortContract, run on memory here and on Postgres from integration/
+│   │       ├── application/                  the AA consent rule: a notification grants nothing · history · profile · the text model
+│   │       ├── integration/                  every route over inject, on memory and on Postgres · the Postgres stores, append-only and the chain
+│   │       ├── avatar/                       rpc-before-consume · budget survives restart · waitlist claim · reconciler · the Anam gate · failover
+│   │       ├── architecture/                 dependency-cruiser rules · the ports barrel
 │   │       └── fakes/                        FakeAvatarProvider · FakeRpcHost
 │   └── mobile/                               Expo · Expo Router · NativeWind — the only client
 │       ├── app/                               file-routed screens
 │       │   ├── (onboarding)/                 welcome · mobile · otp · consent · reading · checklist · about · goal · risk · ready
-│       │   ├── (tabs)/                       spend · plan · uday · grow · protect — the five tabs
+│       │   ├── (tabs)/                       spend (labelled Home) · plan · uday · grow · protect — the five tabs
 │       │   └── *.tsx                         the modals and detail routes: record · credit · challenge · save-hack · statement · …
 │       └── src/
 │           ├── api/client.ts                 typed fetch from registry · bearer · idempotency keys · ETag
-│           ├── api/storage.ts                the bearer, in SecureStore. Nothing else is persisted
+│           ├── api/storage.ts                the bearer: SecureStore on a device, localStorage on web. Nothing else is persisted
 │           ├── state/snapshot.tsx            SnapshotStore: the one View, its loading state, refresh
 │           ├── avatar/                       useAvatarCall · AvatarStage · transports/ (one per provider SDK)
 │           ├── lib/                          pure per-screen derivations, each with its own tests
-│           └── ui/                           Text (the seven type roles) · Screen · Card · … · interop.ts
+│           └── ui/                           Text (the eight type roles) · Screen · Card · … · interop.ts
 ├── packages/
-│   ├── core/src/                             unchanged public API + asof.ts (pure as-of helpers) + goal.ts (suggestGoal)
+│   ├── core/src/                             the engine: derive · suitability · roadmap · dailyplan · query · asof · goal · credit · save · challenge · …
 │   ├── contracts/src/
 │   │   ├── common.ts · domain.ts (zod mirrors of Snapshot, Roadmap, DailyPlan, Verdict, Answer, Product)
-│   │   └── routes/*.ts · tools/*.ts · registry.ts · index.ts
-│   └── fixtures/src/                         generate · personas · merchants · cities/{indore,kochi,nagpur}.ts · mcc.ts · ifsc.ts · seed-bundle.ts · realism.test.ts
+│   │   └── route.ts · routes/*.ts · tools/*.ts · registry.ts · index.ts
+│   ├── fixtures/src/                         generate · personas · merchants · narration · bank-lines · calendar · calibration · shelf · seed-bundle.ts · realism.test.ts
+│   ├── design/                               tokens.json, consumed by src/index.ts (raw values) and tailwind-preset.cjs (NativeWind)
+│   └── assets/                               generated icons, logos and portraits the app ships with
 ├── infra/
 │   ├── terraform/                            main.tf · vpc.tf · rds.tf · ecs.tf · alb.tf · cdn.tf · secrets.tf · observability.tf · budget.tf
 │   │   └── envs/team-sandbox.tfvars · idbi-sandbox.tfvars
 │   ├── ec2-compose/                          cloud-init.yaml (t3.medium hedge)
-│   └── scripts/                              deploy-api.sh · deploy-web.sh · seed-remote.sh · smoke.sh · load.sh
+│   ├── fly/                                  README.md: the API alone on Fly.io (fly.api.toml sits at the root)
+│   └── scripts/                              deploy-api.sh · deploy-web.sh · seed-remote.sh · put-avatar-secret.sh · smoke.sh · load.sh
 ├── docker-compose.yml                        postgres (pgvector/pgvector:pg16, :5433) · seed (profile) · api
 ├── docs/architecture/                        HLD.md · LLD.md · lifecycles.md · DATA-AND-API.md · adr/ · THREAT-MODEL.md · TESTING-AND-DEPLOYMENT.md · BUILD-PLAN.md
-├── docs/data/                                seed-pipeline.md · statement-formats.md · calibration.md · field-mapping.md
-└── .github/workflows/                        ci.yml (quality · hygiene · contract · integration · architecture · docker · infra) · deploy.yml (workflow_dispatch)
+├── docs/engineering/                         runway.md · anam.md · avatar-accounts.md · data-calibration.md · schema/ (the relational design, the field mapping)
+└── .github/workflows/                        ci.yml (quality · hygiene · integration); no deploy workflow — infra/scripts deploy from a laptop
 ```
 
 ## Ports
 
 Ports are the interfaces the application layer depends on. Each one lists its adapters; a bank
-integration is a new adapter behind an existing port, never a change to the application.
+integration is a new adapter behind an existing port, never a change to the application. The
+sections below are the nine the design started with. Seven more have been earned since and are
+not written up here — `DeclaredProfileStore`, `HoldingsStore`, `AaConsentStore`, `AaGatewayPort`,
+`LeadSinkPort`, `AvatarToolWebhook` and `LanguageModelPort` — and `apps/api/src/ports/index.ts`
+is the list.
 
 ### BankDataPort
 
@@ -316,8 +347,8 @@ health(): Promise<{ ok: boolean; latencyMs: number }>
 |---|---|
 | `PostgresBankData` | Demo source of truth; rows ≤ asOf; as-of facts via `core/asof` |
 | `InMemoryBankData` | Seeded at construction from `toSeedBundle()`; tests, CI, `BANK_SOURCE=memory` |
-| `IdbiSandboxBankData` | Stub over endpoints 456/394/393/402/362 with `wire.ts` + `mapping.ts`; `simulatedClock=false`; holdings and policies throw `NotAvailableFromBank` |
-| `CompositeBankData` | IDBI for what the catalogue exposes, secondary for holdings, policies and shelf; provenance per block |
+| `IdbiSandboxBankData` | Over IDBI's twenty-four sandbox operations through `api/gateway.ts`: live with `IDBI_API_BASE`, the captured bodies replayed otherwise. `simulatedClock=true`, because the sandbox's ledger ends in May 2025 and the session runs as of the last day it holds; holdings and policies throw `NotAvailableFromBank` |
+| `CompositeBankData` | IDBI for what the catalogue exposes, the app's own `HoldingsStore` for holdings and policies; provenance per block |
 
 ### ProductShelfPort
 
@@ -337,7 +368,7 @@ resolve(spokenName): Promise<Product | null>   // exact → alias → normalised
 ```ts
 create(cif, tokenHash, anchor): Promise<Session>
 getByTokenHash(hash): Promise<Session | null>
-patch(id, patch: { asOf?; lastSeen?; goalTarget?; caps?; scopeOverrides? }, expectedVersion): Promise<Session>   // Conflict on mismatch
+patch(id, patch: { asOf?; lastSeen?; goalTarget?; goalBasis?; goalKind?; caps?; spendLimit?; save?; challenge?; scopeOverrides? }, expectedVersion): Promise<Session | null>   // null on a version mismatch → 409
 touch(id): Promise<void>
 erase(id): Promise<void>
 putIdempotent(id, key, requestHash, response) / getIdempotent(id, key)
@@ -360,7 +391,7 @@ latestRoadmap(sessionId): Promise<RoadmapVersion | null>
 
 | Adapter | Role |
 |---|---|
-| `PostgresSnapshotStore` | `UNIQUE (cif, as_of, input_hash, engine_version)`; never updated |
+| `PostgresSnapshotStore` | `UNIQUE (subject_id, as_of, input_hash, engine_version)`, found by `cif`, so a second reviewer reads the first one's derivation; never updated |
 | `InMemorySnapshotStore` | LRU of 64 |
 
 ### AuditStore
@@ -473,29 +504,37 @@ IDBI supplies the host-token format.
   ECS replacement and RDS automated backups (7-day PITR); the product remains usable at 0 % avatar
   availability through Tier 1; Multi-AZ RDS is one variable if IDBI asks.
 - **Scalability.** 50 concurrent reviewer sessions and 20 req/s sustained on 1 vCPU / 2 GB with
-  zero 5xx (autocannon script committed with results); content-addressed snapshots mean N
-  reviewers on one customer cost one derivation per clock position; Runway concurrency is 1 per
-  credential and is handled by the waitlist, not capacity.
+  zero 5xx (the autocannon script is `infra/scripts/load.sh`; no run's results are committed
+  yet); content-addressed snapshots mean N reviewers on one customer cost one derivation per
+  clock position; Runway concurrency is 1 per credential and is handled by the chain of accounts
+  ([`avatar-accounts.md`](../engineering/avatar-accounts.md)) and then the waitlist, not by
+  capacity.
 - **Robustness.** Every outbound call has a timeout and a breaker; no request path can wait
   longer than 45 s; no user-facing end state is a spinner; every tier transition is a typed
-  `ErrorBody {code, message, cause?, retryAfterSeconds?, ticket?}` and the client state machine
-  (idle · connecting · live · waitlisted · text) has a designed screen per state;
-  `FAULT_INJECT` demonstrates each rung on demand.
+  `ErrorBody {code, message, cause?, retryAfterSeconds?, ticket?}` and the client's call states
+  (idle · connecting · live · ended · unavailable, in `apps/mobile/src/avatar/useAvatarCall.ts`,
+  where unavailable says why and the text tier answers) each have a designed screen.
+  `FAULT_INJECT` was to demonstrate each rung on demand; today it is parsed, refused in production
+  and echoed by `/health`, and nothing injects a fault (`infra/fault-inject.ts` was never written).
 - **Correctness.** API figures equal the generator's figures to the rupee at anchor, +1d, +7d,
   +30d, +6m, +18m for every persona (parity test in CI); the same View feeds screens, brief and
-  tools, so no surface can quote a number another does not show; `pnpm replay <advice_record_id>`
-  reproduces the stored sentence byte-for-byte.
+  tools, so no surface can quote a number another does not show. `pnpm replay <advice_record_id>`,
+  which would reproduce the stored sentence byte-for-byte, was never written; `app.verdicts` and
+  `app.actions` are reserved for it.
 - **Cost.** Infrastructure ≈ US$115–130/month in `ap-south-1` (Fargate 1 vCPU/2 GB ≈ $35, RDS
   db.t4g.micro ≈ $18, NAT ≈ $35, ALB ≈ $20, CloudFront/S3/Secrets/CloudWatch ≈ $8); Runway
-  hard-capped at 240 min/day (≤ US$48/day) with the meter in Postgres, alarm at 80 %, AWS Budgets
-  alarm at US$100; the text tier's model is a few hundred tokens a message on a small model,
-  which rounds to nothing beside the avatar minutes and stops entirely when the key is removed.
+  hard-capped at 240 min/day (≤ US$48/day) with the meter in Postgres, an alarm at 80 % that is
+  defined but not yet fed a metric, AWS Budgets alarm at US$100; the text tier's model is a few
+  hundred tokens a message on a small model, which rounds to nothing beside the avatar minutes
+  and stops entirely when the key is removed.
 - **Security.** Zero secrets on the device (the CI secret scan runs over the whole tree, not over
   one app's `dist/`, now that the only client build is the Expo export); every route validated in and
-  out from the registry; bearers 256-bit random stored hashed; helmet; TLS end to end (CloudFront,
-  ALB, RDS `sslmode=require`); rate limits 120/min, 20 sessions/hour, 5 grants/hour per IP; 16 KB
-  bodies; operator routes behind a separate key; task role limited to three secret ARNs and log
-  writes; task and RDS in private subnets.
+  out from the registry; bearers 256-bit random stored hashed; helmet; TLS to CloudFront and to
+  RDS (`sslmode=require`), and from CloudFront to the ALB only when a domain is set — the live
+  stack has none, so that hop is HTTP inside AWS; rate limits 120/min, 20 sessions/hour, 5
+  grants/hour per IP; 16 KB bodies; operator routes behind a separate key; the execution role
+  reads three secret ARNs and the task role writes only its own logs and metrics; task and RDS in
+  private subnets.
 - **Auditability and compliance posture.** One append-only, hash-chained record per proposal with
   the exact sentence shown, snapshot id, consent id, rule id, engine version and source;
   UPDATE/DELETE revoked and trigger-blocked; avatar tool results reconciled against the provider

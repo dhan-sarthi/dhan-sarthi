@@ -208,9 +208,9 @@ _Avoid_: audit log entry, trail, event
 ## How the API is assembled
 
 The domain nouns above say what a figure is. These say where it is decided, which is the other
-half of a name landing in the right file. Everything in this section is in `apps/api`, which two
-other sessions are reshaping as this is written — the symbol is the address, and a line that has
-moved should be corrected here rather than worked around.
+half of a name landing in the right file. Everything in this section but the last entry is in
+`apps/api`, which two other sessions are reshaping as this is written — the symbol is the
+address, and a line that has moved should be corrected here rather than worked around.
 
 **Port**:
 An interface the application layer depends on and an adapter satisfies — the bank feed, the
@@ -226,8 +226,8 @@ import each other; sharing goes through `application/` or `infra/`.
 _Avoid_: driver, provider, implementation, backend
 
 **Deps**:
-Every port, assembled — the composition root's output. `apps/api/src/composition/root.ts:86`.
-`Profile` (`apps/api/src/composition/profiles.ts:77`) is the pair of choices that decides which
+Every port, assembled — the composition root's output. `apps/api/src/composition/root.ts:87`.
+`Profile` (`apps/api/src/composition/profiles.ts:80`) is the pair of choices that decides which
 adapter each port gets: which bank source, which avatar provider.
 _Avoid_: container, registry, context, config (taken by `Config`, the parsed environment)
 

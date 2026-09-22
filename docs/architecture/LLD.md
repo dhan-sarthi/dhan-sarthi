@@ -7,7 +7,8 @@ to read before writing or reviewing a file under `apps/api/src`, `packages/core/
 serves is in [`HLD.md`](HLD.md); the flows these modules take part in are in
 [`lifecycles.md`](lifecycles.md).
 
-Status: adopted 3 September 2026 · amended 2026-09-20 (the client module; see below).
+Status: adopted 3 September 2026 · amended 2026-09-20 (the client module) · amended 2026-09-22
+(server-side signatures re-read off the code; see below).
 
 > **Amendment, 2026-09-20.** `apps/web` has been deleted and `apps/mobile` is the only client, so
 > the last section of this document — the client's `api/client` module — now describes
@@ -16,6 +17,14 @@ Status: adopted 3 September 2026 · amended 2026-09-20 (the client module; see b
 > where a piece of logic came from on 3 September, which is still true and is why the function it
 > names lives where it does; see the amendment on [ADR-0001](adr/ADR-0001.md) for the removal
 > itself.
+>
+> **Amendment, 2026-09-22.** "Nothing on the server side moved" was not so. The route entry moved
+> to `packages/contracts/src/route.ts` and grew; `Deps` gained nine members; `suggestGoal` takes the
+> goal kind the customer chose (migration 0012); the IDBI adapter was rewritten over the real
+> sandbox; the pool is `src/db/pool.ts`. Those sections are corrected below. Modules added since —
+> the Anam adapter, the provider router, `LanguageModelPort`, the save and challenge services —
+> have no section here: [ADR-0013](adr/ADR-0013.md) covers the avatar ones, and the code is the
+> reference for the rest.
 
 ## core/asof — `packages/core/src/asof.ts`
 
@@ -37,23 +46,28 @@ Depends on: `core/dates`, `core/types`.
 
 `suggestGoal`, moved verbatim from `apps/web/src/lib/view.ts`. Domain logic belongs in core.
 
+It has since learned the customer's own choice: `chosenKind` is the goal kind onboarding stores
+in `sessions.goal_kind`, planned wherever it has something to aim at, and `overrideBasis` says
+whether an overridden target is in today's money or the year it lands.
+
 ```ts
-suggestGoal(snapshot: Snapshot, asOf: string, override: number | null): Goal
+suggestGoal(snapshot: Snapshot, asOf: string, override: number | null, overrideBasis: GoalAmountBasis | null = null, chosenKind: GoalKind | null = null): Goal
 ```
 
-Depends on: `core/derive`, `core/roadmap`.
+Depends on: `core/derive`, `core/roadmap`, `core/projection`.
 
 ## contracts/registry — `packages/contracts/src/registry.ts`
 
-The one readonly table of routes. Drives Fastify validation in and out, OpenAPI 3.1, the
-contract-test matrix and the no-undeclared-route test.
+The one readonly table of routes, 52 rows. Drives Fastify validation in and out, OpenAPI 3.1,
+the client's types, the no-undeclared-route test and the documented-surface test. The row's shape
+is `packages/contracts/src/route.ts`.
 
 ```ts
-interface RouteEntry<Req, Res> { method: 'GET'|'POST'|'PATCH'|'DELETE'; path: string; auth: 'none'|'session'|'operator'; request?: z.ZodType<Req>; response: z.ZodType<Res>; errors: readonly number[]; rateLimit?: { max: number; window: string } }
-export const ROUTES: readonly RouteEntry[]
+interface RouteEntry { id: string; method: 'GET'|'POST'|'PATCH'|'DELETE'; path: `/api/v1${string}`; summary: string; auth: 'none'|'session'|'operator'; rateLimit?: { max: number; window: string; keyBy: 'ip'|'session' }; idempotent?: boolean; request?: { params?; query?; body?; headers? }; response: { [status: number]: z.ZodTypeAny }; cache?: { control: string; etag?: boolean } }
+export const ROUTES = [ … ] as const satisfies readonly RouteEntry[]
 ```
 
-Depends on: `contracts/routes/*`, `contracts/common`.
+Depends on: `contracts/route`, `contracts/routes/*`, `contracts/common`.
 
 ## contracts/tools — `packages/contracts/src/tools/index.ts`
 
@@ -76,7 +90,7 @@ the response against `entry.response` (a mismatch is a 500 in dev and a logged v
 prod), applies auth and rate-limit from the entry.
 
 ```ts
-registerRoute<E extends RouteEntry>(app: FastifyInstance, entry: E, handler: (ctx: { principal: Principal; body: z.infer<E['request']>; params; query; idempotencyKey?: string }) => Promise<z.infer<E['response']>>): void
+registerRoute<E extends Route>(app: FastifyInstance, deps: RegisterDeps, entry: E, handler: RouteHandler<E['id']>): void   // ctx: { principal, session, params, query, body, headers, request, log }
 ```
 
 Depends on: `contracts/registry`, `http/auth`, `application/errors`.
@@ -88,8 +102,8 @@ registers every `ROUTES` entry, enforces startup invariants (a real `AvatarProvi
 real `AvatarRpcHost`; `FAULT_INJECT` is refused in production).
 
 ```ts
-buildRoot(config: Config): Promise<{ app: FastifyInstance; deps: Deps; close(): Promise<void> }>
-interface Deps { bank: BankDataPort; shelf: ProductShelfPort; sessions: SessionStore; snapshots: SnapshotStore; audit: AuditStore; leases: LeaseStore; avatar: AvatarProvider; rpc: AvatarRpcHost; clock: Clock }
+buildRoot(config: Config, options?: RootOptions): Promise<{ app: FastifyInstance; deps: Deps; services: AppServices; taskId: string; close(): Promise<void> }>
+interface Deps { bank: BankDataPort; profiles: DeclaredProfileStore; holdings: HoldingsStore; aa: { store: AaConsentStore; gateway: AaGatewayPort } | null; leads: LeadSinkPort; mappingReport: (() => MappingReport | null) | null; shelf: ProductShelfPort; sessions: SessionStore; snapshots: SnapshotStore; audit: AuditStore; leases: LeaseStore; avatar: AvatarProvider; rpc: AvatarRpcHost; toolWebhook: AvatarToolWebhook; clock: Clock; credentials: AvatarCredential[]; model: LanguageModelPort; seed: SeedInfo }
 ```
 
 Depends on: `config`, `ports/*`, `adapters/*`, `application/*`, `http/*`.
@@ -100,9 +114,9 @@ Builds the View every screen reads, exactly as `apps/web/src/lib/view.ts` does i
 adoption, server-side and memoised through `SnapshotStore`.
 
 ```ts
-class AdvisoryService { constructor(bank: BankDataPort, shelf: ProductShelfPort, snapshots: SnapshotStore, engineVersion: string)
-  view(session: Session): Promise<View>  // View = { snapshot, goal, roadmap, plan, insights, shelf, rules, meta: { asOf, ledgerHorizon, dataFreshnessDate, source, simulatedClock, snapshotId, snapshotHash, roadmapVersion, provenance } }
-  file(session: Session): Promise<CustomerFile>  // consent-scoped }
+class AdvisoryService { constructor(deps: { bank: BankDataPort; shelf: ProductShelfPort; snapshots: SnapshotStore; engineVersion: string; now?: () => number })
+  view(session: Session): Promise<ServerView>  // View = { snapshot, accounts, goal, roadmap, plan, insights, shelf, rules, meta: { asOf, ledgerHorizon, dataFreshnessDate, source, simulatedClock, snapshotId, snapshotHash, roadmapVersion, provenance, tier } }
+  recut(session: Session, reasonForChange: string): Promise<number>  // a new roadmap version }
 ```
 
 Depends on: `core`, `application/consent-scope`, `application/hash`, `ports/bank-data`,
@@ -137,7 +151,7 @@ engine's own sentence, or the rules' refusal where the gate produced one.
 ```ts
 ask(session: Session, question: string, history?: AskTurn[]): Promise<Answer>
 suggestions(session: Session): Promise<{ opening: Answer; questions: string[] }>
-evaluateProduct(session: Session, productId: string, amount: number, source: 'text'|'api'): Promise<{ verdict: Verdict; adviceRecordId: string }>
+evaluateProduct(session: Session, request: EvaluateRequest, source: 'text'|'api'): Promise<EvaluateResponse>   // { verdict, adviceRecordId }
 ```
 
 Depends on: `core/query`, `core/suitability`, `application/advisory.service`,
@@ -146,8 +160,9 @@ Depends on: `core/query`, `core/suitability`, `application/advisory.service`,
 ## application/consent-scope — `apps/api/src/application/consent-scope.ts`
 
 Applies the consent artefact plus per-session scope overrides to a `CustomerFile` before
-`derive()` runs, so withdrawing "Loans" on Record → Your data genuinely recomputes the advice, as
-the copy in `Record.tsx` already promises.
+`derive()` runs, so switching a block off on "Where my data comes from"
+(`apps/mobile/app/connections.tsx`) genuinely recomputes the advice, as that screen's copy
+promises.
 
 ```ts
 type Scope = 'PROFILE'|'ACCOUNTS'|'TXN'|'LIABILITIES'|'HOLDINGS'
@@ -165,7 +180,8 @@ releases and answers 502 `gate_unavailable`. The last two port calls were `waitU
 still spells them the old way, because those are Runway's own HTTP steps and they did not move.
 
 ```ts
-start(session: Session, ticket?: string): Promise<AvatarGrant | WaitlistTicket>
+start(session: Session, ticket?: string, topic?: string | null): Promise<AvatarGrant>   // busy: 409 carrying a waitlist ticket
+prepare(session: Session, topic?: string | null): Promise<AvatarPrepared>   // the same sequence up to the grant, handed nothing; free on Runway until used
 end(session: Session, runwaySessionId: string): Promise<void>
 record(session: Session, runwaySessionId: string): Promise<AvatarCallRecord>
 ```
@@ -196,7 +212,7 @@ Server-side personality brief and startScript, from the same View the screens re
 aliases). Length ceilings asserted for all personas at several clock positions.
 
 ```ts
-build(view: View, recentDecisions: DecisionRecord[]): { personality: string; startScript: string }
+buildBrief(view: ServerView, recentDecisions: readonly DecisionRecord[], shelf: readonly ShelfProduct[], topic?: string | null): { personality: string; startScript: string }
 ```
 
 Depends on: `core/derive`, `contracts/domain`.
@@ -247,23 +263,23 @@ liabilities and holdings through `core/asof`. Reports `describe()` with `simulat
 the seed horizon.
 
 ```ts
-class PostgresBankData implements BankDataPort { constructor(pool: Pool) }
+class PostgresBankData implements BankDataPort { constructor(db: Db, opts: PostgresBankDataOptions); static connect(db: Db, …): Promise<PostgresBankData> }
 ```
 
-Depends on: `adapters/postgres/pool`, `core/asof`, `ports/bank-data`.
+Depends on: `db/pool`, `core/asof`, `ports/bank-data`.
 
 ## adapters/idbi-sandbox/composite — `apps/api/src/adapters/idbi-sandbox/composite.ts`
 
-Answers each `BankDataPort` method from the IDBI stub where the catalogue has an endpoint and from
-a secondary (fixtures/memory) where it does not (holdings, policies), tagging provenance per block
-for the UI.
+Answers each `BankDataPort` method from IDBI's sandbox where the catalogue has an operation and
+from the app's own `HoldingsStore` where it does not (holdings, policies), tagging provenance per
+block for the UI. The sandbox side is no longer a stub: `IdbiSandboxBankData` reads the
+twenty-four real operations through `api/gateway.ts`, live or replayed from the captured bodies.
 
 ```ts
-class CompositeBankData implements BankDataPort { constructor(primary: IdbiSandboxBankData, secondary: BankDataPort) }
+class CompositeBankData implements BankDataPort { constructor(primary: IdbiSandboxBankData, holdings: HoldingsStore) }
 ```
 
-Depends on: `adapters/idbi-sandbox/client`, `adapters/idbi-sandbox/mapping`,
-`adapters/memory/bank-data.memory`.
+Depends on: `adapters/idbi-sandbox/bank-data.idbi-sandbox`, `ports/holdings`, `ports/bank-data`.
 
 ## adapters/runway/transport — `apps/api/src/adapters/runway/transport.ts`
 
@@ -303,7 +319,7 @@ inside the insert transaction.
 class PostgresAuditStore implements AuditStore
 ```
 
-Depends on: `adapters/postgres/pool`, `application/hash`, `ports/audit-store`.
+Depends on: `db/pool`, `application/hash`, `ports/audit-store`.
 
 ## cli/seed — `apps/api/src/cli/seed.ts`
 
@@ -313,10 +329,11 @@ the summary and diff against the generator). `--check` compares hashes only; ref
 sessions exist unless `--force`.
 
 ```ts
-main(argv: { check?: boolean; force?: boolean; anchor?: string; forward?: number }): Promise<void>
+seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedReport>   // the CLI's flags: --check --force --anchor --forward --history
+checkSeed(pool: pg.Pool, opts: SeedOptions): Promise<CheckReport>
 ```
 
-Depends on: `fixtures/seed-bundle`, `adapters/postgres/pool`, `db/migrate`.
+Depends on: `fixtures/seed-bundle`, `db/seed-bundle`, `db/pool`, `db/migrate`.
 
 ## fixtures/seed-bundle — `packages/fixtures/src/seed-bundle.ts`
 
@@ -325,11 +342,11 @@ contracts (liabilities, SIPs, policies) rather than as-of facts. Shared by the s
 memory adapter.
 
 ```ts
-toSeedBundle(spec: PersonaSpec, opts: { anchor: string; historyMonths: number; forwardMonths: number }): SeedBundle
-interface SeedBundle { customer; consent; accounts; transactions; liabilityContracts; sipContracts; holdings; policies; horizon: { from: string; to: string } }
+toSeedBundle(spec: PersonaSpec, options?: Partial<{ anchor: string; historyMonths: number; forwardMonths: number }>): SeedBundle
+interface SeedBundle { slug; customer; pitch; demonstrates; displayOrder; consent; accounts; transactions; liabilityContracts; sipContracts; holdings; policies; horizon: SeedHorizon }
 ```
 
-Depends on: `fixtures/generate`, `fixtures/personas`, `fixtures/cities`, `fixtures/mcc`.
+Depends on: `fixtures/generate`, `fixtures/personas`, `fixtures/calendar`, `fixtures/shelf`.
 
 ## mobile/api/client — `apps/mobile/src/api/client.ts`
 

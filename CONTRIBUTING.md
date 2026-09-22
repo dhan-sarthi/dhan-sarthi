@@ -304,8 +304,8 @@ These are settled. Rationale and reversal costs are in
   adjustable, labelled as an illustration, with a real-terms line.
 - **The customer raises the ULIP; the app never offers it.**
 - **No web fonts.** System stack only, so first paint is instant and the ₹ glyph always renders.
-- **A visible simulated clock** on the Record screen, so time-dependent behaviour can be verified
-  in seconds.
+- **A visible simulated clock** on the Record screen's Consent pane, so time-dependent behaviour
+  can be verified in seconds.
 - **No branded name for the loop in the UI.** Screens say "your plan".
 
 ## What is still to port from the archived prototype

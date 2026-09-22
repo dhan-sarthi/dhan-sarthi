@@ -39,8 +39,8 @@ Built by Team Atomic for **IDBI Innovate 2026**, Problem Statement 1: Digital We
 > - **Plan** shows the route: clear the 34.8% card first, in 11 months at ₹21,516 a month.
 > - **Uday → Chat in text**, ask *"Should I buy the LIC ULIP my cousin recommends?"* and he refuses
 >   it, on the record: *"IDBI sells it and I am still telling you not to buy it."*
-> - **Profile (top right) → Your record → Rules** lists the nine rules, and **+30 days** on the
->   record's simulation clock moves time forward so the plan re-cuts itself.
+> - **Profile (top right) → Your record → Rules** lists the nine rules. The record's **Consent**
+>   pane holds the simulation clock: **+30 days** moves time forward and the plan re-cuts itself.
 
 > [!NOTE]
 > Every customer, transaction and balance here is synthetic, generated from a seed by

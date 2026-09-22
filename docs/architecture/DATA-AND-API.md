@@ -1,14 +1,15 @@
 # Data model and API surface
 
 This document is the contract between the API and everything around it: the tables the API reads
-and writes, the roles that may touch them, the 51 routes and what each returns, and the session,
+and writes, the roles that may touch them, the 52 routes and what each returns, and the session,
 idempotency, caching and rate-limit rules that make many concurrent reviewers safe. It also
 records the avatar integration in the detail a reviewer of the compliance story will want. The
 route table is the human-readable twin of `packages/contracts/src/registry.ts`, which is the
 executable one.
 
 Status: adopted 3 September 2026 · amended 2026-09-20 (one client, not two; four personas, not
-three; the renamed provider calls — see below).
+three; the renamed provider calls) · amended 2026-09-22 (the tables as migrated, the app's screens,
+the avatar request body and two limits — see below).
 
 > **Amendment, 2026-09-20.** `apps/web` has been deleted; `apps/mobile` is the only client. No
 > table, route, status code, header or limit in this document changed as a result — the server is
@@ -23,34 +24,46 @@ three; the renamed provider calls — see below).
 > `packages/fixtures/src/personas.ts:1486`); both have been re-derived from the generator rather
 > than scaled. And the grant sequence still named `waitUntilReady` and `consume`, which
 > [ADR-0013](adr/ADR-0013.md)'s amendment renamed to `awaitIssuable` and `issueGrant`.
+>
+> **Amendment, 2026-09-22.** The route table was kept honest by its test; the prose around it was
+> not. The migrations never used the table names below (see the next section), the sessions row
+> has gained five columns, `POST /avatar/session` takes a `topic`, the request timeout is 60 s,
+> and several sentences described screens by the names they had in `apps/web` — the Record tab,
+> Money, Ask — or behaviour only that app had: a queue card, a beacon, a clock that said "end of
+> simulated data", gate coverage drawn on the record. Each is corrected where it stands.
 
 ## Relationship to the relational schema record
 
 [`docs/engineering/schema/`](../engineering/schema/README.md) holds the full relational design
 for the wealth-advisory module (four Postgres schemas: `bank`, `app`, `ref`, `staging`), with
-tested DDL. The tables below are the working set this build reads and writes, applied
-incrementally through the numbered migrations in `apps/api/migrations`, starting with what the
-demo needs. Where a name here is shorter than its counterpart there (for example
-`advice_records` against `app.verdicts` plus `app.audit_records`), the migrations are the
-executable truth and the schema record is the design they grow into.
+tested DDL. The tables below are the working set this build reads and writes, as designed on
+3 September. The migrations in `apps/api/migrations` built that set under the schema record's
+names, not these: `app.audit_records` for `advice_records`, `bank.loan_snapshots` and
+`bank.sip_registrations` for the two contract tables, `bank.mf_holdings`,
+`bank.insurance_policies` and (since 0013) `bank.other_holdings` for `holdings`, `ref.products`
+and `staging.seed_runs`, with every other table here under `app.` or `bank.` by the name it has
+below. The migrations are the executable truth, and
+[`apps/api/migrations/README.md`](../../apps/api/migrations/README.md) maps them file by file.
 
 ## Data model
 
-Postgres 16, schema `sarthi`, plain SQL migrations in `apps/api/migrations` applied by
-`src/db/migrate.ts` ([ADR-0005](adr/ADR-0005.md): no ORM). Two roles: `dhan_migrate` (owner; used
-only by migrate and the one-off seed task) and `dhan_app` (runtime: SELECT on bank tables;
-SELECT/INSERT/UPDATE on session tables; SELECT/INSERT on record tables; UPDATE/DELETE revoked and
-trigger-blocked on record tables). Money is `numeric(18,2)` parsed to Number once
-(`pg.types.setTypeParser(1700, Number)`); dates are `date` parsed to `'YYYY-MM-DD'` strings
-(`setTypeParser(1082, s => s)`) because core dates are strings and a Date crossing a timezone is
-how the 1st becomes the 31st. No column anywhere for PAN, Aadhaar or a full account number, by
-schema. Region `ap-south-1` only.
+Postgres 16, five schemas (`common`, `ref`, `staging`, `bank`, `app`), plain SQL migrations in
+`apps/api/migrations` applied by `src/db/migrate.ts` ([ADR-0005](adr/ADR-0005.md): no ORM). Two
+NOLOGIN roles, `dhan_migrate` and `dhan_app`, granted to the one login that owns the objects:
+migrate and the one-off seed task run as that login, and the API's pool runs `SET ROLE dhan_app`
+on every connection (runtime: SELECT on bank tables; SELECT/INSERT/UPDATE on session tables;
+SELECT/INSERT on record tables; UPDATE/DELETE revoked and trigger-blocked on record tables). Money
+is `numeric(18,2)` parsed to Number once, and dates are `date` parsed to `'YYYY-MM-DD'` strings,
+by a parser table private to the pool (`src/db/pool.ts`) rather than the process-wide
+`pg.types.setTypeParser`, because core dates are strings and a Date crossing a timezone is how the
+1st becomes the 31st. No column anywhere for PAN, Aadhaar or a full account number, by schema.
+Region `ap-south-1` only.
 
 ### Bank data — written only by `pnpm seed`, SELECT-only for `dhan_app`
 
 - `seed_runs(id, generator_version, anchor, history_from, horizon_to, personas text[], row_counts jsonb, content_sha256, ran_at)`.
   `pnpm seed --check` regenerates in memory and compares the hash; CI fails on drift. Surfaced on
-  Record → Your data as provenance.
+  Record's Consent pane as provenance.
 - `customers(cif PK, cust_id, cust_name, date_of_birth, gender, marital_status, dependents int, employment_type, declared_annual_income, city, state_code char(2), preferred_language, risk_profile, risk_profile_date, kyc_status, customer_since, tax_regime, persona_slug, pitch, demonstrates, ledger_anchor date, ledger_horizon date, seed_run_id)`.
   Mirrors block 01 plus `tax_regime`, which the specification lacks and rule 8 needs
   (`docs/engineering/schema/README.md:456` records the ask, in the column's own comment).
@@ -83,7 +96,9 @@ schema. Region `ap-south-1` only.
 - `sessions(id uuid PK, subject_id FK, token_hash char(64) UNIQUE, as_of date, last_seen date, goal_target numeric null, caps jsonb, scope_overrides text[], version int, client_hint text (hashed UA + /24), created_at, last_active_at, expires_at (30-day sliding), revoked_at)`.
   Field-for-field the `Session` the browser held in `localStorage` at adoption
   (`apps/web/src/lib/session.ts`, deleted with that app): the row is that object, moved server-side
-  and given an owner.
+  and given an owner. Five columns have joined it since: `goal_basis` (0009), `spend_limit` (0010),
+  `save_state` and `challenge` (0011), and `goal_kind` (0012), the goal the customer picked in
+  onboarding, which `PATCH /session/goal {kind}` writes.
 - `idempotency_keys(session_id, key, request_hash, response jsonb, created_at; PK(session_id, key))`;
   24 h sweep.
 
@@ -98,8 +113,8 @@ schema. Region `ap-south-1` only.
 
 ### Append-only record — hash-chained per session
 
-Migration 0007 revokes UPDATE/DELETE from `dhan_app` and adds `BEFORE UPDATE OR DELETE` triggers
-that `RAISE 'record rows are immutable'`.
+Migration 0006 gives the record tables `BEFORE UPDATE OR DELETE` and `BEFORE TRUNCATE` triggers
+that raise `<table> is append-only`, and 0007 revokes UPDATE/DELETE from `dhan_app`.
 
 - `advice_records(id uuid PK, seq bigserial, session_id, subject_id, snapshot_id FK, consent_id, source 'screen'|'avatar_tool'|'text'|'api', action_id null, action_kind (13-value CHECK) null, product_id, amount, verdict PASS|BLOCKED|UNKNOWN_PRODUCT, rule_id, rules_passed text[], spoken text, recorded text, alternative jsonb, evidence text[], engine_version, runway_session_id null, verified_in_transcript bool null, at_sim date, prev_hash char(64), record_hash char(64), created_at)`.
   `record_hash = sha256(prev_hash ‖ canonical(row minus hashes))`; `pnpm audit:verify` walks the
@@ -143,7 +158,7 @@ subjects row and cascades everything else. All data is synthetic.
 | DELETE | `/api/v1/session` | DPDP erasure of reviewer state: deletes the subjects row, cascading sessions and snapshots; audit rows stay immutable and become unlinkable. | session bearer | 204 |
 | POST | `/api/v1/session/clock` | Body `{advanceDays: 1\|7\|30, expectedVersion}` or `{reset: true, expectedVersion}`. Moves `last_seen` to the old `as_of` (what `advance()` did client-side at adoption). 409 `STALE_CLOCK` on version mismatch; 422 `CLOCK_BEYOND_SEEDED_HORIZON` past `ledger_horizon`. | session bearer | `ClockRequest → SessionState` |
 | PATCH | `/api/v1/session/goal` | Body `{kind?, targetAmount?, amountBasis?}`, at least one of `kind` and `targetAmount`; `amountBasis` only beside a `targetAmount`. `kind` records the goal the customer chose (onboarding's last question, the goal screen's picker) in `sessions.goal_kind`, and `suggestGoal` plans around it wherever it has something to aim at — the ladder's prerequisites still come first on the route — and falls back to its own proposal where it does not (a payoff with nothing costly owed, cover with no gap). A kind other than the stored one clears the stored target and basis unless the same patch sets a target; the same kind again writes nothing. `targetAmount` overrides the suggested goal target, and belongs to the stored kind: it is planned while that kind is the plan's goal and kept, unplanned, while the plan falls back — so the goal screen sends the kind on screen beside the figure, which pins it. `amountBasis` says which money it is in — `today` (the default when omitted) or `at_horizon` where the customer inflated the figure themselves, which the engine funds at the nominal rate rather than discounting a second time. The body is published as `anyOf` the two shapes, so the OpenAPI document refuses what the route refuses. The next `/view` cuts a new roadmap version with reason 'Goal chosen by the customer' when the customer's choice moved the plan's goal, 'Target changed by the customer' when their figure did, and the statements reason when the file moved under a chosen kind. | session bearer | `GoalPatch → SessionState` |
-| POST | `/api/v1/session/consent` | Body `{scope, granted}`. Per-session scope override; the next `/view` recomputes with the block removed, which makes the consent copy in `Record.tsx` true. | session bearer | `ConsentPatch → SessionState` |
+| POST | `/api/v1/session/consent` | Body `{scope, granted}`. Per-session scope override; the next `/view` recomputes with the block removed, which makes the copy on "Where my data comes from" (`apps/mobile/app/connections.tsx`) true. | session bearer | `ConsentPatch → SessionState` |
 | POST | `/api/v1/session/caps` | Body `{category, monthlyLimit}`, the limit nullable to remove it. A decision about the future, so it lives on the session and not on the file: no bank endpoint anywhere carries what somebody meant to spend. `dailyplan` reads caps over the thirty days ending at `as_of` and marks the plan breached. | session bearer | `CategoryCapPatch → SessionState` |
 | POST | `/api/v1/session/spend-limit` | Body `{monthlyLimit}`, nullable to remove it. The ceiling on *everything*, where `caps` is the ceiling on one category. `buildDailyPlan` measures safe-to-spend against it, and holds it to what the month can actually afford — a limit above that is stored as the customer typed it and applied as the lower figure, because an app that agreed a customer had more money than they do is the only thing in the room lying to them. | session bearer | `SpendLimitPatch → SessionState` |
 | GET | `/api/v1/save` | The savings pot: the roadmap's goal seen from the saving end, the five hacks with what each put aside over the last four weeks, the deposits themselves, the interest the balance attracted, and the merchant and payday facts the configuration screens read. The hacks accrue lazily on this read — `SaveService` replays them from `save.accrued_to` to the session's `as_of` and writes back only what it produced — so the pot is a function of the clock and nothing has to run on a schedule to keep it true. | session bearer | `SaveView` |
@@ -154,7 +169,7 @@ subjects row and cascades everything else. All data is synthetic.
 | POST | `/api/v1/challenges` | Body `{target, limit, days}` — the rupee limit rather than the tier that produced it, because a tier is a percentage of a baseline that moves with every new statement line, and the figure the customer agreed to is the one the progress bar has to be measured against for the whole run. 409 `CHALLENGE_ALREADY_RUNNING` while one is still going, 422 `NOTHING_TO_CHALLENGE` where the target has no spend in the window to spend less of. Requires `Idempotency-Key`. | session bearer | `ChallengeDraft → ChallengeView` |
 | DELETE | `/api/v1/challenges/:challengeId` | Give up on the running challenge. The id is in the path and is checked, rather than ending whatever happens to be running: a screen left open while one challenge completed would otherwise end the one started after it. A mismatch is 404 `CHALLENGE_NOT_FOUND`, which is the honest answer — the thing they were looking at is not there any more. | session bearer | 204 |
 | GET | `/api/v1/view` | The one object every screen reads: `{snapshot, accounts, goal, roadmap, plan, insights, shelf, rules, meta:{asOf, ledgerHorizon, dataFreshnessDate, source, simulatedClock, snapshotId, snapshotHash, roadmapVersion, provenance, tier}}`. `accounts` is the accounts themselves, which the snapshot's two balance totals cannot carry; `snapshot` carries `credit` (`packages/contracts/src/domain.ts:557`), what IDBI can see about how the customer borrows and the typed list of what it cannot. ETag = `snapshotId:roadmapVersion`; 304 on If-None-Match; `Cache-Control: private, no-store`. | session bearer | `View` (`ViewSchema`, `packages/contracts/src/domain.ts:1251`) |
-| GET | `/api/v1/transactions` | Query `{from?, to?, category?, cursor?, limit≤200}`. Cursor-paged statement lines ≤ `as_of` for Money → Spending. | session bearer | `TransactionsQuery → {items: Transaction[], nextCursor}` |
+| GET | `/api/v1/transactions` | Query `{from?, to?, category?, cursor?, limit≤200}`. Cursor-paged statement lines ≤ `as_of` for the statement screen (`apps/mobile/app/statement.tsx`). | session bearer | `TransactionsQuery → {items: Transaction[], nextCursor}` |
 | GET | `/api/v1/profile` | The declared half of the customer: income, employment, dependents, risk profile, tax regime, date of birth, and `missing[]`. IDBI's catalogue has no operation carrying any of it, so the app owns it and the first run asks for it. | session bearer | `DeclaredProfileResponse` |
 | PATCH | `/api/v1/profile` | Body: any subset of the declared facts. The next `/view` re-derives on them, so an income typed here moves the goal, the surplus and the cover requirement. | session bearer | `ProfilePatch → DeclaredProfileResponse` |
 | GET | `/api/v1/holdings` | What the customer says they already own: funds, deposits elsewhere, and policies kept separate because cover is not capital. | session bearer | `HoldingsResponse` |
@@ -171,12 +186,12 @@ subjects row and cascades everything else. All data is synthetic.
 | POST | `/api/v1/suitability/evaluate` | Body `{productId, amount, goal?}`. Verdict from core `evaluate()` over the session's current snapshot; always writes an advice_record (source 'text' or 'api'). Used by 'Why?' and by the ULIP refusal in the text tier. | session bearer · 30/min/session | `EvaluateRequest → {verdict: Verdict, adviceRecordId}` |
 | POST | `/api/v1/ask` | Body `{question, history?}`. Text conversation: `core.answer()` over the session's snapshot and file computes the figures, the suitability rules decide any shelf product the question names (writing its advice_record), and only then does `LanguageModelPort` phrase the result → `{text, evidence[], resolved, matched, phrasedBy}`. `evidence` and `matched` are always the engine's. No `OPENAI_API_KEY`, a failed completion or a timeout all return the engine's own sentence with `phrasedBy: 'rules'`. | session bearer · 30/min/session | `AskRequest → Answer` |
 | GET | `/api/v1/ask/suggestions` | `openingLine(snapshot)` and `suggestedQuestions(snapshot)` for the text tier's first screen. | session bearer | `{opening: Answer, questions: string[]}` |
-| GET | `/api/v1/record` | Everything the Record tab shows: advice records with decisions and snapshot ids, roadmap versions, consent state and scope overrides, seed provenance, avatar sessions with gate_coverage and transcript status, chainVerified. | session bearer | `RecordView` |
+| GET | `/api/v1/record` | Everything the Record screen shows: advice records with decisions and snapshot ids, roadmap versions, consent state and scope overrides, seed provenance, avatar sessions with gate_coverage and transcript status, chainVerified. | session bearer | `RecordView` |
 | GET | `/api/v1/record/verify` | Walks this session's hash chain: `{ok, length, brokenAt?}`. The compliance-reviewer demo moment. | session bearer | `ChainVerification` |
 | GET | `/api/v1/shelf` | `ProductShelfPort.list()` including the products that will be refused, with source and verified flags. | none · public, max-age=300 | `Product[]` |
 | GET | `/api/v1/rules` | `ruleBook` from core: the nine rules in plain English. | none · public, max-age=300 | `Rule[]` |
-| GET | `/api/v1/avatar/availability` | Public minimal: `{available, enabled, minutesLeftToday, queueLength, estimatedWaitSeconds, breaker}`. Lets Ask render the right tier before the tap. | none | `AvatarAvailability` |
-| POST | `/api/v1/avatar/session` | Empty strict body; optional `X-Waitlist-Ticket`. Server builds the brief, registers tools, opens the RPC host, then consumes → `{transport, url, token, runwaySessionId, expectVideoAfterMs, expiresInSeconds}`. `transport` is `livekit` (Runway) or `anam`, and is the only provider fact the client is told. 409 `{cause: pool_busy\|provider_concurrency, ticket, position, estimatedWaitSeconds}`; 429 budget; 502 `gate_unavailable\|provider_error`; 503 not configured/disabled. | session bearer · 5/hour/IP · one live call per session | `z.object({}).strict() → AvatarGrant \| ErrorBody` |
+| GET | `/api/v1/avatar/availability` | Public minimal: `{available, enabled, minutesLeftToday, queueLength, estimatedWaitSeconds, breaker}`. Lets the Uday tab render the right tier before the tap. | none | `AvatarAvailability` |
+| POST | `/api/v1/avatar/session` | Strict body carrying at most `topic`, the insight headline the customer tapped (≤ 200 characters), which the brief folds into its opening server-side; `Idempotency-Key`; optional `X-Waitlist-Ticket`. Server builds the brief, registers tools, opens the RPC host, then consumes → `{transport, url, token, runwaySessionId, expectVideoAfterMs, expiresInSeconds}`. `transport` is `livekit` (Runway) or `anam`, and is the only provider fact the client is told. 409 `{cause: pool_busy\|provider_concurrency, ticket, position, estimatedWaitSeconds}`; 429 budget; 502 `gate_unavailable\|provider_error`; 503 not configured/disabled. | session bearer · 5/hour/IP · one live call per session | `AvatarSessionRequest` (`{topic?}`, strict) `→ AvatarGrant \| ErrorBody` |
 | POST | `/api/v1/avatar/session/prepare` | Ready a call before the customer taps: claim the first free account in the chain, create the session, wait for READY, open the gate, and hand nothing over → `{prepared, usableForSeconds}`. Free on Runway until handed over (a READY, gated, unconsumed session cost 0 credits, measured 22 Sep 2026); Runway fails it ~21 s after READY, so it is let go after 16 s. The next `POST /avatar/session` from the same session and topic hands it over in one round trip. Never queues, never audited; a caller who asks for a call takes the account back from a session that only readied one. `prepared: false` means the tap builds its call from nothing. | session bearer · 30/hour/session | `{topic?} → AvatarPrepared` |
 | GET | `/api/v1/avatar/waitlist/:ticket` | Poll: `{position, estimatedWaitSeconds, claimable, holdUntil}`. When claimable, `POST /avatar/session` with `X-Waitlist-Ticket` wins the slot for 20 s. | session bearer (owner) | `WaitlistStatus` |
 | DELETE | `/api/v1/avatar/waitlist/:ticket` | Leave the queue. | session bearer (owner) | 204 |
@@ -208,13 +223,15 @@ IDBI supplies the token format, and it arrives with its first adapter.
 **The server-side clock.** `POST /session/clock` is the only mutation of `as_of`; it takes
 `{advanceDays: 1|7|30}` or `{reset}` plus `expectedVersion`, moves `last_seen` to the previous
 `as_of`, and is a single `UPDATE … WHERE id = $1 AND version = $2`: a stale second tab gets 409
-`STALE_CLOCK` and refetches, so two tabs pressing +1 month move the clock once. Past
+`STALE_CLOCK` and refetches, so two tabs pressing +30 days move the clock once. Past
 `customers.ledger_horizon` (anchor + 18 months, seeded) it answers 422
-`CLOCK_BEYOND_SEEDED_HORIZON` and the Clock component shows "end of simulated data". Every read
+`CLOCK_BEYOND_SEEDED_HORIZON` and the clock control (`TimeMachine`, on Record's Consent pane) says
+the ledger ends before then and offers the reset. Every read
 then filters `txn_date <= as_of` and computes aggregates as of that date through `core/asof`, so
 the future the ledger always had is revealed one row at a time.
-`BankDataPort.describe().simulatedClock` is false under the IDBI adapter, and the UI hides the
-clock control from `session.capabilities` rather than assuming.
+`BankDataPort.describe().simulatedClock` is true under every adapter today — the IDBI sandbox's
+ledger ends in May 2025, so its sessions run as of the last day it holds — and the UI still reads
+`session.capabilities` rather than assuming.
 
 **Statelessness.** The API task holds nothing about a customer between requests. In-process state
 is (a) an LRU in front of `SnapshotStore` (a pure function of Postgres rows, safe to lose), (b)
@@ -230,9 +247,10 @@ two overlapping tasks cannot double-grant one credential. Scaling non-avatar tra
 `desired_count` change; scaling avatar concurrency is more Runway credentials
 ([ADR-0004](adr/ADR-0004.md) records the boundary rather than hiding it).
 
-**Idempotency.** `POST /actions/:id/decision` and `POST /avatar/session` require
-`Idempotency-Key`; the service stores `(session_id, key, request_hash, response)`; a replay with
-the same hash returns the stored response, a different hash returns 409 `IDEMPOTENCY_MISMATCH`.
+**Idempotency.** `POST /actions/:id/decision`, `POST /avatar/session`, `POST /challenges` and
+`POST /save/deposits` require `Idempotency-Key`; the service stores
+`(session_id, key, request_hash, response)`; a replay with the same hash returns the stored
+response, a different hash returns 409 `IDEMPOTENCY_MISMATCH`.
 `decisions` additionally carries `UNIQUE(session_id, action_id)`, so a double-tap on "Do it" on
 hotel wifi produces one row even without the header. The seed is idempotent by construction
 (deterministic generator, TRUNCATE + reload in one transaction, hash in `seed_runs`, refuses
@@ -250,7 +268,7 @@ holds its View in memory for the life of the process and re-reads on refresh
 **Limits** (all `@fastify/rate-limit`, keyed on the CloudFront/ALB-forwarded client IP with
 `trustProxy`, documented in [THREAT-MODEL.md](THREAT-MODEL.md)): 120 req/min general, 20 session
 creates/hour, 5 avatar grants/hour, 30 ask/evaluate per minute per session, one live avatar per
-session, 16 KB body limit, 10 s request timeout. `@fastify/helmet` on. CORS is dev-only because
+session, 16 KB body limit, 60 s request timeout. `@fastify/helmet` on. CORS is dev-only because
 CloudFront serves `/` and `/api/*` from one origin. Sessions expire after 30 days idle;
 `DELETE /session` erases immediately.
 
@@ -264,7 +282,9 @@ session from a laptop, confirm `onConnected` fires, confirm a `tools` body is ac
 from behind NAT. `adapters/runway/rpc-host.ts` is written to whatever the SDK exposes, so version
 drift touches one file. If the SDK cannot connect at all, the honest fallback is documented on
 day 1: Tier 0 ships prompt-only and the Record tab labels avatar advice "rule-verified on screen,
-not gate-verified on the wire"; never a claim the code cannot back.
+not gate-verified on the wire"; never a claim the code cannot back. The spike ran on 3 September
+and the SDK connected ([`runway-rpc-spike.md`](../engineering/runway-rpc-spike.md)), so that
+posture was never needed.
 
 **Server-side brief.** `application/avatar/brief.builder.ts` ports `buildBrief` from `Ask.tsx`
 onto the same View the screens render, so the avatar physically cannot quote a figure the UI does
@@ -274,8 +294,10 @@ sentence"), the shelf as `productId · name · aliases` so the model can name wh
 about, and the session's recent decisions ("Last month you said ₹10,000; you did ₹4,000"). A unit
 test (`test/avatar/brief.test.ts`) asserts ≤10,000 / ≤2,000 characters for all four personas at
 six clock positions and that every rupee figure in the brief exists in the snapshot. `POST /api/v1/avatar/session` takes
-`z.object({}).strict()`; the client sends nothing but its bearer. The `{personality}` body that
-`useAvatar` sends at adoption is rejected with 400.
+a strict body whose one field is an optional `topic`, the insight headline the customer tapped,
+which the builder folds into the opening as a topic and never as a script; the client sends that
+and its bearer and nothing else. The `{personality}` body that `useAvatar` sends at adoption is
+rejected with 400.
 
 **Tools, from contracts.** `packages/contracts/src/tools/` declares
 `check_suitability {product_name, monthly_amount?}` →
@@ -313,10 +335,10 @@ can't check it"; `evaluate({product, snapshot, amount, goal, alternatives: shelf
 `packages/core/src/suitability.ts` over the snapshot computed at grant (no I/O on the hot path);
 `AuditStore.appendAdvice({source:'avatar_tool', runwaySessionId, snapshotId, consentId, spoken, recorded, ruleId, verdict})`
 and `appendToolCall` awaited before returning, so the record exists before the model speaks the
-sentence; measured budget under 100 ms. A slow audit write (>500 ms) is logged and the verdict
-still returns; with Postgres down the memory audit store is not substituted (silently switching
-stores would break the chain); the call is answered and the failure is on the Record tab as
-"record write failed", which is honest.
+sentence; measured budget under 100 ms. A write that fails fails the tool call: the RPC host
+logs it and hands the model an error rather than a verdict with no record behind it. With
+Postgres down the memory audit store is not substituted (silently switching stores would break
+the chain).
 
 **Single slot.** Runway Tier 1 permits one concurrent session per credential and cancelling before
 READY does not free the slot. `Waitlist` over `avatar_waitlist`: FIFO tickets, one per session;
@@ -324,20 +346,21 @@ READY does not free the slot. `Waitlist` over `avatar_waitlist`: FIFO tickets, o
 remaining cap or the median of the last ten call lengths, whichever is smaller.
 `GET /avatar/waitlist/:ticket` reports position; when a lease frees, `promote()` makes the head
 ticket claimable for 20 s and `POST /avatar/session` with `X-Waitlist-Ticket` acquires ahead of
-anyone else; unclaimed tickets expire and the next moves up. `GET /avatar/availability` is public
-so the Ask screen shows "Uday is with another customer — you are next, about 4 minutes" before
-the tap, with the deterministic text conversation live underneath.
+anyone else; unclaimed tickets expire and the next moves up. `apps/mobile` drives none of that
+today: on a 409 the Uday tab says "I'm with another customer. I'll answer in text for now." and
+the text conversation takes over. `GET /avatar/availability` is public so the Uday tab can say
+"1 ahead of you · about 4 min", or "No minutes left today", before the tap.
 `RUNWAY_MAX_SESSION_SECONDS=600` during the review window so one shared slot turns over across
 twenty reviewers (the 1,800 default at adoption is right for one customer and wrong for a shared
-slot); the existing two-minute warning in Ask stays. Runway's own QUEUED-for-the-whole-window is
+slot). Runway's own QUEUED-for-the-whole-window is
 surfaced as `cause:'provider_concurrency'` with the same UX, and the log line says which of the
 two it was, because only one is fixed by adding keys.
 
 **Timeouts and breaker.** Every Runway fetch carries `AbortSignal.timeout` (8 s
 create/consume/cancel, 3 s poll); a circuit breaker opens after 3 consecutive failures for 30 s
 and half-opens with the unbilled `GET /v1/avatars/{id}`; while open, `POST /avatar/session`
-answers 503 at once with "Uday's line is down right now" and the text tier, so nobody waits for a
-slot that cannot be granted. Breaker state is on `/health`.
+answers 503 at once with "The provider line is down right now." and the text tier, so nobody
+waits for a slot that cannot be granted. Breaker state is on `/health`.
 
 **Audit of toolResults.** `docs/engineering/runway.md` records that
 `GET /v1/avatar_conversations/{id}` returned zero turns immediately after a cancelled session.
@@ -346,15 +369,19 @@ models both outcomes: `transcript_status = fetched | unavailable`. When fetched,
 matches each assistant turn's `toolCalls/toolResults` to `avatar_tool_calls` by tool, arguments
 and order (`verified_in_transcript = true`), then scans for gate coverage: every shelf product
 name or alias spoken in an assistant turn must be preceded by a `check_suitability` call for that
-product. The Record tab shows "Gate fired 3/3 · verified against provider transcript", "Gate
-fired 2/3 — 'PPF' was named without a check" or "transcript unavailable — our own tool ledger
-shown". Our ledger is written synchronously inside the handler, so the record never depends on
-the provider's transcript existing, which is the posture `runway.md` asks for.
+product. `GET /avatar/session/:id/record` sums it up as "Gate fired 3/3 · 3/3 tool calls verified
+against the provider transcript", or "Transcript unavailable. Our own tool ledger shown (3
+calls)"; no screen in `apps/mobile` draws it yet. Our ledger is written synchronously inside the
+handler, so the record never depends on the provider's transcript existing, which is the posture
+`runway.md` asks for.
 
 **Cost and safety knobs**, all in `config.ts`: `RUNWAY_MAX_SESSION_SECONDS` (600 for the review),
 `RUNWAY_DAILY_MINUTE_BUDGET` (240; ≤US$48/day), `AVATAR_ENABLED` (false = `NullAvatarProvider`
-without a deploy of code), `AVATAR_SESSIONS_PER_IP_PER_HOUR` (5). Teardown on every path:
-`sendBeacon` to `/end` on pagehide, reaper before every acquire and every 2 s, `release-all`
-behind the operator key, Fastify `onClose`, SIGTERM drain. CloudWatch alarm at 80 % of the daily
-budget; AWS Budgets alarm at US$100/month. Cut from UI copy: "Interrupt him whenever you like"
-(in `Ask.tsx` at adoption); barge-in is unverified and CONTRIBUTING forbids claiming it.
+without a deploy of code), `AVATAR_SESSIONS_PER_IP_PER_HOUR` (5). Teardown on every path: the
+app's `/end` on hang-up, a dropped call or leaving the tab, reaper before every acquire and every
+2 s, `release-all`
+behind the operator key, Fastify `onClose`, SIGTERM drain. A CloudWatch alarm at 80 % of the
+daily budget is defined, but it reads `avatar_minutes_used_today`, which the API does not publish
+yet, so it cannot fire; AWS Budgets alarm at US$100/month. Cut from UI copy: "Interrupt him
+whenever you like" (in `Ask.tsx` at adoption); barge-in is unverified and CONTRIBUTING forbids
+claiming it.

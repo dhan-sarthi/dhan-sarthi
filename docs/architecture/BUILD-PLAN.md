@@ -66,6 +66,22 @@ belongs here and not in the row.
     product is served; what changed is what is uploaded, which is now the Expo web export out of
     `apps/mobile`, published by `infra/scripts/deploy-web.sh`.
 
-  Nothing on the Backend or Data-and-infrastructure tracks was affected, and the Day 6 data row's
-  `VITE_OFFLINE_FALLBACK=false` mention is part of the `go-mobile-plus.md` deliverable covered by
-  the note above, which was never written either.
+  Nothing on the Backend or Data-and-infrastructure tracks was affected by the deletion, and the
+  Day 6 data row's `VITE_OFFLINE_FALLBACK=false` mention is part of the `go-mobile-plus.md`
+  deliverable covered by the note above, which was never written either.
+- **Backend and Data-and-infrastructure rows that did not ship as written**, re-read against the
+  tree on 22 September 2026:
+  - **Day 3's CI jobs.** Only `integration` joined `quality` and `hygiene`. The contract and
+    architecture tests run inside `quality`'s `pnpm test`; there is no `docker` or `infra` job.
+  - **Day 5's `cli/replay.ts` and `infra/fault-inject.ts`** were never written. `FAULT_INJECT` is
+    parsed and refused in production, and nothing injects a fault. Day 6's OpenAPI snapshot test
+    and the load results in `docs/architecture/perf.md` do not exist either.
+  - **Day 4's IDBI stub** (`client`, `endpoints`, `wire`, `mapping`, `fixtures/*.json`) was
+    replaced, once the sandbox arrived, by an adapter written from 42 captured bodies of IDBI's
+    twenty-four real operations; [`idbi-sandbox.md`](../integration/idbi-sandbox.md) is the record.
+  - **The `docs/data/` notes of Days 2 and 4** landed elsewhere: the calibration as
+    `docs/engineering/data-calibration.md`, the field mapping inside
+    `docs/engineering/schema/README.md`. Day 6's `docs/integration/adapter-guide.md` was never
+    written.
+  - **The deploy of Days 5 and 8** did happen, into the team's own account: the team-sandbox stack
+    is live at https://d31q2ik7f7eu67.cloudfront.net.

@@ -57,6 +57,10 @@ against an abstract future, and humans systematically lose that trade.
 
 Layer 3 is where our avatar lives, and it is the one part of our submission that is not a feature.
 
+*The future self was cut on 1 September ([`autopilot.md`](autopilot.md)). Action is now carried
+by the daily loop — one thing to do, one tap to do it — and by Uday, the advisor avatar, at the
+few moments where money actually moves.*
+
 ## The sharpest statement of the problem
 
 > **Millions of IDBI customers have money sitting idle in savings accounts, losing value to

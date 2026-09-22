@@ -1,14 +1,14 @@
 # Lifecycles
 
 Six sequence diagrams, one per flow that a reviewer is likely to exercise or ask about: opening
-the app, rendering Today, recording a decision, granting a gated avatar session, a second person
+the app, rendering Home, recording a decision, granting a gated avatar session, a second person
 hitting the single avatar slot, and advancing the simulated clock. Each names the module that
 owns every step, so a question about a flow can be answered with a filename. The modules are
 specified in [`LLD.md`](LLD.md); the routes and tables they touch are in
 [`DATA-AND-API.md`](DATA-AND-API.md).
 
 Status: adopted 3 September 2026 · amended 2026-09-20 (the participant on the left, and two
-renamed provider calls).
+renamed provider calls) · amended 2026-09-22 (what the app does at either end of the flows).
 
 > **Amendment, 2026-09-20.** `apps/web` has been deleted and `apps/mobile` is the only client
 > ([ADR-0001](adr/ADR-0001.md)). Every one of these flows is unchanged — same routes, same order,
@@ -24,6 +24,13 @@ renamed provider calls).
 > renamed to `awaitIssuable` and `issueGrant(cred, id)` when it stopped the port carrying a
 > session key between two of its own calls. The order in the diagram is the order in the code and
 > did not move.
+>
+> **Amendment, 2026-09-22.** The server's half of every flow still holds; the app's half had
+> drifted and is corrected in the notes. Sign-in now asks for a mobile number and any six-digit
+> code before `POST /sessions`; the daily plan renders on Home, not Today; Record is a screen, not
+> a tab; `/end` is an ordinary request on hang-up, not a beacon; and `apps/mobile` does not poll or
+> claim a waitlist ticket, so the busy-slot diagram's queue is the API's protocol with no client
+> driving it today.
 
 ## Open app and pick a customer
 
@@ -38,10 +45,10 @@ sequenceDiagram
     B->>H: GET /api/v1/customers
     H->>BD: listCustomers()
     BD->>DB: SELECT cif, cust_name, city, pitch, demonstrates FROM customers
-    DB-->>BD: 3 rows
+    DB-->>BD: 4 rows
     BD-->>H: CustomerSummary[]
     H-->>B: 200 (validated against registry response schema)
-    Note over B: tap Rohan
+    Note over B: pick Rohan (it fills his number), then any six digits: otp.tsx creates the session
     B->>H: POST /api/v1/sessions {cif}
     H->>S: create(cif)
     S->>S: token = random 32 bytes · hash = sha256(token)
@@ -51,7 +58,7 @@ sequenceDiagram
     Note over B: SecureStore (localStorage on the web build) holds only the bearer
 ```
 
-## Today plan (GET /view)
+## The daily plan on Home (GET /view)
 
 ```mermaid
 sequenceDiagram
@@ -80,7 +87,7 @@ sequenceDiagram
     end
     A-->>H: View {snapshot, goal, roadmap, plan, insights, shelf, rules, meta}
     H-->>B: 200 ETag=snapshotId:roadmapVersion (or 304)
-    Note over B: Today renders safe-to-spend, since-you-were-away, ONE action
+    Note over B: Home renders it: Overview leads with the ONE action, Budget carries safe-to-spend
 ```
 
 ## Decide an action (audit record)
@@ -113,7 +120,7 @@ sequenceDiagram
     end
     D-->>H: {adviceRecord, decision, roadmapVersion}
     H-->>B: 200 · stored under Idempotency-Key
-    Note over B: Record tab shows the exact sentence, rule and snapshot id — reload keeps it
+    Note over B: Record's Advice pane shows the exact sentence, rule and snapshot id — reload keeps it
 ```
 
 ## Start avatar session with the gate (RPC before credentials)
@@ -166,7 +173,7 @@ sequenceDiagram
     R->>AU: appendAdvice(source:'avatar_tool') · appendToolCall — before returning
     R-->>RW: {verdict, rule_id, spoken, alternative}
     RW->>LK: Uday reads the verdict
-    B->>H: POST /avatar/session/:id/end (sendBeacon)
+    B->>H: POST /avatar/session/:id/end (on hang-up, a dropped call or leaving the tab)
     H->>AS: end → R.close · P.cancel · L.release(minutesCharged) · transcript fetch scheduled
 ```
 
@@ -188,10 +195,11 @@ sequenceDiagram
     AS->>L: tryAcquire → null (reviewer 1 holds runway-1)
     AS->>W: join(session2) → ticket, position 1
     AS-->>B2: 409 {cause:'pool_busy', ticket, position:1, estimatedWaitSeconds:240}
-    Note over B2: QueueCard: "Uday is with another customer — you are next, about 4 minutes. Continue in text meanwhile?"
+    Note over B2: apps/mobile says "I'm with another customer. I'll answer in text for now."
     B2->>H: POST /api/v1/ask {question:"how much on food last month"}
     H->>C: ask → core.answer()
     C-->>B2: {text:"₹7,655 on food & dining in August…", evidence[], resolved}
+    Note over B2,L: from here on, the API's side (test/avatar/waitlist.test.ts): apps/mobile does not poll or claim the ticket today
     loop every 3 s
         B2->>H: GET /api/v1/avatar/waitlist/:ticket
         H-->>B2: {position:1, claimable:false}
@@ -229,5 +237,5 @@ sequenceDiagram
     B->>H: GET /api/v1/view
     H->>A: view(session) — new (cif, asOf) → new inputHash → derive over rows ≤ new asOf
     A-->>B: View — EMI count drops when the education loan clears, 'since you were away' covers 30 days
-    Note over B: two tabs pressing +1 month move the clock once, not twice
+    Note over B: two tabs pressing +30 days move the clock once, not twice
 ```
