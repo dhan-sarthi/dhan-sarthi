@@ -103,8 +103,21 @@ export function layoutMove(reduced: boolean) {
   return reduced ? undefined : LinearTransition.duration(dur.move).easing(easeOut)
 }
 
-export function timing(duration: number, easing = easeOut): WithTimingConfig {
-  return { duration, easing, reduceMotion: ReduceMotion.System }
+/*
+ * `timing` and the `to` helpers are worklets, so an animated style or derived value can call them.
+ *
+ * On a phone those callbacks run on the UI thread, which can only call functions marked as
+ * worklets; anything else throws "Tried to synchronously call a Remote Function" and takes the
+ * app down on the first frame. The web runs worklets on the JavaScript thread, where any function
+ * will do, which is why `Button`'s `useDerivedValue(() => withTiming(…, timing(…)))` passed every
+ * check in a browser and crashed the APK on launch. A worklet still runs anywhere, so marking the
+ * helpers costs the JavaScript-thread callers nothing.
+ */
+export function timing(duration: number, easing?: WithTimingConfig['easing']): WithTimingConfig {
+  'worklet'
+  // The default is applied here rather than in the signature: a worklet captures what its body
+  // reads, not what its parameter list does, so `easing = easeOut` was undefined on the UI thread.
+  return { duration, easing: easing ?? easeOut, reduceMotion: ReduceMotion.System }
 }
 
 export const spring: WithSpringConfig = {
@@ -119,13 +132,28 @@ export const springTight: WithSpringConfig = { ...spring, damping: 26, stiffness
 
 export const to = {
   /** Something became true. */
-  state: (v: number) => withTiming(v, timing(dur.state)),
+  state: (v: number) => {
+    'worklet'
+    return withTiming(v, timing(dur.state))
+  },
   /** Something travelled. */
-  move: (v: number) => withTiming(v, timing(dur.move)),
+  move: (v: number) => {
+    'worklet'
+    return withTiming(v, timing(dur.move))
+  },
   /** Something acknowledged a touch. */
-  tap: (v: number) => withTiming(v, timing(dur.tap, easeOut)),
+  tap: (v: number) => {
+    'worklet'
+    return withTiming(v, timing(dur.tap, easeOut))
+  },
   /** Something settled into place with weight. */
-  settle: (v: number) => withSpring(v, spring),
+  settle: (v: number) => {
+    'worklet'
+    return withSpring(v, spring)
+  },
   /** Something settled under a finger. */
-  press: (v: number) => withSpring(v, springTight),
+  press: (v: number) => {
+    'worklet'
+    return withSpring(v, springTight)
+  },
 }

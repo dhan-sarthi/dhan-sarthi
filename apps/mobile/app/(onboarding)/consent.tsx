@@ -104,9 +104,20 @@ export default function ConsentStep() {
     if (busy) return
     setBusy(true)
     setFailed(false)
-    const results = await Promise.allSettled(SCOPE_ROWS.map((r) => api.setConsent(r.scope, true)))
+    // One scope at a time. Each grant is a write to the same session row, which the server guards
+    // with an optimistic version, so five sent together came back as three grants and two 409s —
+    // on the APK every time, because a phone sends them within milliseconds of each other.
+    let ok = true
+    for (const r of SCOPE_ROWS) {
+      try {
+        await api.setConsent(r.scope, true)
+      } catch {
+        ok = false
+        break
+      }
+    }
     setBusy(false)
-    if (results.some((r) => r.status === 'rejected')) setFailed(true)
+    if (!ok) setFailed(true)
     else router.push('/(onboarding)/reading')
   }
 

@@ -910,7 +910,7 @@ function ChatMode({
 
         {/* Only the sheet lifts for the keyboard — the transcript stays where it is and simply
             has less room. iOS pads; Android, whose window already resizes, takes the height. */}
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView behavior="padding">
           {/* The sheet: a wash of white over the bloom rather than an opaque panel. Opaque
               white cut the canvas in half exactly where the eye spends the most time; a wash
               lets the light carry through it, which is what makes it read as a pane lifted off

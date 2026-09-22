@@ -26,7 +26,6 @@ import type { ReactNode } from 'react'
 import {
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   View,
@@ -79,7 +78,7 @@ export function Sheet({
       navigationBarTranslucent
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         className="flex-1 justify-end"
         style={{ paddingTop: insets.top + space.xl }}
       >

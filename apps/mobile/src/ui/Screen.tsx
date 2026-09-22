@@ -12,7 +12,9 @@
 //
 // The footer rides the keyboard. The body and the footer sit in one KeyboardAvoidingView, so on
 // a step with a field the Next button is lifted above the keys rather than hidden under them —
-// the step's only way forward cannot be the thing the keyboard covers. The scroll gives the
+// the step's only way forward cannot be the thing the keyboard covers. `padding` on Android as
+// well as iOS: Android draws edge to edge now, the window no longer shrinks for the keyboard, and
+// `height` left the button under the keys (docs/engineering/android-apk.md). The scroll gives the
 // keyboard up on a drag and keeps a tap on a button a tap on the button. It does not also inset
 // itself for the keyboard: the avoiding view has already shrunk it clear of the keys, and a
 // second adjustment is a band of empty scroll at the bottom of every form.
@@ -24,7 +26,7 @@
 // screen shown inside a dialog — the product gate — is focused first when the dialog opens, and
 // without that the first thing to take focus was the × in the row above, ringed in dark.
 import type { ReactNode } from 'react'
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native'
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { ProgressRail } from '~/ui/ProgressRail'
@@ -93,10 +95,7 @@ export function Screen({
       {typeof step === 'number' && typeof steps === 'number' && (
         <ProgressRail step={step} steps={steps} tone={dark ? 'light' : 'ink'} />
       )}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
+      <KeyboardAvoidingView behavior="padding" className="flex-1">
         {scroll ? (
           <ScrollView
             className="flex-1 px-pad"

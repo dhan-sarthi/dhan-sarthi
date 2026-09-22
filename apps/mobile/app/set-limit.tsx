@@ -212,7 +212,10 @@ export default function SetLimit() {
     const writes = capWrites()
     try {
       await api.setSpendLimit(current)
-      await Promise.all(writes.map((w) => api.setCategoryCap(w.category, w.cap)))
+      // One after another, never together: every cap is a write to the same session row, which
+      // the server guards with an optimistic version, so two in flight at once is a 409 for one
+      // of them. A browser's timing usually hid it; the APK sends them within milliseconds.
+      for (const w of writes) await api.setCategoryCap(w.category, w.cap)
       // The tabs underneath are still showing the old month; they catch up behind the toast.
       void refresh()
       toast.show(toastLine(current, writes))

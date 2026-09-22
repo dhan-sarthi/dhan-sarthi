@@ -20,7 +20,7 @@
 // under it. Back from consent used to land here on six empty boxes, and typing a code again
 // signed the customer in a second time; now it goes to the number, the one thing worth changing.
 import { useState } from 'react'
-import { View } from 'react-native'
+import { Keyboard, View } from 'react-native'
 import { Redirect, router } from 'expo-router'
 import { Screen } from '~/ui/Screen'
 import { Type } from '~/ui/Text'
@@ -57,6 +57,9 @@ export default function OtpStep() {
     if (busy || customer === null) return
     setBusy(true)
     setError(null)
+    // The code field keeps focus when the sixth digit submits it, and on a phone the keyboard then
+    // rides over to the consent step and covers its button. A browser has no keyboard to leave up.
+    Keyboard.dismiss()
     try {
       await api.createSession(customer.cif)
       router.replace('/(onboarding)/consent')
