@@ -75,8 +75,8 @@ export default function GoalStep() {
 
   return (
     <Screen
-      step={6}
-      steps={6}
+      step={5}
+      steps={5}
       onBack={() => leave('/(onboarding)/checklist')}
       title={'What are you\nworking towards?'}
       // No promise of where the plan starts: the pick is stored and the plan is built around it,

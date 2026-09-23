@@ -74,8 +74,8 @@ export default function AboutStep() {
 
   return (
     <Screen
-      step={4}
-      steps={6}
+      step={3}
+      steps={5}
       onBack={() => leave('/(onboarding)/checklist')}
       title={"Two things I\ncan't work out"}
       subtitle={"Your statement tells me the rest. These two it\u00a0can't."}

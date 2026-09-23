@@ -20,7 +20,7 @@
 // again — granting a block twice is the same grant, so there is nothing to untangle. It is not
 // a second Try again beside the button: two controls doing one thing make the customer choose.
 //
-// Back goes to the number, not the code: the code step replaces itself once it has worked.
+// Back goes to the number, where the sign-in happened.
 import { useState } from 'react'
 import { View } from 'react-native'
 import { router } from 'expo-router'
@@ -123,8 +123,8 @@ export default function ConsentStep() {
 
   return (
     <Screen
-      step={3}
-      steps={6}
+      step={2}
+      steps={5}
       onBack={() => leave('/(onboarding)/mobile')}
       title={'Let me read\nyour statement'}
       footer={

@@ -10,7 +10,11 @@
 // login rather than a picker wearing a login's clothes. Tapping a customer fills the field the
 // way a password manager would, and typing a customer's number picks them. The number and the
 // choice are one fact: the radio shows whoever the field names, so editing the number away from
-// a customer un-picks them, and "Send me a code" is never live for a number nobody has.
+// a customer un-picks them, and "Continue" is never live for a number nobody has.
+//
+// There is no code step. It asked for "any six digits", and people stopped there not knowing what
+// to type, so the number is the sign-in: Continue creates the session and goes straight to consent.
+// A failure says whose it was — the bank refusing, the rate limit, or the connection.
 //
 // The field takes digits only and sets them the way a number is read aloud, in two fives. A
 // number pasted or autofilled with its "+91" in front keeps its own ten digits: the field used to
@@ -20,7 +24,7 @@
 // Finding the customers is a wait with a name, and not finding them is a sentence with a Try
 // again, never a port number.
 import { useCallback, useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { Keyboard, View } from 'react-native'
 import { router } from 'expo-router'
 import { Screen } from '~/ui/Screen'
 import { Type } from '~/ui/Text'
@@ -32,7 +36,7 @@ import { SelectCard } from '~/ui/SelectCard'
 import { Thinking } from '~/ui/Thinking'
 import { RetryLine } from '~/ui/SnapshotScroll'
 import { leave } from '~/ui/NavRow'
-import { api } from '~/api/client'
+import { ApiError, api } from '~/api/client'
 import { useOnboarding } from '~/state/onboarding'
 import type { CustomerSummary } from '@dhan/contracts'
 
@@ -77,10 +81,23 @@ function ownerOf(
   return customers.find((_, i) => digitsOf(demoNumber(i)) === digits) ?? null
 }
 
+/** What a failed sign-in says, by who failed: the bank, the rate limit, or the connection. */
+function failureOf(err: unknown): string {
+  if (err instanceof ApiError && [400, 401, 403].includes(err.status)) {
+    return "The bank couldn't sign you in. Try again."
+  }
+  if (err instanceof ApiError && err.status === 429) {
+    return 'Too many sign-ins in the last hour. Try again later.'
+  }
+  return "Couldn't reach the bank. Try again."
+}
+
 export default function MobileStep() {
   const { draft, set } = useOnboarding()
   const [customers, setCustomers] = useState<CustomerSummary[]>([])
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [busy, setBusy] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
 
   const load = useCallback(() => {
     setPhase('loading')
@@ -102,23 +119,37 @@ export default function MobileStep() {
   // A full number that belongs to nobody is worth saying so; a half-typed one is not yet wrong.
   const stranger = phase === 'ready' && digits.length === 10 && chosen === null
 
+  async function signIn() {
+    if (busy || chosen === null) return
+    setBusy(true)
+    setSignInError(null)
+    // On a phone the number pad would otherwise ride over to consent and cover its button.
+    Keyboard.dismiss()
+    set({ customer: chosen })
+    try {
+      await api.createSession(chosen.cif)
+      router.push('/(onboarding)/consent')
+    } catch (err) {
+      setSignInError(failureOf(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Screen
       step={1}
-      steps={6}
+      steps={5}
       onBack={() => leave('/(onboarding)/welcome')}
       title={"What's your\nmobile number?"}
-      subtitle="The one registered with your IDBI account. We'll text you a code."
+      subtitle="The one registered with your IDBI account."
       footer={
         <Button
-          label="Send me a code"
+          label="Continue"
+          loading={busy}
           haptic="none"
           disabled={chosen === null}
-          onPress={() => {
-            if (chosen === null) return
-            set({ customer: chosen })
-            router.push('/(onboarding)/otp')
-          }}
+          onPress={() => void signIn()}
         />
       }
     >
@@ -127,11 +158,16 @@ export default function MobileStep() {
           label="Mobile number"
           prefix="+91"
           hint="This demo signs in as one of the customers below — pick one."
-          {...(stranger ? { error: 'No demo customer has that number. Pick one below.' } : {})}
+          {...(stranger
+            ? { error: 'No demo customer has that number. Pick one below.' }
+            : signInError !== null
+              ? { error: signInError }
+              : {})}
           value={draft.mobile}
           onChangeText={(text) => {
             const next = tenDigits(text, digits)
             set({ mobile: spaced(next), customer: ownerOf(next, customers) })
+            setSignInError(null)
           }}
           keyboardType="number-pad"
           inputMode="numeric"

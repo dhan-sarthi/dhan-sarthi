@@ -17,7 +17,7 @@
 // caller's `progress`, because the carousel owns the timer that turns the page; the rail only
 // draws it. Earlier segments are full and later ones empty either way.
 //
-// It is one element to a screen reader, "Step 2 of 6" — the segments are a picture of that.
+// It is one element to a screen reader, "Step 2 of 5" — the segments are a picture of that.
 import { useEffect } from 'react'
 import { View } from 'react-native'
 import Animated, {

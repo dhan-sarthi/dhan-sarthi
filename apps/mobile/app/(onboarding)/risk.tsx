@@ -25,8 +25,8 @@ export default function RiskStep() {
 
   return (
     <Screen
-      step={5}
-      steps={6}
+      step={4}
+      steps={5}
       onBack={() => leave('/(onboarding)/about')}
       title={RISK_QUESTION.prompt}
       titleRole="title"

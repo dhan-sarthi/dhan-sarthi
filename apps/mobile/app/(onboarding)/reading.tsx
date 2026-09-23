@@ -51,7 +51,7 @@ const SPOKEN: Record<ChecklistState, string> = {
 
 export default function ReadingStep() {
   // The read this screen narrates is the read the tabs then open on. `api.createSession` ran
-  // at the OTP step, so a bearer exists and the snapshot module is armed; consent has moved
+  // at the mobile step, so a bearer exists and the snapshot module is armed; consent has moved
   // what /view returns since, so this is a genuine re-read rather than a repeat. Driving it
   // through the module instead of calling `api.view()` here is what stops the answer being
   // thrown away and fetched again.

@@ -57,7 +57,7 @@ const OnboardingContext = createContext<Ctx | null>(null)
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>(EMPTY)
 
-  // Every bearer change fires this, the one that arrives at the code step included; only the
+  // Every bearer change fires this, the one that arrives at the mobile step included; only the
   // one that leaves nothing behind clears the draft.
   useEffect(
     () =>
