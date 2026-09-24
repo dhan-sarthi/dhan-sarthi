@@ -131,4 +131,44 @@ describe('the personality brief', () => {
       assert.ok(brief.startScript.length <= START_SCRIPT_MAX)
     })
   })
+
+  /*
+   * The language rule, which the model reads first and last.
+   *
+   * On a live call the customer asked in Hindi to be spoken to in Hindi and heard "I can only
+   * speak English": the old rule's "if you cannot speak their language, answer in simple English"
+   * was a way out, and the model took it. These pin the rule to what Uday can do.
+   */
+  describe('the language rule', () => {
+    it('opens and closes the brief, even when the caps cut the middle', async () => {
+      for (const spec of PERSONAS) {
+        const { session } = await root.services.sessions.create(spec.customer.cif)
+        const view = await root.services.advisory.view(session)
+        const brief = buildBrief(view, [], view.shelfProducts)
+
+        assert.ok(brief.personality.startsWith('Language. You speak English, Hindi'), spec.slug)
+        assert.ok(brief.personality.endsWith('You can speak it.'), spec.slug)
+      }
+    })
+
+    it('switches on a request by name and otherwise follows the last turn', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+      const { personality } = buildBrief(view, [], view.shelfProducts)
+
+      assert.match(personality, /- Answer in the language of the customer's last turn/)
+      assert.match(personality, /when they ask for a language by name/)
+      assert.match(personality, /keep to it, even when they speak English, until they ask/)
+    })
+
+    it('never gives the model a reason to fall back to English', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+      const { personality } = buildBrief(view, [], view.shelfProducts)
+
+      assert.doesNotMatch(personality, /cannot speak/i)
+      assert.doesNotMatch(personality, /in simple English/i)
+      assert.match(personality, /never say that you only speak English/)
+    })
+  })
 })

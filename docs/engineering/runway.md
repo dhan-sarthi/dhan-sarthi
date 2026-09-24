@@ -79,7 +79,7 @@ no endpoint that lists live realtime sessions.
 | Mid-call context push | **does not exist**. The model pulls facts through tools |
 | Tool calling | `backend_rpc` (round trip to our process, 1–8 s timeout) and `client_event` (fire-and-forget to the UI). **Verified on a live call**: the model called `check_suitability` and spoke our verdict back |
 | Barge-in | **unverified**. Runway documents it nowhere. UI copy must not claim it |
-| Languages | **Hindi is understood, not yet answered** (22 Sep 2026): the recogniser transcribed a Hindi question word for word, and the model replied in English. See [avatar-accounts.md](avatar-accounts.md#language-understood-not-yet-answered) |
+| Languages | **Hindi is understood; answering it is a prompt rule, unconfirmed live.** The session takes no language parameter. The recogniser transcribes Hindi word for word (22 and 25 Sep 2026); on 25 Sep the model then said "I can only speak English." See [avatar-accounts.md](avatar-accounts.md#language-understood-not-yet-answered) |
 
 The `backend_rpc` handler (`@runwayml/avatars-node-rpc`) joins the LiveKit room as a hidden
 participant and holds that connection for the life of the conversation. This is why the API must

@@ -141,6 +141,30 @@ Runway will not follow the rule, the remaining route is Runway's ElevenLabs inte
 (`integration: {type: 'elevenlabs'}`): ElevenLabs runs a multilingual conversation and Runway
 renders Uday. That is a larger change.
 
+**25 September 2026, the first Hindi call on the deployed app** (runway-1, 64 s). The customer
+said *"उदय मेरे से हिंदी में बात करो। … मेरे को हिंदी में बताओ ये सब।"*, transcribed word for word,
+and Uday answered *"I can only speak English"* and carried on in English. That sentence is in
+nothing we send. The brief's own escape hatch ("if you cannot speak their language, answer in
+simple English") is the most likely licence, and Runway's session request takes no language
+field (`POST /v1/realtime_sessions`: model, avatar, maxDuration, personality, startScript,
+tools, integration), so the brief is the only lever on this path.
+
+The rule was rewritten to state what Uday can do and never what he cannot: he speaks English,
+Hindi and the other Indian languages; the reply follows the customer's last turn; a language
+asked for by name, in any language, switches at once and holds until another is asked for; every
+language in its own script. Replayed against gpt-4.1-mini and gpt-5.4-mini on Rohan's brief, six
+cases, three runs each: the old rule already answered Hindi with Hindi there, so the replay does
+not reproduce the refusal, which points at Runway's model or its own framing. With a stand-in
+platform line ("You can only speak English.") in front of the brief, the old rule failed every
+Tamil request (refusing three times) and every romanised-Hindi question; the new one passed
+Hindi, a Hindi request made in English, staying in Hindi afterwards, and Tamil every time. A
+first draft that opened "You speak Hindi and English" and quoted a Devanagari request answered a
+plain English question in Hindi two times in six; the shipped order (default first, English
+named first) answered it in English ten times in eleven on gpt-5.4-mini, and every time on
+gpt-4.1-mini. **A live Hindi call
+still has to confirm it on Runway.** If it does not hold, the ElevenLabs integration below is the
+route.
+
 Anam cannot detect language by itself. Its recogniser listens for `ANAM_LANGUAGE_CODE` (default
 English), so Hindi on the Anam fallback needs `ANAM_LANGUAGE_CODE=hi`, at some cost to English.
 

@@ -18,22 +18,43 @@ export const PERSONALITY_MAX = 10_000
 export const START_SCRIPT_MAX = 2_000
 
 /**
- * The customer picks the language by speaking it, turn by turn, and is never asked.
+ * The customer picks the language, by speaking it or by asking for it, and is never asked.
  *
  * It is an instruction to the model rather than a setting because neither provider detects
- * language for us: Runway documents none, and Anam fixes its recogniser's language per session.
- * The tool results come back in English; the rule below is what carries their sentence across.
- * Devanagari, not romanised Hindi, because the voice reads the script it is given and romanised
- * Hindi comes out in an English accent.
+ * language for us: Runway's session takes no language at all, and Anam fixes its recogniser's
+ * language per session. The tool results come back in English; the rule below is what carries
+ * their sentence across. Devanagari, not romanised Hindi, because the voice reads the script it
+ * is given and romanised Hindi comes out in an English accent.
+ *
+ * Two ways in, and the order between them is the point. The reply follows the last turn; a
+ * language asked for by name is the one exception, and it holds until another is asked for, so
+ * "speak to me in Hindi" said in English does not snap back to English on the next English
+ * sentence. The default comes first and English is named first on purpose: a draft that opened
+ * "You speak Hindi and English" and quoted a Devanagari request answered a plain English
+ * question in Hindi two times in six on replay.
+ *
+ * The rule states what Uday can do and never what he cannot. The first version ended "if you
+ * cannot speak their language, answer in simple English", and on a live Runway call on
+ * 25 September 2026 the customer said "उदय मेरे से हिंदी में बात करो" — transcribed word for word —
+ * and heard "I can only speak English." The escape hatch was the permission it needed.
  */
 const LANGUAGE = [
-  "Language: answer in the language of the customer's last turn. English gets English, Hindi",
-  'gets Hindi written in Devanagari, and a mix of the two gets the same mix. Switch when they',
-  'switch, and never ask which language they prefer. The tools answer in English: say their',
-  "sentence in the customer's language, with the same meaning and every number unchanged. Keep",
-  'product names in English. Say rupee amounts the Indian way, in thousands, lakh and crore.',
-  'If you cannot speak their language, answer in simple English, and do not apologise for it,',
-  'mention it or offer to switch: just answer the question.',
+  'Language. You speak English, Hindi and every other Indian language fluently: Marathi,',
+  'Bengali, Gujarati, Punjabi, Tamil, Telugu, Kannada, Malayalam and the rest. You are never',
+  'limited to one language, so never say that you only speak English, and never refuse one.',
+  "- Answer in the language of the customer's last turn. English gets English, Hindi gets Hindi,",
+  '  and a mix of the two gets the same mix. Switch when they switch.',
+  '- The one exception: when they ask for a language by name ("speak to me in Hindi", "Tamil',
+  '  please", or the same request in their own language), switch at once, say so in one short',
+  '  sentence in that language, and keep to it, even when they speak English, until they ask',
+  '  for another.',
+  '- Never ask which language they prefer.',
+  '- Write every language in its own script: Hindi and Marathi in Devanagari, Tamil in Tamil',
+  '  script, and so on, never in Roman letters, even when their words reach you in Roman',
+  '  letters. The voice reads the script it is given.',
+  "- The tools answer in English. Say their sentence in the customer's language, with the same",
+  '  meaning and every number unchanged. Keep product names in English. Say rupee amounts the',
+  '  Indian way, in thousands, lakh and crore.',
 ]
 
 /**
@@ -44,12 +65,12 @@ const LANGUAGE = [
  * middle, lost to "say what it returns". Instructions at the start and the end of a prompt are
  * the ones a model keeps, so the rule now opens the brief and this closes it. A closing line
  * that said "if they spoke Hindi, every word is Hindi" was tried first and made English
- * questions come back in Hindi five times in six on a replay of that call; naming no language
- * is what keeps both directions right.
+ * questions come back in Hindi five times in six on a replay of that call; naming no target
+ * language is what keeps both directions right.
  */
 const LANGUAGE_LAST =
-  'Whatever else you do, answer in the language the customer used in their last turn — or, if ' +
-  'you cannot speak it, in simple English, without apologising or offering to switch.'
+  'Whatever else you do, answer in the language the customer last asked for by name, or, if ' +
+  'they have not asked for one, in the language of their last turn. You can speak it.'
 
 export interface Brief {
   personality: string
