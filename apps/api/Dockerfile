@@ -57,6 +57,15 @@ ENV NODE_ENV=production
 ENV PORT=3001
 ENV HOST=0.0.0.0
 WORKDIR /app
+# The system trust store, for the LiveKit SDK's native (Rust) half.
+#
+# Node carries its own roots, so every fetch worked without this — but the Runway tool gate joins
+# the call through @livekit/rtc-node, whose TLS reads the OS store, and the slim image has none.
+# Every Runway call failed at the gate with "no native root CA certificates found" and fell
+# through to the next provider. Installed by apt, so /etc/ssl arrives whole and world-readable.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 # Amazon's RDS root certificates.
 #
 # pg treats `sslmode=require` as `verify-full`, and the slim image's trust store carries no

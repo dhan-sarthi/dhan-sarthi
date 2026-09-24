@@ -29,6 +29,10 @@ runway_daily_minute_budget = 240
 avatar_secret_keys = [
   "RUNWAY_API_KEY_1",
   "RUNWAY_CHARACTER_ID_1",
+  # A second Runway account with the same character: takes the call when the first is busy with
+  # its one live session, out of credits, or refusing.
+  "RUNWAY_API_KEY_2",
+  "RUNWAY_CHARACTER_ID_2",
   "ANAM_API_KEY_1",
   "ANAM_AVATAR_ID_1",
   "ANAM_VOICE_ID",
@@ -38,7 +42,14 @@ avatar_secret_keys = [
   "OPENAI_API_KEY",
 ]
 api_environment_overrides = {
-  AVATAR_PROVIDER = "runway,anam"
+  # Anam is out of the chain while its org has no minutes left: its engine answers 429 "No
+  # available minutes" at connect time, on the phone, after the grant — too late for the pool to
+  # try anything else — so a fall-through to it is a broken call, not a fallback. Put
+  # "runway,anam" back once the Anam plan has minutes.
+  AVATAR_PROVIDER = "runway"
+  # CloudFront -> ALB: without this every caller is the ALB's address and every per-IP rate
+  # limit is one bucket shared by everyone.
+  TRUST_PROXY     = "true"
   OPENAI_MODEL    = "gpt-5.4-mini"
 }
 
