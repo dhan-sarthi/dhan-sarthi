@@ -24,8 +24,10 @@ import {
   seriesKey,
 } from '@dhan/core'
 import type { Transaction } from '@dhan/core'
+import { ALL_PERSONAS } from './book/index.ts'
 import { generateCustomerFile, generateLedger } from './generate.ts'
-import { PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
+import { fileOf, ledgerOf, snapshotOf } from './ledger.testkit.ts'
+import { PRIYA, ROHAN, SUNIL } from './personas.ts'
 
 const ASOF = '2026-09-01'
 const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
@@ -78,8 +80,8 @@ describe('categorisation', () => {
   it('agrees with the bank on every generated transaction', () => {
     // Not proof the dictionary is good — see the note at the top of this file. It is proof that
     // no pattern has started quietly stealing another's transactions.
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       assert.deepEqual(
         disagreements(txns).map((d) => `${d.narration} ${d.ours}!=${d.bank}`),
         [],
@@ -203,9 +205,9 @@ describe('the snapshot', () => {
     // committed, discretionary, or a category that is never either (school fees, EMIs, premiums).
     const NEVER = ['Investment', 'Insurance', 'Education', 'Loan EMI', 'Fees & charges', 'Income']
 
-    for (const spec of PERSONAS) {
-      const file = generateCustomerFile(spec, OPTS)
-      const s = derive(file, ASOF)
+    for (const spec of ALL_PERSONAS) {
+      const file = fileOf(spec)
+      const s = snapshotOf(spec)
       const committedIds = new Set(s.commitments.series.flatMap((x) => x.txnIds))
 
       const debits = file.transactions.filter(
@@ -262,9 +264,9 @@ describe('the snapshot', () => {
   it('predicts a surplus close to what the balance actually did', () => {
     // The strongest check available: the engine says a customer has ₹X spare each month, and
     // the savings balance over two years either agrees or the engine is wrong.
-    for (const spec of PERSONAS) {
-      const file = generateCustomerFile(spec, OPTS)
-      const s = derive(file, ASOF)
+    for (const spec of ALL_PERSONAS) {
+      const file = fileOf(spec)
+      const s = snapshotOf(spec)
 
       /*
        * Opening cash across *every* savings account, not just the primary one.
@@ -301,8 +303,8 @@ describe('the snapshot', () => {
   })
 
   it('never offers up money the customer does not have', () => {
-    for (const spec of PERSONAS) {
-      const s = derive(generateCustomerFile(spec, OPTS), ASOF)
+    for (const spec of ALL_PERSONAS) {
+      const s = snapshotOf(spec)
       assert.ok(s.surplus.deployable >= 0)
       assert.ok(s.surplus.deployable <= Math.max(0, s.surplus.monthly))
     }
@@ -378,9 +380,9 @@ describe('the snapshot', () => {
   })
 
   it('reports how much of the data it could not explain', () => {
-    for (const spec of PERSONAS) {
-      const s = derive(generateCustomerFile(spec, OPTS), ASOF)
-      assert.ok(s.quality.categorisedShare > 0.98)
+    for (const spec of ALL_PERSONAS) {
+      const s = snapshotOf(spec)
+      assert.ok(s.quality.categorisedShare > 0.98, spec.slug)
       assert.ok(s.quality.monthsOfHistory >= 10)
     }
   })

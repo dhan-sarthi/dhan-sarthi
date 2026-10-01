@@ -1,0 +1,177 @@
+@import 'tailwindcss';
+@import './tokens.generated.css';
+
+/*
+ * The console's base layer. Everything visual comes from tokens.generated.css; this file only
+ * says how the browser's own surfaces (selection, scrollbars, focus, numerals) wear them, and
+ * defines the few keyframes the overlays use.
+ */
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Lining figures everywhere; tables and money add tabular-nums on top. */
+    font-variant-numeric: lining-nums;
+  }
+
+  ::selection {
+    background: var(--color-brand-soft);
+    color: var(--color-brand-deep);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-brand);
+  }
+
+  ::placeholder {
+    color: var(--color-ink-hint);
+    opacity: 1;
+  }
+
+  /* Quiet scrollbars: a hairline thumb on the page's own ground, never the OS grey slab. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-hairline) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-hairline);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-ink-hint);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Overlay motion. Radix sets data-state on open and close; these are the only keyframes in the
+   app, and all of them collapse to an instant change for anyone who asked for reduced motion. */
+@keyframes rm-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rm-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes rm-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes rm-pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+}
+@keyframes rm-sheet-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes rm-sheet-out {
+  to {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes rm-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-overlay {
+  &[data-state='open'] {
+    animation: rm-fade-in var(--duration-state) var(--ease-out);
+  }
+  &[data-state='closed'] {
+    animation: rm-fade-out var(--duration-feedback) var(--ease-in);
+  }
+}
+
+@utility animate-pop {
+  &[data-state='open'],
+  &[data-state='delayed-open'],
+  &[data-state='instant-open'] {
+    animation: rm-pop-in var(--duration-state) var(--ease-out);
+  }
+  &[data-state='closed'] {
+    animation: rm-pop-out var(--duration-feedback) var(--ease-in);
+  }
+}
+
+@utility animate-sheet {
+  &[data-state='open'] {
+    animation: rm-sheet-in var(--duration-move) var(--ease-out);
+  }
+  &[data-state='closed'] {
+    animation: rm-sheet-out var(--duration-state) var(--ease-in);
+  }
+}
+
+@utility skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-ground-deep) 0%,
+    var(--color-canvas-top) 50%,
+    var(--color-ground-deep) 100%
+  );
+  background-size: 200% 100%;
+  animation: rm-shimmer 1.6s linear infinite;
+}
+
+/* Figures that line up in a column: every table cell and every Money. */
+@utility tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

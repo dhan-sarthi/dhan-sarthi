@@ -56,6 +56,11 @@ export function makeAuthenticator(deps: AuthDeps): Authenticator {
           }
           return { kind: 'operator' }
         }
+
+        // Fails closed until RM sign-in exists: no RM route is registered yet, and a bearer
+        // that opens a book must never be mistaken for a customer session.
+        case 'rm':
+          throw new Unauthorized('Relationship manager sign-in is not available yet.')
       }
     },
   }

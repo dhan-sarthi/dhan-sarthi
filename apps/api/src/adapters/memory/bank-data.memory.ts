@@ -51,6 +51,11 @@ function ageOn(dob: string, asOf: string): number {
   return age
 }
 
+/** A bundle with no picker place sorts last, as `display_order NULLS LAST` does in Postgres. */
+function orderOf(b: SeedBundle): number {
+  return b.displayOrder ?? Number.MAX_SAFE_INTEGER
+}
+
 /** What the seed hash covers: the rows, not the picker copy. */
 export function seedContentHash(bundles: readonly SeedBundle[]): string {
   return hashOf(
@@ -101,7 +106,7 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
   async listCustomers(): Promise<CustomerSummary[]> {
     // The bundle carries the picker's order; insertion order is a coincidence, not a contract.
     return [...this.bundles.values()]
-      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .sort((a, b) => orderOf(a) - orderOf(b))
       .map((b) => ({
         cif: b.customer.cif,
         slug: b.slug,

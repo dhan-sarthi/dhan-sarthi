@@ -127,6 +127,31 @@ export default tseslint.config(
     },
   },
 
+  /*
+   * The relationship manager's console (Vite + React in a browser). The whole react-hooks
+   * recommended set is on and gating from the first line: unlike the Expo app there is no
+   * existing code whose animation behaviour a rule could silently change, so nothing is held
+   * back.
+   */
+  {
+    files: ['apps/rm/src/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'react-hooks/exhaustive-deps': 'error',
+    },
+  },
+  // Its build tooling (the token generator, the bundle check, the Vite config) runs on Node.
+  {
+    files: ['apps/rm/scripts/**/*.mjs', 'apps/rm/vite.config.ts'],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    files: ['apps/rm/scripts/**/*.mjs'],
+    rules: { 'no-console': 'off' },
+  },
+
   // Prettier owns formatting; this disables every stylistic rule above that would fight it.
   prettier,
 )

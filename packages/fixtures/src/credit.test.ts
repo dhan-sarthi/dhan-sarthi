@@ -16,17 +16,16 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { conductBand, DELINQUENCY_CAP, delinquencyCeiling, derive } from '@dhan/core'
+import { conductBand, DELINQUENCY_CAP, delinquencyCeiling } from '@dhan/core'
 import type { CreditComponentId, Snapshot } from '@dhan/core'
-import { generateCustomerFile, generateLedger } from './generate.ts'
-import { KARAN, PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
+import { ALL_PERSONAS } from './book/index.ts'
+import { ledgerOf, snapshotOf } from './ledger.testkit.ts'
+import { KARAN, PRIYA, ROHAN, SUNIL } from './personas.ts'
 import type { PersonaSpec } from './personas.ts'
 
 const ASOF = '2026-09-01'
-const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
 
-const snap = (spec: PersonaSpec, asOf: string = ASOF): Snapshot =>
-  derive(generateCustomerFile(spec, { ...OPTS, asOf }), asOf)
+const snap = (spec: PersonaSpec, asOf: string = ASOF): Snapshot => snapshotOf(spec, asOf)
 
 /**
  * The published figure for each persona and the working behind it, as one table.
@@ -131,7 +130,7 @@ describe('what IDBI can see about how four real customers borrow', () => {
   })
 
   it('reads the same customer the suitability gate reads', () => {
-    for (const spec of PERSONAS) {
+    for (const spec of ALL_PERSONAS) {
       const { credit, debt } = snap(spec)
 
       /*
@@ -170,10 +169,8 @@ describe('what IDBI can see about how four real customers borrow', () => {
      * opposite one, and a customer whose statement cannot show what the screen asserts about him
      * is just as unanswerable at a branch counter.
      */
-    for (const spec of PERSONAS) {
-      const returned = generateLedger(spec, OPTS).some((t) =>
-        t.narration.startsWith('NACH RETURN CHGS'),
-      )
+    for (const spec of ALL_PERSONAS) {
+      const returned = ledgerOf(spec).some((t) => t.narration.startsWith('NACH RETURN CHGS'))
       assert.equal(
         snap(spec).credit.dpdDays > 0,
         returned,
@@ -183,7 +180,7 @@ describe('what IDBI can see about how four real customers borrow', () => {
   })
 
   it('splits the debt total in two without losing any of it', () => {
-    for (const spec of PERSONAS) {
+    for (const spec of ALL_PERSONAS) {
       const { credit, debt } = snap(spec)
 
       // The cost row on the screen words itself off `revolvingBalance` — "you are carrying

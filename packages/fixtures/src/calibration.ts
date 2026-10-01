@@ -221,7 +221,7 @@ export interface CityProfile {
   electricity: { biller: string; band: readonly [number, number] }
   /** Piped gas where the city has it, a cylinder refill where it does not. */
   gas: { biller: string; band: readonly [number, number]; piped: boolean }
-  /** The broadband provider that actually sells here. ACT is in none of these three cities. */
+  /** The broadband provider that actually sells here. ACT is in none of the hero cities. */
   broadband: { biller: string; monthly: number }
   /** Prepaid mobile. Every persona is on a monthly-equivalent pack. */
   mobile: { biller: string; monthly: number }
@@ -230,11 +230,18 @@ export interface CityProfile {
 }
 
 /**
- * The three cities, each billed by the utilities that genuinely operate there.
+ * The cities, each billed by the utilities that genuinely operate there.
  *
  * This is the detail that gives the whole ledger away if it is wrong. An Indore statement
  * carrying a KSEB electricity bill is not a statement anybody in the room believes, and a
  * reviewer from the bank will spot it before they read a single figure.
+ *
+ * The first four are the hero personas' cities. The rest came with the relationship manager's
+ * book, and they are the cities whose discom `@dhan/core`'s recognition dictionary already names
+ * (Adani Electricity, BESCOM, Torrent Power, Tata Power): a Hyderabad or Chennai customer would
+ * be billed by TGSPDCL or TNPDCL, neither of which the dictionary knows, and a bill the engine
+ * cannot read is a coverage gap the realism tests would rightly fail. Their branch codes are
+ * **[verify]**: IDBI publishes the codes branch by branch and these were not checked against it.
  */
 export const CITIES: Readonly<Record<string, CityProfile>> = {
   Indore: {
@@ -277,6 +284,47 @@ export const CITIES: Readonly<Record<string, CityProfile>> = {
     broadband: { biller: 'JIO FIBER', monthly: 599 },
     mobile: { biller: 'AIRTEL PREPAID', monthly: 349 },
     regionalFestival: 'ganesh-chaturthi',
+  },
+  Mumbai: {
+    branchIfsc: 'IBKL0000004',
+    localities: ['ANDHERI EAST', 'POWAI', 'DADAR', 'GHATKOPAR'],
+    // The suburbs are Adani's licence area, and that is where these customers live. BEST
+    // supplies the island city, and its name would read as the bus undertaking to the dictionary.
+    electricity: { biller: 'ADANI ELECTRICITY', band: [1_500, 4_400] },
+    gas: { biller: 'MAHANAGAR GAS', band: [560, 980], piped: true },
+    broadband: { biller: 'HATHWAY BROADBAND', monthly: 799 },
+    mobile: { biller: 'VI PREPAID', monthly: 365 },
+    regionalFestival: 'ganesh-chaturthi',
+  },
+  Bengaluru: {
+    branchIfsc: 'IBKL0000027',
+    localities: ['KORAMANGALA', 'INDIRANAGAR', 'JAYANAGAR', 'WHITEFIELD'],
+    electricity: { biller: 'BESCOM', band: [1_100, 2_900] },
+    gas: { biller: 'GAIL GAS', band: [520, 900], piped: true },
+    broadband: { biller: 'ACT FIBERNET', monthly: 899 },
+    mobile: { biller: 'JIO PREPAID', monthly: 349 },
+    regionalFestival: null,
+  },
+  Ahmedabad: {
+    branchIfsc: 'IBKL0000003',
+    localities: ['NAVRANGPURA', 'SATELLITE', 'MANINAGAR', 'BODAKDEV'],
+    // A summer of air-conditioning is why the top of this band sits above Bengaluru's.
+    electricity: { biller: 'TORRENT POWER', band: [1_300, 3_800] },
+    gas: { biller: 'ADANI TOTAL GAS', band: [600, 1_050], piped: true },
+    broadband: { biller: 'JIO FIBER', monthly: 699 },
+    mobile: { biller: 'JIO PREPAID', monthly: 349 },
+    regionalFestival: null,
+  },
+  Delhi: {
+    branchIfsc: 'IBKL0000062',
+    // North Delhi, which Tata Power-DDL supplies. South and East Delhi are BSES, which the
+    // dictionary does not name, so the book's Delhi customers live north of the Ridge.
+    localities: ['ROHINI', 'PITAMPURA', 'MODEL TOWN', 'SHALIMAR BAGH'],
+    electricity: { biller: 'TATA POWER DDL', band: [1_200, 3_600] },
+    gas: { biller: 'INDRAPRASTHA GAS', band: [540, 920], piped: true },
+    broadband: { biller: 'EXCITEL BROADBAND', monthly: 599 },
+    mobile: { biller: 'JIO PREPAID', monthly: 349 },
+    regionalFestival: null,
   },
 }
 
@@ -430,6 +478,18 @@ export const FESTIVAL_DAYS: readonly FestivalDate[] = [
     intensity: 1.8,
     city: 'Nagpur',
   },
+  // Mumbai keeps it on the same dates as Pune, slightly less intensely: a household here spends
+  // on the pandal and the sweets, and the city does not shut for it the way Pune does.
+  ...['2024-09-07', '2025-08-27', '2026-09-14', '2027-09-04', '2028-08-23'].map(
+    (on): FestivalDate => ({
+      name: 'Ganesh Chaturthi',
+      on,
+      leadDays: 5,
+      trailDays: 10,
+      intensity: 2.0,
+      city: 'Mumbai',
+    }),
+  ),
 ]
 
 /** Wedding season. Not a date, a stretch of the calendar, and it repeats every year. */

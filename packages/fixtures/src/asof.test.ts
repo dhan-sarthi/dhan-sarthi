@@ -11,8 +11,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { accountFactsAsOf, liabilityAsOf, sipHoldingAsOf } from '@dhan/core'
+import { ALL_PERSONAS } from './book/index.ts'
 import { generateCustomerFile, liabilityContract, sipContract } from './generate.ts'
-import { PERSONAS, ROHAN } from './personas.ts'
+import { fileOf } from './ledger.testkit.ts'
+import { ROHAN } from './personas.ts'
 
 const ANCHOR = '2026-09-01'
 
@@ -20,9 +22,9 @@ describe('parity with the generator', () => {
   const DATES = [ANCHOR, '2026-09-02', '2026-09-08', '2026-10-01', '2027-03-01', '2028-03-01']
 
   it('produces the generator’s account figures at every clock position', () => {
-    for (const spec of PERSONAS) {
+    for (const spec of ALL_PERSONAS) {
       for (const asOf of DATES) {
-        const file = generateCustomerFile(spec, { anchor: ANCHOR, asOf, months: 24 })
+        const file = fileOf(spec, { anchor: ANCHOR, asOf, months: 24 })
         const savings = file.accounts[0]
         assert.ok(savings)
 
@@ -46,9 +48,9 @@ describe('parity with the generator', () => {
   })
 
   it('rolls the same loans and SIPs the generator puts in the file', () => {
-    for (const spec of PERSONAS) {
+    for (const spec of ALL_PERSONAS) {
       for (const asOf of DATES) {
-        const file = generateCustomerFile(spec, { anchor: ANCHOR, asOf, months: 24 })
+        const file = fileOf(spec, { anchor: ANCHOR, asOf, months: 24 })
         const liabilities = spec.emis
           .map((e) => liabilityAsOf(liabilityContract(e), ANCHOR, asOf))
           .filter((l) => l !== null)

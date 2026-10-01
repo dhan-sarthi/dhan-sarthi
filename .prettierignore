@@ -33,3 +33,8 @@ packages/design/tokens.json
 # nested .gitignore files when run from the root.
 infra/terraform/*.tfstate*
 infra/terraform/.terraform/
+
+# The RM console's Tailwind theme, generated from packages/design/tokens.json before every dev and
+# build (apps/rm/scripts/tokens-css.mjs) and gitignored in apps/rm/.gitignore, which Prettier does
+# not read from the root.
+apps/rm/src/styles/tokens.generated.css

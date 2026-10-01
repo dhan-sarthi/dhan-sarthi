@@ -1,0 +1,45 @@
+{
+  "name": "@dhan/rm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tokens": "node scripts/tokens-css.mjs",
+    "dev": "node scripts/tokens-css.mjs && vite",
+    "build": "node scripts/tokens-css.mjs && tsc -b && vite build && node scripts/check-bundle.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'",
+    "check:bundle": "node scripts/check-bundle.mjs"
+  },
+  "dependencies": {
+    "@dhan/contracts": "workspace:*",
+    "@dhan/core": "workspace:*",
+    "@dhan/design": "workspace:*",
+    "@tanstack/react-query": "^5.103.0",
+    "@tanstack/react-table": "^8.21.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^1.47.0",
+    "motion": "^13.4.0",
+    "radix-ui": "^1.6.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-is": "19.2.3",
+    "react-router": "^7.18.4",
+    "recharts": "^3.10.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.20.1",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.2",
+    "vite": "^7.3.6"
+  }
+}

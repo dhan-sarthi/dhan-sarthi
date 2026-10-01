@@ -24,7 +24,6 @@ import {
   challengeProgress,
   CHALLENGE_WINDOW_DAYS,
   daysBetween,
-  derive,
   EMPTY_SAVE_STATE,
   idFor,
   interestEarned,
@@ -43,8 +42,10 @@ import {
   topSpendTargets,
 } from '@dhan/core'
 import type { SaveHacks, SpendTarget, Transaction } from '@dhan/core'
-import { generateCustomerFile, generateLedger } from './generate.ts'
-import { KARAN, PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
+import { ALL_PERSONAS } from './book/index.ts'
+import { generateLedger } from './generate.ts'
+import { ledgerOf, snapshotOf } from './ledger.testkit.ts'
+import { KARAN, PRIYA, ROHAN, SUNIL } from './personas.ts'
 
 const ASOF = '2026-09-01'
 const OPTS = { anchor: ASOF, asOf: ASOF, months: 24 }
@@ -59,8 +60,8 @@ const paise = (t: Transaction): number => Math.round(t.txnAmount * 100)
 
 describe('challenge targets', () => {
   it('offers only spending a customer could choose to stop', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const { merchants, categories } = topSpendTargets(txns, ASOF)
 
       assert.ok(merchants.length <= 3, `${spec.slug}: more than three merchants offered`)
@@ -90,8 +91,8 @@ describe('challenge targets', () => {
   it('never bundles the unrecognised into an Other bucket', () => {
     // An IDBI narration is routinely `S1 TXN 20`, so "Other" would be the biggest row on the
     // screen for most customers. Every merchant offered has to be one `categorize` actually named.
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const named = new Set(
         txns.map((t) => categorize(t).merchant).filter((m): m is string => m !== null),
       )
@@ -102,8 +103,8 @@ describe('challenge targets', () => {
   })
 
   it('totals exactly the debits inside the four weeks ending today', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const from = addDays(ASOF, -CHALLENGE_WINDOW_DAYS)
       const { merchants, categories } = topSpendTargets(txns, ASOF)
 
@@ -215,8 +216,8 @@ describe('challenge progress', () => {
   }
 
   it('gives one bar per day and a headline the bars add up to', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const target = topMerchant(txns)
       const startDate = addDays(ASOF, -13)
       const p = challengeProgress({ target, limit: 2_000, days: 14, startDate }, txns, ASOF)
@@ -334,8 +335,8 @@ describe('challenge progress', () => {
 
 describe('challenge limits', () => {
   it('rounds down onto the stepper ladder and never up', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       for (const row of topSpendTargets(txns, ASOF).merchants) {
         for (const days of [7, 14, 28]) {
           const baseline = baselineFor(row, days)
@@ -355,8 +356,8 @@ describe('challenge limits', () => {
   })
 
   it('recommends the easiest of the three, and offers no duplicates', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const row = topSpendTargets(txns, ASOF).merchants[0]
       assert.ok(row)
       const options = suggestLimits(baselineFor(row, 28), 28)
@@ -439,8 +440,8 @@ describe('save hacks', () => {
      * same deposits, with the same ids, in the same order — otherwise the pot grows every time
      * someone opens the app.
      */
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const hacks = allOn({ swearJar: { enabled: true, merchant: 'Swiggy', perSpend: 50 } })
       const from = addDays(ASOF, -28)
       const opts = { from, to: ASOF, recommendedWeekly: 1_000 }
@@ -620,8 +621,8 @@ describe('save hacks', () => {
   })
 
   it('shows on each card exactly what that hack put in', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const hacks = allOn({ swearJar: { enabled: true, merchant: 'Swiggy', perSpend: 50 } })
       const opts = { from: addDays(ASOF, -28), to: ASOF, recommendedWeekly: 800 }
 
@@ -676,8 +677,8 @@ describe('save hacks', () => {
 
 describe('the pot', () => {
   it('sizes the weekly recommendation off what the roadmap believes is spare', () => {
-    for (const spec of PERSONAS) {
-      const snapshot = derive(generateCustomerFile(spec, OPTS), ASOF)
+    for (const spec of ALL_PERSONAS) {
+      const snapshot = snapshotOf(spec)
       const weekly = recommendedWeeklySave(snapshot.surplus.deployable)
 
       assert.equal(weekly % 50, 0, `${spec.slug}: not a figure a person would choose`)

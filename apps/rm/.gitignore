@@ -1,0 +1,4 @@
+# Written from packages/design/tokens.json by scripts/tokens-css.mjs before every dev, build and
+# preview. Generated, so never edited by hand and never committed: tokens.json is the source.
+src/styles/tokens.generated.css
+public/favicon.svg

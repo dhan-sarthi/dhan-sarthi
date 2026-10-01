@@ -3,8 +3,10 @@ import { describe, it } from 'node:test'
 import { derive } from '@dhan/core'
 import { CARD_FINANCE_RATE_PA } from './calibration.ts'
 import { addMonths, monthKey } from './calendar.ts'
+import { ALL_PERSONAS } from './book/index.ts'
 import { generateCustomerFile, generateForward, generateLedger } from './generate.ts'
-import { KARAN, PERSONAS, PRIYA, ROHAN, SUNIL } from './personas.ts'
+import { fileOf, ledgerOf } from './ledger.testkit.ts'
+import { KARAN, PRIYA, ROHAN, SUNIL } from './personas.ts'
 import { summarise } from './summary.ts'
 
 const ASOF = '2026-09-01'
@@ -26,8 +28,8 @@ describe('determinism', () => {
 
 describe('the running balance', () => {
   it('is continuous — every balance is the previous one plus the movement', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
 
       /*
        * Carried in paise, because utilities, charges and GST arrive with paise on them and a
@@ -72,8 +74,8 @@ describe('the running balance', () => {
     // A savings balance below zero is not a small cosmetic problem: it is an impossible
     // statement on screen, and it means the persona's spec spends money it never had. Cheap
     // to assert, and it catches an incoherent persona the moment someone edits one.
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const floor = Math.min(...txns.map((t) => t.balanceAfterTxn ?? 0))
       assert.ok(floor >= 0, `${spec.slug}: balance reached ₹${floor}`)
     }
@@ -229,6 +231,11 @@ describe('the patterns the product has to find', () => {
 })
 
 describe('the customer file', () => {
+  it('is built around exactly the ledger for the same window', () => {
+    // What lets the test kit read a ledger off a file instead of generating it twice.
+    assert.deepEqual(generateCustomerFile(KARAN, OPTS).transactions, generateLedger(KARAN, OPTS))
+  })
+
   it('derives account aggregates from the ledger rather than declaring them', () => {
     const file = generateCustomerFile(ROHAN, OPTS)
     const savings = file.accounts.find((a) => a.accountType === 'Savings')
@@ -241,8 +248,8 @@ describe('the customer file', () => {
   })
 
   it('keeps outstanding principal consistent with the tenure left', () => {
-    for (const spec of PERSONAS) {
-      const file = generateCustomerFile(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const file = fileOf(spec)
       for (const l of file.liabilities) {
         const implied = l.emiAmount * l.tenureRemainingMonths
         assert.ok(
@@ -300,8 +307,8 @@ describe('the customer file', () => {
      * `balances.deposits` and to `holdings.debt` and put his net worth ₹2 lakh above what he
      * has. The rule is checked against every persona, not only the one that broke it.
      */
-    for (const spec of PERSONAS) {
-      const file = generateCustomerFile(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const file = fileOf(spec)
       const deposits = file.accounts.filter((a) => a.accountType === 'FD' || a.accountType === 'RD')
 
       for (const holding of file.holdings) {

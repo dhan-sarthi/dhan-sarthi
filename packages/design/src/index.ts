@@ -17,6 +17,13 @@ export const control = tokens.control
 export const size = tokens.size
 export const stroke = tokens.stroke
 export const motion = tokens.motion
+// The desktop console's additions (apps/rm). Separate groups rather than new keys in the ones
+// above, so the NativeWind preset, which reads those groups by name, cannot change underneath
+// the mobile app. `web` is the desktop type scale, radii, layout sizes and soft fills; `chart`
+// is the validated chart palette; `elevation` is the one place a shadow is allowed.
+export const web = tokens.web
+export const chart = tokens.chart
+export const elevation = tokens.elevation
 export default tokens
 
 export type ColorName = keyof typeof tokens.color
