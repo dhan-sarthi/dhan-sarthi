@@ -41,7 +41,16 @@ function buildSha(): string {
   }
 }
 
+/**
+ * Where the console is served from. Locally it owns the root; deployed it shares the mobile app's
+ * CloudFront distribution under `/rm/` (`infra/scripts/deploy-rm.sh` sets `RM_BASE=/rm/`), so the
+ * asset URLs and the router's basename (`import.meta.env.BASE_URL`) both carry the prefix. API
+ * calls are absolute (`/api/v1/*`) and stay on the same origin either way.
+ */
+const base = process.env['RM_BASE'] ?? '/'
+
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss()],
   define: { __BUILD_SHA__: JSON.stringify(buildSha()) },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },

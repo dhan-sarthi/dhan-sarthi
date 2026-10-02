@@ -89,9 +89,12 @@ if [[ -d "$DIST/assets" ]]; then
 fi
 
 echo "==> sync the shell (no-cache)"
+# `rm/*` is the RM console's prefix in the same bucket (infra/scripts/deploy-rm.sh). Without the
+# exclude, this --delete removes the console on every mobile release.
 aws s3 sync "$DIST" "s3://$BUCKET" \
   --exclude "_expo/*" \
   --exclude "assets/*" \
+  --exclude "rm/*" \
   --delete \
   --cache-control "no-cache"
 

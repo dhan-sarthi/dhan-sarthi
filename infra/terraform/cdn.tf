@@ -119,6 +119,18 @@ locals {
   api_origin_protocol       = local.has_domain ? "https-only" : "http-only"
 }
 
+# The RM console (apps/rm) is published under the `rm/` prefix of the same bucket by
+# infra/scripts/deploy-rm.sh. Its deep links are browser routes, so this function rewrites any
+# extensionless /rm path to the console's shell before the distribution-wide error page (the
+# mobile shell) can answer them.
+resource "aws_cloudfront_function" "rm_spa" {
+  name    = "${local.name}-rm-spa"
+  runtime = "cloudfront-js-2.0"
+  comment = "RM console: route /rm/* to /rm/index.html"
+  publish = true
+  code    = file("${path.module}/functions/rm-spa.js")
+}
+
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -167,6 +179,22 @@ resource "aws_cloudfront_distribution" "web" {
     compress                 = true
     cache_policy_id          = local.cache_policy_disabled
     origin_request_policy_id = local.origin_request_all_viewer
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/rm*"
+    target_origin_id           = "web-s3"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = local.cache_policy_optimized
+    response_headers_policy_id = local.response_headers_security
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.rm_spa.arn
+    }
   }
 
   # S3 answers 403 for a missing key behind OAC; the SPA's history fallback needs index.html.
