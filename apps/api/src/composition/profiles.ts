@@ -37,9 +37,11 @@ import { IdbiLeadSink, noLeadSink } from '../adapters/idbi-sandbox/lead-sink.idb
 import { InMemoryDeclaredProfiles } from '../adapters/memory/declared-profile.memory.ts'
 import {
   generatedDeclaredProfiles,
+  generatedRmDesk,
   generatedSource,
   recordedGeneratorVersion,
 } from '../adapters/memory/generated-source.ts'
+import { InMemoryRmActivity } from '../adapters/memory/rm-activity.memory.ts'
 import { CompositeBankData } from '../adapters/idbi-sandbox/composite.ts'
 import { PostgresAuditStore } from '../adapters/postgres/audit-store.postgres.ts'
 import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
@@ -73,6 +75,8 @@ import type {
   Clock,
   LeaseStore,
   ProductShelfPort,
+  RmActivityPort,
+  RmDeskPort,
   SessionStore,
   SnapshotStore,
 } from '../ports/index.ts'
@@ -128,6 +132,10 @@ export interface BankAdapters {
   audit: AuditStore
   leases: LeaseStore
   seed: SeedInfo
+  /** The RM desk: who signs in to the console, their sessions, and whose book a customer is in. */
+  rmDesk: RmDeskPort
+  /** What the RM did: notes, handoff status changes, and the access log. Append-only. */
+  rmActivity: RmActivityPort
 }
 
 export function bankAdapters(
@@ -161,6 +169,8 @@ export function bankAdapters(
         audit: new InMemoryAuditStore(clock),
         leases: new InMemoryLeaseStore(clock),
         seed: source.bank,
+        rmDesk: generatedRmDesk(clock),
+        rmActivity: new InMemoryRmActivity(clock),
       }
     }
     case 'postgres': {
@@ -204,6 +214,11 @@ export function bankAdapters(
         audit: new PostgresAuditStore(db, clock),
         leases: new PostgresLeaseStore(db, clock),
         seed,
+        // FOR NOW, the memory RM adapters under Postgres too: the desk is the fixtures' two RMs
+        // and the activity lives as long as the process. Migration 0015 and the Postgres RM
+        // adapters replace these two lines; nothing above this file changes when they do.
+        rmDesk: generatedRmDesk(clock),
+        rmActivity: new InMemoryRmActivity(clock),
       }
     }
     case 'idbi-sandbox': {
@@ -272,6 +287,10 @@ export function bankAdapters(
         audit: new InMemoryAuditStore(clock),
         leases: new InMemoryLeaseStore(clock),
         seed: source.bank,
+        // The desk's book is the fixtures' customers, and none of them is the sandbox's: under
+        // this source every RM signs in to an empty book, which is the honest answer.
+        rmDesk: generatedRmDesk(clock),
+        rmActivity: new InMemoryRmActivity(clock),
       }
     }
   }

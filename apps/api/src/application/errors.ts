@@ -65,9 +65,34 @@ export class IncompleteProfile extends Forbidden {
   }
 }
 
+/**
+ * A customer who exists and is in another RM's book, or in nobody's.
+ *
+ * A 403 and not a 404, deliberately: the console tells "not yours" from "not there", because an
+ * RM who mistypes a cif and an RM who opens a colleague's customer need different answers, and
+ * the second one is the event a compliance team wants to see refused by name.
+ */
+export class NotInBook extends Forbidden {
+  constructor() {
+    super('That customer is not in your book.')
+  }
+}
+
 export class NotFound extends DomainError {
   constructor(message: string) {
     super(404, 'NOT_FOUND', message)
+  }
+}
+
+/**
+ * A limit this process enforces itself, beside the rate-limit plugin's. Same code, sentence and
+ * `details` as the plugin's refusal (`http/server.ts`), so a client handles both the same way.
+ */
+export class RateLimited extends DomainError {
+  constructor(retryAfterMs: number, limit: number) {
+    super(429, 'RATE_LIMITED', 'Too many requests. Slow down a little.', {
+      details: { retryAfterMs: Math.max(0, Math.round(retryAfterMs)), limit },
+    })
   }
 }
 

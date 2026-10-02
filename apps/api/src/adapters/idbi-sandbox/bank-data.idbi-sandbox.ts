@@ -125,6 +125,11 @@ export class IdbiSandboxBankData implements BankDataPort {
     })
   }
 
+  /** The same three: every customer the sandbox holds is one a reviewer may open. */
+  async listPopulation(): Promise<CustomerSummary[]> {
+    return this.listCustomers()
+  }
+
   async getCustomer(cif: string): Promise<Customer> {
     const customer = this.customerOr404(cif)
     return this.guarded(cif, async () => {

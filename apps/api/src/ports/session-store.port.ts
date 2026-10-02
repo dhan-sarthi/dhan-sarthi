@@ -145,6 +145,12 @@ export interface SessionStore {
   getByTokenHash(tokenHash: string): Promise<Session | null>
   getById(id: string): Promise<Session | null>
   /**
+   * Every session a customer has had, oldest first, revoked and expired ones included: the RM's
+   * view of a customer is the whole record, and a session that has ended still wrote to it.
+   * Erased sessions are gone, which is what erasure means.
+   */
+  listByCif(cif: string): Promise<Session[]>
+  /**
    * `UPDATE … WHERE id = $1 AND version = $2`. Null when no row matched the expected version:
    * the caller answers 409 STALE_CLOCK and the client refetches.
    */

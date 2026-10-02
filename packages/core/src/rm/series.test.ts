@@ -60,7 +60,8 @@ describe('monthlyBalanceSeries', () => {
     )
   })
 
-  it('holds a declared deposit flat from the day it opened, and leaves PPF out', () => {
+  it('holds a declared deposit flat across the window, opened inside it or not, and leaves PPF out', () => {
+    // No ledger line funds it, so a step on its opening date would be growth nothing paid for.
     const fd = {
       accountType: 'FD',
       accountOpeningDate: '2026-08-15',
@@ -70,7 +71,21 @@ describe('monthlyBalanceSeries', () => {
     const ppf = { accountType: 'PPF', openingBalance: 5_00_000, transactions: [] }
     assert.deepEqual(
       monthlyBalanceSeries([fd, ppf], AS_OF, 3).map((p) => p.total),
-      [0, 0, 2_00_000],
+      [2_00_000, 2_00_000, 2_00_000],
+    )
+  })
+
+  it('still counts an account with rows from its opening date only', () => {
+    // Its first row is what funded it, so the step is a ledger movement, not a declared figure.
+    const opened = {
+      accountType: 'Savings',
+      accountOpeningDate: '2026-07-20',
+      openingBalance: 0,
+      transactions: ledger([['2026-07-20', 30_000]], 'XXXX3333'),
+    }
+    assert.deepEqual(
+      monthlyBalanceSeries([opened], AS_OF, 3).map((p) => p.total),
+      [0, 30_000, 30_000],
     )
   })
 

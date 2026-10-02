@@ -25,7 +25,7 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { accountFactsAsOf, addMonths, derive, liabilityAsOf, ruleBook } from '@dhan/core'
 import type { Holding, Institution, Transaction } from '@dhan/core'
-import { PERSONAS, generateCustomerFile } from '@dhan/fixtures'
+import { ALL_PERSONAS, generateCustomerFile } from '@dhan/fixtures'
 import type { SeedAccountRow, SeedBundle } from '@dhan/fixtures'
 import type pg from 'pg'
 import { recordedGeneratorVersion } from '../adapters/memory/generated-source.ts'
@@ -1024,7 +1024,8 @@ async function verifyParity(
   const bank = await PostgresBankData.connect(pool)
   const out: SeedReport['personas'] = []
   for (const { bundle } of plan.personas) {
-    const spec = PERSONAS.find((p) => p.slug === bundle.slug)
+    // Every seeded customer, the RM book's as well as the four heroes the picker shows.
+    const spec = ALL_PERSONAS.find((p) => p.slug === bundle.slug)
     if (!spec) throw new Error(`no persona spec for ${bundle.slug}`)
     const expected = derive(
       generateCustomerFile(spec, {

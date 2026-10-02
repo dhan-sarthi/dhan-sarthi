@@ -7,6 +7,7 @@
  * be reconciled by adding up the rows on screen.
  */
 import { ruleBook } from '../suitability.ts'
+import { monthName } from './format.ts'
 import type { GoalHealth } from './health.ts'
 import type { Segment } from './segment.ts'
 import { isBalanceAccount, walletSharePct } from './segment.ts'
@@ -309,7 +310,10 @@ export function todayKpis(input: TodayKpiInput): Kpi[] {
       value: totals.relationshipValue,
       unit: 'inr',
       delta: last !== undefined && prev !== undefined ? last.total - prev.total : null,
-      deltaLabel: last !== undefined && prev !== undefined ? 'in balances this month' : null,
+      // The month by name: the series ends at the last complete month, so on 1 September the
+      // change is August's, and "this month" read as September.
+      deltaLabel:
+        last !== undefined && prev !== undefined ? `in balances in ${monthName(last.month)}` : null,
       series: series.length > 0 ? series.map((p) => p.total) : null,
     },
     {

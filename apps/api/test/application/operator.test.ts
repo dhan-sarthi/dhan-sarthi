@@ -39,6 +39,7 @@ function fakeBank(customers: { cif: string }[]): FakeBank {
   return {
     loads,
     listCustomers: async () => customers as never,
+    listPopulation: async () => customers as never,
     describe: () => ({
       source: 'idbi-sandbox',
       simulatedClock: false,

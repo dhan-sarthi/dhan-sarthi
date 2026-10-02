@@ -7,7 +7,10 @@
  * formatters directly so a figure prints the same on both sides of the wire.
  *
  * `util.ts` is deliberately absent: it is how these modules read the engine's sentences, not a
- * definition anyone else should build on.
+ * definition anyone else should build on. The one exception is `revoice`, the engine's second
+ * person turned into the RM's third: the API shows the RM sentences the engine wrote to the
+ * customer (a plan stage's reason, an action's line) and has to turn them the same way the
+ * signals here do, not with a second pronoun table that could disagree.
  */
 export * from './format.ts'
 export * from './segment.ts'
@@ -19,3 +22,4 @@ export * from './queue.ts'
 export * from './upcoming.ts'
 export * from './ledger-events.ts'
 export * from './book.ts'
+export { revoice } from './util.ts'

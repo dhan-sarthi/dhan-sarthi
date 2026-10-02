@@ -34,6 +34,10 @@ export class CompositeBankData implements BankDataPort {
     return this.primary.listCustomers()
   }
 
+  listPopulation(): Promise<CustomerSummary[]> {
+    return this.primary.listPopulation()
+  }
+
   getCustomer(cif: string): Promise<Customer> {
     return this.primary.getCustomer(cif)
   }

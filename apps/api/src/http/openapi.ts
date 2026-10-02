@@ -37,7 +37,9 @@ function operation(route: RouteEntry): Json {
       ? [{ bearerAuth: [] }]
       : route.auth === 'operator'
         ? [{ operatorKey: [] }]
-        : []
+        : route.auth === 'rm'
+          ? [{ rmBearer: [] }]
+          : []
 
   return {
     operationId: route.id,
@@ -117,6 +119,12 @@ export function buildOpenApi(opts: { version: string }): OpenApiDocument {
           description: 'The session token from POST /api/v1/sessions.',
         },
         operatorKey: { type: 'apiKey', in: 'header', name: 'X-Operator-Key' },
+        rmBearer: {
+          type: 'http',
+          scheme: 'bearer',
+          description:
+            'A relationship manager’s `rm_` token from POST /api/v1/rm/sessions. Never a session token.',
+        },
       },
     },
     paths,

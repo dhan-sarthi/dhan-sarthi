@@ -64,6 +64,7 @@ function fakeBank(rows: Transaction[] = ROWS): FakeBank {
       return rows
     },
     listCustomers: refuse,
+    listPopulation: refuse,
     getCustomer: refuse,
     getAccounts: refuse,
     getLiabilities: refuse,

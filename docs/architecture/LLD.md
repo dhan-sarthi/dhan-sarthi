@@ -103,7 +103,7 @@ real `AvatarRpcHost`; `FAULT_INJECT` is refused in production).
 
 ```ts
 buildRoot(config: Config, options?: RootOptions): Promise<{ app: FastifyInstance; deps: Deps; services: AppServices; taskId: string; close(): Promise<void> }>
-interface Deps { bank: BankDataPort; profiles: DeclaredProfileStore; holdings: HoldingsStore; aa: { store: AaConsentStore; gateway: AaGatewayPort } | null; leads: LeadSinkPort; mappingReport: (() => MappingReport | null) | null; shelf: ProductShelfPort; sessions: SessionStore; snapshots: SnapshotStore; audit: AuditStore; leases: LeaseStore; avatar: AvatarProvider; rpc: AvatarRpcHost; toolWebhook: AvatarToolWebhook; clock: Clock; credentials: AvatarCredential[]; model: LanguageModelPort; seed: SeedInfo }
+interface Deps { bank: BankDataPort; profiles: DeclaredProfileStore; holdings: HoldingsStore; aa: { store: AaConsentStore; gateway: AaGatewayPort } | null; leads: LeadSinkPort; mappingReport: (() => MappingReport | null) | null; shelf: ProductShelfPort; sessions: SessionStore; snapshots: SnapshotStore; audit: AuditStore; leases: LeaseStore; avatar: AvatarProvider; rpc: AvatarRpcHost; toolWebhook: AvatarToolWebhook; clock: Clock; credentials: AvatarCredential[]; model: LanguageModelPort; seed: SeedInfo; rmDesk: RmDeskPort; rmActivity: RmActivityPort; copilotModel: LanguageModelPort }
 ```
 
 Depends on: `config`, `ports/*`, `adapters/*`, `application/*`, `http/*`.

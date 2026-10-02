@@ -47,9 +47,25 @@ export function numberBefore(text: string, word: string): number | null {
  * is re-voiced on the way through rather than rewritten: it is the audit trail, and the closer
  * it stays to what the customer was shown, the more it is worth. Object pronouns go first, so
  * "depend on you" becomes "depend on them" before the bare "you" rule could make it "on they".
+ *
+ * Two kinds of object come before the prepositions. "Than you" is a subject when a verb follows
+ * ("₹40,000 more than you have" is "than they have", not "than them have") and an object when
+ * nothing does ("more than you." is "than them."). And "you" straight after a verb the engine
+ * uses on the customer ("this is costing you", "gets you there", "costs you more") is the
+ * verb's object, so "them"; the bare rule made it "costing they". A verb that is not listed
+ * falls through to "they", which is right wherever "you" is the subject ("the limit you set").
+ * Words that are as often nouns ("the charges you pay", "the covers you hold") stay off the
+ * list for the same reason.
  */
+const OBJECT_AFTER =
+  'costs?|costing|gets?|getting|gives?|giving|tells?|telling|shows?|showing|finds?|sells?|' +
+  'selling|owes?|earns?|earning|helps?|helping|lets?|pays?|paying|saves?|saving|makes?|' +
+  'making|takes?|protects?|reminds?|charging|brings?'
+
 const PRONOUNS: readonly [RegExp, string][] = [
   [/\bas you told us\b/gi, 'as declared'],
+  [/\bthan you(?= [a-z])/gi, 'than they'],
+  [new RegExp(String.raw`\b(${OBJECT_AFTER}) you\b`, 'gi'), '$1 them'],
   [/\b(on|to|for|with|from|at|by|of|than) you\b/gi, '$1 them'],
   [/\byou're\b/gi, "they're"],
   [/\byou've\b/gi, "they've"],

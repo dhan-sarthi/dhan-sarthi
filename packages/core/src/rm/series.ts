@@ -27,7 +27,10 @@ export interface BalancePoint {
 export interface LedgerAccount {
   accountType: string
   institution?: { isHome: boolean } | undefined
-  /** Before this date the account did not exist, so it holds nothing. */
+  /**
+   * Before this date the account did not exist, so it holds nothing. Read only for an account
+   * with rows; a declared figure is held flat (see `monthlyBalanceSeries`).
+   */
   accountOpeningDate?: string | undefined
   /** This account's own rows, oldest first. Rows after the as-of date are ignored. */
   transactions: readonly Transaction[]
@@ -53,6 +56,14 @@ function monthEnd(iso: string): string {
  * +17% over three months, and his IDBI balance +139%, while the month-ends had both slipping.
  * A payday drawn as growth is the same mistake as a flat line drawn as growth. Month-end to
  * month-end compares like with like, and the as-of balance is shown beside the chart instead.
+ *
+ * An account with no rows is a declared figure, a term deposit the feed states rather than
+ * streams, and it is held flat across the whole window, opening date or not. Stepped in on its
+ * opening date it was growth no ledger line paid for: Meher's ₹12 lakh deposit, opened in
+ * January and funded from outside the statement, read as a ₹12.6 lakh month against ₹57,560 of
+ * movement, and lifted the whole book's line with it. Held flat, every month's change is the net
+ * of the month's rows and nothing else, and the deposit still counts at its declared balance in
+ * every point, as it does in the balances shown beside the chart.
  */
 export function monthlyBalanceSeries(
   accounts: readonly LedgerAccount[],
@@ -72,7 +83,9 @@ export function monthlyBalanceSeries(
     let total = 0
     let idbi = 0
     for (const account of balanceAccounts) {
-      if (account.accountOpeningDate !== undefined && account.accountOpeningDate > on) continue
+      const declared = account.transactions.length === 0
+      if (!declared && account.accountOpeningDate !== undefined && account.accountOpeningDate > on)
+        continue
       const balance = accountFactsAsOf(
         account.transactions,
         on,

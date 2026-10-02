@@ -69,9 +69,11 @@ export const rmSignInRoute = defineRoute({
   summary:
     'Sign an RM in with employee number and password. Returns an opaque `rm_` bearer once, with a sliding expiry. A wrong employee number and a wrong password answer the same 401.',
   auth: 'none',
-  // Tight, and by address, because the only thing a sign-in route can be attacked with is
-  // guesses, and a guesser has no session to key on.
-  rateLimit: { max: 10, window: '15 minutes', keyBy: 'ip' },
+  // By address, because a guesser has no session to key on. Not the guessing limit itself: the
+  // API also refuses an employee number after ten failures in fifteen minutes, which holds where
+  // the address can be forged. So this can be loose enough for one machine showing book scoping,
+  // signing in as one RM and then the other, several times over, without locking itself out.
+  rateLimit: { max: 30, window: '15 minutes', keyBy: 'ip' },
   request: { body: RmSignInRequestSchema },
   response: {
     200: RmSignInResponseSchema,

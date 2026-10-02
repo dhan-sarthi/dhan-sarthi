@@ -25,18 +25,25 @@ import {
   DomainError,
   IdempotencyKeyRequired,
   IdempotencyMismatch,
+  RateLimited,
   ValidationFailed,
 } from '../application/errors.ts'
 import { hashOf } from '../application/hash.ts'
+import type { RmCaller } from '../application/rm/caller.ts'
 import type { Clock, Session, SessionStore } from '../ports/index.ts'
+import { bearerOf } from './auth.ts'
 import type { Authenticator, Principal } from './auth.ts'
+import { GLOBAL_RATE_LIMIT } from './server.ts'
 
 type SessionOf<Id extends RouteId> = RouteById<Id>['auth'] extends 'session' ? Session : null
+type RmOf<Id extends RouteId> = RouteById<Id>['auth'] extends 'rm' ? RmCaller : null
 
 export interface RouteContext<Id extends RouteId> {
   principal: Principal
   /** The caller's session on `auth: 'session'` routes; null elsewhere. */
   session: SessionOf<Id>
+  /** The signed-in relationship manager on `auth: 'rm'` routes; null elsewhere. */
+  rm: RmOf<Id>
   params: ParamsOf<Id>
   query: QueryOf<Id>
   body: BodyOf<Id>
@@ -114,8 +121,51 @@ function etagMatches(header: string | string[] | undefined, etag: string): boole
   return raw.split(',').some((token) => token.trim() === '*' || strip(token) === wanted)
 }
 
+type Hook = (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+
+/**
+ * The bucket a session-keyed row counts a caller in: the bearer, parsed exactly as `auth.ts`
+ * parses it, or the address where there is none.
+ *
+ * Never the raw header. `Bearer X`, `bearer X` and `Bearer  X` are one principal to the
+ * authenticator, and keyed on the header they were three buckets, so changing the case of a
+ * word reset the limit.
+ */
+function callerKey(request: FastifyRequest): string {
+  const token = bearerOf(request)
+  return hashOf(token === null ? `ip:${request.ip}` : `bearer:${token}`).slice(0, 32)
+}
+
+/**
+ * One per-address ceiling over every session-keyed row together, at the global rate.
+ *
+ * The plugin gives a route one limiter: a row with a limit of its own replaces the global
+ * per-address one instead of adding to it. On a session-keyed row that left nothing per
+ * address, and the bearer is whatever the caller sends, so a caller who changed it on every
+ * request had a fresh bucket every time and was never refused, each 401 still costing a store
+ * lookup. Its own bucket rather than the global one, so the customer app's ordinary reads never
+ * pay for an RM's verify calls, and checked before the row's own limit so a refused request does
+ * not spend the session's allowance as well.
+ */
+function addressCeiling(app: FastifyInstance): Hook {
+  const limit = app.createRateLimit({
+    max: GLOBAL_RATE_LIMIT.max,
+    timeWindow: GLOBAL_RATE_LIMIT.window,
+    keyGenerator: (request) => request.ip,
+  })
+  return async (request, reply) => {
+    const result = await limit(request)
+    if (result.isAllowed || !result.isExceeded) return
+    void reply.header('retry-after', result.ttlInSeconds)
+    throw new RateLimited(result.ttl, result.max)
+  }
+}
+
 export function makeRegistrar(app: FastifyInstance, deps: RegisterDeps): Registrar {
-  return (entry, handler) => registerRoute(app, deps, entry, handler)
+  // The plugin, and so `createRateLimit`, is registered only when rate limits are on.
+  const ceiling =
+    deps.rateLimits && app.hasDecorator('createRateLimit') ? addressCeiling(app) : null
+  return (entry, handler) => registerRoute(app, deps, entry, handler, ceiling)
 }
 
 export function registerRoute<E extends Route>(
@@ -123,26 +173,29 @@ export function registerRoute<E extends Route>(
   deps: RegisterDeps,
   entry: E,
   handler: RouteHandler<E['id']>,
+  sessionRowCeiling: Hook | null = null,
 ): void {
   type Id = E['id']
   // The registry's rows are literal types; the interface is what the optional fields read as.
   const row: RouteEntry = entry
   const okStatus = successStatus(row)
+  const limited = deps.rateLimits && row.rateLimit !== undefined
+  const ceiling = limited && row.rateLimit?.keyBy === 'session' ? sessionRowCeiling : null
 
   app.route({
     method: row.method,
     url: row.path,
+    ...(ceiling === null ? {} : { onRequest: [ceiling] }),
     config: {
       routeId: row.id,
-      ...(deps.rateLimits && row.rateLimit
+      ...(limited && row.rateLimit
         ? {
             rateLimit: {
               max: deps.rateLimitMax?.[row.id] ?? row.rateLimit.max,
               timeWindow: row.rateLimit.window,
               keyGenerator:
                 row.rateLimit.keyBy === 'session'
-                  ? (req: FastifyRequest): string =>
-                      hashOf(req.headers.authorization ?? req.ip).slice(0, 32)
+                  ? callerKey
                   : (req: FastifyRequest): string => req.ip,
             },
           }
@@ -151,6 +204,7 @@ export function registerRoute<E extends Route>(
     handler: async (request: FastifyRequest, fastifyReply: FastifyReply) => {
       const principal = await deps.auth.authenticate(row.auth, request)
       const session = principal.kind === 'session' ? principal.session : null
+      const rm = principal.kind === 'rm' ? principal.rm : null
 
       // A missing Idempotency-Key has its own code; checked before the header schema so the
       // client sees that rather than a generic validation failure.
@@ -190,6 +244,7 @@ export function registerRoute<E extends Route>(
       const result = await handler({
         principal,
         session: session as SessionOf<Id>,
+        rm: rm as RmOf<Id>,
         params,
         query,
         body,

@@ -87,6 +87,26 @@ export function monthLabel(isoOrMonth: string): string {
   return `${month} ${isoOrMonth.slice(0, 4)}`
 }
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+/** "August" for a 'YYYY-MM' key or a full date. */
+export function monthName(isoOrMonth: string): string {
+  return MONTH_NAMES[Number(isoOrMonth.slice(5, 7)) - 1] ?? isoOrMonth.slice(5, 7)
+}
+
 /** "1 month", "3 months". */
 export function plural(n: number, word: string, many = `${word}s`): string {
   return `${n} ${n === 1 ? word : many}`

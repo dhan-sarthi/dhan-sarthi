@@ -51,9 +51,28 @@ function ageOn(dob: string, asOf: string): number {
   return age
 }
 
-/** A bundle with no picker place sorts last, as `display_order NULLS LAST` does in Postgres. */
-function orderOf(b: SeedBundle): number {
-  return b.displayOrder ?? Number.MAX_SAFE_INTEGER
+/**
+ * Picker customers in their place, then everyone else by cif: the order Postgres gives with
+ * `display_order NULLS LAST, cif`. A cif rather than insertion order for the rest, because the
+ * book is forty-six customers long and insertion order is a coincidence of the fixtures file.
+ */
+function byPlace(a: SeedBundle, b: SeedBundle): number {
+  const pa = a.displayOrder ?? Number.MAX_SAFE_INTEGER
+  const pb = b.displayOrder ?? Number.MAX_SAFE_INTEGER
+  if (pa !== pb) return pa - pb
+  return a.customer.cif < b.customer.cif ? -1 : a.customer.cif > b.customer.cif ? 1 : 0
+}
+
+function summaryOf(b: SeedBundle): CustomerSummary {
+  return {
+    cif: b.customer.cif,
+    slug: b.slug,
+    name: b.customer.custName,
+    age: ageOn(b.customer.dateOfBirth, b.horizon.anchor),
+    city: b.customer.city,
+    pitch: b.pitch,
+    demonstrates: b.demonstrates,
+  }
 }
 
 /** What the seed hash covers: the rows, not the picker copy. */
@@ -105,17 +124,16 @@ export class InMemoryBankData implements BankDataPort, SeedInfo {
 
   async listCustomers(): Promise<CustomerSummary[]> {
     // The bundle carries the picker's order; insertion order is a coincidence, not a contract.
+    // A bundle with no place (the RM book's customers) is not on the picker at all: the mobile
+    // app opens as one of the four heroes and nobody else.
     return [...this.bundles.values()]
-      .sort((a, b) => orderOf(a) - orderOf(b))
-      .map((b) => ({
-        cif: b.customer.cif,
-        slug: b.slug,
-        name: b.customer.custName,
-        age: ageOn(b.customer.dateOfBirth, b.horizon.anchor),
-        city: b.customer.city,
-        pitch: b.pitch,
-        demonstrates: b.demonstrates,
-      }))
+      .filter((b) => b.displayOrder !== null)
+      .sort(byPlace)
+      .map(summaryOf)
+  }
+
+  async listPopulation(): Promise<CustomerSummary[]> {
+    return [...this.bundles.values()].sort(byPlace).map(summaryOf)
   }
 
   async getCustomer(cif: string): Promise<Customer> {

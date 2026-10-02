@@ -73,6 +73,7 @@ function fakeBank(onGetCustomer: () => void = () => {}): BankDataPort {
       return { cif: CIF } as never
     },
     listCustomers: refuse,
+    listPopulation: refuse,
     getAccounts: refuse,
     getTransactions: refuse,
     getLiabilities: refuse,

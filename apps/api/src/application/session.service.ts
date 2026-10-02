@@ -18,7 +18,7 @@ import type {
   IsoDate,
   SessionState,
 } from '@dhan/contracts'
-import { BeyondHorizon, StaleClock, Unavailable } from './errors.ts'
+import { BeyondHorizon, NotFound, StaleClock, Unavailable } from './errors.ts'
 import { sha256Hex } from './hash.ts'
 import type { BankDataPort, Clock, Session, SessionPatch, SessionStore } from '../ports/index.ts'
 
@@ -63,6 +63,31 @@ export class SessionService {
     return customers
   }
 
+  /**
+   * The public door, `POST /sessions`: a customer on the picker, or any customer the bank holds
+   * where there is no picker (Phase 2, where the host app names the customer).
+   *
+   * The bank holds the RM book's customers as well as the four heroes, and `create` would open
+   * any of them. A session is not a read: the route seeds months of decisions and advice onto
+   * it, which the console then reads back as that customer's own journey. So a cif the bank
+   * holds but the picker does not list is refused with exactly the 404 an unknown cif gets, and
+   * nobody can tell the book's customers from cifs that do not exist.
+   */
+  async open(cif: string, clientHint?: string): Promise<{ token: string; session: Session }> {
+    const picker = await this.deps.bank.listCustomers()
+    if (picker.length > 0 && !picker.some((c) => c.cif === cif)) {
+      throw new NotFound(`No customer with cif ${cif}.`)
+    }
+    return this.create(cif, clientHint)
+  }
+
+  /**
+   * A session for any customer the bank holds, picker or not.
+   *
+   * The internal path: the RM activity simulator opens its token-less sessions on book
+   * customers here, and tests reach any persona through it. No route may call it with a cif a
+   * caller chose; `POST /sessions` goes through `open`.
+   */
   async create(cif: string, clientHint?: string): Promise<{ token: string; session: Session }> {
     // Throws NotFound for an unknown cif, which is the 404 the route declares.
     await this.deps.bank.getCustomer(cif)

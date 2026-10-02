@@ -1,5 +1,5 @@
 /**
- * The sixteen ports. Interfaces only: no port file has a runtime import and none names an
+ * The eighteen ports. Interfaces only: no port file has a runtime import and none names an
  * adapter — `ports-are-interfaces-only` in .dependency-cruiser.cjs and the third case in
  * apps/api/test/architecture/depcruise.test.ts both fail if one does. An adapter implements
  * exactly one of them, and `composition/` is where they are chosen: root.ts assembles, and
@@ -38,3 +38,5 @@ export type * from './avatar-rpc-host.port.ts'
 export type * from './avatar-tool-webhook.port.ts'
 export type * from './clock.port.ts'
 export type * from './language-model.port.ts'
+export type * from './rm-desk.port.ts'
+export type * from './rm-activity.port.ts'

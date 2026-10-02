@@ -91,7 +91,7 @@ describe('the route registry', () => {
 
   it('limits RM sign-in by address and the copilot by bearer', () => {
     assert.deepEqual(routeById('rmSignIn').rateLimit, {
-      max: 10,
+      max: 30,
       window: '15 minutes',
       keyBy: 'ip',
     })

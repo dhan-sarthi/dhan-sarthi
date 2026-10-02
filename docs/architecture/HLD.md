@@ -141,7 +141,7 @@ flowchart TB
       subgraph api["apps/api — Fastify 5, layered"]
         HTTP["http/ · register.ts<br/>zod in + out · bearer · operator key<br/>rate-limit · helmet · request id"]
         APP["application/<br/>Advisory · Session · Decision · Conversation<br/>avatar/: brief · tools · lifecycle · pool · budget · waitlist · reconcile"]
-        PORTS{{"ports/ — interfaces only<br/>BankData · ProductShelf · SessionStore · SnapshotStore<br/>AuditStore · LeaseStore · AvatarProvider · AvatarRpcHost · Clock<br/>AvatarToolWebhook · LanguageModel · DeclaredProfile · Holdings<br/>AaConsent · AaGateway · LeadSink"}}
+        PORTS{{"ports/ — interfaces only<br/>BankData · ProductShelf · SessionStore · SnapshotStore<br/>AuditStore · LeaseStore · AvatarProvider · AvatarRpcHost · Clock<br/>AvatarToolWebhook · LanguageModel · DeclaredProfile · Holdings<br/>AaConsent · AaGateway · LeadSink · RmDesk · RmActivity"}}
         ADP["adapters/<br/>postgres · memory · idbi-sandbox (+ composite)<br/>runway · anam · openai · null · fake"]
         ROOT["composition/root.ts<br/>BANK_SOURCE=postgres|memory|idbi-sandbox<br/>AVATAR_PROVIDER=runway,anam (try order) | none"]
       end
@@ -214,12 +214,15 @@ dhan-sarthi/
 │   │   │   ├── config.ts                     the ONLY process.env reader · zod-parsed Config
 │   │   │   ├── composition/
 │   │   │   │   ├── root.ts                   buildRoot(config): adapters → services → app · constructor injection · startup invariants
-│   │   │   │   └── profiles.ts               memory | postgres | idbi-sandbox × an avatar chain (runway, anam) or none · the text model
+│   │   │   │   ├── profiles.ts               memory | postgres | idbi-sandbox × an avatar chain (runway, anam) or none · the text model
+│   │   │   │   ├── rm-activity.ts            the RM console's activity side: the activity service and the journey simulator
+│   │   │   │   └── rm-copilot.ts             the RM copilot and its own model instance (RM_COPILOT_*)
 │   │   │   ├── ports/                        interfaces only · no imports from adapters/ · index.ts is the barrel, its count tested
 │   │   │   │   ├── bank-data.port.ts · product-shelf.port.ts · session-store.port.ts · snapshot-store.port.ts
 │   │   │   │   ├── audit-store.port.ts · lease-store.port.ts · avatar-provider.port.ts · avatar-rpc-host.port.ts
 │   │   │   │   ├── avatar-tool-webhook.port.ts · language-model.port.ts · declared-profile.port.ts · holdings.port.ts
 │   │   │   │   ├── aa-consent.port.ts · aa-gateway.port.ts · lead-sink.port.ts
+│   │   │   │   ├── rm-desk.port.ts · rm-activity.port.ts   the RM desk (users, sessions, book) and what the RM did
 │   │   │   │   └── clock.port.ts
 │   │   │   ├── application/                  orchestration · imports core, contracts, ports · never adapters or http
 │   │   │   │   ├── advisory.service.ts       view(session): scope → derive → suggestGoal → roadmap → plan → insights · snapshot store
@@ -231,6 +234,7 @@ dhan-sarthi/
 │   │   │   │   ├── consent-scope.ts          strips CustomerFile blocks not in granted scopes
 │   │   │   │   ├── hash.ts                   canonical JSON → sha256 (snapshot input hash, record chain)
 │   │   │   │   ├── errors.ts                 DomainError → NotFound · Conflict · Unavailable · BeyondHorizon · Forbidden
+│   │   │   │   ├── rm/                       the RM console: sign-in · book scope (403/404) · each customer read once at the RM clock, writing nothing · Book, Today, a customer, Insights · product gaps · activity, copilot, simulator
 │   │   │   │   └── avatar/
 │   │   │   │       ├── avatar-session.service.ts   start(session): budget → claim → brief → create → ready → RPC open → consume → grant
 │   │   │   │       ├── lifecycle.ts                state machine: claimed → creating → ready → gated → granted → live → ended|reaped|failed

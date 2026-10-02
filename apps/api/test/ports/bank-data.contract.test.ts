@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
 import { addMonths, derive } from '@dhan/core'
-import { PERSONAS, generateCustomerFile, seedBundles } from '@dhan/fixtures'
+import { ALL_PERSONAS, PERSONAS, generateCustomerFile, seedBundles } from '@dhan/fixtures'
 import { InMemoryBankData } from '../../src/adapters/memory/bank-data.memory.ts'
 import { HISTORY_WINDOW_MONTHS } from '../../src/application/advisory.service.ts'
 import type { BankDataPort } from '../../src/ports/index.ts'
@@ -43,6 +43,23 @@ export function bankDataPortContract(
         assert.ok(c.demonstrates.length > 10)
         assert.ok(c.age > 18 && c.age < 80)
       }
+    })
+
+    it('lists the whole population for the RM book: the picker first, then every other customer by cif', async () => {
+      const population = await port.listPopulation()
+      assert.equal(population.length, ALL_PERSONAS.length)
+      assert.deepEqual(
+        new Set(population.map((c) => c.cif)),
+        new Set(ALL_PERSONAS.map((p) => p.customer.cif)),
+      )
+      // The picker's four lead, in the picker's order; the book customers follow in cif order,
+      // so the order is the source's contract rather than the fixtures file's.
+      assert.deepEqual(
+        population.slice(0, PERSONAS.length).map((c) => c.slug),
+        PERSONAS.map((p) => p.slug),
+      )
+      const rest = population.slice(PERSONAS.length).map((c) => c.cif)
+      assert.deepEqual(rest, [...rest].sort())
     })
 
     it('describes its source, clock and freshness', async () => {

@@ -40,8 +40,17 @@ export interface LoadedCustomerFile {
 }
 
 export interface BankDataPort {
-  /** The picker. Empty under an adapter where the host app names the customer. */
+  /**
+   * The picker: only the customers with a place on it, in that order. Empty under an adapter
+   * where the host app names the customer.
+   */
   listCustomers(): Promise<CustomerSummary[]>
+  /**
+   * Every customer the source holds, picker or not: the population an RM's book is drawn from.
+   * Picker customers first in their order, then the rest by cif, so the order never depends on
+   * insertion. The picker is a demo device; the book is the bank's, and it is bigger.
+   */
+  listPopulation(): Promise<CustomerSummary[]>
   getCustomer(cif: string): Promise<Customer>
   getAccounts(cif: string, asOf: IsoDate): Promise<Account[]>
   getTransactions(cif: string, range: { from: IsoDate; to: IsoDate }): Promise<Transaction[]>

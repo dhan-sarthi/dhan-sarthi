@@ -70,8 +70,11 @@ const SCOPES: ReadonlySet<string> = new Set<ConsentScope>([
 
 /** How long a customer's rows are trusted in process. Long enough to serve a demo, short enough to notice a reseed. */
 const DEFAULT_CACHE_TTL_MS = 60_000
-/** Four personas at a handful of clock positions each; the ledger is ~300 KB a file. */
-const BLOCKS_CACHE_SIZE = 32
+/**
+ * Fifty customers, the four heroes at a handful of clock positions each besides; the ledger is
+ * ~300 KB a file. At 32 the RM book alone evicted every hero on each pass over it.
+ */
+const BLOCKS_CACHE_SIZE = 128
 
 /* ------------------------------------------------------------------ *
  * Rows
@@ -747,22 +750,32 @@ export class PostgresBankData implements BankDataPort {
   }
 
   async listCustomers(): Promise<CustomerSummary[]> {
-    // The picker's order is a column, so it never depends on what a cif or a name sorts to.
+    // The picker's order is a column, so it never depends on what a cif or a name sorts to. A
+    // row with no place is not on the picker: the RM book's customers are seeded with a null.
     const { rows } = await this.db.query<CustomerRow>(
-      `${CUSTOMER_SQL} ORDER BY c.display_order NULLS LAST, c.created_at, c.cif`,
+      `${CUSTOMER_SQL} AND c.display_order IS NOT NULL ORDER BY c.display_order, c.created_at, c.cif`,
     )
-    return rows.map((r) => {
-      const anchor = r.ledger_anchor ?? this.dataFreshnessDate
-      return {
-        cif: r.cif,
-        slug: r.persona_slug ?? r.cust_id,
-        name: r.cust_name ?? r.display_name,
-        age: r.date_of_birth ? ageOn(r.date_of_birth, anchor) : (r.age ?? 0),
-        city: r.city ?? '',
-        pitch: r.pitch ?? '',
-        demonstrates: r.demonstrates ?? '',
-      }
-    })
+    return rows.map((r) => this.summaryOf(r))
+  }
+
+  async listPopulation(): Promise<CustomerSummary[]> {
+    const { rows } = await this.db.query<CustomerRow>(
+      `${CUSTOMER_SQL} ORDER BY c.display_order NULLS LAST, c.cif`,
+    )
+    return rows.map((r) => this.summaryOf(r))
+  }
+
+  private summaryOf(r: CustomerRow): CustomerSummary {
+    const anchor = r.ledger_anchor ?? this.dataFreshnessDate
+    return {
+      cif: r.cif,
+      slug: r.persona_slug ?? r.cust_id,
+      name: r.cust_name ?? r.display_name,
+      age: r.date_of_birth ? ageOn(r.date_of_birth, anchor) : (r.age ?? 0),
+      city: r.city ?? '',
+      pitch: r.pitch ?? '',
+      demonstrates: r.demonstrates ?? '',
+    }
   }
 
   async getCustomer(cif: string): Promise<Customer> {

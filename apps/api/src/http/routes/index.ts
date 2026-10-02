@@ -21,6 +21,9 @@ import { sessionsRoutes } from './sessions.ts'
 import { consentAaRoutes } from './consent-aa.ts'
 import { holdingsRoutes } from './holdings.ts'
 import { profileRoutes } from './profile.ts'
+import { rmRoutes } from './rm.ts'
+import { rmActivityRoutes } from './rm-activity.ts'
+import { rmCopilotRoutes } from './rm-copilot.ts'
 import { shelfRoutes } from './shelf.ts'
 import { suitabilityRoutes } from './suitability.ts'
 import { transactionRoutes } from './transactions.ts'
@@ -53,4 +56,7 @@ export function registerAllRoutes(
   rulesRoutes(r, services)
   avatarRoutes(r, services)
   operatorRoutes(r, services)
+  rmRoutes(r, services)
+  rmActivityRoutes(r, services)
+  rmCopilotRoutes(r, services)
 }

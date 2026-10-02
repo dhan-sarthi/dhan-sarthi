@@ -200,7 +200,8 @@ describe('todayKpis', () => {
     assert.deepEqual(
       kpis.map((k) => [k.id, k.value, k.unit, k.delta, k.deltaLabel]),
       [
-        ['book_value', 77_00_000, 'inr', 40_000, 'in balances this month'],
+        // The last point is September's close here, so the change is September's.
+        ['book_value', 77_00_000, 'inr', 40_000, 'in balances in September'],
         ['sip_book', 30_000, 'inr', null, '2 of 4 customers investing monthly'],
         ['goals_on_track', 50, 'pct', null, '2 of 4 customers'],
         ['open_handoffs', 3, 'count', null, 'oldest waiting 9 days'],

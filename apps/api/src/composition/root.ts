@@ -54,6 +54,8 @@ import type {
   LeaseStore,
   LanguageModelPort,
   ProductShelfPort,
+  RmActivityPort,
+  RmDeskPort,
   SessionStore,
   SnapshotStore,
 } from '../ports/index.ts'
@@ -66,6 +68,12 @@ import type { HoldingsStore } from '../ports/holdings.port.ts'
 import { AaConsentService } from '../application/aa-consent.service.ts'
 import { InMemoryAaConsents } from '../adapters/memory/aa-consent.memory.ts'
 import { unavailableAaGateway } from '../application/aa-unavailable.ts'
+import { RmAccessLog } from '../application/rm/access-log.ts'
+import { RmBookScope } from '../application/rm/book-scope.ts'
+import { RmBookService } from '../application/rm/book.service.ts'
+import { RmConsoleService } from '../application/rm/console.service.ts'
+import { RmAuthService } from '../application/rm/rm-auth.service.ts'
+import type { ActivitySimulator } from '../application/rm/simulator.ts'
 import {
   avatarAdapters,
   bankAdapters,
@@ -73,6 +81,8 @@ import {
   languageModel,
   resolveProfile,
 } from './profiles.ts'
+import { wireRmActivity } from './rm-activity.ts'
+import { copilotModel, wireRmCopilot } from './rm-copilot.ts'
 
 /**
  * The redirect URL IDBI's sandbox will accept, which is not ours to choose.
@@ -118,6 +128,15 @@ export interface Deps {
   /** The text tier's phrasing. Null-implemented with no key; `/ask` answers either way. */
   model: LanguageModelPort
   seed: SeedInfo
+  /** The RM desk: users, their sessions, the book assignment. */
+  rmDesk: RmDeskPort
+  /** What the RM did: notes, handoff status changes, the access log. */
+  rmActivity: RmActivityPort
+  /**
+   * The RM copilot's phrasing: a second model instance with its own breaker and limits, so the
+   * console can never trip the customer's. Null-implemented with no key.
+   */
+  copilotModel: LanguageModelPort
 }
 
 export interface RootOptions {
@@ -136,6 +155,12 @@ export interface Root {
   app: FastifyInstance
   deps: Deps
   services: AppServices
+  /**
+   * The RM console's background work, for a test to await: the book's warm-up
+   * (`book.warmed()`) and the journey simulator (`simulator.ready()`). Neither is a route
+   * concern, so neither is on `services`.
+   */
+  rm: { book: RmBookService; simulator: ActivitySimulator }
   taskId: string
   close(): Promise<void>
 }
@@ -186,6 +211,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     ...bankAdapters(profile, config, clock, versions, log),
     ...avatarAdapters(profile, config, log),
     model: languageModel(config, log),
+    copilotModel: copilotModel(config, log),
     clock,
     ...options.deps,
   }
@@ -372,6 +398,58 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     redirectUrl: config.AA_REDIRECT_URL ?? SANDBOX_REDIRECT_URL,
   })
 
+  /*
+   * The RM console. Read-only over the customer side: the book derives each customer from the
+   * bank at the RM clock and holds no session, snapshot or audit store, so opening a book leaves
+   * no row in any customer's record. What the RM does is written to the desk's own stores. The
+   * activity and copilot sides are wired in their own composition files, which their owners
+   * edit; this root only calls them.
+   */
+  const rmAuth = new RmAuthService({ desk: deps.rmDesk, clock })
+  const rmScope = new RmBookScope({ desk: deps.rmDesk, bank: deps.bank })
+  const rmBook = new RmBookService({
+    bank: deps.bank,
+    shelf: deps.shelf,
+    desk: deps.rmDesk,
+    asOf: config.SEED_ANCHOR,
+    log,
+  })
+  const rmAccessLog = new RmAccessLog({ activity: deps.rmActivity })
+  const rmActivity = wireRmActivity({
+    config,
+    log,
+    clock,
+    ports: {
+      bank: deps.bank,
+      shelf: deps.shelf,
+      sessions: deps.sessions,
+      snapshots: deps.snapshots,
+      audit: deps.audit,
+      desk: deps.rmDesk,
+      activity: deps.rmActivity,
+    },
+    services: { sessions, advisory, decisions, conversation, history, records },
+    rm: { scope: rmScope, book: rmBook, accessLog: rmAccessLog },
+  })
+  const rmCopilot = wireRmCopilot({
+    config,
+    log,
+    clock,
+    model: deps.copilotModel,
+    shelf: deps.shelf,
+    book: rmBook,
+    activity: rmActivity.activity,
+    accessLog: rmAccessLog,
+  })
+  const rmConsole = new RmConsoleService({
+    auth: rmAuth,
+    scope: rmScope,
+    book: rmBook,
+    activity: rmActivity.activity,
+    accessLog: rmAccessLog,
+    copilot: rmCopilot,
+  })
+
   const services: AppServices = {
     history,
     ledger,
@@ -391,6 +469,12 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     avatarTools: deps.toolWebhook,
     health,
     openapi: buildOpenApi({ version: versions.api }),
+    rmAuth,
+    rmScope,
+    rmBook,
+    rmConsole,
+    rmActivity: rmActivity.activity,
+    rmCopilot,
   }
 
   /* The app ------------------------------------------------------------------- */
@@ -398,7 +482,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
   registerAllRoutes(
     app,
     {
-      auth: makeAuthenticator({ sessions, operatorKey: config.OPERATOR_KEY }),
+      auth: makeAuthenticator({ sessions, rm: rmAuth, operatorKey: config.OPERATOR_KEY }),
       sessions: deps.sessions,
       clock,
       rateLimits: options.rateLimits ?? config.NODE_ENV !== 'test',
@@ -409,6 +493,12 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     },
     services,
   )
+
+  // The book's customers, derived before the first RM asks, and their journeys laid down.
+  // Neither is awaited: boot does not wait on six seconds of `derive`, and a Book page that
+  // arrives first computes what it needs itself.
+  if (config.RM_WARM) rmBook.startWarm()
+  rmActivity.start()
 
   // Learn every account's balance before the first customer asks, so an empty account is
   // skipped rather than tried. Unbilled, and never awaited: boot does not wait on a provider.
@@ -439,6 +529,8 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
 
   app.addHook('onClose', async () => {
     if (reaperTimer) clearInterval(reaperTimer)
+    rmBook.stop()
+    rmActivity.stop()
     await avatar.shutdown()
   })
 
@@ -456,6 +548,7 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     app,
     deps,
     services,
+    rm: { book: rmBook, simulator: rmActivity.simulator },
     taskId,
     close: () => app.close(),
   }

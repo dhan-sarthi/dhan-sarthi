@@ -8,6 +8,7 @@ import {
   firstName,
   initials,
   monthLabel,
+  monthName,
   plural,
   rupees,
   rupeesShort,
@@ -71,6 +72,8 @@ describe('names and dates', () => {
     assert.equal(shortDate('2027-01-05', '2026-09-01'), '5 Jan 2027')
     assert.equal(monthLabel('2026-09'), 'Sep 2026')
     assert.equal(monthLabel('2025-10-31'), 'Oct 2025')
+    assert.equal(monthName('2026-08'), 'August')
+    assert.equal(monthName('2025-12-31'), 'December')
   })
 
   it('pluralises a count', () => {
