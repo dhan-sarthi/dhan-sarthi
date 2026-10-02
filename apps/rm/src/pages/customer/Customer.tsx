@@ -1,8 +1,9 @@
 import { FileQuestion, Lock } from 'lucide-react'
 import { useState } from 'react'
-import { Link, Outlet } from 'react-router'
+import { Link, Outlet, useLocation } from 'react-router'
 import { isApiError } from '../../api/client.ts'
 import { CopilotPanel } from '../../features/copilot/index.tsx'
+import { CUSTOMER_TABS, useDocumentTitle } from '../../shell/title.ts'
 import { Button, EmptyState, ErrorState, LinkTabs, LoadingRegion } from '../../ui/index.ts'
 import { firstName, useCustomerFile, type FileContext } from './customer-file.ts'
 import { CustomerHeader, HeaderSkeleton, Highlights } from './CustomerHeader.tsx'
@@ -24,6 +25,10 @@ export function Customer() {
   const request = useOpenRequest(cif, query.data?.asOf)
   const base = `/customers/${encodeURIComponent(cif)}`
   const context: FileContext = { request, logCall: () => setNote('call') }
+  const { pathname } = useLocation()
+  // The segment after the CIF names the tab ('' is Overview): "Vikram Nair · Money · RM Desk".
+  const tab = CUSTOMER_TABS[pathname.split('/')[3] ?? ''] ?? 'Overview'
+  useDocumentTitle(query.data ? `${query.data.profile.name} · ${tab}` : null)
 
   if (query.isError)
     return (
@@ -39,7 +44,8 @@ export function Customer() {
   const tabs = (
     <LinkTabs
       label="Customer file"
-      className="mb-4"
+      // Five tabs fit a 320px phone (400% zoom) only with the gaps a step tighter.
+      className="mb-4 max-tablet:gap-4"
       tabs={[
         { to: base, label: 'Overview', end: true },
         { to: `${base}/journey`, label: 'Journey' },
@@ -67,11 +73,18 @@ export function Customer() {
         </LoadingRegion>
       )}
       {tabs}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18.75rem] min-[87.5rem]:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0">
-          <Outlet context={context} />
+      {/* The tab and the profile rail side by side once the page column has room for both
+          (61rem, which a 1280 window leaves beside the sidebar), stacked below that. Keyed to the
+          column rather than the window, so the sidebar's and the rail's own widths count. */}
+      <div className="@container/file">
+        <div className="grid grid-cols-1 items-start gap-6 @min-[61rem]/file:grid-cols-[minmax(0,1fr)_18.75rem] @min-[69rem]/file:grid-cols-[minmax(0,1fr)_20rem]">
+          {/* The tab's own column is a container too: a tab lays its grids out by the room it
+              has, which the rail beside it and the shell around it both take from. */}
+          <div className="@container/tab min-w-0">
+            <Outlet context={context} />
+          </div>
+          {customer ? <ProfileRail customer={customer} /> : <RailSkeleton />}
         </div>
-        {customer ? <ProfileRail customer={customer} /> : <RailSkeleton />}
       </div>
       {customer ? (
         <>

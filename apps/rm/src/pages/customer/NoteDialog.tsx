@@ -6,7 +6,8 @@ import {
   PhoneMissed,
   StickyNote,
 } from 'lucide-react'
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { useAddNote, useUpdateHandoff } from '../../api/queries.ts'
 import { cn } from '../../lib/cn.ts'
 import { daysBetween, formatDate } from '../../lib/format.ts'
@@ -19,12 +20,24 @@ import {
   Field,
   Input,
   Textarea,
+  ToggleGroup,
   describeError,
   toast,
+  type ToggleOption,
 } from '../../ui/index.ts'
 import { pronoun, waited, type OpenRequest } from './next-actions.ts'
 
 export type NoteKind = 'call' | 'note'
+
+/**
+ * Call or note, as one two-way switch rather than two forms: the RM who opened "Add note" and
+ * realises it was a call changes one control, not the whole dialog. The journey's composer uses
+ * the same options in the same order.
+ */
+export const KIND_OPTIONS: readonly ToggleOption<NoteKind>[] = [
+  { value: 'call', label: 'Call', icon: <Phone aria-hidden /> },
+  { value: 'note', label: 'Note', icon: <StickyNote aria-hidden /> },
+]
 
 /** How the call went: what a desk logs first, before anything that was said. */
 type Outcome = 'spoke' | 'no_answer' | 'call_back'
@@ -101,6 +114,7 @@ export function NoteDialog({
   const [callBack, setCallBack] = useState(() => addDays(asOf, 2))
   const [closeRequest, setCloseRequest] = useState(true)
   const [tooShort, setTooShort] = useState(false)
+  const noteRef = useRef<HTMLTextAreaElement>(null)
   const open = kind !== null
   const isCall = kind === 'call'
   const body = text.trim()
@@ -118,7 +132,9 @@ export function NoteDialog({
     event.preventDefault()
     if (kind === null) return
     if (kind === 'note' && body.length === 0) {
-      setTooShort(true)
+      // The error renders first, then focus moves to the note, whose aria-describedby reads it.
+      flushSync(() => setTooShort(true))
+      noteRef.current?.focus()
       return
     }
     const entry = kind === 'call' ? callEntry(outcome, name, callBack, body) : body
@@ -168,7 +184,15 @@ export function NoteDialog({
             title={isCall ? 'Log a call' : 'Add a note'}
             description={`It goes on ${name}’s journey and in your access log.`}
           />
-          <KindSwitch value={kind ?? 'note'} onChange={onKindChange} disabled={pending} />
+          <ToggleGroup
+            label="This is"
+            showLabel
+            value={kind ?? 'note'}
+            onChange={onKindChange}
+            options={KIND_OPTIONS}
+            disabled={pending}
+            size="md"
+          />
 
           {isCall ? (
             <div role="group" aria-labelledby={`${id}-outcome`} className="grid gap-1.5">
@@ -188,7 +212,7 @@ export function NoteDialog({
                       disabled={pending}
                       onClick={() => setOutcome(value)}
                       className={cn(
-                        'inline-flex h-control-sm items-center gap-1.5 rounded-full border px-3 text-label transition-colors duration-150',
+                        'inline-flex h-control-sm items-center gap-1.5 rounded-full border px-3 text-label transition-colors duration-feedback',
                         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-45',
                         active
                           ? 'border-brand bg-brand-soft text-brand-deep'
@@ -213,7 +237,7 @@ export function NoteDialog({
                 ) : null}
               </div>
               {outcome === 'call_back' ? (
-                <p className="text-caption font-normal text-ink-faint">
+                <p className="text-caption-plain text-ink-faint">
                   In {Math.max(1, daysBetween(asOf, callBack))} day
                   {Math.max(1, daysBetween(asOf, callBack)) === 1 ? '' : 's'}, from{' '}
                   {formatDate(asOf)}.
@@ -233,6 +257,7 @@ export function NoteDialog({
             {(control) => (
               <Textarea
                 {...control}
+                ref={noteRef}
                 autoFocus={!isCall}
                 rows={isCall ? 3 : 5}
                 maxLength={MAX}
@@ -252,7 +277,7 @@ export function NoteDialog({
 
           {isCall && request ? (
             status ? (
-              <label className="flex items-start gap-2 rounded-md bg-canvas-top px-3 py-2.5 text-label font-normal text-ink-soft">
+              <label className="flex items-start gap-2 rounded-md bg-canvas-top px-3 py-2.5 text-label-plain text-ink-soft">
                 <input
                   type="checkbox"
                   checked={closeRequest}
@@ -269,7 +294,7 @@ export function NoteDialog({
                 </span>
               </label>
             ) : (
-              <p className="rounded-md bg-canvas-top px-3 py-2.5 text-caption font-normal text-ink-soft">
+              <p className="rounded-md bg-canvas-top px-3 py-2.5 text-caption-plain text-ink-soft">
                 {name}’s request stays open: {who} asked {waited(request.waitingDays)} and is still
                 waiting for a conversation.
               </p>
@@ -279,7 +304,7 @@ export function NoteDialog({
           {save.isError ? (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-md bg-danger-soft px-3 py-2.5 text-label font-normal text-danger"
+              className="flex items-start gap-2 rounded-md bg-danger-soft px-3 py-2.5 text-label-plain text-danger"
             >
               <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
               <p>It was not saved. {describeError(save.error)} Your text is still here.</p>
@@ -296,54 +321,5 @@ export function NoteDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * Call or note, as a two-way switch rather than two forms: the RM who opened "Add note" and
- * realises it was a call changes one control, not the whole dialog.
- */
-function KindSwitch({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: NoteKind
-  onChange: (kind: NoteKind) => void
-  disabled: boolean
-}) {
-  const id = useId()
-  const options: { kind: NoteKind; label: string; icon: typeof Phone }[] = [
-    { kind: 'call', label: 'A call', icon: Phone },
-    { kind: 'note', label: 'A note', icon: StickyNote },
-  ]
-  return (
-    <div role="group" aria-labelledby={`${id}-label`} className="flex items-center gap-3">
-      <span id={`${id}-label`} className="text-label text-ink">
-        This is
-      </span>
-      <div className="inline-flex w-fit rounded-md bg-ground-deep p-0.5">
-        {options.map(({ kind, label, icon: Icon }) => {
-          const active = value === kind
-          return (
-            <button
-              key={kind}
-              type="button"
-              aria-pressed={active}
-              disabled={disabled}
-              onClick={() => onChange(kind)}
-              className={cn(
-                'inline-flex h-control-sm items-center gap-1.5 rounded-sm px-3 text-label transition-colors duration-150',
-                'focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-45',
-                active ? 'bg-surface text-ink shadow-raised' : 'text-ink-soft hover:text-ink',
-              )}
-            >
-              <Icon aria-hidden className="size-3.5" />
-              {label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
   )
 }

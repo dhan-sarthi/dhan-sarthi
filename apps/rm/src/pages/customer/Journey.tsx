@@ -209,11 +209,11 @@ function FilterChip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'inline-flex h-control-sm items-center gap-1.5 rounded-sm border px-2.5 text-caption transition-colors duration-150',
+        'inline-flex h-control-sm items-center gap-1.5 rounded-sm border px-2.5 text-caption transition-colors duration-feedback',
         'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus',
         active
-          ? 'border-brand/30 bg-brand-wash text-ink'
-          : 'border-hairline bg-surface text-ink-soft hover:border-ink-hint/40 hover:text-ink',
+          ? 'border-selected-edge bg-brand-wash text-ink'
+          : 'border-hairline bg-surface text-ink-soft hover:border-hover-edge hover:text-ink',
       )}
     >
       {Icon ? <Icon aria-hidden className="size-3.5" /> : null}

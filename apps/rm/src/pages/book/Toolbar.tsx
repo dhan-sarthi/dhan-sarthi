@@ -46,10 +46,11 @@ export function Toolbar({
   const filtered = shown !== of
 
   // The toolbar measures its own width, not the window's: beside the preview rail it has less
-  // room, and the count and the "Sort by" words give way before the controls do.
+  // room, and the count and the "Sort by" words give way before the controls do. Where even the
+  // two controls do not fit side by side (a phone), the sort drops under the search.
   return (
     <div className="@container">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Input
           ref={input}
           type="text"
@@ -67,7 +68,7 @@ export function Toolbar({
             if (query !== '') onQuery('')
             else e.currentTarget.blur()
           }}
-          className="min-w-44 flex-1 @3xl:max-w-sm"
+          className="min-w-0 flex-[1_1_14rem] @3xl:max-w-sm"
           leading={<Search aria-hidden />}
           trailing={
             query !== '' ? (
@@ -89,7 +90,7 @@ export function Toolbar({
           }
         />
         <p
-          className="sr-only text-label font-normal whitespace-nowrap text-ink-faint tabular @2xl:not-sr-only"
+          className="sr-only text-label-plain whitespace-nowrap text-ink-faint tabular @2xl:not-sr-only"
           aria-live="polite"
         >
           {filtered ? (
@@ -104,7 +105,7 @@ export function Toolbar({
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <label
             htmlFor="book-sort"
-            className="sr-only mr-1 text-label font-normal whitespace-nowrap text-ink-faint @3xl:not-sr-only"
+            className="sr-only mr-1 text-label-plain whitespace-nowrap text-ink-faint @3xl:not-sr-only"
           >
             Sort by
           </label>

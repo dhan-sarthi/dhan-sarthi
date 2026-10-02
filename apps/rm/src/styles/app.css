@@ -31,6 +31,9 @@
     color: var(--color-brand-deep);
   }
 
+  /* Solid brand, 2px, 2px clear of the control: 5.5:1 or more on every surface the console
+     paints, and it still reads around the green primary button. An inset ring (a table row, a
+     tab) is `outline-offset-[-2px]`, spelled that one way everywhere. */
   :focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
@@ -110,6 +113,16 @@
     opacity: 0;
   }
 }
+@keyframes rm-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes rm-drawer-out {
+  to {
+    transform: translateX(-100%);
+  }
+}
 @keyframes rm-shimmer {
   from {
     background-position: 200% 0;
@@ -145,6 +158,47 @@
   }
   &[data-state='closed'] {
     animation: rm-sheet-out var(--duration-state) var(--ease-in);
+  }
+}
+
+/* The navigation drawer on a narrow screen: in from the left edge, out the same way. */
+@utility animate-drawer {
+  &[data-state='open'] {
+    animation: rm-drawer-in var(--duration-move) var(--ease-out);
+  }
+  &[data-state='closed'] {
+    animation: rm-drawer-out var(--duration-state) var(--ease-in);
+  }
+}
+
+/*
+ * A 44px hit area around a control drawn smaller, for a finger: `pointer-coarse:hit-target`. The
+ * area is invisible and the control keeps its size, so a touch tablet gets comfortable targets
+ * without the mouse layout changing. The control must be positioned (relative or absolute).
+ */
+@utility hit-target {
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, var(--spacing-target));
+    height: max(100%, var(--spacing-target));
+    translate: -50% -50%;
+  }
+}
+
+/*
+ * A dialog taller than the window scrolls inside, under its sticky footer (`ui/Dialog.tsx`). Where
+ * the browser can tell that there is more to scroll, a hairline marks the footer's top edge, so the
+ * clipped field reads as continuing, not cut; elsewhere the footer is as it always was.
+ */
+@utility dialog-scroll {
+  container-type: scroll-state;
+}
+@container scroll-state(scrollable: bottom) {
+  .dialog-footer {
+    box-shadow: 0 -1px 0 var(--color-hairline);
   }
 }
 

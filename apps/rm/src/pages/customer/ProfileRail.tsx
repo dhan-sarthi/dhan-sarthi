@@ -8,13 +8,24 @@ import {
   Card,
   CardDivider,
   Chip,
+  MaskedField,
   Money,
   PropertyList,
   SectionLabel,
   Skeleton,
 } from '../../ui/index.ts'
 import { languageName, plural, type CustomerFile } from './customer-file.ts'
-import { RevealField } from './RevealField.tsx'
+
+/**
+ * The reasons an RM gives for unmasking a date of birth, most often first. A fixed list keeps the
+ * access log readable (the same purpose is the same words on every entry) and makes the common
+ * case two keystrokes; "Other" still takes the RM's own words for anything the list misses.
+ */
+const REVEAL_REASONS = [
+  'Verifying identity before a call',
+  'Customer asked for it',
+  'KYC update',
+] as const
 
 /**
  * The typed attributes beside every tab, after Attio's record rail: who the customer is, whether
@@ -39,9 +50,11 @@ export function ProfileRail({ customer }: { customer: CustomerFile }) {
             {
               label: 'Date of birth',
               value: (
-                <RevealField
+                <MaskedField
                   label="Date of birth"
                   masked={profile.dateOfBirthMasked}
+                  reasons={REVEAL_REASONS}
+                  layout="inline"
                   onReveal={async (reason) => {
                     const reply = await reveal.mutateAsync({ field: 'dateOfBirth', reason })
                     return /^\d{4}-\d{2}-\d{2}$/.test(reply.value)
@@ -58,7 +71,7 @@ export function ProfileRail({ customer }: { customer: CustomerFile }) {
               value: (
                 <span>
                   {profile.maritalStatus}
-                  <span className="block text-caption font-normal text-ink-faint">
+                  <span className="block text-caption-plain text-ink-faint">
                     {profile.dependents > 0
                       ? plural(profile.dependents, 'dependent')
                       : 'No dependents'}
@@ -72,7 +85,7 @@ export function ProfileRail({ customer }: { customer: CustomerFile }) {
               value: (
                 <span>
                   <Money value={income.monthly} /> a month
-                  <span className="block text-caption font-normal text-ink-faint">
+                  <span className="block text-caption-plain text-ink-faint">
                     {income.stability === 'regular' ? 'Regular' : 'Variable'}
                     {income.payDay !== null ? `, paid on day ${income.payDay}` : ''}
                   </span>
@@ -87,7 +100,7 @@ export function ProfileRail({ customer }: { customer: CustomerFile }) {
                 <span>
                   {formatDate(profile.customerSince)}
                   {tenure > 0 ? (
-                    <span className="block text-caption font-normal text-ink-faint">
+                    <span className="block text-caption-plain text-ink-faint">
                       {formatDuration(tenure)}
                     </span>
                   ) : null}
@@ -135,10 +148,10 @@ function AssignedRm({ assigned }: { assigned: CustomerFile['profile']['assignedR
         <Avatar name={assigned.name} initials={assigned.initials} size="md" tone="brand" />
         <div className="min-w-0">
           <p className="truncate text-label text-ink">{assigned.name}</p>
-          <p className="text-caption font-normal text-ink-faint">
+          <p className="text-caption-plain text-ink-faint">
             {assigned.desk}, {assigned.city}
           </p>
-          <p className="text-caption font-normal text-ink-faint">
+          <p className="text-caption-plain text-ink-faint">
             Employee no. <span className="tabular">{assigned.employeeNo}</span>
           </p>
         </div>
@@ -163,7 +176,7 @@ function KycStatus({ status }: { status: string }) {
         {status}
       </Chip>
       {verified ? null : (
-        <span className="text-caption font-normal text-ink-faint">As the bank records it</span>
+        <span className="text-caption-plain text-ink-faint">As the bank records it</span>
       )}
     </div>
   )
@@ -195,7 +208,7 @@ function ConsentBlock({ consent }: { consent: Customer360Consent }) {
         )}
       </div>
       {consent.scopes.length === 0 ? (
-        <p className="text-caption font-normal text-ink-soft">
+        <p className="text-caption-plain text-ink-soft">
           The bank holds no consent for this customer, so only IDBI&rsquo;s own records are shown.
         </p>
       ) : (
@@ -226,7 +239,7 @@ function ConsentBlock({ consent }: { consent: Customer360Consent }) {
                   <span className="sr-only">{scope.active ? ', shared' : ', not shared'}</span>
                 </p>
                 {!scope.active ? (
-                  <p className="text-caption font-normal text-ink-soft">
+                  <p className="text-caption-plain text-ink-soft">
                     {scope.reason ?? 'Not shared. No reason was recorded.'}
                   </p>
                 ) : null}

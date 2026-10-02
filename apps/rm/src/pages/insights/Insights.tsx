@@ -1,6 +1,6 @@
 import type { RmInsights } from '@dhan/contracts'
 import { Users } from 'lucide-react'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useInsights } from '../../api/queries.ts'
 import { formatCount } from '../../lib/format.ts'
 import { settle } from '../../lib/motion.ts'
@@ -66,6 +66,7 @@ function InsightsView({ insights }: { insights: RmInsights }) {
         <Card>
           <EmptyState
             size="page"
+            titleAs="h2"
             icon={<Users />}
             title="No customers in your book yet"
             body="Once customers are assigned to you, their balances, plans and signals are charted here over twelve months."
@@ -87,19 +88,23 @@ function InsightsView({ insights }: { insights: RmInsights }) {
           </>
         }
       />
-      <motion.div {...settle} className="grid gap-6">
+      {/* One column named `minmax(0, 1fr)`: an implicit `auto` track grows to its widest
+          unbreakable row, which pushed the twelve-month card past the page on a tablet. The
+          two ranked cards sit side by side once the page is about 900px wide, measured against
+          the page rather than the window. */}
+      <m.div {...settle} className="@container grid grid-cols-1 gap-6">
         <TrendBand insights={insights} />
         <TopMovers insights={insights} />
         <Composition insights={insights} />
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-7">
+        <div className="grid grid-cols-1 gap-6 @4xl:grid-cols-12">
+          <div className="min-w-0 @4xl:col-span-7">
             <SignalsByKind insights={insights} />
           </div>
-          <div className="xl:col-span-5">
+          <div className="min-w-0 @4xl:col-span-5">
             <RefusalsByRule insights={insights} />
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </>
   )
 }

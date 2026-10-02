@@ -74,7 +74,7 @@ export function IntactSummary({
           {formatCount(shown)} of {formatCount(checked)}
         </span>{' '}
         {records} intact
-        <span className="text-on-brand/75">
+        <span className="text-on-brand-muted">
           {' '}
           · not one word changed · <span className="tabular">{clockTime(checkedAt)}</span>
         </span>
@@ -85,7 +85,7 @@ export function IntactSummary({
       >
         <div className="h-full rounded-full bg-on-brand" style={{ width: `${pct}%` }} />
       </div>
-      <p className="mt-2 max-w-[72ch] text-label font-normal text-pretty text-on-brand/80">
+      <p className="mt-2 max-w-[72ch] text-label-plain text-pretty text-on-brand-muted">
         Every hash {scope} recomputed to the value it was written with. One changed word anywhere
         would have broken it.
       </p>

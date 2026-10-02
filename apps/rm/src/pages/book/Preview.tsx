@@ -14,7 +14,6 @@ import {
 } from '../../lib/format.ts'
 import {
   AllocationBar,
-  AreaChart,
   Button,
   DeltaPill,
   HealthDot,
@@ -25,14 +24,14 @@ import {
   SectionLabel,
   SegmentBadge,
   SeverityChip,
+  SeverityMark,
   SideRail,
   StrengthBadge,
 } from '../../ui/index.ts'
 import { LogCall } from '../today/LogCall.tsx'
-import { SEGMENT_TINT } from './columns.tsx'
+import { LazyAreaChart } from './LazyAreaChart.tsx'
 import { ASKED_FOR_YOU } from './rows.ts'
 import { SeriesKey } from './SeriesKey.tsx'
-import { SeverityMark } from './SeverityMark.tsx'
 
 /** Month-ends in the "last three months" change: May, Jun, Jul and Aug for an August book. */
 const WINDOW_POINTS = 4
@@ -108,7 +107,6 @@ export function Preview({
         </>
       }
       onClose={onClose}
-      stickyTop={72}
     >
       {row.openHandoff || logging ? (
         <CallContext
@@ -126,13 +124,13 @@ export function Preview({
       <section aria-label="Relationship value">
         <div className="flex items-center justify-between gap-3">
           <p className="text-label text-ink-soft">Relationship value</p>
-          <SegmentBadge segment={row.segment} className={SEGMENT_TINT[row.segment]} />
+          <SegmentBadge segment={row.segment} variant="quiet" />
         </div>
         <Money value={row.relationshipValue} short className="mt-1 block text-display text-ink" />
-        <p className="mt-0.5 text-caption font-normal text-ink-hint">
+        <p className="mt-0.5 text-caption-plain text-ink-faint">
           <span className="tabular">{formatInr(row.relationshipValue)}</span> · {basis.asOfLabel}
         </p>
-        <p className="mt-1.5 text-label font-normal text-ink-faint">
+        <p className="mt-1.5 text-label-plain text-ink-faint">
           <Money value={row.withIdbi} short className="text-ink" /> with IDBI
           {row.walletSharePct !== null
             ? ` · ${formatPct(Math.round(row.walletSharePct))} of balances`
@@ -151,7 +149,7 @@ export function Preview({
           <p className="min-w-0 truncate text-label text-ink">{row.goal.label}</p>
           <HealthDot health={row.goal.health} className="text-ink" />
         </div>
-        <p className="mt-0.5 text-caption font-normal text-ink-faint">
+        <p className="mt-0.5 text-caption-plain text-ink-faint">
           <Money value={row.goal.targetAmount} short className="text-ink-soft" /> by{' '}
           {formatMonth(row.goal.targetDate)}
           {row.goal.amountBasis === 'today' ? ', in today’s money' : ''}
@@ -162,26 +160,26 @@ export function Preview({
 
       <Section title="Relationship">
         <StrengthBadge strength={row.strength} />
-        <p className="mt-1 text-caption font-normal text-ink-soft">{row.strength.reason}</p>
+        <p className="mt-1 text-caption-plain text-ink-soft">{row.strength.reason}</p>
         {row.attrition.flagged ? (
-          <p className="mt-2 text-caption font-normal text-danger">
+          <p className="mt-2 text-caption-plain text-danger">
             On attrition watch: {row.attrition.reasons.join(' · ')}
           </p>
         ) : null}
       </Section>
 
       <Section title="Products">
-        <p className="text-caption font-normal text-ink-faint">Held with IDBI</p>
+        <p className="text-caption-plain text-ink-faint">Held with IDBI</p>
         {row.products.idbi.length > 0 ? (
           <ProductList items={row.products.idbi} held />
         ) : (
-          <p className="mt-1 text-label font-normal text-ink-soft">Nothing yet</p>
+          <p className="mt-1 text-label-plain text-ink-soft">Nothing yet</p>
         )}
-        <p className="mt-3 text-caption font-normal text-ink-faint">Gaps the rules would allow</p>
+        <p className="mt-3 text-caption-plain text-ink-faint">Gaps the rules would allow</p>
         {row.products.gaps.length > 0 ? (
           <ProductList items={row.products.gaps} />
         ) : (
-          <p className="mt-1 text-label font-normal text-ink-soft">
+          <p className="mt-1 text-label-plain text-ink-soft">
             None the rules would put to this customer today
           </p>
         )}
@@ -229,7 +227,7 @@ export function Preview({
         />
       </Section>
 
-      <p className="flex flex-wrap items-center gap-1.5 border-t border-hairline-soft pt-4 text-caption font-normal text-ink-faint">
+      <p className="flex flex-wrap items-center gap-1.5 border-t border-hairline-soft pt-4 text-caption-plain text-ink-faint">
         <Kbd>↑</Kbd>
         <Kbd>↓</Kbd>
         <span className="mr-2">move the preview</span>
@@ -288,7 +286,7 @@ function CallBody({
               {ASKED_FOR_YOU}
               {handoff ? ` · ${waitingFor(handoff.waitingDays)}` : ''}
             </p>
-            <p className="mt-0.5 text-caption font-normal">
+            <p className="mt-0.5 text-caption-plain">
               {handoff
                 ? `Tapped Talk to your relationship manager on ${formatDate(handoff.requestedOn, { year: false })}: ${handoff.reason}`
                 : 'Tapped Talk to your relationship manager, and is waiting on a call.'}
@@ -355,11 +353,11 @@ function Balances({ row, basis }: { row: BookRow; basis: FigureBasis }) {
     >
       {series.length > 1 && first && last ? (
         <>
-          <p className="text-caption font-normal text-ink-faint">
+          <p className="text-caption-plain text-ink-faint">
             <Money value={last.total} short className="text-label text-ink" /> at every bank ·{' '}
             {basis.lastMonthEndLabel}
           </p>
-          <AreaChart
+          <LazyAreaChart
             data={series.map((p) => ({ month: p.month, total: p.total, withIdbi: p.withIdbi }))}
             x="month"
             series={[
@@ -374,11 +372,11 @@ function Balances({ row, basis }: { row: BookRow; basis: FigureBasis }) {
             label={`${row.name}'s balances, ${basis.seriesLabel}`}
           />
           <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <p className="text-caption font-normal text-ink-hint">{basis.seriesLabel}</p>
+            <p className="text-caption-plain text-ink-faint">{basis.seriesLabel}</p>
             {showIdbi ? <SeriesKey /> : null}
           </div>
           {change3m !== null && windowStart && series.length >= WINDOW_POINTS ? (
-            <p className="mt-2 text-caption font-normal text-ink-soft">
+            <p className="mt-2 text-caption-plain text-ink-soft">
               {change3m === 0
                 ? 'Flat'
                 : `${change3m > 0 ? 'Up' : 'Down'} ${formatPct(Math.abs(change3m))}`}{' '}
@@ -388,7 +386,7 @@ function Balances({ row, basis }: { row: BookRow; basis: FigureBasis }) {
           ) : null}
         </>
       ) : (
-        <p className="text-label font-normal text-ink-faint">
+        <p className="text-label-plain text-ink-faint">
           Not enough month-ends on record to draw a year of balances.
         </p>
       )}
@@ -413,9 +411,7 @@ function Signals({ row, asOf }: { row: BookRow; asOf: string }) {
                   <SeverityMark severity={signal.severity} className="mt-px" />
                   <div className="min-w-0">
                     <p className="text-label text-ink">{signal.title}</p>
-                    <p className="mt-0.5 text-caption font-normal text-ink-faint">
-                      {signal.detail}
-                    </p>
+                    <p className="mt-0.5 text-caption-plain text-ink-faint">{signal.detail}</p>
                   </div>
                 </li>
               ))}
@@ -423,7 +419,7 @@ function Signals({ row, asOf }: { row: BookRow; asOf: string }) {
           ) : null}
         </div>
       ) : (
-        <p className="text-label font-normal text-ink-faint">
+        <p className="text-label-plain text-ink-faint">
           Nothing to act on. The engine has no signal for this customer as at{' '}
           {formatDate(asOf, { year: false })}.
         </p>
@@ -437,9 +433,9 @@ function TopSignal({ signal }: { signal: Signal }) {
     <div className="grid gap-1.5">
       <SeverityChip severity={signal.severity} className="justify-self-start" />
       <p className="text-heading text-ink">{signal.title}</p>
-      <p className="text-label font-normal text-ink-soft">{signal.detail}</p>
+      <p className="text-label-plain text-ink-soft">{signal.detail}</p>
       {signal.evidence.length > 0 ? (
-        <ul className="mt-1 grid gap-1 text-caption font-normal text-ink-faint">
+        <ul className="mt-1 grid gap-1 text-caption-plain text-ink-faint">
           {signal.evidence.map((line) => (
             <li key={line} className="flex gap-2">
               <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-ink-hint" />
@@ -480,7 +476,7 @@ function ProductList({ items, held = false }: { items: readonly string[]; held?:
   return (
     <ul className="mt-1.5 grid gap-1.5">
       {items.map((item) => (
-        <li key={item} className="flex items-start gap-2 text-label font-normal text-ink">
+        <li key={item} className="flex items-start gap-2 text-label-plain text-ink">
           <span
             aria-hidden
             className={cn(

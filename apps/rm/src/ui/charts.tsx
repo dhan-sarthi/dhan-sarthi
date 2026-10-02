@@ -1,41 +1,41 @@
 import type { Projection } from '@dhan/contracts'
 import { futureValue } from '@dhan/core'
-import { chart } from '@dhan/design'
+import { chart, web } from '@dhan/design'
 import { useId, useMemo, type ReactNode } from 'react'
 import {
   Area,
   AreaChart as RechartsAreaChart,
-  Bar,
-  BarChart as RechartsBarChart,
   CartesianGrid,
-  Cell,
   ComposedChart,
   Line,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
-  type PieLabelRenderProps,
   type TooltipContentProps,
 } from 'recharts'
 import { cn } from '../lib/cn.ts'
 import { formatCount, formatInr, formatMonth, formatPct } from '../lib/format.ts'
 import { distinctLabels, formatInrTick, formatPctTick, niceScale } from '../lib/scale.ts'
-import { DeltaPill } from './DeltaPill.tsx'
+import { ChartTooltipCard } from './ChartTooltipCard.tsx'
 
 /*
- * The chart wrappers. Every chart on the console goes through one of these, so they all share
- * the validated palette (`chart` in tokens.json), the recessive grid, the dark tooltip and the
- * Indian short figures on the axis. One y-axis per chart, always: two measures of different scale
- * are two charts.
+ * The chart wrappers. Every chart on the console goes through the kit: these Recharts wrappers
+ * for a chart with an axis (`AreaChart`, `BandChart`, `ProjectionChart`), the hand-drawn month
+ * tiles for a grid of small ones (`MonthChart.tsx`), and the HTML bars for parts and ranks
+ * (`StackedBar`, `RankedBars`). So they all share the validated palette (`chart` in
+ * tokens.json), the recessive grid, the dark card and the Indian short figures on the axis. One
+ * y-axis per chart, always: two measures of different scale are two charts.
  *
  * The y axis is ours, not the library's: round ticks from `lib/scale.ts`, each labelled with
  * exactly the decimals it needs, so an axis never prints "₹1Cr" twice near a unit boundary.
  *
- * Colour follows the job. A single series is brand green over a low-opacity fill; a comparison
- * series is neutral grey; a bar chart is grey with dark only on the bar that needs attention.
+ * Colour follows the job, and every mark role is 3:1 or more on the white card: a single series
+ * is brand green, a comparison series the `comparison` grey, a band's edges the `bandEdge` green.
+ *
+ * Each chart is one image for a screen reader and one stop at most for a keyboard: the library's
+ * own keyboard layer is off (it added a nameless "application" stop that announced nothing), and
+ * the figure's name carries every value the hover would show.
  */
 
 export type ValueFormat = 'inr' | 'count' | 'pct'
@@ -89,7 +89,8 @@ function valuesOf(data: readonly Datum[], keys: readonly string[]): number[] {
   return out
 }
 
-const AXIS_TICK = { fill: chart.axis, fontSize: 11 } as const
+/** Axis numerals: the `axis` type role, in the chart's axis ink. */
+const AXIS_TICK = { fill: chart.axis, fontSize: web.type.axis.size } as const
 /** Slot 1, the IDBI-led green. tokens.json always has eight slots; the fallback only satisfies the index type. */
 const PRIMARY = chart.categorical[0] ?? chart.axis
 
@@ -106,42 +107,57 @@ function tickLabel(value: unknown): string {
   return /^\d{4}-\d{2}$/.test(s) ? formatMonth(s, { year: false }) : s
 }
 
+/** The same x value with its year, for a sentence: "Sep 2025". */
+function pointLabel(value: unknown): string {
+  const s = String(value)
+  return /^\d{4}-\d{2}$/.test(s) ? formatMonth(s) : s
+}
+
+/**
+ * Everything a hover would show, as words: where the chart's series starts and ends and by how
+ * much it changed, then every point's values. "All banks ₹4.26Cr in Sep 2025 to ₹5.35Cr in Aug
+ * 2026, up 25.6%. Sep 2025: All banks ₹4.26Cr, With IDBI ₹1.2Cr; …"
+ */
+export function describeSeries(
+  data: readonly Datum[],
+  x: string,
+  series: readonly SeriesDef[],
+  format: ValueFormat,
+): string {
+  const at = (d: Datum | undefined, key: string): number | null => {
+    const v = d?.[key]
+    return typeof v === 'number' && Number.isFinite(v) ? v : null
+  }
+  const primary = series.find((s) => s.role !== 'comparison') ?? series[0]
+  const firstPoint = data[0]
+  const lastPoint = data[data.length - 1]
+  let summary = ''
+  if (primary && firstPoint && lastPoint && data.length > 1) {
+    const a = at(firstPoint, primary.key)
+    const b = at(lastPoint, primary.key)
+    if (a !== null && b !== null) {
+      const change =
+        a === 0
+          ? ''
+          : `, ${b >= a ? 'up' : 'down'} ${formatPct(Math.round((Math.abs(b - a) / Math.abs(a)) * 1000) / 10)}`
+      summary = `${primary.label} ${formatValue(a, format)} in ${pointLabel(firstPoint[x])} to ${formatValue(b, format)} in ${pointLabel(lastPoint[x])}${change}. `
+    }
+  }
+  const points = data
+    .map((d) => {
+      const values = series.flatMap((s) => {
+        const v = at(d, s.key)
+        return v === null
+          ? []
+          : [`${series.length > 1 ? `${s.label} ` : ''}${formatValue(v, format)}`]
+      })
+      return `${pointLabel(d[x])}: ${values.join(', ')}`
+    })
+    .join('; ')
+  return `${summary}${points}`
+}
+
 /* ---------------------------------------------------------------- Tooltip */
-
-interface TooltipRow {
-  label: string
-  value: string
-  swatch: string
-}
-
-export function ChartTooltipCard({
-  title,
-  rows,
-}: {
-  title: ReactNode
-  rows: readonly TooltipRow[]
-}) {
-  return (
-    <div className="min-w-40 rounded-md bg-chart-tooltip px-3 py-2 text-caption text-chart-tooltip-text shadow-popover">
-      <p className="mb-1.5 font-semibold">{title}</p>
-      <div className="grid gap-1">
-        {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between gap-5">
-            <span className="inline-flex items-center gap-1.5 text-chart-tooltip-muted">
-              <span
-                aria-hidden
-                className="h-2.5 w-0.5 rounded-full"
-                style={{ background: row.swatch }}
-              />
-              {row.label}
-            </span>
-            <span className="tabular font-semibold">{row.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function tooltipContent(series: readonly SeriesDef[], format: ValueFormat) {
   return function Content(props: TooltipContentProps) {
@@ -170,7 +186,7 @@ export interface SeriesDef {
 
 function colorOf(s: SeriesDef): string {
   if (s.slot !== undefined) return slotColor(s.slot - 1)
-  return s.role === 'comparison' ? chart.neutral['400'] : PRIMARY
+  return s.role === 'comparison' ? chart.comparison : PRIMARY
 }
 
 type Datum = Record<string, string | number | null>
@@ -186,10 +202,14 @@ export interface AreaChartProps {
   height?: number
   /** Hide the y axis in tight spaces; the tooltip still carries every value. */
   yAxis?: boolean
-  /** Start the y axis at zero. Off by default for balances, where zero hides the movement. */
+  /**
+   * Start the y axis at zero, and shade each series down to it. Off by default for balances,
+   * where zero hides the movement; then the series are lines with no fill, because an area shaded
+   * to a floor that is not zero draws a 25% rise as several times that.
+   */
   zeroBased?: boolean
   className?: string
-  /** What the chart shows, for a screen reader. */
+  /** What the chart shows, for a screen reader; every point's values are appended to it. */
   label: string
 }
 
@@ -219,10 +239,18 @@ export function AreaChart({
         : null,
     [data, series, format, zeroBased, yAxis],
   )
+  const described = useMemo(
+    () => describeSeries(data, x, series, format),
+    [data, x, series, format],
+  )
   return (
-    <figure className={cn('w-full', className)} aria-label={label} role="img">
+    <figure className={cn('w-full', className)} aria-label={`${label}. ${described}`} role="img">
       <ResponsiveContainer width="100%" height={height}>
-        <RechartsAreaChart data={data as Datum[]} margin={yAxis ? MARGIN : MARGIN_BARE}>
+        <RechartsAreaChart
+          data={data as Datum[]}
+          margin={yAxis ? MARGIN : MARGIN_BARE}
+          accessibilityLayer={false}
+        >
           <defs>
             {series.map((s) => (
               <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" x2="0" y1="0" y2="1">
@@ -278,7 +306,7 @@ export function AreaChart({
               stroke={colorOf(s)}
               strokeWidth={s.role === 'comparison' ? 1.5 : 2}
               {...(s.role === 'comparison' ? { strokeDasharray: '4 3' } : {})}
-              fill={`url(#${gid}-${s.key})`}
+              fill={zeroBased ? `url(#${gid}-${s.key})` : 'none'}
               dot={false}
               activeDot={{ r: 4, stroke: chart.tooltipText, strokeWidth: 2 }}
               isAnimationActive={false}
@@ -290,288 +318,14 @@ export function AreaChart({
   )
 }
 
-/* ---------------------------------------------------------------- Bar */
-
-export interface BarChartProps {
-  data: readonly Datum[]
-  x: string
-  /** One series: bars are grey, and `highlight` picks the ones drawn in brand green. */
-  y: string
-  yLabel: string
-  highlight?: (datum: Datum, index: number) => boolean
-  format?: ValueFormat
-  height?: number
-  /** Category labels on the left and bars across, for long names (rules, signal kinds). */
-  horizontal?: boolean
-  className?: string
-  label: string
-}
-
-export function BarChart({
-  data,
-  x,
-  y,
-  yLabel,
-  highlight,
-  format = 'count',
-  height = 220,
-  horizontal = false,
-  className,
-  label,
-}: BarChartProps) {
-  const series: SeriesDef[] = [{ key: y, label: yLabel }]
-  const scale = useMemo(
-    () => (horizontal ? null : yScaleFor(valuesOf(data, [y]), format, true)),
-    [data, y, format, horizontal],
-  )
-  return (
-    <figure className={cn('w-full', className)} aria-label={label} role="img">
-      <ResponsiveContainer width="100%" height={height}>
-        <RechartsBarChart
-          data={data as Datum[]}
-          layout={horizontal ? 'vertical' : 'horizontal'}
-          margin={MARGIN}
-          barCategoryGap={horizontal ? 6 : '28%'}
-        >
-          <CartesianGrid vertical={horizontal} horizontal={!horizontal} stroke={chart.grid} />
-          {horizontal ? (
-            <>
-              <XAxis type="number" hide tickFormatter={(v: number) => formatValue(v, format)} />
-              <YAxis
-                type="category"
-                dataKey={x}
-                width={150}
-                tick={{ ...AXIS_TICK, fill: chart.tooltip }}
-                tickLine={false}
-                axisLine={false}
-              />
-            </>
-          ) : (
-            <>
-              <XAxis
-                dataKey={x}
-                tickFormatter={tickLabel}
-                tick={AXIS_TICK}
-                tickLine={false}
-                axisLine={{ stroke: chart.baseline }}
-                dy={6}
-              />
-              <YAxis
-                width={48}
-                tick={AXIS_TICK}
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-                {...(scale
-                  ? {
-                      ticks: scale.ticks,
-                      domain: scale.domain,
-                      interval: 0,
-                      tickFormatter: scale.label,
-                    }
-                  : { tickFormatter: (v: number) => formatValue(v, format) })}
-              />
-            </>
-          )}
-          <RechartsTooltip
-            content={tooltipContent(series, format)}
-            cursor={{ fill: chart.grid }}
-            isAnimationActive={false}
-          />
-          <Bar
-            dataKey={y}
-            name={yLabel}
-            radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
-            maxBarSize={horizontal ? 18 : 32}
-            isAnimationActive={false}
-          >
-            {data.map((d, i) => (
-              <Cell key={i} fill={highlight?.(d, i) ? PRIMARY : chart.neutral['300']} />
-            ))}
-          </Bar>
-        </RechartsBarChart>
-      </ResponsiveContainer>
-    </figure>
-  )
-}
-
-/* ---------------------------------------------------------------- Donut */
-
-export interface DonutSlice {
-  id: string
-  label: string
-  value: number
-}
-
-export interface DonutProps {
-  data: readonly DonutSlice[]
-  /** The figure in the hole: "₹48.2Cr". */
-  centerValue: ReactNode
-  centerLabel: ReactNode
-  format?: ValueFormat
-  size?: number
-  className?: string
-  label: string
-}
-
-/**
- * For top-level allocation only, and always with direct labels: each slice names itself, its
- * figure and its share, so the reader never matches colours to a legend.
- */
-export function Donut({
-  data,
-  centerValue,
-  centerLabel,
-  format = 'inr',
-  size = 240,
-  className,
-  label,
-}: DonutProps) {
-  const total = data.reduce((s, d) => s + d.value, 0)
-
-  function renderLabel(props: PieLabelRenderProps) {
-    const { cx, cy, midAngle, outerRadius, index } = props
-    const slice = data[index ?? 0]
-    if (!slice || total === 0) return null
-    const share = (slice.value / total) * 100
-    if (share < 3) return null
-    const angle = (-(midAngle ?? 0) * Math.PI) / 180
-    const r = Number(outerRadius) + 18
-    const x = Number(cx) + r * Math.cos(angle)
-    const y = Number(cy) + r * Math.sin(angle)
-    const anchor = x > Number(cx) ? 'start' : 'end'
-    return (
-      <g>
-        <text
-          x={x}
-          y={y - 6}
-          textAnchor={anchor}
-          fill={chart.tooltip}
-          fontSize={12}
-          fontWeight={600}
-        >
-          {slice.label}
-        </text>
-        <text x={x} y={y + 9} textAnchor={anchor} fill={chart.axis} fontSize={11}>
-          {formatValue(slice.value, format)} · {formatPct(Math.round(share))}
-        </text>
-      </g>
-    )
-  }
-
-  return (
-    <figure
-      className={cn('relative mx-auto', className)}
-      style={{ width: size + 220, height: size }}
-      role="img"
-      aria-label={label}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data as DonutSlice[]}
-            dataKey="value"
-            nameKey="label"
-            innerRadius={size * 0.3}
-            outerRadius={size * 0.42}
-            paddingAngle={1.5}
-            stroke={chart.tooltipText}
-            strokeWidth={2}
-            startAngle={90}
-            endAngle={-270}
-            label={renderLabel}
-            labelLine={{ stroke: chart.baseline }}
-            isAnimationActive={false}
-          >
-            {data.map((d, i) => (
-              <Cell key={d.id} fill={slotColor(i)} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-title tabular text-ink">{centerValue}</span>
-        <span className="text-caption text-ink-faint">{centerLabel}</span>
-      </div>
-    </figure>
-  )
-}
-
-/* ---------------------------------------------------------------- Small multiple */
-
-export interface SmallMultipleProps {
-  title: string
-  /** The latest value, drawn large beside the title. */
-  value: number
-  format?: ValueFormat
-  /**
-   * Change over the window. Left out, it is worked out from the series itself: percentage points
-   * for a `pct` series, a percentage change for anything else. `null` hides the pill.
-   */
-  delta?: number | null
-  /** For series where down is good. */
-  invert?: boolean
-  months: readonly string[]
-  values: readonly number[]
-  className?: string
-}
-
-/**
- * One tile in a grid of charts that share an x axis: titled with its current value and change,
- * one low-opacity green fill, first and last month labelled. Read together, the tiles show which
- * part of the book moved without one crowded chart.
- */
-export function SmallMultiple({
-  title,
-  value,
-  format = 'inr',
-  delta,
-  invert = false,
-  months,
-  values,
-  className,
-}: SmallMultipleProps) {
-  const data = months.map((m, i) => ({ month: m, v: values[i] ?? null }))
-  const first = values[0]
-  const last = values[values.length - 1]
-  const derived =
-    first === undefined || last === undefined
-      ? null
-      : format === 'pct'
-        ? last - first
-        : first === 0
-          ? null
-          : ((last - first) / Math.abs(first)) * 100
-  const change = delta === undefined ? derived : delta
-  return (
-    <div className={cn('rounded-lg border border-hairline bg-surface p-4', className)}>
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-label text-ink-soft">{title}</p>
-          <p className="mt-1 text-title tabular text-ink">{formatValue(value, format)}</p>
-        </div>
-        {change !== null ? (
-          <DeltaPill value={change} unit={format === 'pct' ? 'pp' : 'pct'} invert={invert} />
-        ) : null}
-      </div>
-      <AreaChart
-        data={data}
-        x="month"
-        series={[{ key: 'v', label: title }]}
-        format={format}
-        height={96}
-        yAxis={false}
-        label={`${title} over ${months.length} months`}
-      />
-    </div>
-  )
-}
-
 /* ---------------------------------------------------------------- Band */
 
-/** The band's edges are a lighter step of the same green, so the band reads as one shape. */
-const BAND_EDGE = chart.sequential['300']
-const BAND_COMPARISON = chart.neutral['400']
+/**
+ * The band's edges are a lighter step of the same green, so the band reads as one shape, and
+ * still 3:1 on the card (the `bandEdge` role); the comparison underneath is the `comparison` grey.
+ */
+const BAND_EDGE = chart.bandEdge
+const BAND_COMPARISON = chart.comparison
 
 /** The colour of each line in a band chart, for a legend drawn beside it. */
 export const BAND_SWATCH = {
@@ -665,7 +419,11 @@ export function BandChart({
   return (
     <figure role="img" aria-label={label} className={cn('w-full', className)}>
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+        <ComposedChart
+          data={points}
+          margin={{ top: 8, right: 8, bottom: 0, left: 4 }}
+          accessibilityLayer={false}
+        >
           <CartesianGrid vertical={false} stroke={chart.grid} />
           <XAxis
             dataKey="x"

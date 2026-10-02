@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "tokens": "node scripts/tokens-css.mjs",
-    "dev": "node scripts/tokens-css.mjs && vite",
-    "build": "node scripts/tokens-css.mjs && tsc -b && vite build && node scripts/check-bundle.mjs",
+    "routes": "node scripts/routes-table.mjs",
+    "dev": "node scripts/tokens-css.mjs && node scripts/routes-table.mjs && vite",
+    "build": "node scripts/tokens-css.mjs && node scripts/routes-table.mjs && node scripts/check-kit.mjs && tsc -b && vite build && node scripts/check-bundle.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "node --test --experimental-strip-types 'src/**/*.test.ts'",
-    "check:bundle": "node scripts/check-bundle.mjs"
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "check:kit": "node scripts/check-kit.mjs"
   },
   "dependencies": {
     "@dhan/contracts": "workspace:*",

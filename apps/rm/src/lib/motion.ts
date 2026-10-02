@@ -5,7 +5,13 @@ import { motion as tokens } from '@dhan/design'
  * and nothing else: a rail sliding in, a row settling, a figure arriving. `<MotionConfig
  * reducedMotion="user">` at the root turns every one of these into an instant change for anyone
  * whose system asks for reduced motion.
+ *
+ * Components animate with `m` (`import * as m from 'motion/react-m'`), not `motion`: `m` carries
+ * no features of its own, and the root's `LazyMotion` loads them (`loadMotionFeatures`) once the
+ * page is up. A list that animates layout wraps itself in `<LazyMotion features={loadLayoutFeatures}>`.
  */
+export const loadMotionFeatures = () => import('./motion-dom.ts').then((m) => m.default)
+export const loadLayoutFeatures = () => import('./motion-max.ts').then((m) => m.default)
 const seconds = (ms: number): number => ms / 1000
 
 export const ease = {

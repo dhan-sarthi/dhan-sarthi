@@ -18,6 +18,7 @@ import {
   Money,
   SEVERITY,
   SegmentBadge,
+  SeverityMark,
   Sparkline,
   StrengthBadge,
 } from '../../ui/index.ts'
@@ -31,22 +32,11 @@ import {
   splitSignalTitle,
   type SliceTotals,
 } from './rows.ts'
-import { SeverityMark } from './SeverityMark.tsx'
 
 const col = createColumnHelper<BookRow>()
 
-/** A fall this steep over three months turns the row's sparkline red: worth seeing at a glance. */
+/** A fall this steep over three months turns the row's balances line red: worth seeing at a glance. */
 const STEEP_FALL_PCT = -15
-
-/**
- * The segment as one family of tints, deepest for Priority. A segment is context, not the action,
- * so it never carries the heaviest mark on the row; the word is the same in every tint.
- */
-export const SEGMENT_TINT: Readonly<Record<Segment, string>> = {
-  priority: 'bg-brand-soft text-ink',
-  affluent: 'bg-brand-wash text-ink-soft',
-  mass: 'bg-transparent text-ink-faint ring-1 ring-hairline ring-inset',
-}
 
 export interface ColumnOptions {
   asOf: string
@@ -115,7 +105,7 @@ ColumnDef<BookRow, any>[] {
                 </span>
               ) : null}
             </div>
-            <div className="truncate text-caption font-normal text-ink-faint">
+            <div className="truncate text-caption-plain text-ink-faint">
               {r.age} · {r.city}
             </div>
           </div>
@@ -135,7 +125,7 @@ ColumnDef<BookRow, any>[] {
       meta: { width: widths.segment },
       cell: (c) => {
         const segment: Segment = c.getValue()
-        return <SegmentBadge segment={segment} className={SEGMENT_TINT[segment]} />
+        return <SegmentBadge segment={segment} variant="quiet" />
       },
     }),
 
@@ -144,39 +134,49 @@ ColumnDef<BookRow, any>[] {
       header: slim ? 'Value' : 'Relationship value',
       sortDescFirst: true,
       meta: { width: widths.value, align: 'right' },
-      cell: ({ row: { original: r } }) => {
-        const fall = r.balanceChange3mPct !== null && r.balanceChange3mPct <= STEEP_FALL_PCT
-        const share = r.walletSharePct
-        return (
-          <div className="flex items-center justify-end gap-2.5">
-            {/* Beside the rail the rail draws the balances, so the row keeps only the figure. */}
-            {slim ? null : (
-              <Sparkline
-                values={r.balanceSeries.map((p) => p.total)}
-                width={48}
-                height={20}
-                tone={fall ? 'danger' : 'neutral'}
-                endDot={false}
-                label={balanceLabel(r, seriesLabel)}
-              />
-            )}
-            <div className="min-w-[4.25rem] text-right">
-              <Money value={r.relationshipValue} short className="text-label text-ink" />
-              {/* Only where some of it sits at another bank: the exception is the news. */}
-              {share !== null && share < 99.5 ? (
-                <div className="text-caption font-normal whitespace-nowrap text-ink-faint">
-                  {formatPct(Math.round(share))} IDBI
-                </div>
-              ) : null}
-            </div>
-          </div>
-        )
-      },
+      // What sits with IDBI, in rupees, under everything the customer holds at any bank: the same
+      // words as the rail and the band. A share would need its base said beside it ("82% of
+      // balances"), and the base is not the figure above it, so the row gives the rupees.
+      // Each line is a flex row packed to the end, so a line too long for the slim column grows
+      // into the cell's left padding rather than out past the right edge.
+      cell: ({ row: { original: r } }) => (
+        <div className="grid">
+          <span className="flex justify-end">
+            <Money value={r.relationshipValue} short className="text-label text-ink" />
+          </span>
+          <span className="flex justify-end text-caption-plain whitespace-nowrap text-ink-faint">
+            <span>
+              <Money value={r.withIdbi} short className="text-ink-soft" /> with IDBI
+            </span>
+          </span>
+        </div>
+      ),
       footer: () => (
         <span title={asOfLabel}>
           <Money value={totals.relationshipValue} short className="font-semibold text-ink" />
         </span>
       ),
+    }),
+
+    // Balances at every bank over the twelve month-ends, under a header of its own: beside the
+    // relationship value the line read as that figure's trend, and it is a different measure.
+    col.display({
+      id: 'balances',
+      header: () => <span title={`Balances at every bank, ${seriesLabel}`}>Balances</span>,
+      meta: { width: widths.balances },
+      cell: ({ row: { original: r } }) => {
+        const fall = r.balanceChange3mPct !== null && r.balanceChange3mPct <= STEEP_FALL_PCT
+        return (
+          <Sparkline
+            values={r.balanceSeries.map((p) => p.total)}
+            width={48}
+            height={20}
+            tone={fall ? 'danger' : 'neutral'}
+            endDot={false}
+            label={balanceLabel(r, seriesLabel)}
+          />
+        )
+      },
     }),
 
     col.display({
@@ -198,9 +198,7 @@ ColumnDef<BookRow, any>[] {
         <div className="min-w-0" title={goalSentence(r.goal)}>
           <HealthDot health={r.goal.health} className="text-ink" />
           {slim ? null : (
-            <div className="truncate text-caption font-normal text-ink-faint">
-              {goalRowLabel(r.goal)}
-            </div>
+            <div className="truncate text-caption-plain text-ink-faint">{goalRowLabel(r.goal)}</div>
           )}
         </div>
       ),
@@ -218,7 +216,7 @@ ColumnDef<BookRow, any>[] {
         if (!top) {
           return (
             <div className="min-w-0">
-              <p className="text-label font-normal text-ink-hint">Nothing to act on</p>
+              <p className="text-label-plain text-ink-faint">Nothing to act on</p>
               {asked ? <p className="mt-0.5 flex">{asked}</p> : null}
             </div>
           )
@@ -231,8 +229,8 @@ ColumnDef<BookRow, any>[] {
         // Nothing is cut mid-sentence on purpose: the title is split where it already breaks.
         return (
           <div className="min-w-0" title={top.title}>
-            <p className="truncate text-label font-normal text-ink">{head}</p>
-            <p className="flex min-w-0 items-center gap-1.5 text-caption font-normal text-ink-faint">
+            <p className="truncate text-label-plain text-ink">{head}</p>
+            <p className="flex min-w-0 items-center gap-1.5 text-caption-plain text-ink-faint">
               {asked}
               <SeverityMark severity={top.severity} size="xs" />
               <span className="truncate">
@@ -274,15 +272,15 @@ ColumnDef<BookRow, any>[] {
       meta: { width: widths.activity },
       cell: ({ row: { original: r } }) =>
         r.lastActivityAt ? (
-          <span title={formatDate(r.lastActivityAt)} className="text-label font-normal text-ink">
+          <span title={formatDate(r.lastActivityAt)} className="text-label-plain text-ink">
             {formatLastActive(r.lastActivityAt, asOf)}
           </span>
         ) : (
-          <span className="text-label font-normal text-ink-hint">No activity</span>
+          <span className="text-label-plain text-ink-faint">No activity</span>
         ),
     }),
 
-    // Sort-only: the sparkline draws it, the Sort menu orders by it.
+    // Sort-only: the balances line draws it, the Sort menu orders by it.
     col.accessor((r) => r.balanceChange3mPct ?? undefined, {
       id: 'change',
       header: '3-month change',

@@ -189,6 +189,7 @@ export function Access() {
         <Card>
           <EmptyState
             size="page"
+            titleAs="h2"
             icon={<ScrollText />}
             title="Nothing logged yet"
             body="Open a customer’s file and the visit is written here with its purpose. So is every reveal, product check, brief and note."
@@ -201,7 +202,9 @@ export function Access() {
           />
         </Card>
       ) : (
-        <div className="grid gap-4">
+        // One column that never grows to its widest child, so the log's table scrolls sideways
+        // inside its card on a narrow screen rather than widening the page.
+        <div className="grid grid-cols-1 gap-4">
           {/* The kit's strip shares its width out evenly, which put each count far from its label;
               here the tabs hug their words, so the count reads as part of the tab. */}
           <SegmentTabs
@@ -241,7 +244,7 @@ export function Access() {
                 ) : null
               }
             />
-            <p className="text-caption font-normal text-ink-faint">
+            <p className="text-caption-plain text-ink-faint">
               {shown.length !== entries.length ? (
                 <>
                   <span className="tabular">{formatCount(shown.length)}</span> of{' '}
@@ -258,6 +261,9 @@ export function Access() {
               columns={columns}
               getRowId={(r) => r.id}
               caption="Your access log, newest first"
+              // Relative, so the visually hidden labels in the cells (absolutely placed) scroll
+              // with the table on a phone instead of escaping its box and widening the page.
+              className="relative"
               initialSorting={[{ id: 'at', desc: true }]}
               empty={
                 <EmptyState
@@ -288,7 +294,7 @@ export function Access() {
           </RunsContext>
 
           {entries.length >= LOG_LIMIT ? (
-            <p className="text-caption font-normal text-ink-faint">
+            <p className="text-caption-plain text-ink-faint">
               Showing your latest <span className="tabular">{formatCount(LOG_LIMIT)}</span> entries.
               Older ones are kept; the console shows the most recent.
             </p>
@@ -334,7 +340,7 @@ const columns = [
       // The purpose is the reason the law asks for, so it wraps to a second line rather than
       // being cut; anything longer still has its full text on hover.
       return (
-        <span className="line-clamp-2 text-label font-normal text-ink" title={e.purpose}>
+        <span className="line-clamp-2 text-label-plain text-ink" title={e.purpose}>
           {e.purpose}
           {isDefaultPurpose(e) ? (
             <span
@@ -357,14 +363,15 @@ const columns = [
     cell: ({ row: { original: r } }) =>
       r.entry.detail ? (
         <span
-          className="block truncate text-label font-normal text-ink-soft"
+          className="block truncate text-label-plain text-ink-soft"
           title={detailWords(r.entry.detail)}
         >
           {detailWords(r.entry.detail)}
         </span>
       ) : (
-        <span className="text-label text-ink-hint" aria-label="No detail">
-          —
+        <span className="text-label text-ink-hint">
+          <span aria-hidden>—</span>
+          <span className="sr-only">No detail</span>
         </span>
       ),
   }),
@@ -378,9 +385,7 @@ function WhenCell({ row }: { row: LogRow }) {
     return (
       <time dateTime={e.at} title={fullInstant(e.at)} className="block min-w-0">
         <span className="block truncate text-label text-ink tabular">{timeLabel(e.at)}</span>
-        <span className="block truncate text-caption font-normal text-ink-faint">
-          {dayLabel(e.at)}
-        </span>
+        <span className="block truncate text-caption-plain text-ink-faint">{dayLabel(e.at)}</span>
       </time>
     )
   }
@@ -389,9 +394,7 @@ function WhenCell({ row }: { row: LogRow }) {
   return (
     <div className="min-w-0">
       <span className="block truncate text-label text-ink tabular">{spanLabel(row.entries)}</span>
-      <span className="block truncate text-caption font-normal text-ink-faint">
-        {dayLabel(e.at)}
-      </span>
+      <span className="block truncate text-caption-plain text-ink-faint">{dayLabel(e.at)}</span>
       <button
         type="button"
         aria-expanded={expanded}
@@ -401,7 +404,7 @@ function WhenCell({ row }: { row: LogRow }) {
       >
         <ChevronDown
           aria-hidden
-          className={cn('size-3.5 transition-transform duration-200', !expanded && '-rotate-90')}
+          className={cn('size-3.5 transition-transform duration-state', !expanded && '-rotate-90')}
         />
         {expanded ? 'Hide the times' : `Show all ${row.entries.length} times`}
       </button>
@@ -412,7 +415,7 @@ function WhenCell({ row }: { row: LogRow }) {
               <time
                 dateTime={entry.at}
                 title={fullInstant(entry.at)}
-                className="text-caption font-normal text-ink-soft tabular"
+                className="text-caption-plain text-ink-soft tabular"
               >
                 {timeLabel(entry.at)}
               </time>
@@ -439,9 +442,7 @@ function CustomerCell({ row }: { row: LogRow }) {
         </span>
         <span className="min-w-0">
           <span className="block truncate text-label text-ink tabular">{e.cif}</span>
-          <span className="block truncate text-caption font-normal text-ink-faint">
-            Not in your book
-          </span>
+          <span className="block truncate text-caption-plain text-ink-faint">Not in your book</span>
         </span>
       </span>
     )
@@ -456,9 +457,7 @@ function CustomerCell({ row }: { row: LogRow }) {
         <span className="block truncate text-label text-ink underline-offset-3 group-hover/name:underline">
           {e.name}
         </span>
-        <span className="block truncate text-caption font-normal text-ink-faint tabular">
-          {e.cif}
-        </span>
+        <span className="block truncate text-caption-plain text-ink-faint tabular">{e.cif}</span>
       </span>
     </Link>
   )
@@ -469,7 +468,7 @@ function ActionCell({ row }: { row: LogRow }) {
   const { sentence, icon: Icon } = ACTION_WORDS[e.action]
   const times =
     row.entries.length > 1 ? (
-      <span className="shrink-0 text-label font-normal text-ink-faint tabular">
+      <span className="shrink-0 text-label-plain text-ink-faint tabular">
         <span aria-hidden>×</span>
         <span className="sr-only">, </span>
         {row.entries.length}

@@ -5,6 +5,7 @@ import { cn } from '../../lib/cn.ts'
 import { daysBetween, formatDuration, formatMonth, formatPct } from '../../lib/format.ts'
 import {
   Card,
+  CardFooter,
   CardHeader,
   Chip,
   Disclaimer,
@@ -107,8 +108,11 @@ function GoalCard({ customer }: { customer: CustomerFile }) {
 
   return (
     <Card>
-      <CardHeader title="Goal" actions={<HealthDot health={goal.health} />} />
-      <h2 className="text-title text-ink">{goal.label}</h2>
+      {/* The goal's name is the heading, with its health beside it: no "Goal" label above. */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-title text-ink">{goal.label}</h2>
+        <HealthDot health={goal.health} />
+      </div>
       <p className="mt-1 max-w-prose text-body text-ink-soft">{health}</p>
       <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-hairline-soft pt-4 lg:grid-cols-4">
         <GoalFact label="Target" hint={basisWord(goal)}>
@@ -157,7 +161,7 @@ function GoalFact({
       >
         {children}
       </dd>
-      {hint ? <dd className="mt-0.5 text-caption font-normal text-ink-faint">{hint}</dd> : null}
+      {hint ? <dd className="mt-0.5 text-caption-plain text-ink-faint">{hint}</dd> : null}
     </div>
   )
 }
@@ -242,10 +246,10 @@ const NO_PROJECTION: Record<GoalKind, string> = {
 
 function NoProjection({ kind }: { kind: GoalKind }) {
   return (
-    <p className="-mx-5 -mb-5 mt-4 flex items-center gap-2 rounded-b-lg border-t border-hairline-soft bg-canvas-top/60 px-5 py-3 text-caption font-normal text-ink-soft">
+    <CardFooter variant="note" className="justify-start gap-2">
       <LineChart aria-hidden className="size-3.5 shrink-0 text-ink-hint" />
-      {NO_PROJECTION[kind]}
-    </p>
+      <p>{NO_PROJECTION[kind]}</p>
+    </CardFooter>
   )
 }
 
@@ -316,7 +320,7 @@ function StageStep({
           state === 'current' && 'bg-brand text-on-brand ring-4 ring-brand-soft',
           state === 'done' && 'bg-brand-soft text-brand-deep',
           state === 'next' && !raiseNow && 'border border-hairline bg-surface text-ink-soft',
-          state === 'next' && raiseNow && 'border border-danger/40 bg-danger-soft text-danger',
+          state === 'next' && raiseNow && 'border border-danger-edge bg-danger-soft text-danger',
         )}
       >
         {state === 'done' ? <Check /> : <Icon />}
@@ -325,7 +329,7 @@ function StageStep({
         className={cn(
           'min-w-0 rounded-md px-3 py-2.5',
           state === 'current' && 'bg-brand-wash',
-          raiseNow && state !== 'current' && 'bg-danger-soft/40',
+          raiseNow && state !== 'current' && 'bg-danger-wash',
         )}
       >
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
@@ -336,7 +340,7 @@ function StageStep({
               </p>
             ) : null}
             <p className="text-heading text-ink">
-              <span className="mr-1.5 text-caption tabular text-ink-hint">{stage.index}</span>
+              <span className="mr-1.5 text-caption tabular text-ink-faint">{stage.index}</span>
               {shortenFigures(stage.label)}
             </p>
           </div>
@@ -352,11 +356,9 @@ function StageStep({
             {stage.cadence === 'ongoing' ? <Chip tone="neutral">Runs alongside</Chip> : null}
           </div>
         </div>
-        {why ? (
-          <p className="mt-1 max-w-prose text-label font-normal text-ink-soft">{why}</p>
-        ) : null}
+        {why ? <p className="mt-1 max-w-prose text-label-plain text-ink-soft">{why}</p> : null}
         {alongside ? (
-          <p className="mt-1 max-w-prose text-label font-normal text-ink-soft">
+          <p className="mt-1 max-w-prose text-label-plain text-ink-soft">
             Cover is not an investment, so it runs alongside clearing the debt.
           </p>
         ) : null}
@@ -430,13 +432,13 @@ function ProjectionCard({ customer }: { customer: CustomerFile }) {
         />
       </div>
       <div className="mt-4 grid gap-2 border-t border-hairline-soft pt-4">
-        <p className="text-label font-normal text-ink-soft">
+        <p className="text-label-plain text-ink-soft">
           In today&rsquo;s money, at {formatPct(projection.inflationPct)} inflation a year, the{' '}
           {roles.mid.label.toLowerCase()} <ProseInr value={roles.mid.corpus} /> is worth{' '}
           <ProseInr value={roles.mid.realCorpus} className="font-semibold text-ink" />.
         </p>
         <Disclaimer>{projection.disclaimer}</Disclaimer>
-        <p className="text-caption font-normal text-ink-faint">{basis.asOfLabel}.</p>
+        <p className="text-caption-plain text-ink-faint">{basis.asOfLabel}.</p>
       </div>
     </Card>
   )
@@ -496,7 +498,7 @@ function ScenarioLegend({
           <ShortInr value={contributed} />
         </dd>
         <dd className="mt-0.5 text-caption text-ink-soft">Before any growth</dd>
-        <dd className="text-caption font-normal text-ink-faint">
+        <dd className="text-caption-plain text-ink-faint">
           {projection.existingCorpus > 0 ? 'Invested now, plus each month' : 'Each month, added up'}
         </dd>
       </div>

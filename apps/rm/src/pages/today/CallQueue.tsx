@@ -1,11 +1,12 @@
 import type { Handoff, QueueItem } from '@dhan/contracts'
 import { ArrowRight, Check, ChevronDown, ChevronRight, Info, PhoneCall, Quote } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, LazyMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useId, useState } from 'react'
 import { Link } from 'react-router'
 import { cn } from '../../lib/cn.ts'
 import { formatCount } from '../../lib/format.ts'
-import { duration, ease } from '../../lib/motion.ts'
+import { duration, ease, loadLayoutFeatures } from '../../lib/motion.ts'
 import {
   Avatar,
   Button,
@@ -65,54 +66,58 @@ export function CallQueue({ queue, handoffs, asOf }: CallQueueProps) {
   const action = useHandoffAction()
   const leftover = unqueuedRequests(queue, handoffs)
 
+  // The one list on the console that animates its layout ("Called, not yet resolved" closing up
+  // as one is resolved) loads motion's layout features for itself, after the page is up.
   return (
-    <Card padded={false}>
-      <QueueHeader count={queue.length} />
-      {queue.length === 0 ? (
-        <EmptyState
-          icon={<Check />}
-          title="Nobody needs a call today"
-          body="No customer has asked for a call and no signal in the book needs a person. New requests and signals appear here as they come in."
-          className="pb-12"
-        />
-      ) : (
-        <ol className="border-t border-hairline-soft">
-          {queue.map((item) => {
-            const request = requestFor(item, handoffs)
-            return (
-              <QueueRow
-                key={item.id}
-                item={item}
-                request={request}
-                open={current === item.id}
-                onToggle={() => setOpenId(current === item.id ? null : item.id)}
-                asOf={asOf}
-                logged={logged.has(item.cif)}
-                onLogged={() => setLogged((prev) => new Set(prev).add(item.cif))}
-                draft={drafts[item.cif] ?? ''}
-                onDraft={(text) =>
-                  setDrafts((prev) => {
-                    const { [item.cif]: _dropped, ...rest } = prev
-                    return text === '' ? rest : { ...rest, [item.cif]: text }
-                  })
-                }
-                busy={request !== null && action.pendingId === request.id}
-                onRequest={(status, note) =>
-                  request ? action.run(request, status, note) : Promise.resolve(false)
-                }
-              />
-            )
-          })}
-        </ol>
-      )}
-      {leftover.length > 0 ? (
-        <CalledNotResolved
-          requests={leftover}
-          pendingId={action.pendingId}
-          onChange={(request, status, note) => action.run(request, status, note)}
-        />
-      ) : null}
-    </Card>
+    <LazyMotion features={loadLayoutFeatures}>
+      <Card padded={false}>
+        <QueueHeader count={queue.length} />
+        {queue.length === 0 ? (
+          <EmptyState
+            icon={<Check />}
+            title="Nobody needs a call today"
+            body="No customer has asked for a call and no signal in the book needs a person. New requests and signals appear here as they come in."
+            className="pb-12"
+          />
+        ) : (
+          <ol className="border-t border-hairline-soft">
+            {queue.map((item) => {
+              const request = requestFor(item, handoffs)
+              return (
+                <QueueRow
+                  key={item.id}
+                  item={item}
+                  request={request}
+                  open={current === item.id}
+                  onToggle={() => setOpenId(current === item.id ? null : item.id)}
+                  asOf={asOf}
+                  logged={logged.has(item.cif)}
+                  onLogged={() => setLogged((prev) => new Set(prev).add(item.cif))}
+                  draft={drafts[item.cif] ?? ''}
+                  onDraft={(text) =>
+                    setDrafts((prev) => {
+                      const { [item.cif]: _dropped, ...rest } = prev
+                      return text === '' ? rest : { ...rest, [item.cif]: text }
+                    })
+                  }
+                  busy={request !== null && action.pendingId === request.id}
+                  onRequest={(status, note) =>
+                    request ? action.run(request, status, note) : Promise.resolve(false)
+                  }
+                />
+              )
+            })}
+          </ol>
+        )}
+        {leftover.length > 0 ? (
+          <CalledNotResolved
+            requests={leftover}
+            pendingId={action.pendingId}
+            onChange={(request, status, note) => action.run(request, status, note)}
+          />
+        ) : null}
+      </Card>
+    </LazyMotion>
   )
 }
 
@@ -132,7 +137,7 @@ function QueueHeader({ count }: { count: number }) {
           <button
             type="button"
             aria-label="How this list is ordered"
-            className="inline-flex size-6 items-center justify-center rounded-full text-ink-hint transition-colors hover:text-ink-soft focus-visible:outline-2 focus-visible:outline-focus"
+            className="relative inline-flex size-6 items-center justify-center rounded-full text-ink-hint transition-colors hover:text-ink-soft focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:hit-target"
           >
             <Info aria-hidden className="size-4" />
           </button>
@@ -140,12 +145,12 @@ function QueueHeader({ count }: { count: number }) {
       </div>
       <Link
         to="/book"
-        className="group inline-flex items-center gap-0.5 rounded-sm text-caption text-ink-soft transition-colors hover:text-brand focus-visible:outline-2 focus-visible:outline-focus"
+        className="group relative inline-flex items-center gap-0.5 rounded-sm text-caption text-ink-soft transition-colors hover:text-brand focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:hit-target"
       >
         Whole book
         <ChevronRight
           aria-hidden
-          className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+          className="size-3.5 transition-transform duration-feedback group-hover:translate-x-0.5"
         />
       </Link>
     </header>
@@ -195,8 +200,8 @@ function QueueRow({
   return (
     <li
       className={cn(
-        'border-b border-hairline-soft transition-colors duration-150 last:border-b-0',
-        open ? 'bg-canvas-top/70' : 'hover:bg-row-hover',
+        'border-b border-hairline-soft transition-colors duration-feedback last:border-b-0',
+        open ? 'bg-footer-wash' : 'hover:bg-row-hover',
       )}
     >
       {/*
@@ -207,7 +212,9 @@ function QueueRow({
         <div className="relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3.5 px-5 py-3">
           <Avatar name={item.name} initials={item.initials} className="mt-0.5" />
           <div className="grid min-w-0 grid-cols-1 gap-0.5">
-            <div className="flex min-w-0 items-center gap-2">
+            {/* On a narrow row the source chip wraps under the name rather than squeezing it to
+                a couple of letters. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="min-w-0 truncate text-body font-semibold text-ink">
                 <button
                   type="button"
@@ -215,7 +222,7 @@ function QueueRow({
                   aria-controls={panelId}
                   aria-describedby={`${id}-source ${id}-line`}
                   onClick={onToggle}
-                  className="text-left after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-focus"
+                  className="text-left after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-[-2px] focus-visible:after:outline-focus"
                 >
                   {item.name}
                 </button>
@@ -233,16 +240,12 @@ function QueueRow({
                 <SourceChip item={item} request={request} id={`${id}-source`} />
               </span>
             </div>
-            <Figures
-              text={line}
-              id={`${id}-line`}
-              className="text-label font-normal text-ink-soft"
-            />
+            <Figures text={line} id={`${id}-line`} className="text-label-plain text-ink-soft" />
           </div>
           <ChevronDown
             aria-hidden
             className={cn(
-              'pointer-events-none mt-2 size-4 text-ink-hint transition-transform duration-200',
+              'pointer-events-none mt-2 size-4 text-ink-hint transition-transform duration-state',
               open && 'rotate-180',
             )}
           />
@@ -251,7 +254,7 @@ function QueueRow({
 
       <AnimatePresence initial={false}>
         {open ? (
-          <motion.div
+          <m.div
             id={panelId}
             key="panel"
             initial={{ height: 0, opacity: 0 }}
@@ -308,7 +311,7 @@ function QueueRow({
               {item.signal ? (
                 <Figures
                   text={item.signal.detail}
-                  className="block text-label font-normal text-ink-soft"
+                  className="block text-label-plain text-ink-soft"
                 />
               ) : null}
 
@@ -340,7 +343,7 @@ function QueueRow({
                 />
               ) : null}
             </div>
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </li>
@@ -382,9 +385,9 @@ function RequestBlock({
             {read.map((text, i) => (
               <li
                 key={i}
-                className="grid grid-cols-[0.75rem_minmax(0,1fr)] text-caption font-normal text-ink-soft"
+                className="grid grid-cols-[0.75rem_minmax(0,1fr)] text-caption-plain text-ink-soft"
               >
-                <span aria-hidden className="mt-[0.4375rem] size-1 rounded-full bg-ink-hint/60" />
+                <span aria-hidden className="mt-[0.4375rem] size-1 rounded-full bg-ink-hint" />
                 <span>{text}</span>
               </li>
             ))}
@@ -392,7 +395,7 @@ function RequestBlock({
         </div>
       ) : null}
       {request.note ? (
-        <p className="text-caption font-normal text-ink-soft">
+        <p className="text-caption-plain text-ink-soft">
           <span className="text-ink-faint">Your note: </span>
           {request.note}
         </p>
@@ -418,18 +421,18 @@ function CalledNotResolved({
   return (
     <section
       aria-labelledby={headingId}
-      className="rounded-b-lg border-t border-hairline-soft bg-canvas-top/60 px-5 pt-3 pb-2"
+      className="rounded-b-lg border-t border-hairline-soft bg-footer-wash px-5 pt-3 pb-2"
     >
       <h3 id={headingId} className="flex items-baseline gap-2 text-label text-ink">
         Called, not yet resolved
-        <span className="text-caption font-normal text-ink-faint tabular">
+        <span className="text-caption-plain text-ink-faint tabular">
           {formatCount(requests.length)}
         </span>
       </h3>
       <ul className="mt-1">
         <AnimatePresence initial={false}>
           {requests.map((request) => (
-            <motion.li
+            <m.li
               key={request.id}
               layout="position"
               exit={{
@@ -457,7 +460,7 @@ function CalledNotResolved({
                 busy={pendingId === request.id}
                 onChange={(status, note) => onChange(request, status, note)}
               />
-            </motion.li>
+            </m.li>
           ))}
         </AnimatePresence>
       </ul>

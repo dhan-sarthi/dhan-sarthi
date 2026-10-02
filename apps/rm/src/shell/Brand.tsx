@@ -6,9 +6,12 @@ import { cn } from '../lib/cn.ts'
  */
 export function Brand({
   tone = 'ink',
+  compact = false,
   className,
 }: {
   tone?: 'ink' | 'on-ink'
+  /** The tile alone, for the icon rail; the name stays for a screen reader. */
+  compact?: boolean
   className?: string
 }) {
   return (
@@ -37,14 +40,14 @@ export function Brand({
           />
         </svg>
       </span>
-      <span className="leading-none">
+      <span className={cn('leading-none', compact && 'sr-only')}>
         <span className={cn('block text-heading', tone === 'ink' ? 'text-ink' : 'text-on-ink')}>
           Dhan Sarthi
         </span>
         <span
           className={cn(
             'mt-0.5 block text-micro tracking-micro uppercase',
-            tone === 'ink' ? 'text-ink-faint' : 'text-on-ink/70',
+            tone === 'ink' ? 'text-ink-faint' : 'text-on-ink-muted',
           )}
         >
           RM Desk

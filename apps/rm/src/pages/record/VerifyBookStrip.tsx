@@ -42,9 +42,9 @@ export function VerifyBookStrip({
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-x-6 gap-y-3 rounded-b-lg border-t px-6 py-4 transition-colors duration-300',
+        'flex flex-wrap items-center gap-x-6 gap-y-3 rounded-b-lg border-t px-6 py-4 transition-colors duration-move',
         tone === 'valid' && 'border-brand-deep bg-brand text-on-brand',
-        tone === 'broken' && 'border-danger/20 bg-danger-soft/60',
+        tone === 'broken' && 'border-danger-edge bg-danger-wash',
         tone === 'error' && 'border-hairline-soft bg-canvas-top',
         tone === 'idle' && 'border-hairline-soft bg-canvas-top',
       )}
@@ -60,9 +60,7 @@ export function VerifyBookStrip({
           ) : verify.isError ? (
             <>
               <p className="text-heading text-ink">The check did not run</p>
-              <p className="mt-0.5 text-label font-normal text-ink-soft">
-                {describeError(verify.error)}
-              </p>
+              <p className="mt-0.5 text-label-plain text-ink-soft">{describeError(verify.error)}</p>
             </>
           ) : result?.valid ? (
             <IntactSummary
@@ -75,7 +73,7 @@ export function VerifyBookStrip({
           ) : (
             <>
               <p className="text-heading text-ink">Not checked in this view yet</p>
-              <p className="mt-0.5 max-w-[68ch] text-label font-normal text-pretty text-ink-soft">
+              <p className="mt-0.5 max-w-[68ch] text-label-plain text-pretty text-ink-soft">
                 Each advice record carries the hash of the one before it. Verifying recomputes every
                 hash in your book, so one changed word anywhere would show here.
               </p>
@@ -137,7 +135,7 @@ function Outcome({
       <p className="text-heading text-danger">
         {count} chain{count === 1 ? '' : 's'} did not verify
       </p>
-      <p className="mt-0.5 max-w-[72ch] text-label font-normal text-pretty text-ink-soft">
+      <p className="mt-0.5 max-w-[72ch] text-label-plain text-pretty text-ink-soft">
         A record was changed after it was written. <span className="tabular">{records}</span>{' '}
         checked at <span className="tabular">{clockTime(result.checkedAt)}</span>; each chain below
         breaks at the first record that no longer matches its hash.

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { relationshipStrength } from '@dhan/core'
+import { SHORT_INR_CASES } from './format.cases.ts'
 import {
   daysBetween,
-  formatAgo,
   formatDate,
   formatDuration,
   formatIn,
@@ -43,6 +43,18 @@ test('the short form picks its unit after rounding', () => {
   assert.equal(formatInr(-186000, { short: true }), '−₹1.86L')
 })
 
+test('every short figure on the console matches the shared table', () => {
+  for (const [value, text] of SHORT_INR_CASES) {
+    assert.equal(formatInr(value, { short: true }), text, `${value}`)
+  }
+})
+
+test('prose prints the same short figure from a lakh up, and the full one below', () => {
+  for (const [value, text] of SHORT_INR_CASES) {
+    if (Math.abs(value) >= 100_000) assert.equal(formatInrProse(value), text, `${value}`)
+  }
+})
+
 test('paise split never rounds into the rupees', () => {
   assert.deepEqual(splitInr(6.41), { sign: '', rupees: '6', paise: '41' })
   assert.deepEqual(splitInr(-1200.05), { sign: '−', rupees: '1,200', paise: '05' })
@@ -76,8 +88,6 @@ test('last active is whole days to the as-of date, as the strength reason says i
   assert.equal(formatLastActive('2026-08-31T23:30:00.000Z', '2026-09-01'), 'Yesterday')
   // After the as-of date (a reviewer's clock moved on): today, never "in 3 days".
   assert.equal(formatLastActive('2026-09-04', '2026-09-01'), 'Today')
-  // The older name says the same words.
-  assert.equal(formatAgo('2026-08-01', '2026-09-01'), formatLastActive('2026-08-01', '2026-09-01'))
 })
 
 test('last active agrees word for word with the strength reason the API writes', () => {

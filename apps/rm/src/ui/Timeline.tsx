@@ -9,10 +9,10 @@ import {
   MessageSquareText,
   Phone,
   Route,
-  Sparkles,
   UserPlus,
   type LucideIcon,
 } from 'lucide-react'
+import { web } from '@dhan/design'
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 import { formatDate } from '../lib/format.ts'
@@ -42,28 +42,37 @@ export const SOURCE_LABEL: Record<JourneySource, string> = {
   ledger: 'Ledger',
 }
 
-/** A month heading with its events under it. The heading sticks while its events scroll. */
+/**
+ * A month heading with its events under it. The heading sticks while its events scroll.
+ *
+ * The month is an `h2` by default, the level under the page's `h1`, so a screen reader moving by
+ * heading lands on each month. A page that puts its own `h2` over the timeline ("Activity, by
+ * month") passes `headingLevel={3}`.
+ */
 export function TimelineMonth({
   label,
   count,
   children,
-  stickyTop = 56,
+  stickyTop = web.size.topbar,
+  headingLevel = 2,
 }: {
   /** "September 2026" */
   label: ReactNode
   count?: number
   children: ReactNode
   stickyTop?: number
+  headingLevel?: 2 | 3
 }) {
+  const Heading = headingLevel === 3 ? 'h3' : 'h2'
   return (
     <section className="relative">
       <header
         className="sticky z-[1] -mx-1 mb-1 flex items-center gap-2 bg-surface px-1 py-2"
         style={{ top: stickyTop }}
       >
-        <h3 className="text-label text-ink">{label}</h3>
+        <Heading className="text-label text-ink">{label}</Heading>
         {count !== undefined ? (
-          <span className="text-caption tabular text-ink-hint">{count}</span>
+          <span className="text-caption tabular text-ink-faint">{count}</span>
         ) : null}
         <span aria-hidden className="h-px flex-1 bg-hairline-soft" />
       </header>
@@ -115,9 +124,9 @@ export function TimelineEvent({
         className={cn(
           'relative z-[1] mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full border [&_svg]:size-3.5',
           tone === 'refused'
-            ? 'border-danger/25 bg-danger-soft text-danger'
+            ? 'border-danger-edge bg-danger-wash text-danger'
             : kind === 'note' || kind === 'call' || kind === 'contact'
-              ? 'border-brand/20 bg-brand-soft text-brand-deep'
+              ? 'border-selected-edge bg-brand-soft text-brand-deep'
               : 'border-hairline bg-surface text-ink-soft',
         )}
       >
@@ -128,12 +137,12 @@ export function TimelineEvent({
           <p className="min-w-0 text-label text-ink">{title}</p>
           {aside ? <div className="shrink-0">{aside}</div> : null}
         </div>
-        <p className="mt-0.5 text-caption font-normal text-ink-faint">
+        <p className="mt-0.5 text-caption-plain text-ink-faint">
           {source ? `${SOURCE_LABEL[source]} · ` : ''}
           <time dateTime={at}>{formatDate(at)}</time>
         </p>
         {detail ? (
-          <p className="mt-1.5 max-w-prose text-label font-normal text-ink-soft">{detail}</p>
+          <p className="mt-1.5 max-w-prose text-label-plain text-ink-soft">{detail}</p>
         ) : null}
         {children ? <div className="mt-2">{children}</div> : null}
       </div>
@@ -162,7 +171,7 @@ export function TimelineDiff({
   return (
     <dl
       className={cn(
-        'grid gap-1 rounded-md border border-hairline-soft bg-canvas-top/70 px-3 py-2',
+        'grid gap-1 rounded-md border border-hairline-soft bg-footer-wash px-3 py-2',
         className,
       )}
     >
@@ -171,20 +180,16 @@ export function TimelineDiff({
           key={row.field}
           className="grid grid-cols-[minmax(8rem,auto)_1fr] items-baseline gap-3 text-label"
         >
-          <dt className="font-normal text-ink-faint">{row.field}</dt>
+          <dt className="text-label-plain text-ink-faint">{row.field}</dt>
           <dd className="flex min-w-0 flex-wrap items-center gap-1.5 tabular">
             <span
-              className={cn(
-                row.before === null
-                  ? 'text-ink-hint'
-                  : 'text-ink-soft line-through decoration-ink-hint/50',
-              )}
+              className={cn(row.before === null ? 'text-ink-faint' : 'text-ink-soft line-through')}
             >
-              {row.before ?? '—'}
+              {row.before ?? <Absent />}
             </span>
             <ArrowRight aria-label="changed to" className="size-3 shrink-0 text-ink-hint" />
-            <span className={cn(row.after === null ? 'text-ink-hint' : 'font-medium text-ink')}>
-              {row.after ?? '—'}
+            <span className={cn(row.after === null ? 'text-ink-faint' : 'font-medium text-ink')}>
+              {row.after ?? <Absent />}
             </span>
           </dd>
         </div>
@@ -193,7 +198,12 @@ export function TimelineDiff({
   )
 }
 
-/** Used where Uday wrote something: a quiet mark rather than a badge. */
-export function UdayMark() {
-  return <Sparkles aria-hidden className="inline size-3 text-brand" />
+/** A field with no value on one side of a change: a dash on screen, words for a screen reader. */
+function Absent() {
+  return (
+    <>
+      <span aria-hidden>—</span>
+      <span className="sr-only">none</span>
+    </>
+  )
 }

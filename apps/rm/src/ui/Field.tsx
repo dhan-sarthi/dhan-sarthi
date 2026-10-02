@@ -3,17 +3,22 @@ import { useId, type ComponentProps, type ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 
 /*
- * Form controls. One height (36px), one hairline, one focus ring, so a filter row, a sign-in
- * form and a reason prompt are the same controls. `Field` wires a label, a hint and an error to
- * whatever control it wraps.
+ * Form controls. One height (36px), one edge, one focus ring, so a filter row, a sign-in form and
+ * a reason prompt are the same controls. `Field` wires a label, a hint and an error to whatever
+ * control it wraps.
+ *
+ * A field's edge is `field-edge` (3:1 or more on the white card and on the cream ground), not the
+ * hairline cards and table rules use: on a white card the edge is the only sign a field is there.
+ * Focus draws the same solid brand as the console's focus ring, as a 2px edge (the border and a
+ * 1px ring inside the same box), so the field does not change size.
  */
 
 const control = cn(
-  'w-full rounded-md border border-hairline bg-surface text-body text-ink shadow-raised transition-[border-color,box-shadow] duration-150',
-  'placeholder:text-ink-hint hover:border-ink-hint/45',
-  'focus:border-brand focus:outline-none focus:ring-3 focus:ring-focus/40',
-  'disabled:cursor-not-allowed disabled:bg-ground disabled:text-ink-faint',
-  'aria-invalid:border-danger aria-invalid:focus:ring-danger/20',
+  'w-full rounded-md border border-field-edge bg-surface text-body text-ink shadow-raised transition-[border-color,box-shadow] duration-feedback',
+  'placeholder:text-ink-hint hover:border-ink-hint',
+  'focus:border-focus focus:ring-1 focus:ring-focus focus:outline-none',
+  'disabled:cursor-not-allowed disabled:border-hairline disabled:bg-ground disabled:text-ink-faint',
+  'aria-invalid:border-danger aria-invalid:focus:border-danger aria-invalid:focus:ring-danger',
 )
 
 export interface InputProps extends ComponentProps<'input'> {
@@ -114,7 +119,7 @@ export function Field({ label, hint, error, children, corner, className }: Field
           {error}
         </p>
       ) : hint ? (
-        <p id={hintId} className="text-caption font-normal text-ink-faint">
+        <p id={hintId} className="text-caption-plain text-ink-faint">
           {hint}
         </p>
       ) : null}

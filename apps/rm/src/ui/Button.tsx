@@ -14,7 +14,7 @@ import { cn } from '../lib/cn.ts'
 export const buttonVariants = cva(
   [
     'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap select-none',
-    'font-medium transition-[background-color,border-color,color,box-shadow] duration-150 ease-out',
+    'font-medium transition-[background-color,border-color,color,box-shadow] duration-feedback ease-out',
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
     'disabled:pointer-events-none disabled:opacity-45',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
@@ -24,8 +24,8 @@ export const buttonVariants = cva(
       variant: {
         primary: 'bg-brand text-on-brand hover:bg-brand-deep active:bg-brand-deep shadow-raised',
         secondary:
-          'border border-hairline bg-surface text-ink hover:border-ink-hint/40 hover:bg-row-hover active:bg-ground-deep shadow-raised',
-        ghost: 'text-ink-soft hover:bg-ink/5 hover:text-ink active:bg-ink/8',
+          'border border-hairline bg-surface text-ink hover:border-hover-edge hover:bg-row-hover active:bg-ground-deep shadow-raised',
+        ghost: 'text-ink-soft hover:bg-ghost-hover hover:text-ink active:bg-ghost-press',
         danger: 'bg-danger text-on-brand hover:bg-danger/90 active:bg-danger shadow-raised',
         link: 'h-auto px-0 text-brand underline-offset-4 hover:underline',
         inverse: 'bg-on-ink text-ink hover:bg-surface active:bg-ground-deep',

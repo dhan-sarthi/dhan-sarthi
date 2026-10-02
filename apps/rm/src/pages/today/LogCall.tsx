@@ -85,7 +85,7 @@ export function LogCall({
           </label>
           <span
             className={
-              over ? 'text-caption text-danger tabular' : 'text-caption text-ink-hint tabular'
+              over ? 'text-caption text-danger tabular' : 'text-caption text-ink-faint tabular'
             }
             aria-live="polite"
           >
@@ -113,7 +113,7 @@ export function LogCall({
       </div>
 
       {handoff ? (
-        <label className="flex items-center gap-2 text-label font-normal text-ink-soft">
+        <label className="flex items-center gap-2 text-label-plain text-ink-soft">
           <input
             type="checkbox"
             checked={markContacted}

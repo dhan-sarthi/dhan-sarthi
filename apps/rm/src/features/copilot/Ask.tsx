@@ -113,7 +113,7 @@ function Intro({
     <div className="grid gap-7">
       <div className="grid gap-1.5">
         <h3 className="text-title text-ink">Ask about {name}</h3>
-        <p className="text-label font-normal text-pretty text-ink-soft">
+        <p className="text-label-plain text-pretty text-ink-soft">
           Answers come only from {possessive(name)} record, and every sentence cites its source.
           Name a product and the suitability rules judge it first; the AI never does.
         </p>
@@ -148,7 +148,7 @@ function PromptList({
             onClick={() => onPick(prompt)}
             className={cn(
               'group flex w-full items-center justify-between gap-3 rounded-md bg-ground px-3 py-2.5 text-left text-label text-ink',
-              'transition-colors duration-150 hover:bg-ground-deep',
+              'transition-colors duration-feedback hover:bg-ground-deep',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
               'disabled:pointer-events-none disabled:opacity-50',
             )}
@@ -236,7 +236,7 @@ function AnswerView({ answer, name, asOf }: { answer: RmAnswer; name: string; as
             <ChevronDown
               aria-hidden
               className={cn(
-                'size-3.5 transition-transform duration-150',
+                'size-3.5 transition-transform duration-feedback',
                 showSources && 'rotate-180',
               )}
             />
@@ -272,10 +272,10 @@ function TurnError({ error, onRetry }: { error: unknown; onRetry: () => void }) 
   return (
     <div
       role="alert"
-      className="grid justify-items-start gap-1.5 rounded-md border border-danger/15 bg-danger-soft/50 px-3.5 py-3"
+      className="grid justify-items-start gap-1.5 rounded-md border border-danger-edge bg-danger-wash px-3.5 py-3"
     >
       <p className="text-label text-ink">No answer came back</p>
-      <p className="text-caption font-normal text-ink-soft">{describeError(error)}</p>
+      <p className="text-caption-plain text-ink-soft">{describeError(error)}</p>
       <Button size="sm" icon={<RotateCw aria-hidden />} onClick={onRetry} className="mt-1.5">
         Ask again
       </Button>
@@ -345,9 +345,10 @@ function Composer({
       </label>
       <div
         className={cn(
-          'rounded-lg border border-hairline bg-surface shadow-raised transition-[border-color,box-shadow] duration-150',
-          'focus-within:border-brand focus-within:ring-3 focus-within:ring-focus/40',
-          tooLong && 'border-danger focus-within:border-danger focus-within:ring-danger/20',
+          'rounded-lg border border-field-edge bg-surface shadow-raised transition-[border-color,box-shadow] duration-feedback',
+          // The kit field's focus: the solid brand edge, 2px, drawn as the border and a 1px ring.
+          'focus-within:border-focus focus-within:ring-1 focus-within:ring-focus',
+          tooLong && 'border-danger focus-within:border-danger focus-within:ring-danger',
         )}
       >
         <textarea
@@ -367,7 +368,7 @@ function Composer({
           <p
             id={hintId}
             className={cn(
-              'min-w-0 truncate text-caption font-normal',
+              'min-w-0 truncate text-caption-plain',
               tooLong ? 'text-danger' : 'text-ink-hint',
             )}
           >

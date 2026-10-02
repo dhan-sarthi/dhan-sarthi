@@ -13,7 +13,7 @@ export const Tabs = TabsPrimitive.Root
 
 const listClass = 'flex items-end gap-5 border-b border-hairline'
 const triggerClass = cn(
-  'relative -mb-px inline-flex h-10 items-center gap-1.5 border-b-2 border-transparent text-label text-ink-soft transition-colors',
+  'relative -mb-px inline-flex h-10 items-center gap-1.5 border-b-2 border-transparent text-label text-ink-soft transition-colors pointer-coarse:h-11',
   'hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus',
 )
 const activeClass = 'border-brand text-ink'

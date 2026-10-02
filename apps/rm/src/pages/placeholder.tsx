@@ -1,42 +1,10 @@
 import type { ReactNode } from 'react'
-import { Card, LoadingRegion, Skeleton, SkeletonStat, SkeletonText } from '../ui/index.ts'
+import { Card, LoadingRegion, Skeleton } from '../ui/index.ts'
 
 /*
- * Skeletons in the shape of each page's real layout, used while a page is still being built and,
- * later, while its data loads. Shared so every page loads into the same quiet grey.
+ * Loading shapes shared by more than one page's skeleton (`shell/RouteFallbacks.tsx`), so every
+ * page loads into the same quiet grey. A shape only one page draws lives with that page.
  */
-
-export function KpiStripSkeleton({ count = 4 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-      {Array.from({ length: count }, (_, i) => (
-        <Card key={i}>
-          <SkeletonStat />
-        </Card>
-      ))}
-    </div>
-  )
-}
-
-export function ListCardSkeleton({ rows = 6, className }: { rows?: number; className?: string }) {
-  return (
-    <Card className={className}>
-      <Skeleton className="mb-5 h-3 w-28" />
-      <div className="grid gap-4">
-        {Array.from({ length: rows }, (_, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <Skeleton className="size-9 shrink-0 rounded-full" />
-            <div className="grid flex-1 gap-2">
-              <Skeleton className="h-3 w-1/3" />
-              <Skeleton className="h-3 w-3/4" />
-            </div>
-            <Skeleton className="h-5 w-20" />
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
 
 export function TableSkeleton({ rows = 10 }: { rows?: number }) {
   return (
@@ -60,29 +28,6 @@ export function TableSkeleton({ rows = 10 }: { rows?: number }) {
           ))}
         </div>
       ))}
-    </Card>
-  )
-}
-
-export function ChartGridSkeleton({ tiles = 6 }: { tiles?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: tiles }, (_, i) => (
-        <Card key={i}>
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-3 h-6 w-28" />
-          <Skeleton className="mt-5 h-24 w-full" />
-        </Card>
-      ))}
-    </div>
-  )
-}
-
-export function ProseCardSkeleton() {
-  return (
-    <Card>
-      <Skeleton className="mb-4 h-3 w-32" />
-      <SkeletonText lines={4} />
     </Card>
   )
 }

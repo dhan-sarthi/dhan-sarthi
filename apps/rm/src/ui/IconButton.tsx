@@ -5,17 +5,19 @@ import { Tooltip } from './Tooltip.tsx'
 
 const iconButtonVariants = cva(
   [
-    'inline-flex shrink-0 items-center justify-center rounded-md transition-colors duration-150',
+    'relative inline-flex shrink-0 items-center justify-center rounded-md transition-colors duration-feedback',
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
     'disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none',
+    // Under a finger the button keeps its size and gains a 44px hit area around it.
+    'pointer-coarse:hit-target',
   ],
   {
     variants: {
       variant: {
-        ghost: 'text-ink-soft hover:bg-ink/5 hover:text-ink active:bg-ink/8',
+        ghost: 'text-ink-soft hover:bg-ghost-hover hover:text-ink active:bg-ghost-press',
         secondary:
           'border border-hairline bg-surface text-ink-soft hover:bg-row-hover hover:text-ink shadow-raised',
-        inverse: 'text-on-ink/80 hover:bg-on-ink/10 hover:text-on-ink',
+        inverse: 'text-on-ink-muted hover:bg-on-ink/10 hover:text-on-ink',
       },
       size: {
         sm: 'size-control-sm [&_svg]:size-3.5',

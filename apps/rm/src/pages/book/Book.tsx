@@ -1,4 +1,5 @@
 import type { BookRow, BookTab, RmBook } from '@dhan/contracts'
+import { web } from '@dhan/design'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { Inbox, SearchX, Users } from 'lucide-react'
 import {
@@ -14,6 +15,8 @@ import {
 import { useNavigate } from 'react-router'
 import { useBook } from '../../api/queries.ts'
 import { formatCount } from '../../lib/format.ts'
+import { useMediaQuery } from '../../lib/media.ts'
+import { useDocumentTitle } from '../../shell/title.ts'
 import {
   Button,
   Card,
@@ -23,18 +26,22 @@ import {
   PageHeader,
   SEGMENT,
   SEVERITY,
+  SegmentTabs,
   Skeleton,
   SplitView,
+  useRailOverlay,
+  type RowFocusCause,
 } from '../../ui/index.ts'
 import { PageLoading, TableSkeleton } from '../placeholder.tsx'
-import { BookTabs } from './BookTabs.tsx'
 import { bookColumns } from './columns.tsx'
-import { fitColumns, useMedia, useWidth } from './fit.ts'
+import { fitColumns, mainContentWidth, useWidth } from './fit.ts'
 import { useBookParams } from './params.ts'
 import { Preview } from './Preview.tsx'
 import {
   ASKED_FOR_YOU,
   IN_TAB,
+  SEGMENT_TABS,
+  WORK_TABS,
   defaultDir,
   isSortKey,
   matchesQuery,
@@ -58,7 +65,16 @@ const ROOMY = '(min-width: 1440px) and (min-height: 960px)'
  * over it fit on one line.
  */
 const LAPTOP = '(max-width: 1439px)'
-const LAPTOP_RAIL = { '--spacing-rail': '380px' } as CSSProperties
+const LAPTOP_RAIL = { '--spacing-rail': 'var(--spacing-rail-laptop)' } as CSSProperties
+/** The gap the split view leaves between the list and a rail in a column of its own. */
+const RAIL_GAP = 20
+
+/**
+ * How far from the window's edges a row is hidden by what sticks over the list: the top bar and
+ * the table's header above it (with a row's grace), the table's footer row below.
+ */
+const COVERED_ABOVE = web.size.topbar + 84
+const COVERED_BELOW = 56
 
 const CHART_PREF_KEY = 'dhan.rm.book.chart.v1'
 
@@ -100,7 +116,7 @@ export function Book() {
  * this browser only), and until then open on a roomy screen and folded on a laptop.
  */
 function useChartFold(): { expanded: boolean; toggle: () => void } {
-  const roomy = useMedia(ROOMY)
+  const roomy = useMediaQuery(ROOMY)
   const [choice, setChoice] = useState<boolean | null>(() => {
     try {
       const saved = window.localStorage.getItem(CHART_PREF_KEY)
@@ -178,15 +194,32 @@ function BookView({
 }) {
   const [params, setParams] = useBookParams()
   const navigate = useNavigate()
-  const laptop = useMedia(LAPTOP)
-  const listRef = useRef<HTMLDivElement>(null)
+  const laptop = useMediaQuery(LAPTOP)
+  // Below the laptop breakpoint the rail floats over the list as a sheet and takes no room from
+  // it; above it the rail is a column of its own.
+  const overlay = useRailOverlay()
+  const listRef = useRef<HTMLDivElement | null>(null)
   // What was typed into a call note, per customer, so walking away from a row keeps the draft.
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
   // The customer whose log-a-call form is open; moving the preview to someone else closes it.
   const [loggingCif, setLoggingCif] = useState<string | null>(null)
+  useDocumentTitle(`Book (${formatCount(book.rows.length)})`)
 
   const tabs = useMemo(
-    () => book.segments.map((s) => ({ ...s, label: tabLabel(s.id, s.label) })),
+    () =>
+      [...SEGMENT_TABS, ...WORK_TABS].flatMap((id) => {
+        const tab = book.segments.find((s) => s.id === id)
+        return tab
+          ? [
+              {
+                ...tab,
+                label: tabLabel(tab.id, tab.label),
+                // A hairline between who the customer is and what there is to do.
+                group: SEGMENT_TABS.includes(tab.id) ? 'who' : 'work',
+              },
+            ]
+          : []
+      }),
     [book.segments],
   )
   const inTab = useMemo(() => book.rows.filter(IN_TAB[params.tab]), [book.rows, params.tab])
@@ -199,10 +232,24 @@ function BookView({
     [book.rows, params.cif],
   )
   const totals = useMemo(() => sliceTotals(visible), [visible])
+  const railColumn = selected !== null && !overlay
 
-  // The table's own width, less its two hairline borders, decides which columns it can hold.
-  const width = useWidth(listRef, 1140) - 2
-  const fit = fitColumns(width, selected !== null)
+  // The list's own width, less the table's two hairline borders, decides which columns it can
+  // hold. The first guess is the room the shell leaves less the rail's column, so the table
+  // mounts at the right fit instead of re-fitting from a guess.
+  const [listWidth, measureList] = useWidth(() => {
+    const room = mainContentWidth() ?? 1142
+    const rail = laptop ? web.size.railLaptop : web.size.rail
+    return railColumn ? room - rail - RAIL_GAP : room
+  })
+  const listNode = useCallback(
+    (el: HTMLDivElement | null) => {
+      listRef.current = el
+      measureList(el)
+    },
+    [measureList],
+  )
+  const fit = fitColumns(listWidth - 2, railColumn)
   const columns = useMemo(
     () =>
       bookColumns({
@@ -243,7 +290,9 @@ function BookView({
     // top bar and its footer to the bottom of the window, so "nearest" can park the row
     // underneath either one.
     const { top, bottom } = row.getBoundingClientRect()
-    if (top < 140 || bottom > window.innerHeight - 56) row.scrollIntoView({ block: 'center' })
+    if (top < COVERED_ABOVE || bottom > window.innerHeight - COVERED_BELOW) {
+      row.scrollIntoView({ block: 'center' })
+    }
   }, [params.cif])
 
   const select = (cif: string | null) => setParams({ cif })
@@ -257,9 +306,12 @@ function BookView({
     select(row.cif)
   }
 
-  /** With the preview open, it follows keyboard focus down the list. */
-  function onRowFocus(row: BookRow) {
-    if (selected && row.cif !== selected.cif) select(row.cif)
+  /**
+   * With the preview open, it follows the arrow keys down the list. Only the arrow keys: Tab from
+   * the chosen row goes on into that customer's preview, and a click is `onRowClick`'s.
+   */
+  function onRowFocus(row: BookRow, cause: RowFocusCause) {
+    if (cause === 'arrow' && selected && row.cif !== selected.cif) select(row.cif)
   }
 
   /** Esc on the list closes the preview; inside the rail, the rail handles its own Esc. */
@@ -284,6 +336,7 @@ function BookView({
         <Card>
           <EmptyState
             size="page"
+            titleAs="h2"
             icon={<Users />}
             title="Your book is empty"
             body="When customers are assigned to you, they appear here with their balances, goals and signals."
@@ -292,6 +345,77 @@ function BookView({
       </>
     )
   }
+
+  const rail = selected ? (
+    <Preview
+      row={selected}
+      basis={book.basis}
+      onClose={() => select(null)}
+      logging={loggingCif === selected.cif}
+      onLogging={(open) => setLoggingCif(open ? selected.cif : null)}
+      draft={drafts[selected.cif] ?? ''}
+      onDraft={(text) => setDrafts((all) => ({ ...all, [selected.cif]: text }))}
+      compact={laptop}
+    />
+  ) : null
+
+  const band = (
+    <SummaryBand
+      book={book}
+      view={visible}
+      viewLabel={viewLabel}
+      expanded={chart.expanded}
+      onToggle={chart.toggle}
+      onShowAsked={() => setParams({ tab: 'asked_for_rm', q: '' })}
+    />
+  )
+
+  const controls = (
+    <div className="grid grid-cols-1 gap-3">
+      <SegmentTabs
+        layout="fit"
+        label="Book segments and work"
+        tabs={tabs}
+        value={params.tab}
+        onChange={(tab) => setParams({ tab })}
+      />
+      <Toolbar
+        query={params.q}
+        onQuery={(q) => setParams({ q })}
+        sort={params.sort}
+        dir={params.dir}
+        onSort={(sort: SortKey, dir?: SortDir) => setParams({ sort, dir: dir ?? defaultDir(sort) })}
+        shown={visible.length}
+        of={inTab.length}
+      />
+    </div>
+  )
+
+  const list = (
+    <div ref={listNode} onKeyDown={onListKeyDown} className="min-w-0">
+      <DataTable
+        caption={`Customers in your book, ${currentTab}`}
+        data={visible}
+        columns={columns}
+        getRowId={(r: BookRow) => r.cif}
+        sorting={sorting}
+        onSortingChange={onSortingChange}
+        columnVisibility={fit.visibility}
+        onRowClick={onRowClick}
+        onRowFocus={onRowFocus}
+        selectedId={selected?.cif ?? null}
+        empty={
+          <NoRows
+            tab={params.tab}
+            tabLabel={currentTab}
+            query={params.q}
+            onClearSearch={() => setParams({ q: '' })}
+            onAllTab={() => setParams({ tab: 'all' })}
+          />
+        }
+      />
+    </div>
+  )
 
   return (
     <>
@@ -312,83 +436,29 @@ function BookView({
         }
       />
 
-      {/* The rail sits beside everything under the title, so it opens at the top of the page,
-          beside the band, rather than half way down beside the first rows. */}
-      <div style={laptop ? LAPTOP_RAIL : undefined}>
-        <SplitView
-          open={selected !== null}
-          rail={
-            selected ? (
-              <Preview
-                row={selected}
-                basis={book.basis}
-                onClose={() => select(null)}
-                logging={loggingCif === selected.cif}
-                onLogging={(open) => setLoggingCif(open ? selected.cif : null)}
-                draft={drafts[selected.cif] ?? ''}
-                onDraft={(text) => setDrafts((all) => ({ ...all, [selected.cif]: text }))}
-                compact={laptop}
-              />
-            ) : null
-          }
-        >
-          <div className="grid gap-4">
-            <SummaryBand
-              book={book}
-              view={visible}
-              viewLabel={viewLabel}
-              expanded={chart.expanded}
-              onToggle={chart.toggle}
-              onShowAsked={() => setParams({ tab: 'asked_for_rm', q: '' })}
-            />
-
-            <div className="grid gap-3">
-              <BookTabs
-                label="Book segments and work"
-                tabs={tabs}
-                value={params.tab}
-                onChange={(tab) => setParams({ tab })}
-              />
-              <Toolbar
-                query={params.q}
-                onQuery={(q) => setParams({ q })}
-                sort={params.sort}
-                dir={params.dir}
-                onSort={(sort: SortKey, dir?: SortDir) =>
-                  setParams({ sort, dir: dir ?? defaultDir(sort) })
-                }
-                shown={visible.length}
-                of={inTab.length}
-              />
+      {overlay ? (
+        // A narrow window: the rail is a sheet over the list's right edge, so it starts at the
+        // table's top and leaves the band, the tabs and the sort control above it reachable.
+        <div className="grid grid-cols-1 gap-4">
+          {band}
+          {controls}
+          <SplitView open={selected !== null} rail={rail}>
+            {list}
+          </SplitView>
+        </div>
+      ) : (
+        // The rail sits beside everything under the title, so it opens at the top of the page,
+        // beside the band, rather than half way down beside the first rows.
+        <div style={laptop ? LAPTOP_RAIL : undefined}>
+          <SplitView open={selected !== null} rail={rail}>
+            <div className="grid grid-cols-1 gap-4">
+              {band}
+              {controls}
+              {list}
             </div>
-
-            <div ref={listRef} onKeyDown={onListKeyDown}>
-              <DataTable
-                caption={`Customers in your book, ${currentTab}`}
-                data={visible}
-                columns={columns}
-                getRowId={(r: BookRow) => r.cif}
-                sorting={sorting}
-                onSortingChange={onSortingChange}
-                columnVisibility={fit.visibility}
-                onRowClick={onRowClick}
-                onRowFocus={onRowFocus}
-                selectedId={selected?.cif ?? null}
-                stickyTop={56}
-                empty={
-                  <NoRows
-                    tab={params.tab}
-                    tabLabel={currentTab}
-                    query={params.q}
-                    onClearSearch={() => setParams({ q: '' })}
-                    onAllTab={() => setParams({ tab: 'all' })}
-                  />
-                }
-              />
-            </div>
-          </div>
-        </SplitView>
-      </div>
+          </SplitView>
+        </div>
+      )}
     </>
   )
 }

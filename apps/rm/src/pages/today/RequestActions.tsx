@@ -74,7 +74,7 @@ function ResolveButton({
         </div>
         <div className="grid grid-cols-1 gap-1.5">
           <label htmlFor={`${id}-note`} className="text-label text-ink">
-            Note <span className="font-normal text-ink-faint">(optional)</span>
+            Note <span className="text-label-plain text-ink-faint">(optional)</span>
           </label>
           <Textarea
             id={`${id}-note`}

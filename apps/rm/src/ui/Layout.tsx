@@ -71,7 +71,7 @@ export function PropertyList({
               : 'grid-cols-[8.5rem_minmax(0,1fr)]',
           )}
         >
-          <dt className="font-normal text-ink-faint">{item.label}</dt>
+          <dt className="text-label-plain text-ink-faint">{item.label}</dt>
           <dd className="min-w-0 text-ink">{item.value}</dd>
         </div>
       ))}

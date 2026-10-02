@@ -78,7 +78,7 @@ export function FootnoteMarker({ note, asOf }: { note: Footnote; asOf: string })
           className={cn(
             'relative -top-px mx-px inline-flex h-4 min-w-4 items-center justify-center rounded-xs px-1 align-baseline',
             'text-micro leading-none tracking-normal tabular',
-            'bg-ground-deep text-ink-soft transition-colors duration-150',
+            'bg-ground-deep text-ink-soft transition-colors duration-feedback',
             'hover:bg-brand-soft hover:text-brand-deep',
             'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus',
             'data-[state=open]:bg-brand data-[state=open]:text-on-brand',
@@ -106,9 +106,9 @@ export function FootnoteMarker({ note, asOf }: { note: Footnote; asOf: string })
             <NumberPill n={n} />
             {sourceKindLine(fact)}
           </p>
-          <p className="text-label font-normal text-ink">{fact.text}</p>
+          <p className="text-label-plain text-ink">{fact.text}</p>
         </div>
-        <p className="flex items-center justify-between gap-3 rounded-b-lg border-t border-hairline-soft bg-canvas-top/60 px-4 py-2 text-caption font-normal text-ink-faint">
+        <p className="flex items-center justify-between gap-3 rounded-b-lg border-t border-hairline-soft bg-footer-wash px-4 py-2 text-caption-plain text-ink-faint">
           <span>From the record as at {asOf}</span>
           <span className="tabular">{ref ? `${ref} · ${fact.id}` : fact.id}</span>
         </p>
@@ -191,8 +191,8 @@ export function SourcesList({
         <li key={fact.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
           <NumberPill n={n} className="mt-px" />
           <div className="min-w-0">
-            <p className="text-label font-normal text-ink-soft">{fact.text}</p>
-            <p className="mt-0.5 text-caption font-normal text-ink-hint">
+            <p className="text-label-plain text-ink-soft">{fact.text}</p>
+            <p className="mt-0.5 text-caption-plain text-ink-hint">
               {sourceKindLine(fact)}
               {sourceRef(fact.source) ? ` · ${sourceRef(fact.source) ?? ''}` : ''}
             </p>
@@ -211,8 +211,8 @@ export function OtherFacts({ facts }: { facts: readonly Fact[] }) {
         <li key={fact.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
           <span aria-hidden className="mt-2 size-1 justify-self-center rounded-full bg-ink-hint" />
           <div className="min-w-0">
-            <p className="text-label font-normal text-ink-soft">{fact.text}</p>
-            <p className="mt-0.5 text-caption font-normal text-ink-hint">{sourceKindLine(fact)}</p>
+            <p className="text-label-plain text-ink-soft">{fact.text}</p>
+            <p className="mt-0.5 text-caption-plain text-ink-hint">{sourceKindLine(fact)}</p>
           </div>
         </li>
       ))}

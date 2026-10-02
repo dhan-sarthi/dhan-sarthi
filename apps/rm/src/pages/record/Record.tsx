@@ -34,19 +34,12 @@ import { VerifyBookStrip } from './VerifyBookStrip.tsx'
  * straight to one rule's refusals.
  *
  * The sidebar calls this page "Advice record", which is what it holds; the title says what the
- * record proves. The eyebrow above the title carries the sidebar's name, so the page is the one
- * the RM clicked.
+ * record proves. The active sidebar item (and the window's title) already name the page the RM
+ * clicked, so the heading stands on its own, with no label stacked above it.
  */
 
-/** The title, under the sidebar's name for the page. */
-const TITLE = (
-  <>
-    <span className="mb-1.5 block text-micro tracking-micro text-ink-faint uppercase">
-      Advice record<span className="sr-only">:</span>
-    </span>
-    Mis-sales prevented
-  </>
-)
+const TITLE = 'Mis-sales prevented'
+
 export function Record() {
   const refusals = useRefusals()
   const [search, setSearch] = useSearchParams()
@@ -161,7 +154,7 @@ function RecordView({
                       Show every rule
                     </Button>
                   ) : (
-                    <span className="text-caption font-normal text-ink-faint">
+                    <span className="text-caption-plain text-ink-faint">
                       Choose a rule to filter the ledger
                     </span>
                   )
@@ -181,7 +174,7 @@ function RecordView({
               <h2 id="ledger-title" className="text-title text-ink">
                 Every refusal
               </h2>
-              <span className="text-label font-normal text-ink-faint tabular">
+              <span className="text-label-plain text-ink-faint tabular">
                 {rule === null
                   ? `${formatCount(data.total)}, newest first`
                   : `${formatCount(shown.length)} of ${formatCount(data.total)}`}
@@ -303,7 +296,7 @@ function Headline({ data, summary }: { data: RmRefusals; summary: Summary }) {
           </div>
         ) : null}
       </div>
-      <p className="mt-3 text-label font-normal text-pretty text-ink-soft">
+      <p className="mt-3 text-label-plain text-pretty text-ink-soft">
         On <span className="tabular">{summary.products}</span> product
         {summary.products === 1 ? '' : 's'}, under{' '}
         <span className="tabular">{data.byRule.length}</span> of the{' '}
@@ -319,15 +312,15 @@ function Headline({ data, summary }: { data: RmRefusals; summary: Summary }) {
       {latest && latest.spoken ? (
         <figure className="mt-6 border-t border-hairline-soft pt-5">
           <div className="flex items-baseline justify-between gap-3">
-            <SectionLabel as="h3">Latest refusal</SectionLabel>
-            <time dateTime={latest.at} className="text-caption font-normal text-ink-faint tabular">
+            <SectionLabel as="h2">Latest refusal</SectionLabel>
+            <time dateTime={latest.at} className="text-caption-plain text-ink-faint tabular">
               {formatDate(latest.at)}
             </time>
           </div>
           <blockquote className="mt-3 max-w-[60ch] text-body text-ink">
             “{latest.spoken}”
           </blockquote>
-          <figcaption className="mt-3 flex min-w-0 items-start gap-2 text-caption font-normal text-ink-soft">
+          <figcaption className="mt-3 flex min-w-0 items-start gap-2 text-caption-plain text-ink-soft">
             <Avatar name={latest.name} size="sm" />
             <span className="min-w-0 pt-1.5 text-pretty">
               Said to{' '}

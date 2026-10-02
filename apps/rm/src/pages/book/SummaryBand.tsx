@@ -1,26 +1,22 @@
-import type { BookRow, RmBook, Segment } from '@dhan/contracts'
+import type { BookRow, RmBook } from '@dhan/contracts'
 import { bookBalanceSeries } from '@dhan/core'
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { useId, useMemo, type ReactNode } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { formatCount, formatMonth, formatPct } from '../../lib/format.ts'
-import { AreaChart, Button, Card, DeltaPill, Money, SEGMENT } from '../../ui/index.ts'
+import { Button, Card, DeltaPill, Money, SEGMENT, StackedBar, Stat } from '../../ui/index.ts'
+import { LazyAreaChart, preloadAreaChart } from './LazyAreaChart.tsx'
 import { segmentBreakdown } from './rows.ts'
 import { SeriesKey } from './SeriesKey.tsx'
-
-/** The segment bar's fills: one sequential family, deepest for Priority, like the row tints. */
-const SEGMENT_FILL: Readonly<Record<Segment, string>> = {
-  priority: 'bg-chart-seq-550',
-  affluent: 'bg-chart-seq-350',
-  mass: 'bg-chart-seq-150',
-}
 
 /**
  * The band over the table, in two parts.
  *
- * The strip is the whole book in four figures, as at the as-of date, in 64px: what it is worth,
- * what sits with IDBI, the monthly SIP book (registered SIPs), and who has asked for a call. It
- * never changes with the tab, so the numbers match Today's.
+ * The strip is the whole book in four figures, as at the as-of date: what it is worth, what sits
+ * with IDBI, the monthly SIP book (registered SIPs), and who has asked for a call. It never
+ * changes with the tab, so the numbers match Today's. It measures its own width: four across when
+ * there is room, two by two in a narrow column, and each figure's quiet note gives way before the
+ * figure is ever cut.
  *
  * The detail under it is the view: the balances of the rows on screen at each month-end, and how
  * they divide by segment. It follows the tab and the search, and the RM can fold it away; on a
@@ -49,17 +45,19 @@ export function SummaryBand({
 
   return (
     <Card padded={false} className="@container">
-      <div className="flex min-h-16 items-center gap-x-6 gap-y-2 px-5 py-2.5">
-        <div className="grid min-w-0 flex-1 grid-cols-4 gap-x-6">
+      <div className="flex min-h-16 flex-wrap items-center gap-x-6 gap-y-2 px-5 py-2.5">
+        <div className="grid min-w-0 flex-[1_1_18rem] grid-cols-2 gap-x-6 gap-y-2 @lg:grid-cols-4">
           <Figure
             label="Book value"
-            value={<Money value={totals.relationshipValue} short />}
+            value={totals.relationshipValue}
+            unit="inr"
             note={basis.asOfLabel}
             title={`Everything we can see for ${formatCount(totals.customers)} ${totals.customers === 1 ? 'customer' : 'customers'}, at any bank. ${basis.asOfLabel}.`}
           />
           <Figure
             label="With IDBI"
-            value={<Money value={totals.withIdbi} short />}
+            value={totals.withIdbi}
+            unit="inr"
             note={
               totals.walletSharePct === null
                 ? 'No balances to compare'
@@ -68,15 +66,22 @@ export function SummaryBand({
             title={`Balances held with IDBI. ${basis.asOfLabel}.`}
           />
           <Figure
-            label="Monthly SIP book"
-            shortLabel="SIP book"
-            value={<Money value={totals.sipMonthly} short />}
+            label={
+              <>
+                <span className="@3xl:hidden">SIP book</span>
+                <span className="hidden @3xl:inline">Monthly SIP book</span>
+              </>
+            }
+            name="Monthly SIP book"
+            value={totals.sipMonthly}
+            unit="inr"
             note="registered SIPs"
             title={`The SIPs registered on the book's holdings, a month: ${formatCount(sipCustomers)} ${sipCustomers === 1 ? 'customer' : 'customers'}. ${basis.asOfLabel}.`}
           />
           <Figure
             label="Asked for you"
-            value={<span className="tabular">{formatCount(totals.openHandoffs)}</span>}
+            value={totals.openHandoffs}
+            unit="count"
             note={
               totals.openHandoffs === 0 ? (
                 'Nobody is waiting'
@@ -89,7 +94,7 @@ export function SummaryBand({
                   Show in the list
                   <ArrowRight
                     aria-hidden
-                    className="size-3 transition-transform duration-150 group-hover:translate-x-0.5"
+                    className="size-3 transition-transform duration-feedback group-hover:translate-x-0.5"
                   />
                 </button>
               )
@@ -97,13 +102,16 @@ export function SummaryBand({
             title="Customers who tapped Talk to your relationship manager and are waiting on a call."
           />
         </div>
-        <div className="flex shrink-0 items-center">
+        <div className="ml-auto flex shrink-0 items-center">
           <Button
             size="sm"
             variant="ghost"
             onClick={onToggle}
+            onPointerEnter={preloadAreaChart}
+            onFocus={preloadAreaChart}
             aria-expanded={expanded}
             aria-controls={detailId}
+            className="relative pointer-coarse:hit-target"
           >
             {expanded ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
             {expanded ? 'Hide chart' : 'Show chart'}
@@ -124,40 +132,41 @@ export function SummaryBand({
   )
 }
 
-/** One figure of the strip: its label over the value, with a quiet note beside the value. */
+/**
+ * One figure of the strip, drawn by the kit's compact `Stat`: its label over the value, with a
+ * quiet note beside the value that only shows where the strip has room for it.
+ */
 function Figure({
   label,
-  shortLabel,
+  name,
   value,
+  unit,
   note,
   title,
 }: {
-  label: string
-  /** What the label shrinks to when the strip is narrow ("SIP book"). */
-  shortLabel?: string
-  value: ReactNode
+  label: ReactNode
+  /** The figure's name for a screen reader, where `label` changes with the room. */
+  name?: string
+  value: number
+  unit: 'inr' | 'count'
   note: ReactNode
   title: string
 }) {
   return (
-    <section aria-label={label} title={title} className="min-w-0">
-      <p className="truncate text-caption text-ink-soft">
-        {shortLabel ? (
-          <>
-            <span className="@3xl:hidden">{shortLabel}</span>
-            <span className="hidden @3xl:inline">{label}</span>
-          </>
-        ) : (
-          label
-        )}
-      </p>
-      <div className="flex min-w-0 items-baseline gap-2">
-        <span className="shrink-0 text-heading text-ink">{value}</span>
-        {/* The note gives way first when the strip is narrow (beside the rail, on a laptop). */}
-        <span className="hidden min-w-0 truncate text-caption font-normal text-ink-faint @3xl:inline">
-          {note}
-        </span>
-      </div>
+    <section
+      aria-label={name ?? (typeof label === 'string' ? label : undefined)}
+      title={title}
+      className="min-w-0"
+    >
+      <Stat
+        size="sm"
+        label={label}
+        value={value}
+        unit={unit}
+        // Only where all four fit with their notes (a 1280 laptop and up): in a narrower strip
+        // the note gives way entirely, so the figure is never cut to make room for it.
+        deltaLabel={<span className="hidden @min-[60rem]:inline">{note}</span>}
+      />
     </section>
   )
 }
@@ -189,15 +198,15 @@ function ViewBalances({
         {showIdbi ? <SeriesKey /> : null}
       </div>
       {last && first ? (
-        <div className="mt-1 flex items-baseline justify-between gap-4">
+        <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <p className="flex items-baseline gap-1.5">
             <Money value={last.total} short className="text-title text-ink" />
-            <span className="text-label font-normal text-ink-faint">
+            <span className="text-label-plain text-ink-faint">
               at the end of {formatMonth(last.month, { year: false })}
             </span>
           </p>
           {change !== null ? (
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-caption font-normal text-ink-faint">
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-caption-plain text-ink-faint">
               <DeltaPill value={Math.round(change * 10) / 10} />
               since {formatMonth(first.month)}
             </span>
@@ -206,7 +215,7 @@ function ViewBalances({
       ) : null}
       {series.length > 1 && first && last ? (
         <>
-          <AreaChart
+          <LazyAreaChart
             className="mt-2"
             data={series.map((p) => ({ month: p.month, total: p.total, withIdbi: p.withIdbi }))}
             x="month"
@@ -220,10 +229,10 @@ function ViewBalances({
             yAxis={false}
             label={`Balances for ${viewLabel} at each month-end, ${formatMonth(first.month)} to ${formatMonth(last.month)}`}
           />
-          <p className="mt-1 text-caption font-normal text-ink-hint">{seriesLabel}</p>
+          <p className="mt-1 text-caption-plain text-ink-faint">{seriesLabel}</p>
         </>
       ) : (
-        <p className="mt-4 text-label font-normal text-ink-faint">
+        <p className="mt-4 text-label-plain text-ink-faint">
           {view.length === 0
             ? 'No customers in this view.'
             : 'Not enough month-ends yet to draw a year of balances.'}
@@ -245,27 +254,19 @@ function BySegment({ view, viewLabel }: { view: readonly BookRow[]; viewLabel: s
     >
       <div className="flex items-baseline justify-between gap-4">
         <p className="text-label text-ink-soft">By segment</p>
-        <p className="truncate text-caption font-normal text-ink-hint">{viewLabel}</p>
+        <p className="truncate text-caption-plain text-ink-faint">{viewLabel}</p>
       </div>
-      <div
-        aria-hidden
-        className="mt-3 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-ground-deep"
-      >
-        {total > 0
-          ? slices.map((s) =>
-              s.sharePct > 0 ? (
-                <span
-                  key={s.segment}
-                  className={cn(
-                    'h-full transition-[width] duration-300 ease-out',
-                    SEGMENT_FILL[s.segment],
-                  )}
-                  style={{ width: `${s.sharePct}%` }}
-                />
-              ) : null,
-            )
-          : null}
-      </div>
+      <StackedBar
+        className="mt-3"
+        label={`Relationship value by segment, ${viewLabel}: ${slices
+          .map((s) => `${SEGMENT[s.segment].label} ${formatPct(Math.round(s.sharePct))}`)
+          .join(', ')}`}
+        parts={slices.map((s) => ({
+          id: s.segment,
+          value: s.relationshipValue,
+          fill: SEGMENT[s.segment].fill,
+        }))}
+      />
       <ul className="mt-3 grid gap-2">
         {slices.map((s) => (
           <li
@@ -274,7 +275,7 @@ function BySegment({ view, viewLabel }: { view: readonly BookRow[]; viewLabel: s
           >
             <span
               aria-hidden
-              className={cn('size-2 translate-y-[-1px] rounded-xs', SEGMENT_FILL[s.segment])}
+              className={cn('size-2 translate-y-[-1px] rounded-xs', SEGMENT[s.segment].fill)}
             />
             <span className="min-w-0 truncate text-ink">
               {SEGMENT[s.segment].label}{' '}

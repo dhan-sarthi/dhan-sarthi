@@ -73,7 +73,7 @@ export function CustomerMoney() {
 
 /** "As at 1 Sep 2026", in the API's words, beside every figure read on the as-of date. */
 function AsAt({ customer }: { customer: CustomerFile }) {
-  return <span className="text-caption font-normal text-ink-faint">{customer.basis.asOfLabel}</span>
+  return <span className="text-caption-plain text-ink-faint">{customer.basis.asOfLabel}</span>
 }
 
 /* ---------------------------------------------------------------- Net worth */
@@ -84,7 +84,7 @@ function NetWorth({ customer }: { customer: CustomerFile }) {
   return (
     <Card>
       <CardHeader title="Net worth" actions={<AsAt customer={customer} />} />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid grid-cols-1 gap-8 @min-[41rem]/tab:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="min-w-0">
           <Money value={net} className={cn('text-figure', net < 0 ? 'text-danger' : 'text-ink')} />
           <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-hairline-soft pt-4">
@@ -143,7 +143,7 @@ function LineSwatch({ dashed = false, tone }: { dashed?: boolean; tone: 'brand' 
       aria-hidden
       width="16"
       height="8"
-      className={tone === 'brand' ? 'text-chart-1' : 'text-chart-neutral-400'}
+      className={tone === 'brand' ? 'text-chart-1' : 'text-chart-comparison'}
     >
       <line
         x1="1"
@@ -221,7 +221,7 @@ function BalanceHistory({ customer }: { customer: CustomerFile }) {
             zeroBased
             label={`Month-end balances from ${formatMonth(first.month)} to ${formatMonth(last.month)}`}
           />
-          <p className="mt-3 text-caption font-normal text-ink-faint">
+          <p className="mt-3 text-caption-plain text-ink-faint">
             {basis.seriesLabel}, every linked account. Holdings and loans are not charted; they are
             shown below, {midSentence(basis.asOfLabel)}.
             {!allIdbi &&
@@ -266,7 +266,7 @@ function LegendStat({
         <Money value={value} className="text-title text-ink" />
         {change !== null ? <DeltaPill value={change} /> : null}
       </div>
-      <p className="mt-0.5 text-caption font-normal text-ink-faint">
+      <p className="mt-0.5 text-caption-plain text-ink-faint">
         {basis}
         {change !== null ? ' · change over 12 month-ends' : ''}
       </p>
@@ -299,7 +299,7 @@ function Accounts({ customer }: { customer: CustomerFile }) {
                   <span className="tabular">{formatPct(Math.round(walletSharePct))}</span> of
                   balances with IDBI
                 </p>
-                <p className="text-caption font-normal text-ink-soft">
+                <p className="text-caption-plain text-ink-soft">
                   <Money value={withIdbi} /> of <Money value={total} /> across{' '}
                   {plural(groups.length, 'bank')}
                 </p>
@@ -332,7 +332,7 @@ function Accounts({ customer }: { customer: CustomerFile }) {
                       </span>
                       <div className="min-w-0">
                         <h3 className="truncate text-heading text-ink">{group.institution}</h3>
-                        <p className="truncate text-caption font-normal text-ink-faint">
+                        <p className="truncate text-caption-plain text-ink-faint">
                           {only ? (
                             <>
                               {only.type}{' '}
@@ -348,7 +348,7 @@ function Accounts({ customer }: { customer: CustomerFile }) {
                     </div>
                     <div className="shrink-0 text-right">
                       <Money value={group.total} className="text-label font-semibold text-ink" />
-                      <p className="text-caption font-normal tabular text-ink-faint">
+                      <p className="text-caption-plain tabular text-ink-faint">
                         {total > 0 ? formatPct(Math.round((group.total / total) * 100)) : '—'} of
                         balances
                       </p>
@@ -384,7 +384,14 @@ function Accounts({ customer }: { customer: CustomerFile }) {
 
 /* ---------------------------------------------------------------- Holdings */
 
-const HOLDING_COLS = 'grid grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_4.75rem] items-baseline gap-3'
+/*
+ * The holdings and loans lists are tables drawn as grids. Where the tab's column is narrow (a
+ * phone), the name takes its own line and the figures share the line under it, so the name is
+ * never squeezed to nothing and the figures never run off the card.
+ */
+const HOLDING_COLS =
+  'grid grid-cols-3 items-baseline gap-x-3 gap-y-1 @xl/tab:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_4.75rem] @xl/tab:gap-y-3'
+const HOLDING_NAME = 'col-span-3 @xl/tab:col-span-1'
 
 function Holdings({ customer }: { customer: CustomerFile }) {
   const holdings = customer.money.holdings
@@ -404,16 +411,16 @@ function Holdings({ customer }: { customer: CustomerFile }) {
         />
       ) : (
         <>
-          <dl className="mb-5 grid grid-cols-3 gap-4">
+          <dl className="mb-5 grid grid-cols-2 gap-4 @xl/tab:grid-cols-3">
             {/* The gain belongs to the value, so its pill sits there, with what was put in under
                 it as the base it is measured from. */}
-            <div>
+            <div className="col-span-2 @xl/tab:col-span-1">
               <dt className="text-caption text-ink-faint">Value</dt>
-              <dd className="mt-1 flex items-center gap-2 text-title text-ink">
+              <dd className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-title text-ink">
                 <Money value={current} />
                 <GainPill invested={invested} current={current} />
               </dd>
-              <dd className="mt-0.5 text-caption font-normal text-ink-faint">
+              <dd className="mt-0.5 text-caption-plain text-ink-faint">
                 on <Money value={invested} /> put in
               </dd>
             </div>
@@ -422,7 +429,7 @@ function Holdings({ customer }: { customer: CustomerFile }) {
               <dd className="mt-1 text-title text-ink">
                 <Money value={current - invested} signed toned />
               </dd>
-              <dd className="mt-0.5 text-caption font-normal text-ink-faint">
+              <dd className="mt-0.5 text-caption-plain text-ink-faint">
                 Value less what was put in
               </dd>
             </div>
@@ -432,7 +439,10 @@ function Holdings({ customer }: { customer: CustomerFile }) {
                 {sip > 0 ? (
                   <>
                     <Money value={sip} />
-                    <span className="text-label font-normal text-ink-soft"> a month</span>
+                    <span className="text-label-plain whitespace-nowrap text-ink-soft">
+                      {' '}
+                      a month
+                    </span>
                   </>
                 ) : (
                   <span className="text-ink-soft">None</span>
@@ -447,7 +457,7 @@ function Holdings({ customer }: { customer: CustomerFile }) {
             )}
             aria-hidden
           >
-            <span>Holding</span>
+            <span className="hidden @xl/tab:block">Holding</span>
             <span className="text-right">Put in</span>
             <span className="text-right">Value</span>
             <span className="text-right">Change</span>
@@ -473,11 +483,9 @@ function HoldingGroupSection({ group }: { group: HoldingGroup }) {
   return (
     <section aria-label={group.label}>
       <header className={cn(HOLDING_COLS, 'border-b border-hairline-soft pt-3.5 pb-2 text-label')}>
-        <h3 className="truncate text-heading text-ink">
+        <h3 className={cn('truncate text-heading text-ink', HOLDING_NAME)}>
           {group.label}{' '}
-          <span className="text-caption font-normal tabular text-ink-hint">
-            {group.holdings.length}
-          </span>
+          <span className="text-caption-plain tabular text-ink-hint">{group.holdings.length}</span>
         </h3>
         <Money value={group.invested} className="text-right text-ink-soft" />
         <Money value={group.current} className="text-right font-semibold text-ink" />
@@ -488,11 +496,11 @@ function HoldingGroupSection({ group }: { group: HoldingGroup }) {
       <ul>
         {shown.map((h, i) => (
           <li key={`${h.name}-${i}`} className={cn(HOLDING_COLS, 'py-2 text-label')}>
-            <div className="min-w-0">
+            <div className={cn('min-w-0', HOLDING_NAME)}>
               <p className="truncate text-ink" title={h.name}>
                 {h.name}
               </p>
-              <p className="truncate text-caption font-normal text-ink-faint">
+              <p className="truncate text-caption-plain text-ink-faint">
                 {h.assetClass}
                 {h.sipMonthly ? (
                   <>
@@ -541,7 +549,8 @@ function GainPill({ invested, current }: { invested: number; current: number }) 
 
 /* ---------------------------------------------------------------- Loans */
 
-const LOAN_COLS = 'grid grid-cols-[minmax(0,1fr)_6.5rem_4rem_5.5rem_5.5rem] items-baseline gap-3'
+const LOAN_COLS =
+  'grid grid-cols-2 items-baseline gap-x-3 gap-y-2 @xl/tab:grid-cols-[minmax(0,1fr)_6.5rem_4rem_5.5rem_5.5rem] @xl/tab:gap-y-3'
 
 function Loans({ customer }: { customer: CustomerFile }) {
   const loans = customer.money.liabilities
@@ -570,8 +579,12 @@ function Loans({ customer }: { customer: CustomerFile }) {
             <ProseInr value={emi} className="font-semibold text-ink" /> a month in repayments
             {share !== null ? <>, {formatPct(Math.round(share))} of income</> : null}.
           </p>
+          {/* On a narrow card the header row is not drawn; each figure names itself instead. */}
           <div
-            className={cn(LOAN_COLS, 'border-b border-hairline pb-2 text-caption text-ink-faint')}
+            className={cn(
+              LOAN_COLS,
+              'hidden border-b border-hairline pb-2 text-caption text-ink-faint @xl/tab:grid',
+            )}
             aria-hidden
           >
             <span>Loan</span>
@@ -595,9 +608,9 @@ function LoanRow({ loan }: { loan: Customer360Liability }) {
   const flagged = loan.highInterest || loan.missedRepayment
   return (
     <li className={cn(LOAN_COLS, 'border-b border-hairline-soft py-3 text-label last:border-0')}>
-      <div className="min-w-0">
+      <div className="col-span-2 min-w-0 @xl/tab:col-span-1">
         <p className="text-ink">{loan.loanType}</p>
-        <p className="truncate text-caption font-normal text-ink-faint">{loan.lender}</p>
+        <p className="truncate text-caption-plain text-ink-faint">{loan.lender}</p>
         {flagged ? (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {loan.missedRepayment ? (
@@ -613,20 +626,39 @@ function LoanRow({ loan }: { loan: Customer360Liability }) {
           </div>
         ) : null}
       </div>
-      <Money value={loan.outstanding} className="text-right text-ink" />
-      <span
-        className={cn(
-          'text-right tabular',
-          loan.highInterest ? 'font-semibold text-danger' : 'text-ink',
-        )}
-      >
-        {formatPct(loan.ratePct)}
-      </span>
-      <Money value={loan.emi} className="text-right text-ink-soft" />
-      <span className="text-right tabular text-ink-soft">
-        {loan.monthsLeft === null ? 'Revolving' : plural(loan.monthsLeft, 'month')}
-      </span>
+      <LoanFigure label="Outstanding">
+        <Money value={loan.outstanding} className="text-ink" />
+      </LoanFigure>
+      <LoanFigure label="Rate">
+        <span
+          className={cn('tabular', loan.highInterest ? 'font-semibold text-danger' : 'text-ink')}
+        >
+          {formatPct(loan.ratePct)}
+        </span>
+      </LoanFigure>
+      <LoanFigure label="EMI">
+        <Money value={loan.emi} className="text-ink-soft" />
+      </LoanFigure>
+      <LoanFigure label="Left">
+        <span className="tabular text-ink-soft">
+          {loan.monthsLeft === null ? 'Revolving' : plural(loan.monthsLeft, 'month')}
+        </span>
+      </LoanFigure>
     </li>
+  )
+}
+
+/**
+ * One figure of a loan row: right-aligned under the header row on a wide card; on a narrow one
+ * its own caption above it, since the header row is not drawn there. The caption is always there
+ * for a screen reader, which the drawn header row is hidden from.
+ */
+function LoanFigure({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0 @xl/tab:text-right">
+      <span className="block text-caption-plain text-ink-faint @xl/tab:sr-only">{label}</span>
+      {children}
+    </div>
   )
 }
 
@@ -638,7 +670,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
   const covered = p.lifeCoverNeeded > 0 && p.gap <= 0
   return (
     <Block title="Protection" actions={<AsAt customer={customer} />}>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 @min-[41rem]/tab:grid-cols-2">
         <div className="min-w-0">
           <p className="text-caption text-ink-faint">Life cover</p>
           {p.lifeCoverNeeded === 0 ? (
@@ -646,7 +678,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
               <p className="mt-1 text-heading text-ink">
                 {p.lifeCover > 0 ? <ProseInr value={p.lifeCover} /> : 'None'}
               </p>
-              <p className="mt-1 text-caption font-normal text-ink-soft">
+              <p className="mt-1 text-caption-plain text-ink-soft">
                 No dependents, so the rule of thumb asks for no life cover.
               </p>
             </>
@@ -654,7 +686,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
             <>
               <p className="mt-1 text-heading text-ink">
                 <ProseInr value={p.lifeCover} />{' '}
-                <span className="text-label font-normal text-ink-soft">
+                <span className="text-label-plain text-ink-soft">
                   of <ProseInr value={p.lifeCoverNeeded} /> needed
                 </span>
               </p>
@@ -695,7 +727,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
               None on record
             </p>
           )}
-          <p className="mt-1 text-caption font-normal text-ink-soft">
+          <p className="mt-1 text-caption-plain text-ink-soft">
             {p.healthCover
               ? 'A health policy is on record.'
               : 'Neither IDBI nor a linked statement shows a health policy.'}
@@ -707,7 +739,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
           Policies <span className="tabular text-ink-hint">{p.policies.length}</span>
         </p>
         {p.policies.length === 0 ? (
-          <p className="text-label font-normal text-ink-soft">No policy on record.</p>
+          <p className="text-label-plain text-ink-soft">No policy on record.</p>
         ) : (
           <ul className="grid gap-1.5">
             {p.policies.map((policy, i) => (

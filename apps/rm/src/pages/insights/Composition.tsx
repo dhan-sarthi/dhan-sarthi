@@ -1,10 +1,19 @@
-import type { GoalHealth, RmInsights, Segment } from '@dhan/contracts'
+import type { GoalHealth, RmInsights } from '@dhan/contracts'
 import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '../../lib/cn.ts'
 import { formatCount } from '../../lib/format.ts'
-import { ALLOCATION_PARTS, Card, HEALTH, Money, SectionLabel } from '../../ui/index.ts'
+import {
+  ALLOCATION_PARTS,
+  Card,
+  HEALTH,
+  Money,
+  SEGMENT,
+  SEGMENT_ORDER,
+  SectionLabel,
+  StackedBar,
+} from '../../ui/index.ts'
 import { shareLabel, sharePct, sum } from './derive.ts'
 
 /*
@@ -19,17 +28,22 @@ import { shareLabel, sharePct, sum } from './derive.ts'
  */
 export function Composition({ insights }: { insights: RmInsights }) {
   return (
-    <Card padded={false} className="overflow-hidden" aria-labelledby="insights-composition">
+    <Card
+      padded={false}
+      className="@container overflow-hidden"
+      aria-labelledby="insights-composition"
+    >
       <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline-soft px-5 py-4">
         <SectionLabel id="insights-composition">What the book is made of</SectionLabel>
         <p className="text-caption text-ink-faint">{insights.basis.asOfLabel}</p>
       </header>
-      {/* Three across from 1280; below that, two and goal health under them, because a panel
-          narrower than ~300px wraps every caption onto a second line. */}
-      <div className="grid grid-cols-1 gap-px bg-hairline-soft md:grid-cols-2 xl:grid-cols-3">
+      {/* Three across from about 900px of card (a 1280 laptop); below that, two and goal health
+          under them, because a panel narrower than ~300px wraps every caption onto a second line;
+          one below about 670. Measured against the card, not the window. */}
+      <div className="grid grid-cols-1 gap-px bg-hairline-soft @2xl:grid-cols-2 @4xl:grid-cols-3">
         <AssetClassPanel insights={insights} />
         <SegmentPanel insights={insights} />
-        <GoalHealthPanel insights={insights} className="md:col-span-2 xl:col-span-1" />
+        <GoalHealthPanel insights={insights} className="@2xl:col-span-2 @4xl:col-span-1" />
       </div>
     </Card>
   )
@@ -61,7 +75,7 @@ function Headline({ figure, children }: { figure: ReactNode; children: ReactNode
   return (
     <div className="mt-4 mb-5">
       <p className="text-display text-ink">{figure}</p>
-      <p className="mt-1 text-label font-normal text-ink-soft">{children}</p>
+      <p className="mt-1 text-label-plain text-ink-soft">{children}</p>
     </div>
   )
 }
@@ -117,9 +131,7 @@ function AssetClassPanel({ insights }: { insights: RmInsights }) {
         <Headline figure={<Money value={0} short />}>in balances and holdings</Headline>
       )}
       {total === 0 ? (
-        <p className="text-label font-normal text-ink-soft">
-          No balances or holdings in the book yet.
-        </p>
+        <p className="text-label-plain text-ink-soft">No balances or holdings in the book yet.</p>
       ) : (
         <ul className="grid gap-4" aria-label="Relationship value by asset class">
           {parts.map((part) => {
@@ -151,22 +163,10 @@ function AssetClassPanel({ insights }: { insights: RmInsights }) {
 
 /* ---------------------------------------------------------------- Segment */
 
-const SEGMENT_ORDER: readonly Segment[] = ['priority', 'affluent', 'mass']
-
-/**
- * Segments are ordered by value band, so they take an ordinal ramp of the green: darkest for
- * Priority, lightest for Mass. The three steps pass the ramp checks (one hue, even lightness
- * steps, the light end clear of the white surface).
- */
-const SEGMENT_FILL: Record<Segment, string> = {
-  priority: 'bg-chart-seq-550',
-  affluent: 'bg-chart-seq-400',
-  mass: 'bg-chart-seq-300',
-}
-
 /**
  * The book split by segment twice, once by customers and once by value, in two bars over the
- * same three colours. The shift between them is the point: a few Priority customers usually hold
+ * same three colours: the kit's one sequential green per segment (`SEGMENT[id].fill`), darkest for
+ * Priority, the same fills as the Book's band. The shift between them is the point: a few Priority customers usually hold
  * most of the money, and that is where the RM's hours go.
  */
 function SegmentPanel({ insights }: { insights: RmInsights }) {
@@ -193,12 +193,12 @@ function SegmentPanel({ insights }: { insights: RmInsights }) {
         <span className="text-caption text-ink-faint">Customers</span>
         <StackedBar
           label={rows.map((r) => `${r.label} ${plural(r.customers)}`).join(', ')}
-          parts={rows.map((r) => ({ id: r.id, value: r.customers, fill: SEGMENT_FILL[r.id] }))}
+          parts={rows.map((r) => ({ id: r.id, value: r.customers, fill: SEGMENT[r.id].fill }))}
         />
         <span className="text-caption text-ink-faint">Value</span>
         <StackedBar
           label={rows.map((r) => `${r.label} ${shareLabel(sharePct(r.value, value))}`).join(', ')}
-          parts={rows.map((r) => ({ id: r.id, value: r.value, fill: SEGMENT_FILL[r.id] }))}
+          parts={rows.map((r) => ({ id: r.id, value: r.value, fill: SEGMENT[r.id].fill }))}
         />
       </div>
       <ul className="grid gap-3" aria-label="Customers and value by segment">
@@ -208,11 +208,11 @@ function SegmentPanel({ insights }: { insights: RmInsights }) {
               <span className="inline-flex items-center gap-1.5 text-label text-ink">
                 <span
                   aria-hidden
-                  className={cn('size-2 shrink-0 rounded-[2px]', SEGMENT_FILL[row.id])}
+                  className={cn('size-2 shrink-0 rounded-mark', SEGMENT[row.id].fill)}
                 />
                 {row.label}
               </span>
-              <span className="pl-3.5 text-caption font-normal text-ink-faint">
+              <span className="pl-3.5 text-caption-plain text-ink-faint">
                 {plural(row.customers)} · {shareLabel(sharePct(row.customers, customers))}
               </span>
             </span>
@@ -226,33 +226,6 @@ function SegmentPanel({ insights }: { insights: RmInsights }) {
         ))}
       </ul>
     </Panel>
-  )
-}
-
-/** Part to whole in one bar, a 2px surface gap between the parts so neighbours never merge. */
-function StackedBar({
-  parts,
-  label,
-}: {
-  parts: readonly { id: string; value: number; fill: string }[]
-  label: string
-}) {
-  return (
-    <div
-      role="img"
-      aria-label={label}
-      className="flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full bg-ground-deep"
-    >
-      {parts
-        .filter((p) => p.value > 0)
-        .map((p) => (
-          <span
-            key={p.id}
-            className={cn('h-full first:rounded-l-full last:rounded-r-full', p.fill)}
-            style={{ flexGrow: p.value, flexBasis: 0, minWidth: 3 }}
-          />
-        ))}
-    </div>
   )
 }
 
@@ -282,7 +255,7 @@ const HEALTH_FILL: Record<GoalHealth, string> = {
 const HEALTH_SWATCH: Record<GoalHealth, string> = {
   on_track: 'rounded-full bg-brand',
   at_risk: 'rounded-full border-2 border-chart-neutral-400',
-  off_track: 'rounded-[2px] bg-chart-neutral-400',
+  off_track: 'rounded-mark bg-chart-neutral-400',
 }
 
 /**
@@ -325,7 +298,7 @@ function GoalHealthPanel({ insights, className }: { insights: RmInsights; classN
                     />
                     {HEALTH[h].label}
                   </span>
-                  <span className="pl-3.5 text-caption font-normal text-ink-faint">
+                  <span className="pl-3.5 text-caption-plain text-ink-faint">
                     {HEALTH_MEANING[h]}
                   </span>
                 </span>
@@ -387,7 +360,7 @@ function BookLink() {
       Open them in Book, off track first
       <ChevronRight
         aria-hidden
-        className="size-4 transition-transform duration-150 group-hover:translate-x-0.5"
+        className="size-4 transition-transform duration-feedback group-hover:translate-x-0.5"
       />
     </Link>
   )

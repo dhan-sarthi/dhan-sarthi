@@ -2,9 +2,10 @@
  * The typed fetch client, generated from the contracts registry.
  *
  * Nothing about a route is repeated here. Method, path, which bearer it needs and whether it sets
- * an ETag all come from `ROUTES`, and the request and response types are inferred from the same
- * rows — so when the API adds a field the page that reads it typechecks against it, and a route
- * the registry does not declare cannot be called at all.
+ * an ETag come from `ROUTE_TABLE`, which `scripts/routes-table.mjs` copies out of the registry
+ * (schemas left behind, so zod never reaches the bundle), and the request and response types are
+ * inferred from the registry's own rows — so when the API adds a field the page that reads it
+ * typechecks against it, and a route the registry does not declare cannot be called at all.
  *
  * Ported from the deleted customer web app (a0250c2^:apps/web/src/api/client.ts), with one arm
  * added: routes declared `auth: 'rm'` carry the relationship manager's bearer. The console holds
@@ -22,17 +23,16 @@
  *             later request with it would fail the same way; the auth guard sends the RM to the
  *             sign-in page and says why.
  */
-import { ROUTES } from '@dhan/contracts'
 import type {
   BodyInputOf,
   ErrorBody,
   ErrorCode,
   ParamsOf,
   QueryInputOf,
-  RouteEntry,
-  RouteId,
   SuccessOf,
 } from '@dhan/contracts'
+import type { ConsoleRouteId, RouteMeta } from './route-meta.ts'
+import { ROUTE_TABLE } from './routes.generated.ts'
 import { clearSession, getToken } from './session.ts'
 
 const TIMEOUT_MS = 12_000
@@ -112,13 +112,13 @@ function codeForStatus(status: number): ErrorCode {
 
 type Empty = Record<string, never>
 
-type ParamsArg<Id extends RouteId> = [ParamsOf<Id>] extends [Empty]
+type ParamsArg<Id extends ConsoleRouteId> = [ParamsOf<Id>] extends [Empty]
   ? { params?: never }
   : { params: ParamsOf<Id> }
-type QueryArg<Id extends RouteId> = [QueryInputOf<Id>] extends [Empty]
+type QueryArg<Id extends ConsoleRouteId> = [QueryInputOf<Id>] extends [Empty]
   ? { query?: never }
   : { query?: QueryInputOf<Id> }
-type BodyArg<Id extends RouteId> = [BodyInputOf<Id>] extends [undefined]
+type BodyArg<Id extends ConsoleRouteId> = [BodyInputOf<Id>] extends [undefined]
   ? { body?: never }
   : { body: BodyInputOf<Id> }
 
@@ -132,16 +132,19 @@ export interface CallOptions {
   timeoutMs?: number
 }
 
-export type Input<Id extends RouteId> = ParamsArg<Id> & QueryArg<Id> & BodyArg<Id> & CallOptions
+export type Input<Id extends ConsoleRouteId> = ParamsArg<Id> &
+  QueryArg<Id> &
+  BodyArg<Id> &
+  CallOptions
 
 /** Routes that need neither params nor body may be called with no input at all. */
-type Args<Id extends RouteId> = [ParamsOf<Id>] extends [Empty]
+type Args<Id extends ConsoleRouteId> = [ParamsOf<Id>] extends [Empty]
   ? [BodyInputOf<Id>] extends [undefined]
     ? [input?: Input<Id>]
     : [input: Input<Id>]
   : [input: Input<Id>]
 
-export interface Reply<Id extends RouteId> {
+export interface Reply<Id extends ConsoleRouteId> {
   status: number
   body: SuccessOf<Id>
   etag: string | null
@@ -157,16 +160,25 @@ export interface NotModified {
 
 /* ---------------------------------------------------------------- Helpers */
 
-const byId = new Map<string, RouteEntry>(ROUTES.map((r) => [r.id, r]))
+/**
+ * Fails to compile when the table misses a route the console could call: regenerate it with
+ * `node scripts/routes-table.mjs` after the registry changes.
+ */
+type Assert<T extends true> = T
+export type RouteTableIsComplete = Assert<
+  [Exclude<ConsoleRouteId, (typeof ROUTE_TABLE)[number]['id']>] extends [never] ? true : false
+>
 
-function routeFor(id: RouteId): RouteEntry {
+const byId = new Map<string, RouteMeta>(ROUTE_TABLE.map((r) => [r.id, r]))
+
+function routeFor(id: ConsoleRouteId): RouteMeta {
   const found = byId.get(id)
-  if (!found) throw new Error(`no route "${id}" in the registry`)
+  if (!found) throw new Error(`no route "${id}" the console can call`)
   return found
 }
 
 function buildUrl(
-  route: RouteEntry,
+  route: RouteMeta,
   params: Record<string, string> | undefined,
   query: Record<string, unknown> | undefined,
 ): string {
@@ -186,22 +198,13 @@ function buildUrl(
 /**
  * The bearer a route needs, or a refusal before anything is sent. `none` needs nothing; `rm`
  * needs the signed-in RM's token; the customer's and the operator's credentials never live in
- * this app.
+ * this app, and their routes are not in the table at all.
  */
-function authHeader(route: RouteEntry): string | null {
-  switch (route.auth) {
-    case 'none':
-      return null
-    case 'rm': {
-      const token = getToken()
-      if (!token) throw new ApiError(401, 'UNAUTHORIZED', 'You are signed out. Sign in again.')
-      return `Bearer ${token}`
-    }
-    default:
-      throw new Error(
-        `route "${route.id}" needs a ${route.auth} credential the console does not hold`,
-      )
-  }
+function authHeader(route: RouteMeta): string | null {
+  if (route.auth === 'none') return null
+  const token = getToken()
+  if (!token) throw new ApiError(401, 'UNAUTHORIZED', 'You are signed out. Sign in again.')
+  return `Bearer ${token}`
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -251,7 +254,7 @@ async function fetchWithTimeout(
  * One request, with the raw reply. Most callers want `api()` below; this exists for routes that
  * answer 304, where "nothing changed" is a result and not an error.
  */
-export async function request<Id extends RouteId>(
+export async function request<Id extends ConsoleRouteId>(
   id: Id,
   ...args: Args<Id>
 ): Promise<Reply<Id> | NotModified> {
@@ -262,7 +265,7 @@ export async function request<Id extends RouteId>(
   const authorization = authHeader(route)
   if (authorization) headers['authorization'] = authorization
   if (input.body !== undefined) headers['content-type'] = 'application/json'
-  if (input.etag && route.cache?.etag) headers['if-none-match'] = input.etag
+  if (input.etag && route.etag) headers['if-none-match'] = input.etag
 
   const url = buildUrl(
     route,
@@ -316,7 +319,10 @@ export async function request<Id extends RouteId>(
 }
 
 /** The success body, or an ApiError. */
-export async function api<Id extends RouteId>(id: Id, ...args: Args<Id>): Promise<SuccessOf<Id>> {
+export async function api<Id extends ConsoleRouteId>(
+  id: Id,
+  ...args: Args<Id>
+): Promise<SuccessOf<Id>> {
   const reply = await request(id, ...args)
   if (reply.notModified) {
     // Only reachable by passing an etag to a route that honours it; those callers use request().

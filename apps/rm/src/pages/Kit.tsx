@@ -20,14 +20,10 @@ import {
   AllocationBar,
   AreaChart,
   Avatar,
-  BAND_SWATCH,
-  BandChart,
-  BarChart,
   Button,
   Card,
   CardFooter,
   CardHeader,
-  CellStack,
   Chip,
   CommandPalette,
   DataTable,
@@ -36,9 +32,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTrigger,
   Disclaimer,
-  Donut,
   EmptyState,
   ErrorState,
   Field,
@@ -49,6 +43,8 @@ import {
   LinkTabs,
   MaskedField,
   Money,
+  MonthColumns,
+  MonthLines,
   PageHeader,
   PROJECTION_SWATCH,
   ProjectionChart,
@@ -58,20 +54,23 @@ import {
   PopoverTitle,
   PopoverTrigger,
   PropertyList,
+  RankedBars,
   scenarioRoles,
   SEGMENT,
   SectionLabel,
   SegmentBadge,
   SegmentTabs,
   Select,
+  SEVERITY,
   SeverityChip,
+  SeverityMark,
   SideRail,
   Skeleton,
   SkeletonStat,
   SkeletonText,
-  SmallMultiple,
   Sparkline,
   SplitView,
+  StackedBar,
   Stat,
   StrengthBadge,
   Tabs,
@@ -83,6 +82,7 @@ import {
   TimelineEvent,
   TimelineMonth,
   toast,
+  ToggleGroup,
   Tooltip,
   VerifiedBadge,
   modKey,
@@ -357,7 +357,7 @@ function Swatch({ name, cssVar, value }: { name: string; cssVar: string; value: 
         style={{ background: `var(${cssVar})` }}
       />
       <div className="text-caption text-ink">{name}</div>
-      <div className="font-mono text-caption font-normal text-ink-faint">{value}</div>
+      <div className="font-mono text-caption-plain text-ink-faint">{value}</div>
     </div>
   )
 }
@@ -430,7 +430,7 @@ function Foundations() {
           <Card className="grid gap-4">
             {Object.entries(web.type).map(([role, spec]) => (
               <div key={role} className="grid grid-cols-[140px_minmax(0,1fr)] items-baseline gap-6">
-                <span className="font-mono text-caption font-normal text-ink-faint">
+                <span className="font-mono text-caption-plain text-ink-faint">
                   text-{role} · {spec.size}/{spec.leading}
                 </span>
                 <span className={`${TYPE_CLASS[role as keyof typeof TYPE_CLASS]} text-ink`}>
@@ -537,19 +537,38 @@ function Status() {
             <Chip tone="outline">Outline</Chip>
           </div>
         </Specimen>
-        <Specimen label="Severity (RM voice)">
-          <div className="flex flex-wrap gap-2">
-            <SeverityChip severity="urgent" />
-            <SeverityChip severity="important" />
-            <SeverityChip severity="opportunity" />
-            <SeverityChip severity="urgent" size="md" />
+        <Specimen label="Severity (RM voice): chip, filled mark, bare mark">
+          <div className="grid gap-3">
+            <div className="flex flex-wrap gap-2">
+              <SeverityChip severity="urgent" />
+              <SeverityChip severity="important" />
+              <SeverityChip severity="opportunity" />
+              <SeverityChip severity="urgent" size="md" />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <SeverityMark severity="urgent" />
+              <SeverityMark severity="important" />
+              <SeverityMark severity="opportunity" />
+              <SeverityMark severity="urgent" size="xs" />
+              <span className="mx-2 h-4 w-px bg-hairline" aria-hidden />
+              {(['urgent', 'important', 'opportunity'] as const).map((level) => (
+                <span key={level} className="inline-flex items-center gap-1.5 text-label">
+                  <SeverityMark severity={level} variant="bare" labelSuffix=": " />
+                  {SEVERITY[level].label}
+                </span>
+              ))}
+            </div>
           </div>
         </Specimen>
-        <Specimen label="Segment">
+        <Specimen label="Segment: chip, and the quiet chip a dense table uses">
           <div className="flex flex-wrap gap-2">
             <SegmentBadge segment="priority" />
             <SegmentBadge segment="affluent" />
             <SegmentBadge segment="mass" />
+            <span className="mx-2 h-5 w-px bg-hairline" aria-hidden />
+            <SegmentBadge segment="priority" variant="quiet" />
+            <SegmentBadge segment="affluent" variant="quiet" />
+            <SegmentBadge segment="mass" variant="quiet" />
           </div>
         </Specimen>
         <Specimen label="Goal health">
@@ -612,7 +631,7 @@ function Figures() {
               <Money value={22770000} short="auto" /> short on life cover; a card balance of{' '}
               <Money value={186240} short="auto" />.
             </p>
-            <p className="text-caption font-normal text-ink-faint">
+            <p className="text-caption-plain text-ink-faint">
               <code>{'<Money short="auto">'}</code> and <code>formatInrProse</code>: in full under
               ₹1 lakh, short from there up. The exact figure stays in the hover title. As a string:{' '}
               {formatInrProse(99999)} · {formatInrProse(100000)} · {formatInrProse(-1862400)}
@@ -646,7 +665,7 @@ function Figures() {
               </tbody>
             </table>
           </Card>
-          <p className="mt-2 max-w-3xl text-caption font-normal text-ink-faint">
+          <p className="mt-2 max-w-3xl text-caption-plain text-ink-faint">
             Whole days to the RM&rsquo;s as-of date, never the wall clock, so the Book row, the
             preview, the customer&rsquo;s highlight and the strength reason the API writes read the
             same words for the same fact.
@@ -662,8 +681,34 @@ function Figures() {
             <DeltaPill value={-1.5} unit="pp" />
           </div>
         </Specimen>
-        <Specimen label="KPI strip">
-          <div className="grid grid-cols-4 gap-4">
+        <Specimen label="Compact strip (Stat size sm: the value truncates before it overprints)">
+          <Card className="grid grid-cols-4 gap-4 py-4">
+            <Stat
+              size="sm"
+              label="Book value"
+              value={106000000}
+              unit="inr"
+              deltaLabel="As at 1 Sep 2026"
+            />
+            <Stat
+              size="sm"
+              label="With IDBI"
+              value={51600000}
+              unit="inr"
+              deltaLabel="91.4% of balances"
+            />
+            <Stat
+              size="sm"
+              label="SIP book"
+              value={443000}
+              unit="inr"
+              deltaLabel="registered SIPs"
+            />
+            <Stat size="sm" label="Asked for you" value={4} unit="count" />
+          </Card>
+        </Specimen>
+        <Specimen label="KPI strip (Stat: a part of a whole says its denominator; a line names itself)">
+          <div className="grid grid-cols-5 gap-4">
             <Card>
               <Stat
                 label="Book value"
@@ -689,17 +734,27 @@ function Figures() {
             </Card>
             <Card>
               <Stat
-                label="Open handoffs"
+                label="Asked for you"
                 value={3}
+                outOf={46}
                 unit="count"
                 delta={1}
                 invert
-                deltaLabel="oldest waiting 4 days"
+                deltaLabel="oldest waiting 4 days, which is the longest anyone has waited this month"
+              />
+            </Card>
+            <Card>
+              <Stat
+                label="Book value, with its line named"
+                value={45200000}
+                unit="inr"
+                series={BALANCES}
+                seriesLabel="12 month-ends, Sep 2025 to Aug 2026"
               />
             </Card>
           </div>
         </Specimen>
-        <Specimen label="Sparkline and allocation">
+        <Specimen label="Sparkline, allocation and stacked bar">
           <Card className="grid grid-cols-3 items-center gap-8">
             <div className="flex items-center gap-4">
               <Sparkline values={SAMPLE_ROWS[0]!.series} label="Balances over 12 months, rising" />
@@ -708,6 +763,29 @@ function Figures() {
             </div>
             <AllocationBar allocation={SAMPLE_ROWS[0]!.allocation} />
             <AllocationBar allocation={SAMPLE_ROWS[3]!.allocation} legend size="regular" />
+            <div className="grid gap-1">
+              <span className="text-caption text-ink-faint">
+                Window: the last three months over the year (fluid)
+              </span>
+              <Sparkline
+                values={SAMPLE_ROWS[1]!.series}
+                window={4}
+                fluid
+                height={36}
+                label="Down over the year, up 6% in the last three months"
+              />
+            </div>
+            <div className="col-span-2 grid gap-2">
+              <span className="text-caption text-ink-faint">Stacked bar: segments by value</span>
+              <StackedBar
+                label="Priority 61%, Affluent 30%, Mass 9%"
+                parts={[
+                  { id: 'priority', value: 61, fill: SEGMENT.priority.fill },
+                  { id: 'affluent', value: 30, fill: SEGMENT.affluent.fill },
+                  { id: 'mass', value: 9, fill: SEGMENT.mass.fill },
+                ]}
+              />
+            </div>
           </Card>
         </Specimen>
       </div>
@@ -745,7 +823,7 @@ function CardsAndTabs() {
                   <Avatar name={r.name} initials={r.initials} />
                   <div className="min-w-0 flex-1">
                     <p className="text-label text-ink">{r.name}</p>
-                    <p className="truncate text-caption font-normal text-ink-soft">
+                    <p className="truncate text-caption-plain text-ink-soft">
                       {r.signal?.title ?? 'Asked to talk to you'}
                     </p>
                   </div>
@@ -769,20 +847,39 @@ function CardsAndTabs() {
             />
           </Card>
         </div>
-        <Specimen label="Segment tabs">
-          <SegmentTabs
-            label="Book segments"
-            value={segment}
-            onChange={setSegment}
-            tabs={[
-              { id: 'all', label: 'All', count: 46 },
-              { id: 'priority', label: 'Priority', count: 5 },
-              { id: 'affluent', label: 'Affluent', count: 17 },
-              { id: 'mass', label: 'Mass', count: 24 },
-              { id: 'at_risk', label: 'At risk', count: 9 },
-              { id: 'idle_cash', label: 'Idle cash', count: 12 },
-            ]}
-          />
+        <Specimen label="Segment tabs: fill, and fit with groups (the Book's strip)">
+          <div className="grid gap-3">
+            <SegmentTabs
+              label="Book segments"
+              value={segment}
+              onChange={setSegment}
+              tabs={[
+                { id: 'all', label: 'All', count: 46 },
+                { id: 'priority', label: 'Priority', count: 5 },
+                { id: 'affluent', label: 'Affluent', count: 17 },
+                { id: 'mass', label: 'Mass', count: 24 },
+                { id: 'at_risk', label: 'At risk', count: 9 },
+                { id: 'idle_cash', label: 'Idle cash', count: 12 },
+              ]}
+            />
+            <SegmentTabs
+              label="Book segments and work"
+              layout="fit"
+              value={segment}
+              onChange={setSegment}
+              tabs={[
+                { id: 'all', label: 'All', count: 46, group: 'who' },
+                { id: 'priority', label: 'Priority', count: 5, group: 'who' },
+                { id: 'affluent', label: 'Affluent', count: 17, group: 'who' },
+                { id: 'mass', label: 'Mass', count: 24, group: 'who' },
+                { id: 'at_risk', label: 'At risk', count: 9, group: 'work' },
+                { id: 'idle_cash', label: 'Idle cash', count: 12, group: 'work' },
+              ]}
+            />
+          </div>
+        </Specimen>
+        <Specimen label="Toggle group (call or note)">
+          <KindToggle />
         </Specimen>
         <div className="grid grid-cols-2 gap-8">
           <Specimen label="Tabs (in page)">
@@ -821,6 +918,22 @@ function CardsAndTabs() {
   )
 }
 
+function KindToggle() {
+  const [kind, setKind] = useState<'call' | 'note'>('call')
+  return (
+    <ToggleGroup
+      label="This is"
+      showLabel
+      value={kind}
+      onChange={setKind}
+      options={[
+        { value: 'call', label: 'Call', icon: <Phone aria-hidden /> },
+        { value: 'note', label: 'Note', icon: <StickyNote aria-hidden /> },
+      ]}
+    />
+  )
+}
+
 /* ---------------------------------------------------------------- Table and rail */
 
 const col = createColumnHelper<SampleRow>()
@@ -836,19 +949,21 @@ function TableAndRail() {
         header: 'Customer',
         meta: { width: '26%' },
         cell: (c) => (
-          <CellStack
-            leading={
-              <Avatar name={c.row.original.name} initials={c.row.original.initials} size="sm" />
-            }
-            title={c.getValue()}
-            subtitle={`${c.row.original.age} · ${c.row.original.city}`}
-          />
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Avatar name={c.row.original.name} initials={c.row.original.initials} size="sm" />
+            <div className="min-w-0">
+              <div className="truncate text-label text-ink">{c.getValue()}</div>
+              <div className="truncate text-caption-plain text-ink-faint">
+                {`${c.row.original.age} · ${c.row.original.city}`}
+              </div>
+            </div>
+          </div>
         ),
         footer: (c) => `${c.table.getRowModel().rows.length} customers`,
       }),
       col.accessor('segment', {
         header: 'Segment',
-        cell: (c) => <SegmentBadge segment={c.getValue()} />,
+        cell: (c) => <SegmentBadge segment={c.getValue()} variant="quiet" />,
       }),
       col.accessor('value', {
         header: 'Relationship value',
@@ -890,7 +1005,7 @@ function TableAndRail() {
               </span>
             </span>
           ) : (
-            <span className="text-label text-ink-hint">Nothing to act on</span>
+            <span className="text-label text-ink-faint">Nothing to act on</span>
           ),
         meta: { width: '28%' },
       }),
@@ -905,7 +1020,7 @@ function TableAndRail() {
 
   return (
     <Section id="table" title="Table and rail">
-      <p className="mb-4 max-w-3xl text-label font-normal text-ink-soft">
+      <p className="mb-4 max-w-3xl text-label-plain text-ink-soft">
         A clickable row is one Tab stop: the segment, allocation and strength badges inside it give
         theirs up (<code>InteractiveRow</code>), and their words reach a screen reader through their
         labels. The arrow keys walk the rows; with the preview open it follows the focus through{' '}
@@ -969,9 +1084,11 @@ function TableAndRail() {
           onSortingChange={setSorting}
           selectedId={selected}
           onRowClick={(r) => setSelected((cur) => (cur === r.id ? null : r.id))}
-          onRowFocus={(r) => setSelected((cur) => (cur === null ? null : r.id))}
+          // The preview follows the arrow keys only, so Tab from the chosen row goes into it.
+          onRowFocus={(r, cause) => {
+            if (cause === 'arrow') setSelected((cur) => (cur === null ? null : r.id))
+          }}
           columnVisibility={row ? { signal: false, allocation: false, strength: false } : {}}
-          stickyTop={56}
           empty={
             <EmptyState title="No customers match" body="Clear the search or pick another tab." />
           }
@@ -1046,6 +1163,8 @@ const KIT_PAGE = { label: 'Book', hint: 'Every customer in your book' }
 
 function Overlays() {
   const [palette, setPalette] = useState(false)
+  // Opened by a plain onClick, as the console's pages open theirs: focus still comes back here.
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [query, setQuery] = useState('')
   const toItem = (r: SampleRow, highlight: readonly [number, number] | null): CommandItemDef => ({
     id: r.id,
@@ -1060,10 +1179,8 @@ function Overlays() {
   return (
     <Section id="overlays" title="Overlays">
       <div className="flex flex-wrap items-center gap-3">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>Open dialog</Button>
-          </DialogTrigger>
+        <Button onClick={() => setDialogOpen(true)}>Open dialog</Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader
               title="Log a call"
@@ -1120,7 +1237,7 @@ function Overlays() {
           Error toast
         </Button>
       </div>
-      <p className="mt-3 max-w-3xl text-caption font-normal text-ink-faint">
+      <p className="mt-3 max-w-3xl text-caption-plain text-ink-faint">
         The palette ranks with <code>lib/search.ts</code>: whole name, CIF, start of the name, start
         of a word, the CIF&rsquo;s ends, the city, then one typo in a longer word, offered only when
         nothing else matches. Nothing weaker is listed. Empty, it offers the customers opened last.
@@ -1199,7 +1316,7 @@ function Timeline() {
   return (
     <Section id="timeline" title="Timeline">
       <Card className="max-w-3xl">
-        <TimelineMonth label="August 2026" count={3} stickyTop={56}>
+        <TimelineMonth label="August 2026" count={3}>
           <TimelineEvent
             kind="note"
             source="rm"
@@ -1226,7 +1343,7 @@ function Timeline() {
             />
           </TimelineEvent>
         </TimelineMonth>
-        <TimelineMonth label="July 2026" count={1} stickyTop={56}>
+        <TimelineMonth label="July 2026" count={1}>
           <TimelineEvent
             kind="ledger"
             source="ledger"
@@ -1266,6 +1383,24 @@ const SAMPLE_PROJECTION: Projection = (() => {
 })()
 const SAMPLE_ROLES = scenarioRoles(SAMPLE_PROJECTION)!
 
+function RuleFilter({ rows }: { rows: readonly { rule: string; count: number }[] }) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const total = rows.reduce((n, r) => n + r.count, 0)
+  return (
+    <RankedBars
+      label="Refusals by rule. Choose one to filter the ledger."
+      labelWidth="13rem"
+      filter={{ selected, onSelect: setSelected }}
+      rows={rows.map((r) => ({
+        id: r.rule,
+        label: r.rule,
+        count: r.count,
+        tooltip: `${r.count} of ${total} refusals`,
+      }))}
+    />
+  )
+}
+
 function Charts() {
   const area = MONTHS.map((m, i) => ({
     month: m,
@@ -1296,46 +1431,63 @@ function Charts() {
             />
           </Card>
           <Card>
-            <CardHeader title="Refusals by rule" />
-            <BarChart
-              data={bars}
-              x="rule"
-              y="count"
-              yLabel="Refusals"
-              horizontal
-              highlight={(_, i) => i === 0}
-              height={220}
-              label="Refusals by rule"
-            />
+            <CardHeader title="Refusals by rule (a filter)" />
+            <RuleFilter rows={bars} />
           </Card>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6">
           <Card>
-            <CardHeader title="Allocation" />
-            <Donut
-              data={[
-                { id: 'equity', label: 'Equity', value: 18.4e7 },
-                { id: 'fixed', label: 'Fixed income', value: 14.1e7 },
-                { id: 'cash', label: 'Cash', value: 12.7e7 },
+            <CardHeader title="Signals by kind (links)" />
+            <RankedBars
+              label="Signals across the book, by kind"
+              rows={[
+                {
+                  id: 'idle',
+                  label: 'Idle cash',
+                  count: 12,
+                  fill: SEVERITY.important.fill,
+                  to: '/kit',
+                },
+                {
+                  id: 'fd',
+                  label: 'FD maturing',
+                  count: 7,
+                  fill: SEVERITY.important.fill,
+                  to: '/kit',
+                },
+                {
+                  id: 'missed',
+                  label: 'Missed repayment',
+                  count: 3,
+                  fill: SEVERITY.urgent.fill,
+                  to: '/kit',
+                },
+                { id: 'subs', label: 'Subscriptions', count: 18, fill: SEVERITY.opportunity.fill },
               ]}
-              centerValue={<Money value={45.2e7} short />}
-              centerLabel="we can see"
-              label="Book allocation by asset class"
             />
           </Card>
           <Card>
-            <CardHeader title="Activity by month" />
-            <BarChart
-              data={MONTHS.map((m, i) => ({
-                month: m,
-                sessions: [12, 18, 15, 22, 19, 25, 21, 28, 26, 31, 29, 34][i] ?? 0,
-              }))}
-              x="month"
-              y="sessions"
-              yLabel="Sessions"
-              highlight={(_, i) => i === 11}
-              label="Customer sessions by month"
-            />
+            <CardHeader title="Month tiles: a line and columns" />
+            <div className="grid grid-cols-2 gap-4">
+              <MonthLines
+                months={MONTHS}
+                lines={[
+                  { key: 'total', label: 'All banks', values: BALANCES },
+                  { key: 'idbi', label: 'With IDBI', values: WITH_IDBI, role: 'comparison' },
+                ]}
+                height={120}
+                endLabels
+                monthEnd
+                label="Balances at each month-end, all banks against IDBI"
+              />
+              <MonthColumns
+                months={MONTHS}
+                values={[12, 18, 15, 22, 19, 25, 21, 28, 26, 31, 29, 34]}
+                seriesLabel="Sessions"
+                height={120}
+                label="Customer sessions by month"
+              />
+            </div>
           </Card>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6">
@@ -1352,7 +1504,7 @@ function Charts() {
               series={[{ key: 'v', label: 'Balances' }]}
               label="Balances crossing one crore"
             />
-            <p className="mt-2 text-caption font-normal text-ink-faint">
+            <p className="mt-2 text-caption-plain text-ink-faint">
               Round ticks, each with the decimals it needs: never &ldquo;₹1Cr&rdquo; twice.
             </p>
           </Card>
@@ -1385,49 +1537,6 @@ function Charts() {
             </ul>
           </Card>
         </div>
-        <Card>
-          <CardHeader title="Band chart" />
-          <BandChart
-            data={[0, 1, 2, 3, 4, 5].map((t) => ({
-              x: 2026 + t,
-              low: 1e7 + t * 6e5,
-              mid: 1e7 + t * 9e5,
-              high: 1e7 + t * 1.3e6,
-              comparison: 1e7,
-            }))}
-            labels={{ low: 'Low', mid: 'Middle', high: 'High', comparison: 'Today' }}
-            height={180}
-            label="A sample range over five years"
-          />
-          <p className="mt-2 text-caption font-normal text-ink-faint">
-            <code>BandChart</code> is the generic range (low, middle, high, and a grey comparison in{' '}
-            <span style={{ color: BAND_SWATCH.comparison }}>neutral</span>);{' '}
-            <code>ProjectionChart</code> draws a goal projection on it.
-          </p>
-        </Card>
-        <div className="grid grid-cols-3 gap-4">
-          <SmallMultiple
-            title="Book value"
-            value={BALANCES[11] ?? 0}
-            months={MONTHS}
-            values={BALANCES}
-          />
-          <SmallMultiple
-            title="SIP book"
-            value={1840000}
-            months={MONTHS}
-            values={[14, 14.5, 15, 15.1, 15.8, 16, 16.4, 17, 17.2, 17.6, 18, 18.4].map(
-              (v) => v * 1e5,
-            )}
-          />
-          <SmallMultiple
-            title="Goals on track"
-            value={72}
-            format="pct"
-            months={MONTHS}
-            values={[70, 71, 74, 75, 73, 76, 75, 77, 76, 75, 75, 72]}
-          />
-        </div>
       </div>
     </Section>
   )
@@ -1459,6 +1568,13 @@ function Notices() {
             label="Date of birth"
             masked="•• ••• 1983"
             onReveal={() => new Promise((resolve) => setTimeout(() => resolve('14 Mar 1983'), 600))}
+          />
+          <MaskedField
+            label="Date of birth, with the desk's reasons"
+            masked="••/••/1983"
+            layout="inline"
+            reasons={['Verifying identity before a call', 'Customer asked for it', 'KYC update']}
+            onReveal={() => new Promise((resolve) => setTimeout(() => resolve('14/03/1983'), 600))}
           />
           <MaskedField
             label="PAN"

@@ -71,7 +71,7 @@ export function Fact({
     <div className={cn('min-w-0', className)}>
       <dt className="text-caption text-ink-faint">{label}</dt>
       <dd className="mt-1 text-heading text-ink tabular">{children}</dd>
-      {hint ? <dd className="mt-0.5 text-caption font-normal text-ink-soft">{hint}</dd> : null}
+      {hint ? <dd className="mt-0.5 text-caption-plain text-ink-soft">{hint}</dd> : null}
     </div>
   )
 }

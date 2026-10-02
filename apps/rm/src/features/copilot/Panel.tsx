@@ -1,7 +1,8 @@
 import type { Customer360 } from '@dhan/contracts'
 import { skipToken, useQuery } from '@tanstack/react-query'
 import { Sparkles, X } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router'
@@ -115,13 +116,14 @@ function useOpenFromAddress(cif: string) {
  */
 function Scrim() {
   return (
-    <motion.div
+    <m.div
       aria-hidden
       initial={{ opacity: 0 }}
       animate={{ opacity: 1, transition: { duration: duration.state, ease: ease.out } }}
       exit={{ opacity: 0, transition: { duration: duration.feedback, ease: ease.in } }}
       onClick={closeCopilot}
-      className="fixed top-topbar right-0 bottom-0 left-sidebar z-30 bg-ink/[0.07]"
+      // From the shell's own left edge: the full sidebar, the icon rail, or none on a phone.
+      className="fixed top-topbar right-0 bottom-0 left-0 z-30 bg-overlay-soft tablet:left-sidebar-rail laptop:left-sidebar"
     />
   )
 }
@@ -175,7 +177,7 @@ function PanelSurface({
   }, [])
 
   return (
-    <motion.section
+    <m.section
       ref={ref}
       id={PANEL_ID}
       role="dialog"
@@ -191,7 +193,7 @@ function PanelSurface({
         onValueChange={(value) => setCopilotMode(value as CopilotMode)}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <header className="shrink-0">
+        <div className="shrink-0">
           <div className="flex items-center gap-2.5 px-5 pt-4">
             <span
               aria-hidden
@@ -225,7 +227,7 @@ function PanelSurface({
                 size="sm"
                 className="size-5 text-micro tracking-normal"
               />
-              <span className="shrink-0 font-normal text-ink-faint">About</span>
+              <span className="shrink-0 text-label-plain text-ink-faint">About</span>
               <span className="min-w-0 truncate text-ink">{fullName}</span>
             </span>
           </div>
@@ -233,7 +235,7 @@ function PanelSurface({
             <TabsTrigger value="brief">Brief me</TabsTrigger>
             <TabsTrigger value="ask">Ask</TabsTrigger>
           </TabsList>
-        </header>
+        </div>
 
         <TabsContent value="brief" className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-8">
           <BriefView
@@ -248,6 +250,6 @@ function PanelSurface({
           <AskView cif={cif} name={name} asOf={asOf} prompts={customer.copilotPrompts} />
         </TabsContent>
       </Tabs>
-    </motion.section>
+    </m.section>
   )
 }

@@ -26,6 +26,13 @@ export interface CopilotButtonProps {
    * anything else opens the brief, which is what the two buttons on the customer page say.
    */
   mode?: CopilotMode
+  /**
+   * Where the button folds to its icon, as the caller's own variant: the button's classes
+   * (`@max-lg/header:w-control @max-lg/header:px-0`) and the label's (`@max-lg/header:sr-only`).
+   * The label stays the accessible name, and the tooltip then names the action as well.
+   */
+  className?: string
+  labelClassName?: string
 }
 
 /**
@@ -33,13 +40,19 @@ export interface CopilotButtonProps {
  * pressed while its mode is open, so the RM can see which button the panel belongs to. The
  * Ask button sits in a card footer, so it takes the small size.
  */
-export function CopilotButton({ cif, label = 'Brief me', mode }: CopilotButtonProps) {
+export function CopilotButton({
+  cif,
+  label = 'Brief me',
+  mode,
+  className,
+  labelClassName,
+}: CopilotButtonProps) {
   const ui = useCopilotUi()
   const resolved: CopilotMode = mode ?? (/^ask\b/i.test(label) ? 'ask' : 'brief')
   const open = ui.openCif === cif
   const active = open && ui.mode === resolved
   return (
-    <Tooltip content={`Copilot · ${modKey()} J`}>
+    <Tooltip content={labelClassName ? `${label} · ${modKey()} J` : `Copilot · ${modKey()} J`}>
       <Button
         size={resolved === 'ask' ? 'sm' : 'md'}
         icon={<Sparkles aria-hidden className="text-brand" />}
@@ -47,9 +60,12 @@ export function CopilotButton({ cif, label = 'Brief me', mode }: CopilotButtonPr
         aria-controls={open ? PANEL_ID : undefined}
         data-copilot-trigger=""
         onClick={() => pressCopilot(cif, resolved)}
-        className={cn(active && 'border-brand/35 bg-brand-wash hover:bg-brand-wash')}
+        className={cn(
+          active && 'border-selected-edge bg-brand-wash hover:bg-brand-wash',
+          className,
+        )}
       >
-        {label}
+        {labelClassName ? <span className={labelClassName}>{label}</span> : label}
       </Button>
     </Tooltip>
   )

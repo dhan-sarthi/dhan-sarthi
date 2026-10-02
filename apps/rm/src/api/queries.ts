@@ -5,7 +5,13 @@
  * mutation invalidates are decided once. Every type is the route's own, from the contracts.
  */
 import type { BodyInputOf, SuccessOf } from '@dhan/contracts'
-import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  QueryClient,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api, COPILOT_TIMEOUT_MS, isApiError } from './client.ts'
 import { clearSession, setSession } from './session.ts'
 
@@ -40,90 +46,152 @@ export const keys = {
 
 /* ---------------------------------------------------------------- Reads */
 
+/*
+ * Each read's options, written once and used twice: by its hook below, and by the route that
+ * opens the page (`shell/RouteBoundary.tsx`), which starts the request beside the page's code so
+ * the data does not wait for the chunk and React's reveal throttle first. Same key, same function,
+ * same stale time, so a prefetched answer is the one the hook would have asked for.
+ */
+export const queries = {
+  me: () =>
+    queryOptions({
+      queryKey: keys.me(),
+      queryFn: ({ signal }) => api('rmMe', { signal }),
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * Not refetched on focus. The whole book is about 130 kB, and the RM switches between this
+   * console and core banking all day; a write here (a logged call, a handoff) invalidates it, and
+   * the figures are as at the as-of date, so a return to the tab has nothing new to fetch.
+   */
+  book: () =>
+    queryOptions({
+      queryKey: keys.book(),
+      queryFn: ({ signal }) => api('rmBook', { signal }),
+      refetchOnWindowFocus: false,
+    }),
+
+  /** Refetched on focus: a handoff raised from the app while the RM was elsewhere should be there. */
+  today: () =>
+    queryOptions({
+      queryKey: keys.today(),
+      queryFn: ({ signal }) => api('rmToday', { signal }),
+      refetchOnWindowFocus: true,
+    }),
+
+  /**
+   * Opening a customer writes a "viewed" entry to the access log, so this query is never refetched
+   * behind the RM's back: no refetch on focus, a long stale time. A reload is a new open, and is
+   * logged as one. The route prefetches it with exactly these options (no purpose, as here), so
+   * the open is still logged once.
+   *
+   * The abort signal is left unused on purpose. React Query cancels a query whose function read
+   * the signal when its last observer unmounts, and the remount then sends a second request; under
+   * StrictMode's mount-unmount-mount that wrote every open to the log twice. Without the signal the
+   * remount joins the request already in flight, and an open the server has logged is not undone
+   * by dropping its reply anyway.
+   */
+  customer: (cif: string, purpose?: string) =>
+    queryOptions({
+      queryKey: keys.customer(cif),
+      queryFn: () =>
+        api('rmCustomer', { params: { cif }, ...(purpose ? { query: { purpose } } : {}) }),
+      staleTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+      enabled: cif !== '',
+    }),
+
+  journey: (cif: string) =>
+    queryOptions({
+      queryKey: keys.journey(cif),
+      queryFn: ({ signal }) => api('rmJourney', { params: { cif }, signal }),
+      enabled: cif !== '',
+    }),
+
+  record: (cif: string) =>
+    queryOptions({
+      queryKey: keys.record(cif),
+      queryFn: ({ signal }) => api('rmCustomerRecord', { params: { cif }, signal }),
+      enabled: cif !== '',
+    }),
+
+  insights: () =>
+    queryOptions({
+      queryKey: keys.insights(),
+      queryFn: ({ signal }) => api('rmInsights', { signal }),
+    }),
+
+  /** Not refetched on focus, for the book's reason: the ledger changes only when Uday refuses. */
+  refusals: () =>
+    queryOptions({
+      queryKey: keys.refusals(),
+      queryFn: ({ signal }) => api('rmRefusals', { signal }),
+      refetchOnWindowFocus: false,
+    }),
+
+  /**
+   * The log is written by reads elsewhere (opening a file, a refused attempt on one outside the
+   * book), which invalidate nothing here, so the page asks again every time it is opened rather
+   * than showing a copy from before the RM's last open. The one exception is an answer fetched for
+   * this very open: the route starts the request beside the page's code, and the page arriving a
+   * moment later must not send it a second time.
+   */
+  accessLog: () =>
+    queryOptions({
+      queryKey: keys.accessLog(),
+      queryFn: ({ signal }) => api('rmAccessLog', { signal }),
+      staleTime: 0,
+      refetchOnMount: (query) => Date.now() - query.state.dataUpdatedAt > JUST_FETCHED_MS,
+    }),
+}
+
+/** How fresh a prefetched answer has to be for the page that asked for it to use it as it is. */
+const JUST_FETCHED_MS = 2_000
+
 export function useMe() {
-  return useQuery({
-    queryKey: keys.me(),
-    queryFn: ({ signal }) => api('rmMe', { signal }),
-    staleTime: 5 * 60_000,
-  })
+  return useQuery(queries.me())
 }
 
 export function useBook() {
-  return useQuery({ queryKey: keys.book(), queryFn: ({ signal }) => api('rmBook', { signal }) })
-}
-
-/** Refetched on focus: a handoff raised from the app while the RM was elsewhere should be there. */
-export function useToday() {
-  return useQuery({
-    queryKey: keys.today(),
-    queryFn: ({ signal }) => api('rmToday', { signal }),
-    refetchOnWindowFocus: true,
-  })
+  return useQuery(queries.book())
 }
 
 /**
- * Opening a customer writes a "viewed" entry to the access log, so this query is never refetched
- * behind the RM's back: no refetch on focus, a long stale time. A reload is a new open, and is
- * logged as one.
- *
- * The abort signal is left unused on purpose. React Query cancels a query whose function read
- * the signal when its last observer unmounts, and the remount then sends a second request; under
- * StrictMode's mount-unmount-mount that wrote every open to the log twice. Without the signal the
- * remount joins the request already in flight, and an open the server has logged is not undone
- * by dropping its reply anyway.
+ * The sidebar's badge: the open requests to talk. It subscribes to the book for one number, so a
+ * change anywhere else in the book does not redraw the sidebar. (The book is still fetched whole;
+ * a light count on `/me` needs a contract change.)
  */
+export function useOpenHandoffCount(): number {
+  return useQuery({ ...queries.book(), select: (book) => book.totals.openHandoffs }).data ?? 0
+}
+
+export function useToday() {
+  return useQuery(queries.today())
+}
+
 export function useCustomer(cif: string, purpose?: string) {
-  return useQuery({
-    queryKey: keys.customer(cif),
-    queryFn: () =>
-      api('rmCustomer', { params: { cif }, ...(purpose ? { query: { purpose } } : {}) }),
-    staleTime: 10 * 60_000,
-    refetchOnWindowFocus: false,
-    enabled: cif !== '',
-  })
+  return useQuery(queries.customer(cif, purpose))
 }
 
 export function useJourney(cif: string) {
-  return useQuery({
-    queryKey: keys.journey(cif),
-    queryFn: ({ signal }) => api('rmJourney', { params: { cif }, signal }),
-    enabled: cif !== '',
-  })
+  return useQuery(queries.journey(cif))
 }
 
 export function useRecord(cif: string) {
-  return useQuery({
-    queryKey: keys.record(cif),
-    queryFn: ({ signal }) => api('rmCustomerRecord', { params: { cif }, signal }),
-    enabled: cif !== '',
-  })
+  return useQuery(queries.record(cif))
 }
 
 export function useInsights() {
-  return useQuery({
-    queryKey: keys.insights(),
-    queryFn: ({ signal }) => api('rmInsights', { signal }),
-  })
+  return useQuery(queries.insights())
 }
 
 export function useRefusals() {
-  return useQuery({
-    queryKey: keys.refusals(),
-    queryFn: ({ signal }) => api('rmRefusals', { signal }),
-  })
+  return useQuery(queries.refusals())
 }
 
-/**
- * The log is written by reads elsewhere (opening a file, a refused attempt on one outside the
- * book), which invalidate nothing here, so the page asks again every time it is opened rather
- * than showing a copy from before the RM's last open.
- */
 export function useAccessLog() {
-  return useQuery({
-    queryKey: keys.accessLog(),
-    queryFn: ({ signal }) => api('rmAccessLog', { signal }),
-    staleTime: 0,
-  })
+  return useQuery(queries.accessLog())
 }
 
 /* ---------------------------------------------------------------- Session */

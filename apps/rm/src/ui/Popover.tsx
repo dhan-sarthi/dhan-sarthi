@@ -35,5 +35,5 @@ export function PopoverTitle({ className, ...props }: ComponentProps<'p'>) {
 }
 
 export function PopoverDescription({ className, ...props }: ComponentProps<'p'>) {
-  return <p className={cn('text-label font-normal text-ink-soft', className)} {...props} />
+  return <p className={cn('text-label-plain text-ink-soft', className)} {...props} />
 }

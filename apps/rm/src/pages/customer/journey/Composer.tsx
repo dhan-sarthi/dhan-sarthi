@@ -1,14 +1,22 @@
 import type { JourneyEvent, RmJourney } from '@dhan/contracts'
 import { useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, Phone, StickyNote } from 'lucide-react'
+import { CircleAlert } from 'lucide-react'
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { keys, useAddNote } from '../../../api/queries.ts'
 import { useSession } from '../../../api/session.ts'
-import { cn } from '../../../lib/cn.ts'
 import { formatDate } from '../../../lib/format.ts'
-import { Avatar, Button, Kbd, Textarea, describeError, modKey } from '../../../ui/index.ts'
+import {
+  Avatar,
+  Button,
+  Kbd,
+  Textarea,
+  ToggleGroup,
+  describeError,
+  modKey,
+} from '../../../ui/index.ts'
+import { KIND_OPTIONS, type NoteKind } from '../NoteDialog.tsx'
 
-type Kind = 'note' | 'call'
+type Kind = NoteKind
 
 const MAX = 2000
 
@@ -105,7 +113,7 @@ export function Composer({
             setOpen(true)
             requestAnimationFrame(() => area.current?.focus())
           }}
-          className="flex h-control w-full items-center rounded-md border border-hairline bg-surface px-3 text-left text-body text-ink-hint shadow-raised transition-colors hover:border-ink-hint/45 focus-visible:outline-2 focus-visible:outline-focus"
+          className="flex h-control w-full items-center rounded-md border border-hairline bg-surface px-3 text-left text-body text-ink-hint shadow-raised transition-colors hover:border-hover-edge focus-visible:outline-2 focus-visible:outline-focus"
         >
           <span className="truncate">
             {text.trim() ? text : `Add a note or log a call on ${name}’s journey`}
@@ -138,16 +146,24 @@ export function Composer({
         {save.isError ? (
           <p
             role="alert"
-            className="flex items-start gap-2 rounded-md bg-danger-soft px-3 py-2 text-label font-normal text-danger"
+            className="flex items-start gap-2 rounded-md bg-danger-soft px-3 py-2 text-label-plain text-danger"
           >
             <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span>It was not saved. {describeError(save.error)} The text is still here.</span>
           </p>
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <KindSwitch value={kind} onChange={setKind} disabled={save.isPending} />
+          <ToggleGroup
+            label="This is"
+            showLabel
+            value={kind}
+            onChange={setKind}
+            options={KIND_OPTIONS}
+            disabled={save.isPending}
+            size="md"
+          />
           <div className="flex items-center gap-3">
-            <p id={hintId} className="text-caption font-normal text-ink-faint">
+            <p id={hintId} className="text-caption-plain text-ink-faint">
               {tooShort ? (
                 <span className="text-danger">Write a line or two first.</span>
               ) : (
@@ -176,49 +192,5 @@ export function Composer({
         </div>
       </div>
     </form>
-  )
-}
-
-/** Note or call, as one two-way switch, the same control the header's dialog uses. */
-function KindSwitch({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: Kind
-  onChange: (kind: Kind) => void
-  disabled: boolean
-}) {
-  const options: { kind: Kind; label: string; icon: typeof Phone }[] = [
-    { kind: 'note', label: 'Note', icon: StickyNote },
-    { kind: 'call', label: 'Call', icon: Phone },
-  ]
-  return (
-    <div
-      role="group"
-      aria-label="This is a"
-      className="inline-flex rounded-md bg-ground-deep p-0.5"
-    >
-      {options.map(({ kind, label, icon: Icon }) => {
-        const active = value === kind
-        return (
-          <button
-            key={kind}
-            type="button"
-            aria-pressed={active}
-            disabled={disabled}
-            onClick={() => onChange(kind)}
-            className={cn(
-              'inline-flex h-control-sm items-center gap-1.5 rounded-sm px-2.5 text-caption transition-colors duration-150',
-              'focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-45',
-              active ? 'bg-surface text-ink shadow-raised' : 'text-ink-soft hover:text-ink',
-            )}
-          >
-            <Icon aria-hidden className="size-3.5" />
-            {label}
-          </button>
-        )
-      })}
-    </div>
   )
 }

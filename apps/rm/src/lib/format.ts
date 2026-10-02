@@ -62,11 +62,15 @@ export function formatInrProse(value: number, options: { signed?: boolean } = {}
 /**
  * The magnitude part of a short figure: 4.82L, 48.2L, 1.2Cr, 48k, 950. Units are tried largest
  * first and kept once the figure *rounds* to at least one of them, so ₹99,96,000 reads "1Cr",
- * never "100L".
+ * never "100L", and ₹99,960 reads "1L", never "100k". Three significant figures at most, so
+ * ₹1,23,45,67,890 is "123Cr".
  *
- * Lakhs and crores keep two decimals under ten of the unit, as `rupeesShort` in `@dhan/core`
- * does. Every sentence the API sends was written with that rule ("card at 34.8% — ₹1.86L
- * outstanding"), so a figure drawn here beside it must not read ₹1.9L.
+ * This is the console's one short rupee formatter: `<Money short>`, `formatInr(…, { short })`
+ * and `formatInrProse` all come through it, and so must any figure a page prints in a sentence
+ * (rather than `@dhan/core`'s `rupeesShort`, which picks the unit before rounding and prints a
+ * hyphen for a minus). `format.cases.ts` is the table every short figure on the console must
+ * match. Lakhs and crores keep two decimals under ten of the unit, so a figure drawn beside one
+ * of the API's sentences ("card at 34.8% — ₹1.86L outstanding") never reads ₹1.9L.
  */
 export function shortNumber(abs: number): string {
   // [size, suffix, decimals under 10 of the unit, decimals from 10]: ₹48.2L keeps its decimal
@@ -181,12 +185,6 @@ export function formatLastActive(iso: string, asOf: string): string {
   // No digit grouping: the API's reason prints `${days}`, and the two must match exactly.
   return `${days} days ago`
 }
-
-/**
- * Last active, under its older name. Every caller of this was a "last active" figure, so it now
- * says exactly what `formatLastActive` says; new code should call that.
- */
-export const formatAgo = formatLastActive
 
 /** "in 12 days", used for maturities and deadlines. */
 export function formatIn(iso: string, asOf: string): string {

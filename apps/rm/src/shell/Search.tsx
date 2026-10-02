@@ -19,6 +19,10 @@ import { useRecentCustomers } from './recent.ts'
 /** More than this and the list stops being an answer and starts being the book again. */
 const MAX_CUSTOMERS = 8
 
+/** What the palette's result count calls each group's rows: "3 customers, 1 page". */
+const CUSTOMER = { one: 'customer', many: 'customers' }
+const PAGE = { one: 'page', many: 'pages' }
+
 /**
  * Cmd-K over the book and the pages. Customers are found by name, CIF or city and ranked by how
  * well they match (`lib/search.ts`): the person typed comes first, and a name that merely shares
@@ -87,15 +91,19 @@ export function SearchPalette({
         return row ? [row] : []
       })
       return [
-        { heading: 'Recent', items: recentRows.map((row) => toItem(row, null)) },
-        { heading: 'Go to', items: pages },
+        { heading: 'Recent', noun: CUSTOMER, items: recentRows.map((row) => toItem(row, null)) },
+        { heading: 'Go to', noun: PAGE, items: pages },
       ]
     }
 
     const customers = rankCustomers(query, rows, MAX_CUSTOMERS)
     return [
-      { heading: 'Customers', items: customers.map(({ row, match }) => toItem(row, match)) },
-      { heading: 'Go to', items: pages },
+      {
+        heading: 'Customers',
+        noun: CUSTOMER,
+        items: customers.map(({ row, match }) => toItem(row, match)),
+      },
+      { heading: 'Go to', noun: PAGE, items: pages },
     ]
   }, [book.data, navigate, query, recent])
 

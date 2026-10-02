@@ -122,7 +122,7 @@ export function EventRow({
           {event.detail ? (
             <p
               className={cn(
-                'max-w-prose text-label font-normal whitespace-pre-line text-ink',
+                'max-w-prose text-label-plain whitespace-pre-line text-ink',
                 event.source === 'rm' && 'rounded-md bg-canvas-top px-3 py-2',
               )}
             >
@@ -171,12 +171,12 @@ function PlanDiff({
         aria-expanded={expanded}
         aria-controls={id}
         onClick={onToggle}
-        className="-ml-0.5 inline-flex w-fit items-center gap-1 rounded-sm text-label font-normal text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+        className="-ml-0.5 inline-flex w-fit items-center gap-1 rounded-sm text-label-plain text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
       >
         <ChevronDown
           aria-hidden
           className={cn(
-            'size-3.5 shrink-0 text-ink-faint transition-transform duration-200',
+            'size-3.5 shrink-0 text-ink-faint transition-transform duration-state',
             !expanded && '-rotate-90',
           )}
         />
@@ -192,7 +192,7 @@ function PlanDiff({
             }))}
           />
           {event.detail ? (
-            <p className="text-caption font-normal text-ink-faint">{event.detail}</p>
+            <p className="text-caption-plain text-ink-faint">{event.detail}</p>
           ) : null}
         </div>
       ) : null}
@@ -208,7 +208,7 @@ function PlanDiff({
 function Refusal({ event, cif }: { event: JourneyEvent; cif: string }) {
   const at = event.ruleId ? ruleIndex(event.ruleId) : null
   return (
-    <div className="max-w-[44rem] rounded-md bg-brand-wash px-3.5 py-3 ring-1 ring-brand/15 ring-inset">
+    <div className="max-w-[44rem] rounded-md bg-brand-wash px-3.5 py-3 ring-1 ring-selected-edge ring-inset">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-label">
         <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-brand" />
         <span className="text-ink">
@@ -228,9 +228,7 @@ function Refusal({ event, cif }: { event: JourneyEvent; cif: string }) {
           ) : null}
         </span>
       </p>
-      {event.detail ? (
-        <p className="mt-1.5 text-label font-normal text-ink">{event.detail}</p>
-      ) : null}
+      {event.detail ? <p className="mt-1.5 text-label-plain text-ink">{event.detail}</p> : null}
       <Link
         to={`/customers/${encodeURIComponent(cif)}/record?record=${encodeURIComponent(event.id)}`}
         className="group mt-2 inline-flex items-center gap-1 rounded-sm text-caption text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
@@ -238,7 +236,7 @@ function Refusal({ event, cif }: { event: JourneyEvent; cif: string }) {
         The exact words they heard, on the advice record
         <ArrowRight
           aria-hidden
-          className="size-3 transition-transform duration-150 group-hover:translate-x-0.5"
+          className="size-3 transition-transform duration-feedback group-hover:translate-x-0.5"
         />
       </Link>
     </div>
@@ -295,12 +293,12 @@ export function ReviewsRow({
           aria-expanded={expanded}
           aria-controls={id}
           onClick={onToggle}
-          className="-ml-0.5 inline-flex w-fit items-center gap-1 rounded-sm text-label font-normal text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+          className="-ml-0.5 inline-flex w-fit items-center gap-1 rounded-sm text-label-plain text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
         >
           <ChevronDown
             aria-hidden
             className={cn(
-              'size-3.5 shrink-0 text-ink-faint transition-transform duration-200',
+              'size-3.5 shrink-0 text-ink-faint transition-transform duration-state',
               !expanded && '-rotate-90',
             )}
           />
@@ -309,7 +307,7 @@ export function ReviewsRow({
         {expanded ? (
           <ol
             id={id}
-            className="grid gap-1 rounded-md border border-hairline-soft bg-canvas-top/70 px-3 py-2"
+            className="grid gap-1 rounded-md border border-hairline-soft bg-footer-wash px-3 py-2"
           >
             {reviews.map((review) => (
               <li
@@ -323,9 +321,10 @@ export function ReviewsRow({
                   {(review.diff ?? []).map((d) => (
                     <span key={d.field} className="min-w-0 tabular">
                       {d.field} {diffValue(d.field, d.before) ?? '—'}{' '}
-                      <span aria-label="changed to" className="text-ink-hint">
+                      <span aria-hidden className="text-ink-hint">
                         →
-                      </span>{' '}
+                      </span>
+                      <span className="sr-only">changed to</span>{' '}
                       <span className="text-ink">{diffValue(d.field, d.after) ?? '—'}</span>
                     </span>
                   ))}

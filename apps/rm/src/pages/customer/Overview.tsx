@@ -69,7 +69,7 @@ export function CustomerOverview() {
     <div className={TAB_STACK}>
       <UdaysRead customer={customer} />
       <NextActions customer={customer} />
-      <div className="grid items-start gap-6 min-[87.5rem]:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-6 @min-[47.5rem]/tab:grid-cols-2">
         <Products customer={customer} />
         <ComingUp customer={customer} />
       </div>
@@ -97,7 +97,7 @@ function UdaysRead({ customer }: { customer: CustomerFile }) {
             key={row.label}
             className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-4"
           >
-            <dt className="text-label font-normal text-ink-faint">{row.label}</dt>
+            <dt className="text-label-plain text-ink-faint">{row.label}</dt>
             <dd className="max-w-prose text-body text-ink">{row.text}</dd>
           </div>
         ))}
@@ -181,7 +181,9 @@ function readRows(c: CustomerFile): ReadRow[] {
     })
   }
 
-  // Money: what we can see, how much of it is with us, what is left each month.
+  // Money: what we can see, how much of it is with us, what is left each month. With IDBI is a
+  // rupee figure, as on the Book's preview; the wallet share is a share of balances (With IDBI
+  // over every bank's), not of the relationship value before it, so it says so.
   const banks = new Set(money.accounts.map((a) => a.institution)).size
   const surplus = highlights.monthlySurplus
   rows.push({
@@ -190,7 +192,10 @@ function readRows(c: CustomerFile): ReadRow[] {
       <>
         {inr(highlights.relationshipValue)} we can see across {plural(banks, 'bank')}
         {money.walletSharePct !== null ? (
-          <>, {strong(formatPct(Math.round(money.walletSharePct)))} with IDBI</>
+          <>
+            , {inr(money.withIdbi)} with IDBI ({strong(formatPct(Math.round(money.walletSharePct)))}{' '}
+            of balances)
+          </>
         ) : null}
         .{' '}
         {surplus > 0 ? (
@@ -294,7 +299,7 @@ function ActionRow({
       <div className="min-w-0 flex-1">
         <p className="text-label text-ink">{action.title}</p>
         {action.reason ? (
-          <p className="mt-0.5 text-caption font-normal text-ink-soft">{action.reason}</p>
+          <p className="mt-0.5 text-caption-plain text-ink-soft">{action.reason}</p>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2 pt-0.5">
@@ -391,10 +396,10 @@ function WhyPopover({
             <div className="grid gap-1.5">
               <SeverityChip severity={signal.severity} className="w-fit" />
               <p className="text-heading text-ink">{signal.title}</p>
-              <p className="text-label font-normal text-ink-soft">{signal.detail}</p>
+              <p className="text-label-plain text-ink-soft">{signal.detail}</p>
             </div>
           ) : (
-            <p className="text-label font-normal text-ink-soft">
+            <p className="text-label-plain text-ink-soft">
               From the plan itself, not from a signal.
             </p>
           )}
@@ -421,7 +426,7 @@ function WhyPopover({
             <RulesLine rulesPassed={rulesPassed} verdict={verdict} />
           </div>
         </div>
-        <p className="rounded-b-lg border-t border-hairline-soft bg-canvas-top/60 px-4 py-2.5 text-caption font-normal text-ink-faint">
+        <p className="rounded-b-lg border-t border-hairline-soft bg-footer-wash px-4 py-2.5 text-caption-plain text-ink-faint">
           Suggested by the engine as at {formatDate(asOf)}
         </p>
       </PopoverContent>
@@ -465,7 +470,7 @@ function RulesLine({
     )
   }
   return (
-    <p className="flex items-center gap-1.5 text-label font-normal text-ink-soft">
+    <p className="flex items-center gap-1.5 text-label-plain text-ink-soft">
       <ShieldMinus aria-hidden className="size-4 text-ink-hint" />
       No product involved, so no rules ran.
     </p>
@@ -478,7 +483,7 @@ function EvidenceList({ lines }: { lines: readonly string[] }) {
       {lines.map((line, i) => (
         <li
           key={i}
-          className="grid grid-cols-[0.75rem_minmax(0,1fr)] text-label font-normal text-ink-soft"
+          className="grid grid-cols-[0.75rem_minmax(0,1fr)] text-label-plain text-ink-soft"
         >
           <span aria-hidden className="text-ink-hint">
             –
@@ -503,7 +508,7 @@ function Products({ customer }: { customer: CustomerFile }) {
             Held with IDBI <span className="tabular text-ink-hint">{held.length}</span>
           </p>
           {held.length === 0 ? (
-            <p className="text-label font-normal text-ink-soft">None yet.</p>
+            <p className="text-label-plain text-ink-soft">None yet.</p>
           ) : (
             <ul className="grid gap-1.5">
               {held.map((p) => (
@@ -520,7 +525,7 @@ function Products({ customer }: { customer: CustomerFile }) {
             Gaps <span className="tabular text-ink-hint">{gaps.length}</span>
           </p>
           {gaps.length === 0 ? (
-            <p className="text-label font-normal text-ink-soft">No gap the shelf could fill.</p>
+            <p className="text-label-plain text-ink-soft">No gap the shelf could fill.</p>
           ) : (
             <ul className="grid gap-1.5">
               {gaps.map((p) => (
@@ -578,7 +583,7 @@ function ComingUp({ customer }: { customer: CustomerFile }) {
                   <p className="truncate text-label text-ink" title={item.label}>
                     {item.label}
                   </p>
-                  <p className="flex items-center gap-1 text-caption font-normal text-ink-faint">
+                  <p className="flex items-center gap-1 text-caption-plain text-ink-faint">
                     <Icon aria-hidden className="size-3" />
                     {UPCOMING_LABEL[item.kind]} · {formatIn(item.date, customer.asOf)}
                   </p>

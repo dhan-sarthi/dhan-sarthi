@@ -52,7 +52,7 @@ export function ChainCheck({
               verdict{records.length === 1 ? '' : 's'} on {name}’s record
             </p>
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label font-normal text-ink-soft">
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-plain text-ink-soft">
             <Split dot="bg-brand" label="refused" value={refused} />
             <span aria-hidden className="text-ink-hint">
               ·
@@ -95,16 +95,16 @@ export function ChainCheck({
         className={cn(
           'rounded-b-lg border-t px-5 py-3.5',
           status === 'verified' && !pending && 'border-brand-deep bg-brand text-on-brand',
-          status === 'broken' && !pending && 'border-danger/20 bg-danger-soft/60',
-          (status === 'unchecked' || pending) && 'border-hairline-soft bg-canvas-top/60',
+          status === 'broken' && !pending && 'border-danger-edge bg-danger-wash',
+          (status === 'unchecked' || pending) && 'border-hairline-soft bg-footer-wash',
         )}
       >
         {pending ? (
-          <p className="text-label font-normal text-ink-soft">
+          <p className="text-label-plain text-ink-soft">
             Recomputing every hash in {name}’s {chains === 1 ? 'chain' : `${chains} chains`}…
           </p>
         ) : error ? (
-          <p className="flex items-start gap-2 text-label font-normal text-danger">
+          <p className="flex items-start gap-2 text-label-plain text-danger">
             <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span>The check did not run. {describeError(error)}</span>
           </p>
@@ -116,7 +116,7 @@ export function ChainCheck({
             onShowRecord={onShowRecord}
           />
         ) : (
-          <p className="max-w-[72ch] text-label font-normal text-ink-soft">
+          <p className="max-w-[72ch] text-label-plain text-ink-soft">
             Each record carries the hash of the one before it, so changing one word anywhere breaks
             every hash after it. Verifying recomputes them all on the server.
           </p>
@@ -160,7 +160,7 @@ function ChainResults({
             {verification.chains.map((chain, i) => (
               <li
                 key={chain.chainId}
-                className="flex min-w-0 items-center gap-2 text-label font-normal text-on-brand/85"
+                className="flex min-w-0 items-center gap-2 text-label-plain text-on-brand-muted"
               >
                 <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
                 <span className="truncate">
@@ -180,7 +180,7 @@ function ChainResults({
   const byId = new Map(records.map((r) => [r.id, r]))
   return (
     <div className="grid gap-2">
-      <p className="text-label font-normal text-danger">
+      <p className="text-label-plain text-danger">
         A record was changed after it was written.{' '}
         <span className="tabular">{formatCount(verification.checked)}</span> checked at{' '}
         <span className="tabular">{clockTime(verification.checkedAt)}</span>.

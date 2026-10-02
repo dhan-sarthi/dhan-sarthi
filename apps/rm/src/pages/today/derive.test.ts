@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { AdviceItem, Handoff, QueueItem, Signal, UpcomingItem } from '@dhan/contracts'
+import { upcomingEvents } from '@dhan/core'
 import {
   addDays,
   applyHandoffStatus,
@@ -352,4 +353,37 @@ test('an instalment label gives up its leading amount; any other label is kept w
     'Public Provident Fund, opened 2019',
   )
   assert.equal(fundOf('₹2,00,000 FD matures'), '₹2,00,000 FD matures')
+})
+
+/*
+ * The labels `fundOf` reads are written by `@dhan/core`'s `upcomingEvents`, the code the API runs
+ * for Coming up, so the test asks it for them instead of copying them here. A reworded label
+ * ("SIP of ₹15,000 into …") fails the first assertion rather than leaving the open week to print
+ * the amount twice; a label in a shape the pattern does not know is shown whole, never guessed at.
+ */
+test('the open week names the fund in the words the API writes today', () => {
+  const holdings = [
+    { name: 'Parag Parikh Flexi Cap Fund', holdingType: 'MUTUAL_FUND', sipAmount: 15_000 },
+    { name: 'Nifty 50 Index Fund', holdingType: 'MUTUAL_FUND', sipAmount: 1_50_000 },
+    { name: 'Public Provident Fund', holdingType: 'PPF', sipAmount: 5_000 },
+    { name: 'Liquid Fund', holdingType: 'MUTUAL_FUND', sipAmount: undefined },
+  ].map((h, i) => ({ ...h, sipActive: true, sipDebitDay: 5 + i }))
+  const labels = upcomingEvents({ cif: 'C1', name: 'A Customer' }, { holdings }, '2026-09-01').map(
+    (e) => e.label,
+  )
+  assert.deepEqual(labels, [
+    '₹15,000 SIP into Parag Parikh Flexi Cap Fund',
+    '₹1.5L SIP into Nifty 50 Index Fund',
+    '₹5,000 contribution to Public Provident Fund',
+    'SIP into Liquid Fund',
+  ])
+  assert.deepEqual(labels.map(fundOf), [
+    'Parag Parikh Flexi Cap Fund',
+    'Nifty 50 Index Fund',
+    'Public Provident Fund',
+    // No amount, so nothing to say twice: the label is the line.
+    'SIP into Liquid Fund',
+  ])
+  // Any other shape is kept whole.
+  assert.equal(fundOf('SIP of ₹15,000 into Parag Parikh'), 'SIP of ₹15,000 into Parag Parikh')
 })

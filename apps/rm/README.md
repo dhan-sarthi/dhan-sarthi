@@ -63,7 +63,7 @@ says why.
 `/kit` (dev server only) renders every component in `src/ui/` with sample props; it is not in a
 production build, and `scripts/check-bundle.mjs` fails the build if it is.
 
-`pnpm --filter @dhan/rm test` runs the console's 115 unit tests (formatting, Cmd-K ranking, axis
+`pnpm --filter @dhan/rm test` runs the console's 133 unit tests (formatting, Cmd-K ranking, axis
 ticks, the copilot's citations and tiles, and each page's pure helpers) under `node --test`; the
 pages themselves are checked by walking them in a browser, as there is no component or end-to-end
 suite.
@@ -71,13 +71,13 @@ suite.
 ## Layout
 
 ```
-src/api/        client.ts (typed over ROUTES), session.ts (the RM bearer), queries.ts (one hook per route)
+src/api/        client.ts (over routes.generated.ts, typed by ROUTES), session.ts (the RM bearer), queries.ts (one hook per route)
 src/ui/         the component kit; pages import from src/ui/index.ts only
 src/shell/      sidebar, top bar, Cmd-K search, the auth guard, the lazy pages and their skeletons
 src/features/   copilot/: the Brief me and Ask panel, opened from any customer page (Cmd-J)
 src/pages/      one folder per route: today, book, customer (five tabs), insights, record, access, login
 src/lib/        format.ts (₹, dates, %, last active), search.ts (Cmd-K ranking), scale.ts (axis ticks), cn.ts, motion.ts
-scripts/        tokens-css.mjs, check-bundle.mjs
+scripts/        tokens-css.mjs, routes-table.mjs, check-kit.mjs, check-bundle.mjs
 ```
 
 ## Rules for a page

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Customer360Action, Signal } from '@dhan/contracts'
+import { revoice } from '@dhan/core'
 import {
   pronoun,
   requestReason,
@@ -237,4 +238,187 @@ test('pronouns and waiting time read as a sentence', () => {
   assert.equal(pronoun('Prefer not to say'), 'they')
   assert.equal(waited(1), 'yesterday')
   assert.equal(waited(6), '6 days ago')
+})
+
+/*
+ * The regular expressions above read the engine's English. Until the contract carries the
+ * figures as fields, each one is pinned here twice: to the line the API sends today (the engine's
+ * template, as a memory boot fills it, through the API's own `revoice`), and to what the console
+ * says when the line no longer matches, which is always the record's own words, never a guess.
+ */
+const MADHURI = { name: 'Madhuri', gender: 'Female' }
+const maturing = signal('deposit_maturing', 'important', '₹22L matures in 12 days')
+
+/** An action as the API sends it: the engine's line in the engine's voice, re-voiced. */
+function sent(
+  kind: Customer360Action['kind'],
+  label: string,
+  detail: string,
+  amount: number,
+  why: Signal | null,
+): Customer360Action {
+  return action(kind, revoice(label), revoice(detail), amount, why)
+}
+
+test('today’s engine lines, re-voiced by the API, still give up the figure each title needs', () => {
+  assert.equal(
+    rmTitle(
+      sent(
+        'pay_down_card',
+        'Pay ₹22,501 off the card',
+        '34.8% interest. Keep this up and it clears in 10 months.',
+        22501,
+        card,
+      ),
+      KARAN,
+    ),
+    'Karan can clear the card in 10 months at ₹22,501 a month',
+  )
+  assert.equal(
+    rmTitle(
+      sent(
+        'pay_down_card',
+        'Pay ₹1,86,240 off the card',
+        '34.8% interest. Keep this up and it clears in 1 month.',
+        186240,
+        card,
+      ),
+      KARAN,
+    ),
+    'Karan can clear the card in 1 month at ₹1.86L a month',
+  )
+  assert.equal(
+    rmTitle(
+      sent(
+        'buy_term_cover',
+        'Take ₹1 crore of cover for ₹985 a month',
+        'LIC Term Assurance. Pure cover — nothing paid back at the end, so it is cheap.',
+        985,
+        cover,
+      ),
+      { name: 'Vikram', gender: 'Male' },
+    ),
+    'Offer Vikram ₹1Cr of term cover at ₹985 a month',
+  )
+  assert.equal(
+    rmTitle(
+      sent('buy_term_cover', 'Take ₹50 lakh of cover for ₹450 a month', '', 450, cover),
+      KARAN,
+    ),
+    'Offer Karan ₹50L of term cover at ₹450 a month',
+  )
+  assert.equal(
+    rmTitle(
+      sent('buy_term_cover', 'Take ₹1.5 crore of cover for ₹1,420 a month', '', 1420, cover),
+      KARAN,
+    ),
+    'Offer Karan ₹1.5Cr of term cover at ₹1,420 a month',
+  )
+  assert.equal(
+    rmTitle(
+      sent(
+        'enrol_pmjjby',
+        'Enrol in PMJJBY (Pradhan Mantri Jeevan Jyoti Bima Yojana)',
+        '₹436 a year buys ₹2,00,000 of cover.',
+        36,
+        cover,
+      ),
+      SNEHA,
+    ),
+    'Offer Sneha PMJJBY (Pradhan Mantri Jeevan Jyoti Bima Yojana)',
+  )
+  assert.equal(
+    rmTitle(
+      sent(
+        'open_sweep_in',
+        'Move ₹22,00,000 into a sweep-in instead',
+        'IDBI Sweep-in Fixed Deposit, about 6.8%. No lock-in — take it out any day.',
+        2200000,
+        maturing,
+      ),
+      MADHURI,
+    ),
+    'Madhuri can move ₹22L from the maturing deposit into a sweep-in',
+  )
+  assert.equal(
+    rmTitle(
+      sent(
+        'increase_sip',
+        'Add ₹14,600 a month to your SIP',
+        'UTI Nifty 50 Index Fund, auto-debited the day after payday so you never see it.',
+        14600,
+        null,
+      ),
+      { name: 'Kavita', gender: 'Female' },
+    ),
+    'Kavita can add ₹14,600 a month to the SIP',
+  )
+  assert.equal(
+    rmTitle(sent('start_sip', 'Start ₹17,800 a month', '', 17800, null), {
+      name: 'Gurpreet',
+      gender: 'Male',
+    }),
+    'Gurpreet can start a ₹17,800 monthly SIP',
+  )
+  assert.equal(
+    rmTitle(
+      sent(
+        'set_category_cap',
+        'Cap Cash at ₹1,000 a month',
+        'That is what it was three months ago. Change it whenever you like.',
+        0,
+        null,
+      ),
+      MADHURI,
+    ),
+    'Madhuri could cap Cash at ₹1,000 a month',
+  )
+})
+
+test('a reworded engine line falls back to the record’s own words, never a made-up figure', () => {
+  // The months are gone from the detail: the title keeps the payment and drops the months.
+  assert.equal(
+    rmTitle(
+      sent('pay_down_card', 'Pay ₹22,501 off the card', 'It clears soon.', 22501, card),
+      KARAN,
+    ),
+    'Karan can pay ₹22,501 a month off the card',
+  )
+  // The cover amount moved out of the label: the offer says the premium only.
+  assert.equal(
+    rmTitle(sent('buy_term_cover', 'Buy term cover for ₹985 a month', '', 985, cover), KARAN),
+    'Offer Karan term cover at ₹985 a month',
+  )
+  // A cover amount under a lakh is said in full by the engine and does not match the short form.
+  assert.equal(
+    rmTitle(sent('buy_term_cover', 'Take ₹75,000 of cover for ₹90 a month', '', 90, cover), KARAN),
+    'Offer Karan term cover at ₹90 a month',
+  )
+  // No product in the label: the API's line itself.
+  assert.equal(
+    rmTitle(sent('enrol_pmjjby', 'Get the government life cover', '', 36, cover), KARAN),
+    'Get the government life cover',
+  )
+  // A cap the pattern cannot split: the API's line itself.
+  assert.equal(
+    rmTitle(sent('set_category_cap', 'Cap Shopping at a lower figure', '', 0, null), KARAN),
+    'Cap Shopping at a lower figure',
+  )
+  // A move without the maturing signal still reads as one, from the engine's own verb.
+  assert.equal(
+    rmTitle(
+      sent('open_sweep_in', 'Move ₹22,00,000 into a sweep-in instead', '', 2200000, null),
+      MADHURI,
+    ),
+    'Madhuri can move ₹22L from the maturing deposit into a sweep-in',
+  )
+})
+
+test('a handoff line keeps its reason before any status word, and nothing without one', () => {
+  assert.equal(
+    requestReason('₹13.9L idle in savings for 11 months. Resolved by Meera Joshi.'),
+    '₹13.9L idle in savings for 11 months',
+  )
+  assert.equal(requestReason('Card at 34.8% — ₹2.23L outstanding. Opened by the customer.'), null)
+  assert.equal(requestReason('. Open, waiting 3 days.'), null)
 })

@@ -91,42 +91,6 @@ export function toRows(
   })
 }
 
-/**
- * A y position, 0 at the top of the plot, for a line that is *not* read from zero: the lowest
- * value sits `pad` above the floor and the highest `pad` below the ceiling, so the shape of the
- * change fills the tile and the printed end values carry the magnitude. A flat series sits in
- * the middle rather than on an edge.
- */
-export function lineY(
-  values: readonly number[],
-  height: number,
-  pad: number,
-): (value: number) => number {
-  const lo = Math.min(...values)
-  const hi = Math.max(...values)
-  const span = height - pad * 2
-  if (!(hi > lo) || span <= 0) return () => height / 2
-  return (value) => pad + (1 - (value - lo) / (hi - lo)) * span
-}
-
-/**
- * Which side of an end point its value label goes on: the side the line does not run into. A
- * line that rises away from its first point leaves the space below that point clear; a line that
- * rises into its last point leaves the space above it clear. Level counts as rising, so a flat
- * line is labelled above.
- */
-export function endLabelSide(values: readonly number[], end: 'first' | 'last'): 'above' | 'below' {
-  if (values.length < 2) return 'above'
-  if (end === 'first') {
-    const first = values[0] ?? 0
-    const next = values[1] ?? first
-    return next > first ? 'below' : 'above'
-  }
-  const last = values[values.length - 1] ?? 0
-  const prev = values[values.length - 2] ?? last
-  return prev <= last ? 'above' : 'below'
-}
-
 /** "1 in Aug, 3 fewer than Jul": a month's count said against the one before, with no colour. */
 export function stepSentence(
   values: readonly number[],
@@ -145,18 +109,4 @@ export function stepSentence(
 /** "As at 1 Sep 2026" → "as at 1 Sep 2026": one of the API's labels in the middle of a sentence. */
 export function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1)
-}
-
-/** A month's x position as a share of the plot width: 0 for the first, 1 for the last. */
-export function monthShare(i: number, n: number): number {
-  return n <= 1 ? 0.5 : i / (n - 1)
-}
-
-/**
- * Which months carry a label: every other one, counted back from the latest, so the month a tile
- * is titled with ("44 in Aug") is always named under its own point. Counting forward from the
- * first, as the chart library does, named September and left August blank.
- */
-export function isLabelledMonth(i: number, n: number): boolean {
-  return (n - 1 - i) % 2 === 0
 }

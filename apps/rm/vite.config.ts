@@ -48,8 +48,9 @@ export default defineConfig({
   build: {
     // Every page behind sign-in is a chunk of its own (`src/shell/pages.ts`), and the chart
     // library travels in the one chunk the charted pages share, so nothing of it loads before a
-    // chart is on screen.
-    chunkSizeWarningLimit: 900,
+    // chart is on screen. Vite's own 500 kB warning stands: a chunk past it is a regression to
+    // look at, not a limit to raise.
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         /*

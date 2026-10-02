@@ -10,6 +10,11 @@
  * figure it alone carries (the months a card takes to clear, a category's cap), and falling back
  * to the API's line, never to a guess, where that figure is not there.
  *
+ * Those reads are regular expressions over the engine's English, so they are a stopgap: the
+ * structured fields (months, cover amount, product, cap) belong in the contract, and until they
+ * are there `next-actions.test.ts` pins every pattern to the line the API sends today and to its
+ * fallback, so a rewording fails a test rather than silently changing a title.
+ *
  * The signal an action answers is its reason, so it is said once, under the action; the signals
  * no action answers are listed apart, one line each. And the engine's standing offer of a person
  * (the `human_handoff` insight, on every customer's list so a request has an action to be recorded
@@ -111,9 +116,9 @@ export function rmTitle(action: Customer360Action, who: Who): string | null {
       return signal ? `Call ${name} about ${TOPIC[signal.kind]}` : null
 
     case 'pay_down_card': {
-      const months = /clears in (\d+) months?/.exec(action.detail)?.[1]
-      return months
-        ? `${name} can clear the card in ${months} months at ${amount} a month`
+      const months = Number(/clears in (\d+) months?\b/.exec(action.detail)?.[1])
+      return Number.isInteger(months) && months > 0
+        ? `${name} can clear the card in ${months} month${months === 1 ? '' : 's'} at ${amount} a month`
         : `${name} can pay ${amount} a month off the card`
     }
 

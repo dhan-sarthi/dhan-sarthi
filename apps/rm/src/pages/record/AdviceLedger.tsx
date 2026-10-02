@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { Link } from 'react-router'
 import { cn } from '../../lib/cn.ts'
 import { formatDate } from '../../lib/format.ts'
-import { Avatar, Chip, Money, SectionLabel, Skeleton } from '../../ui/index.ts'
+import { Avatar, Chip, Money, SectionLabel, Skeleton, columnHeaderClass } from '../../ui/index.ts'
 import {
   RULE_COUNT,
   SOURCE_WORDS,
@@ -34,6 +34,11 @@ import {
  * what was heard, the details), and a record's rows must open and close together. Each record
  * is its own <tbody>, so a screen reader still reads it as one group, and the borders sit
  * between records rather than between a verdict and its own sentence.
+ *
+ * The columns are fixed, so on a tablet or a phone the table is wider than its card. It then
+ * scrolls sideways inside the card, never the page (the header sits at the table's top while it
+ * does, since a sideways-scrolling box cannot also stick to the window), as the kit's DataTable
+ * does. The product column keeps a floor so it is never squeezed to nothing.
  */
 
 export type LedgerVariant = 'book' | 'customer'
@@ -94,7 +99,7 @@ export function VerdictChip({ verdict }: { verdict: VerdictOutcome }) {
       <Chip
         tone="brand"
         icon={<ShieldCheck aria-hidden className="text-brand" />}
-        className="bg-brand-wash font-medium text-ink ring-1 ring-brand/20 ring-inset"
+        className="bg-brand-wash font-medium text-ink ring-1 ring-selected-edge ring-inset"
       >
         {VERDICT_WORDS.BLOCKED}
       </Chip>
@@ -125,16 +130,37 @@ export function AdviceLedger({
 
   // A record linked to from the journey is brought into view once, when it first renders. The
   // page's sticky top bar would cover a row scrolled flush to the top, so it is centred instead.
+  // Without the glide where the RM's system asks for reduced motion.
   const scrolledTo = useRef<string | null>(null)
   useEffect(() => {
     if (!focusId || scrolledTo.current === focusId || !focusRef.current) return
     scrolledTo.current = focusId
-    focusRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    focusRef.current.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
   }, [focusId, items])
 
+  const box = useRef<HTMLDivElement>(null)
+  const tableRef = useRef<HTMLTableElement>(null)
+  const overflowing = useOverflowing(box, tableRef)
+
   return (
-    <div className={cn('rounded-lg border border-hairline bg-surface', className)}>
-      <table className="w-full table-fixed border-separate border-spacing-0 text-body">
+    <div
+      ref={box}
+      // Relative, so the visually hidden labels inside (absolutely placed) scroll with the table
+      // rather than escaping the box and widening the page.
+      className={cn(
+        'relative rounded-lg border border-hairline bg-surface',
+        overflowing && 'overflow-x-auto',
+        className,
+      )}
+    >
+      <table
+        ref={tableRef}
+        className={cn(
+          'w-full table-fixed border-separate border-spacing-0 text-body',
+          variant === 'book' ? 'min-w-[50rem]' : 'min-w-[37.5rem]',
+        )}
+      >
         <caption className="sr-only">{caption}</caption>
         <colgroup>
           {columns.map((c) => (
@@ -147,9 +173,10 @@ export function AdviceLedger({
               <th
                 key={c.id}
                 scope="col"
-                style={{ top: 56 }}
                 className={cn(
-                  'sticky z-10 h-9 border-b border-hairline bg-surface px-3 text-left text-caption font-medium whitespace-nowrap text-ink-faint',
+                  columnHeaderClass,
+                  'sticky z-10 bg-surface text-left',
+                  overflowing ? 'top-0' : 'top-topbar',
                   i === 0 && 'rounded-tl-lg pl-4',
                   i === columns.length - 1 && 'rounded-tr-lg pr-4',
                 )}
@@ -177,6 +204,29 @@ export function AdviceLedger({
       </table>
     </div>
   )
+}
+
+/**
+ * True while the table is wider than its box: then the box scrolls sideways, and the header
+ * stops sticking to the window (a scrolling box would break that) and sits at the table's top.
+ */
+function useOverflowing(
+  box: RefObject<HTMLElement | null>,
+  table: RefObject<HTMLElement | null>,
+): boolean {
+  const [overflowing, setOverflowing] = useState(false)
+  useEffect(() => {
+    const outer = box.current
+    const inner = table.current
+    if (!outer || !inner || typeof ResizeObserver === 'undefined') return
+    const measure = () => setOverflowing(inner.scrollWidth > outer.clientWidth + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(outer)
+    observer.observe(inner)
+    return () => observer.disconnect()
+  }, [box, table])
+  return overflowing
 }
 
 function LedgerRecord({
@@ -208,13 +258,13 @@ function LedgerRecord({
   const heard = item.spoken !== null || item.verdict !== 'PASS'
   const closesTable = last && !open && !heard
   const cell = cn('px-3 align-top', !first && 'border-t border-hairline-soft', !heard && 'pb-3.5')
-  const tint = broken ? 'bg-danger-soft/45' : focused ? 'bg-brand-wash' : open ? 'bg-row-hover' : ''
+  const tint = broken ? 'bg-danger-wash' : focused ? 'bg-brand-wash' : open ? 'bg-row-hover' : ''
 
   return (
     <tbody
       ref={sectionRef}
       id={`advice-${item.id}`}
-      className={cn('group/record transition-colors duration-150', tint)}
+      className={cn('group/record transition-colors duration-feedback', tint)}
     >
       <tr
         onClick={onToggle}
@@ -223,7 +273,7 @@ function LedgerRecord({
         <td
           className={cn(
             cell,
-            'pt-3 pl-4 text-label font-normal whitespace-nowrap text-ink-soft',
+            'pt-3 pl-4 text-label-plain whitespace-nowrap text-ink-soft',
             closesTable && 'rounded-bl-lg',
           )}
         >
@@ -256,7 +306,7 @@ function LedgerRecord({
           <div className="line-clamp-2 text-label text-ink">
             {item.productName ?? 'A product not on the shelf'}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 truncate text-caption font-normal text-ink-faint">
+          <div className="mt-0.5 flex items-center gap-1.5 truncate text-caption-plain text-ink-faint">
             {item.amount !== null ? <Money value={item.amount} /> : null}
             {item.amount !== null ? <span aria-hidden>·</span> : null}
             <span className="truncate">{SOURCE_WORDS[item.source]}</span>
@@ -291,11 +341,11 @@ function LedgerRecord({
               e.stopPropagation()
               onToggle()
             }}
-            className="inline-flex size-7 items-center justify-center rounded-sm text-ink-faint transition-colors hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+            className="inline-flex size-7 items-center justify-center rounded-sm text-ink-faint transition-colors hover:bg-ghost-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
           >
             <ChevronDown
               aria-hidden
-              className={cn('size-4 transition-transform duration-200', open && 'rotate-180')}
+              className={cn('size-4 transition-transform duration-state', open && 'rotate-180')}
             />
           </button>
         </td>
@@ -357,7 +407,7 @@ function RuleCell({ item }: { item: AdviceItem }) {
           {ruleName(item.ruleId)}
         </div>
         {at !== null ? (
-          <div className="mt-0.5 text-caption font-normal text-ink-faint tabular">
+          <div className="mt-0.5 text-caption-plain text-ink-faint tabular">
             Rule {at} of {RULE_COUNT}
           </div>
         ) : null}
@@ -366,12 +416,12 @@ function RuleCell({ item }: { item: AdviceItem }) {
   }
   if (item.verdict === 'PASS') {
     return (
-      <div className="pt-0.5 text-label font-normal text-ink-soft">
+      <div className="pt-0.5 text-label-plain text-ink-soft">
         All {item.rulesPassed.length} rules cleared
       </div>
     )
   }
-  return <div className="pt-0.5 text-label font-normal text-ink-faint">Not put to the rules</div>
+  return <div className="pt-0.5 text-label-plain text-ink-faint">Not put to the rules</div>
 }
 
 /**
@@ -402,10 +452,10 @@ function Heard({ item, open }: { item: AdviceItem; open: boolean }) {
   }, [whole, item.spoken])
 
   if (item.spoken === null) {
-    return <p className="text-label font-normal text-ink-faint">{item.recorded}</p>
+    return <p className="text-label-plain text-ink-faint">{item.recorded}</p>
   }
   return (
-    <div className="flex gap-2 text-label font-normal text-ink">
+    <div className="flex gap-2 text-label-plain text-ink">
       <Quote aria-hidden className="mt-0.5 size-3.5 shrink-0 text-ink-hint" />
       <div className="min-w-0">
         <p className="max-w-[80ch]">
@@ -449,9 +499,9 @@ function RecordDetails({ item, variant }: { item: AdviceItem; variant: LedgerVar
       <div className="grid min-w-0 content-start gap-5">
         <section>
           <SectionLabel as="h3">Recorded wording</SectionLabel>
-          <p className="mt-1.5 max-w-[72ch] text-label font-normal text-ink">{item.recorded}</p>
+          <p className="mt-1.5 max-w-[72ch] text-label-plain text-ink">{item.recorded}</p>
           {item.verdict === 'BLOCKED' && item.ruleId && ruleSentence(item.ruleId) ? (
-            <p className="mt-2 max-w-[72ch] text-caption font-normal text-ink-faint">
+            <p className="mt-2 max-w-[72ch] text-caption-plain text-ink-faint">
               The rule: {ruleSentence(item.ruleId)}
             </p>
           ) : null}
@@ -493,13 +543,13 @@ function RecordDetails({ item, variant }: { item: AdviceItem; variant: LedgerVar
               <li
                 key={rung.id}
                 className={cn(
-                  'grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2 text-label font-normal',
+                  'grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2 text-label-plain',
                   text,
                 )}
               >
                 <Icon aria-hidden className="size-3.5" />
                 <span className={cn('truncate', rung.state === 'failed' && 'font-medium')}>
-                  <span className="mr-1.5 text-ink-hint tabular">{i + 1}</span>
+                  <span className="mr-1.5 text-ink-faint tabular">{i + 1}</span>
                   {rung.label}
                 </span>
                 <span className="text-caption">{word}</span>

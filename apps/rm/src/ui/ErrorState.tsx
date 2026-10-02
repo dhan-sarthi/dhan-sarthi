@@ -75,7 +75,7 @@ export function ErrorState({
         </div>
       ) : null}
       <p className={cn('text-ink', size === 'page' ? 'text-title' : 'text-heading')}>{title}</p>
-      <p className="text-label font-normal text-ink-soft">{body ?? describeError(error)}</p>
+      <p className="text-label-plain text-ink-soft">{body ?? describeError(error)}</p>
       {onRetry ? (
         <Button
           className="mt-2"

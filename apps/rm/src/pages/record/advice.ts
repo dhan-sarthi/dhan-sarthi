@@ -97,6 +97,12 @@ export function verdictSplit(items: readonly Pick<AdviceItem, 'verdict'>[]): {
  * commitment unless it was a one-off, and a one-off refusal says so in its recorded wording
  * ("one-off ₹… exceeds reachable balance"), so the two are summed apart rather than mixed.
  * A record with no amount (a question about the product alone) adds nothing.
+ *
+ * The record carries no cadence field, so this reads the engine's English: anything that does not
+ * say "one-off" counts as monthly, which is the engine's own default. A one-off refused by an
+ * earlier rule than affordability says nothing about its cadence and is counted monthly too;
+ * only a `cadence` on the record (a contract change) can fix that. `advice.test.ts` runs the real
+ * gate so a change to its wording fails a test instead of moving a sum.
  */
 export function refusedStake(
   items: readonly Pick<AdviceItem, 'verdict' | 'amount' | 'recorded'>[],

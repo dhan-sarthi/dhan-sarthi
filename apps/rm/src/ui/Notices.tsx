@@ -17,9 +17,7 @@ import { Tooltip } from './Tooltip.tsx'
  */
 export function Disclaimer({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <p
-      className={cn('flex items-start gap-1.5 text-caption font-normal text-ink-faint', className)}
-    >
+    <p className={cn('flex items-start gap-1.5 text-caption-plain text-ink-faint', className)}>
       <Info aria-hidden className="mt-px size-3.5 shrink-0" />
       <span>{children}</span>
     </p>

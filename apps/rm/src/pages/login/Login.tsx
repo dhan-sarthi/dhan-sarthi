@@ -12,8 +12,10 @@ import {
   TimerReset,
   type LucideIcon,
 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useId, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { isApiError } from '../../api/client.ts'
 import { useSignIn } from '../../api/queries.ts'
@@ -58,16 +60,17 @@ export function Login() {
 const CONTENT_TOP = 'pt-[clamp(5.5rem,13vh,8.5rem)]'
 
 /**
- * Whose desk this is, set in type: the bank's name first, then the product's. Deliberately not
- * the bank's logo, which is IDBI's to supply.
+ * Whose desk this is, set in type: the product's name, then the bank's on its own quiet line
+ * under it, rather than a label stacked above the name. Deliberately not the bank's logo, which
+ * is IDBI's to supply.
  */
 function Lockup() {
   return (
-    <div className="grid gap-1">
-      <p className="text-micro tracking-micro text-ink-faint uppercase">
-        For <span className="text-brand">IDBI Bank</span> · Relationship Manager Desk
-      </p>
+    <div className="grid gap-0.5">
       <p className="text-title text-ink">Dhan Sarthi</p>
+      <p className="text-caption-plain text-ink-faint">
+        For <span className="font-medium text-brand">IDBI Bank</span> · Relationship Manager Desk
+      </p>
     </div>
   )
 }
@@ -94,12 +97,24 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
   const [missing, setMissing] = useState<{ employeeNo?: boolean; password?: boolean }>({})
   const [ended] = useState(getEndReason)
   const submitRef = useRef<HTMLButtonElement>(null)
+  const employeeRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
 
   function submit(event: FormEvent) {
     event.preventDefault()
     const next = { employeeNo: employeeNo.trim() === '', password: password === '' }
+    if (next.employeeNo || next.password) {
+      // The errors render first, then focus moves to the first field that needs one: its
+      // aria-describedby then reads the error, rather than focus staying silent on Sign in. A
+      // server error from an earlier attempt is about other values, so it goes.
+      flushSync(() => {
+        setMissing(next)
+        signIn.reset()
+      })
+      ;(next.employeeNo ? employeeRef : passwordRef).current?.focus()
+      return
+    }
     setMissing(next)
-    if (next.employeeNo || next.password) return
     signIn.mutate(
       { employeeNo: employeeNo.trim(), password },
       { onSuccess: () => navigate(redirectTo, { replace: true }) },
@@ -116,9 +131,11 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
   }
 
   return (
-    <section
+    <main
+      id="main"
+      tabIndex={-1}
       className={cn(
-        'relative flex flex-col rounded-xl border border-hairline bg-surface px-8 pb-7 sm:px-12',
+        'relative flex flex-col rounded-xl border border-hairline bg-surface px-8 pb-7 outline-none sm:px-12',
         CONTENT_TOP,
       )}
     >
@@ -135,7 +152,7 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
         {ended ? (
           <p
             role="status"
-            className="mt-6 flex items-center gap-2 rounded-md bg-ground px-3 py-2.5 text-label font-normal text-ink-soft"
+            className="mt-6 flex items-center gap-2 rounded-md bg-ground px-3 py-2.5 text-label-plain text-ink-soft"
           >
             <LockKeyhole aria-hidden className="size-4 shrink-0 text-ink-hint" />
             {ended === 'expired'
@@ -152,6 +169,7 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
             {(control) => (
               <Input
                 {...control}
+                ref={employeeRef}
                 inputSize="lg"
                 name="employeeNo"
                 inputMode="numeric"
@@ -169,6 +187,7 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
             {(control) => (
               <Input
                 {...control}
+                ref={passwordRef}
                 inputSize="lg"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
@@ -190,7 +209,7 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
 
           <AnimatePresence initial={false}>
             {signIn.isError ? (
-              <motion.p
+              <m.p
                 role="alert"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{
@@ -202,7 +221,7 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
                 className="overflow-hidden rounded-md bg-danger-soft px-3 py-2.5 text-label text-danger"
               >
                 {signInError(signIn.error)}
-              </motion.p>
+              </m.p>
             ) : null}
           </AnimatePresence>
 
@@ -221,11 +240,11 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
         <DemoAccess onFill={fill} />
       </div>
 
-      <footer className="flex items-center justify-between gap-4 text-caption font-normal text-ink-faint">
+      <footer className="flex items-center justify-between gap-4 text-caption-plain text-ink-faint">
         <span>Synthetic demo data. No real customer is shown.</span>
         <span className="tabular">Build {__BUILD_SHA__}</span>
       </footer>
-    </section>
+    </main>
   )
 }
 
@@ -244,18 +263,18 @@ function DemoAccess({ onFill }: { onFill: (desk: DemoDesk) => void }) {
       >
         <KeyRound aria-hidden className="size-4 text-brand" />
         <span className="flex-1 text-label text-ink">Demo access</span>
-        <span className="text-caption font-normal text-ink-faint">Two desk logins</span>
+        <span className="text-caption-plain text-ink-faint">Two desk logins</span>
         <ChevronDown
           aria-hidden
           className={cn(
-            'size-4 text-ink-hint transition-transform duration-200',
+            'size-4 text-ink-hint transition-transform duration-state',
             open && 'rotate-180',
           )}
         />
       </button>
       <AnimatePresence initial={false}>
         {open ? (
-          <motion.div
+          <m.div
             id={panelId}
             initial={{ height: 0, opacity: 0 }}
             animate={{
@@ -284,10 +303,8 @@ function DemoAccess({ onFill }: { onFill: (desk: DemoDesk) => void }) {
                         {desk.employeeNo}
                       </span>
                     </p>
-                    <p className="text-caption font-normal text-pretty text-ink-faint">
-                      {desk.note}
-                    </p>
-                    <p className="mt-0.5 text-caption font-normal text-ink-soft">
+                    <p className="text-caption-plain text-pretty text-ink-faint">{desk.note}</p>
+                    <p className="mt-0.5 text-caption-plain text-ink-soft">
                       Password <span className="font-mono text-ink">{desk.password}</span>
                     </p>
                   </div>
@@ -297,7 +314,7 @@ function DemoAccess({ onFill }: { onFill: (desk: DemoDesk) => void }) {
                 </li>
               ))}
             </ul>
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </div>
@@ -330,35 +347,15 @@ function StoryPanel() {
     <section
       aria-label="About RM Desk"
       className={cn(
-        'relative hidden overflow-hidden rounded-xl bg-brand-deep lg:flex lg:flex-col',
+        'hidden overflow-hidden rounded-xl bg-brand-deep lg:flex lg:flex-col',
         CONTENT_TOP,
       )}
     >
-      {/* Depth from the tokens' own greens: lighter where the light falls, ink in the corner. */}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(120% 90% at 85% 0%, color-mix(in oklab, var(--color-brand) 85%, transparent) 0%, transparent 60%), radial-gradient(90% 70% at 0% 100%, var(--color-ink) 0%, transparent 70%)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage:
-            'linear-gradient(var(--color-on-ink) 1px, transparent 1px), linear-gradient(90deg, var(--color-on-ink) 1px, transparent 1px)',
-          backgroundSize: '56px 56px',
-          maskImage: 'radial-gradient(80% 60% at 70% 30%, black, transparent)',
-        }}
-      />
-
-      <div className="relative px-14">
+      <div className="px-14">
         <p className="max-w-[15ch] text-figure text-balance text-on-ink">
           Every customer, every goal, one view.
         </p>
-        <p className="mt-5 max-w-lg text-body text-on-ink/80">
+        <p className="mt-5 max-w-lg text-body text-on-ink-muted">
           Uday runs the daily loop for hundreds of customers and hands you only the moments that
           need a person, with the reason behind each one.
         </p>
@@ -374,14 +371,14 @@ function StoryPanel() {
               </span>
               <span className="grid gap-0.5 pt-px">
                 <span className="text-heading text-on-ink">{title}</span>
-                <span className="text-label font-normal text-on-ink/70">{body}</span>
+                <span className="text-label-plain text-on-ink-muted">{body}</span>
               </span>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="relative px-14 pt-11 pb-10">
+      <div className="px-14 pt-11 pb-10">
         <PreviewCard />
       </div>
     </section>
@@ -430,7 +427,7 @@ function PreviewCard() {
     >
       <figcaption className="flex items-center justify-between border-b border-hairline-soft px-5 py-2.5">
         <span className="text-micro tracking-micro text-ink-faint uppercase">Call today</span>
-        <span className="text-caption font-normal text-ink-hint">Ranked by Uday</span>
+        <span className="text-caption-plain text-ink-hint">Ranked by Uday</span>
       </figcaption>
       <ul className="divide-y divide-hairline-soft">
         {PREVIEW_ROWS.map((row) => (
@@ -440,7 +437,7 @@ function PreviewCard() {
               <Chip tone={row.tone} icon={<row.icon aria-hidden />}>
                 {row.kind}
               </Chip>
-              <span className="truncate text-label font-normal text-ink-soft">{row.why}</span>
+              <span className="truncate text-label-plain text-ink-soft">{row.why}</span>
             </span>
           </li>
         ))}

@@ -8,7 +8,7 @@ export function TodaySkeleton() {
   return (
     <PageLoading label="Loading today">
       <div className="grid grid-cols-1 gap-6">
-        <Card padded={false}>
+        <Card padded={false} className="@container">
           <div className={KPI_GRID}>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className={kpiCellClass(i)}>
@@ -30,7 +30,7 @@ export function TodaySkeleton() {
                   className="flex items-start gap-3.5 border-t border-hairline-soft px-5 py-3.5"
                 >
                   <Skeleton className="size-9 shrink-0 rounded-full" />
-                  <div className="grid grid-cols-1 flex-1 gap-2">
+                  <div className="grid flex-1 grid-cols-1 gap-2">
                     <div className="flex items-center gap-2">
                       <Skeleton className="h-3.5 w-36" />
                       <Skeleton className="h-4 w-14" />
@@ -58,7 +58,7 @@ function SideCardSkeleton({ rows }: { rows: number }) {
         {Array.from({ length: rows }, (_, i) => (
           <div key={i} className="flex items-start gap-3">
             <Skeleton className="size-7 shrink-0 rounded-full" />
-            <div className="grid grid-cols-1 flex-1 gap-2">
+            <div className="grid flex-1 grid-cols-1 gap-2">
               <Skeleton className="h-3 w-2/5" />
               <Skeleton className="h-3 w-4/5" />
             </div>

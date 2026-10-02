@@ -2,6 +2,7 @@ import type { Allocation } from '@dhan/contracts'
 import { cn } from '../lib/cn.ts'
 import { formatInr, formatPct } from '../lib/format.ts'
 import { useBadgeTabIndex } from './interactive-row.tsx'
+import { StackedBar } from './StackedBar.tsx'
 import { Tooltip } from './Tooltip.tsx'
 
 /**
@@ -36,9 +37,9 @@ function shares(
 }
 
 /**
- * Cash, equity and fixed income as one thin stacked bar: enough to spot a customer sitting in
- * cash without opening the file. Segments are separated by a 2px gap of the surface, so two
- * neighbours never merge; the tooltip and the legend carry the figures.
+ * Cash, equity and fixed income as one thin stacked bar (`StackedBar`): enough to spot a customer
+ * sitting in cash without opening the file. The tooltip (a hover, a focus or a tap) and the
+ * legend carry the figures.
  */
 export function AllocationBar({
   allocation,
@@ -52,26 +53,12 @@ export function AllocationBar({
   const badgeTab = useBadgeTabIndex()
 
   const bar = (
-    <div
-      role="img"
-      aria-label={total > 0 ? summary : 'No balances or holdings'}
+    <StackedBar
+      label={total > 0 ? summary : 'No balances or holdings'}
+      parts={parts.map((p) => ({ id: p.key, value: p.pct, fill: p.fill }))}
+      size={size}
       tabIndex={legend ? undefined : badgeTab}
-      className={cn(
-        'flex w-full gap-[2px] overflow-hidden rounded-full focus-visible:outline-2 focus-visible:outline-focus',
-        size === 'thin' ? 'h-1.5' : 'h-2.5',
-        total === 0 && 'bg-ground-deep',
-      )}
-    >
-      {parts
-        .filter((p) => p.pct > 0)
-        .map((p) => (
-          <span
-            key={p.key}
-            className={cn('h-full first:rounded-l-full last:rounded-r-full', p.fill)}
-            style={{ flexGrow: p.pct, flexBasis: 0, minWidth: 3 }}
-          />
-        ))}
-    </div>
+    />
   )
 
   return (
@@ -80,6 +67,7 @@ export function AllocationBar({
         bar
       ) : (
         <Tooltip
+          openOnTap
           content={
             <div className="grid gap-1">
               {parts.map((p) => (

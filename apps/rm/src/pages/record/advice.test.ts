@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { evaluate, type Product, type Snapshot } from '@dhan/core'
 import { detailWords } from '../access/actions.ts'
 import {
   RULES,
@@ -95,4 +96,69 @@ test('the stake sums refused amounts from the record, monthly and one-off apart'
     { verdict: 'PASS', amount: 9000, recorded: 'Pass.' },
   ])
   assert.deepEqual(stake, { monthly: 9200, oneOff: 300000, counted: 3 })
+})
+
+/*
+ * `refusedStake` tells a one-off from a monthly amount only by the gate's recorded wording. These
+ * run the real gate (`evaluate`, the same function the API judges with), so a change to that
+ * wording fails here instead of quietly moving a one-off into the headline's monthly sum.
+ */
+
+/** The least of a snapshot the gate reads to reach AFFORDABILITY: no debt, a full buffer. */
+const SNAPSHOT = {
+  debt: { hasHighInterest: false, missedRepayment: false, highestRate: 0, highInterestTotal: 0 },
+  buffer: { monthsCovered: 6, shortfall: 0 },
+  customer: { riskProfile: 'Growth', taxRegime: 'new' },
+  balances: { total: 1_20_000 },
+  surplus: { deployable: 2_589, monthly: 2_589 },
+  irregular: { monthlyProvision: 0 },
+} as unknown as Snapshot
+
+const SWEEP_IN: Product = {
+  productId: 'IDBI_SWEEP_FD',
+  name: 'IDBI Sweep-in Fixed Deposit',
+  category: 'Sweep-in FD',
+  riskometer: 'Low',
+  minInvestment: 1_000,
+  lockInYears: 0,
+  transactable: true,
+  manufacturer: 'IDBI Bank',
+}
+
+function refused(amount: number, cadence: 'monthly' | 'lump_sum') {
+  const verdict = evaluate({ product: SWEEP_IN, snapshot: SNAPSHOT, amount, cadence })
+  assert.equal(verdict.verdict, 'BLOCKED')
+  assert.equal(verdict.ruleId, 'AFFORDABILITY')
+  return { verdict: 'BLOCKED' as const, amount, recorded: verdict.recorded }
+}
+
+test('the gate’s own wording sorts a one-off from a monthly amount', () => {
+  const oneOff = refused(3_00_000, 'lump_sum')
+  const monthly = refused(4_200, 'monthly')
+  assert.deepEqual(refusedStake([oneOff, monthly]), {
+    monthly: 4_200,
+    oneOff: 3_00_000,
+    counted: 2,
+  })
+})
+
+test('a refusal that does not say "one-off" counts as monthly, the gate’s default cadence', () => {
+  // A rule before affordability says nothing about cadence; the gate reads amounts as monthly
+  // unless told otherwise, and so does the sum, until the record carries a cadence field.
+  assert.deepEqual(
+    refusedStake([
+      {
+        verdict: 'BLOCKED',
+        amount: 8_000,
+        recorded: 'Blocked: lock-in 15y exceeds goal horizon 5y.',
+      },
+      {
+        verdict: 'BLOCKED',
+        amount: 20_000,
+        recorded:
+          'Blocked: product riskometer Very High exceeds ceiling Moderate for a Conservative profile.',
+      },
+    ]),
+    { monthly: 28_000, oneOff: 0, counted: 2 },
+  )
 })

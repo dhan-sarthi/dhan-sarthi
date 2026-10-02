@@ -10,9 +10,8 @@ import {
   IconButton,
   LoadingRegion,
   SectionLabel,
-  SEVERITY,
-  SEVERITY_ICON,
   SeverityChip,
+  SeverityMark,
   Skeleton,
   SkeletonText,
   describeError,
@@ -140,7 +139,7 @@ function BriefBody({
       ) : (
         <div
           aria-busy={rewriting || undefined}
-          className={cn('grid gap-6 transition-opacity duration-200', rewriting && 'opacity-50')}
+          className={cn('grid gap-6 transition-opacity duration-state', rewriting && 'opacity-50')}
         >
           {tiles.length > 0 ? <TileRow tiles={tiles} notes={notes} asOf={asOf} /> : null}
           {sections.map((section) => (
@@ -186,7 +185,9 @@ function TileRow({ tiles, notes, asOf }: { tiles: BriefTile[]; notes: Notes; asO
           className="grid min-w-0 content-start gap-1 rounded-lg bg-ground px-2.5 pt-2.5 pb-3"
         >
           <p className="flex items-center gap-1 text-micro tracking-micro text-ink-faint uppercase">
-            {tile.severity ? <SeverityMark severity={tile.severity} /> : null}
+            {tile.severity ? (
+              <SeverityMark severity={tile.severity} variant="bare" labelSuffix=": " />
+            ) : null}
             {tile.label}
           </p>
           <p
@@ -194,7 +195,7 @@ function TileRow({ tiles, notes, asOf }: { tiles: BriefTile[]; notes: Notes; asO
           >
             {tile.value}
           </p>
-          <p className="text-caption font-normal text-pretty text-ink-soft">
+          <p className="text-caption-plain text-pretty text-ink-soft">
             <CitedText
               text={tile.detail}
               notes={notesFor({ text: tile.detail, cites: tile.cites }, notes)}
@@ -204,26 +205,6 @@ function TileRow({ tiles, notes, asOf }: { tiles: BriefTile[]; notes: Notes; asO
         </li>
       ))}
     </ul>
-  )
-}
-
-/**
- * The severity's shape and colour beside the eyebrow, with its word for a screen reader: a tile
- * has no room for the chip, and the value below it needs the full width.
- */
-function SeverityMark({ severity }: { severity: NonNullable<BriefTile['severity']> }) {
-  const Icon = SEVERITY_ICON[severity]
-  const tone =
-    severity === 'urgent'
-      ? 'text-danger'
-      : severity === 'important'
-        ? 'text-streak-ink'
-        : 'text-brand'
-  return (
-    <>
-      <Icon aria-hidden className={cn('size-3.5 shrink-0', tone)} />
-      <span className="sr-only">{SEVERITY[severity].label}: </span>
-    </>
   )
 }
 
@@ -264,12 +245,12 @@ function BriefMeta({
           {elapsed >= 2 ? <span className="tabular text-ink-faint">· {elapsed} s</span> : null}
         </p>
       ) : entry.status === 'error' ? (
-        <p role="alert" className="text-caption font-normal text-ink-soft">
+        <p role="alert" className="text-caption-plain text-ink-soft">
           <span className="font-medium text-danger">A fresh brief did not come back.</span>{' '}
           {describeError(entry.error)} The one below was written {writtenAt(brief.generatedAt)}.
         </p>
       ) : (
-        <p className="text-caption font-normal text-ink-faint">
+        <p className="text-caption-plain text-ink-faint">
           Written {writtenAt(brief.generatedAt)} from {brief.facts.length} facts, as at {asOf}.
         </p>
       )}
@@ -318,7 +299,7 @@ function BriefSection({
         >
           <ChevronDown
             aria-hidden
-            className={cn('size-3.5 transition-transform duration-150', all && 'rotate-180')}
+            className={cn('size-3.5 transition-transform duration-feedback', all && 'rotate-180')}
           />
           {all ? 'Show fewer' : `Show all ${sentences.length}`}
         </button>
@@ -384,7 +365,7 @@ function MoreFacts({ facts, total }: { facts: RmBrief['facts']; total: number })
       >
         <ChevronDown
           aria-hidden
-          className={cn('size-3.5 transition-transform duration-150', open && 'rotate-180')}
+          className={cn('size-3.5 transition-transform duration-feedback', open && 'rotate-180')}
         />
         {open ? 'Hide' : 'Show'} the other {facts.length} of {total} facts it was written from
       </button>
@@ -415,7 +396,7 @@ function BriefLoading({ name, startedAt }: { name: string; startedAt: number | n
             <span className="font-normal tabular text-ink-faint">· {elapsed} s</span>
           ) : null}
         </p>
-        <p className="text-caption font-normal text-ink-faint">
+        <p className="text-caption-plain text-ink-faint">
           {elapsed >= 9
             ? 'Taking longer than usual. Each sentence is still checked against its facts.'
             : 'From the facts on the record. Each sentence is checked against the facts it cites before it is shown.'}

@@ -10,6 +10,11 @@ export interface EmptyStateProps {
   action?: ReactNode
   /** `inline` inside a card, `page` for a whole view. */
   size?: 'inline' | 'page'
+  /**
+   * The title's element. A `page` state is the page, so its title is the page's `h1` (the 404,
+   * a file outside the book); under a page's own header pass `h2`. Inline, it is a `p`.
+   */
+  titleAs?: 'h1' | 'h2' | 'h3' | 'p'
   className?: string
 }
 
@@ -23,8 +28,10 @@ export function EmptyState({
   body,
   action,
   size = 'inline',
+  titleAs,
   className,
 }: EmptyStateProps) {
+  const Title = titleAs ?? (size === 'page' ? 'h1' : 'p')
   return (
     <div
       className={cn(
@@ -44,8 +51,10 @@ export function EmptyState({
           {icon}
         </div>
       ) : null}
-      <p className={cn('text-ink', size === 'page' ? 'text-title' : 'text-heading')}>{title}</p>
-      {body ? <p className="text-label font-normal text-ink-soft">{body}</p> : null}
+      <Title className={cn('text-ink', size === 'page' ? 'text-title' : 'text-heading')}>
+        {title}
+      </Title>
+      {body ? <p className="text-label-plain text-ink-soft">{body}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   )

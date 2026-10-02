@@ -1,6 +1,7 @@
 import type { UpcomingItem } from '@dhan/contracts'
 import { CalendarClock, ChevronDown } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '../../lib/cn.ts'
@@ -72,7 +73,7 @@ function SubHeading({ label, detail }: { label: string; detail: ReactNode }) {
   return (
     <h3 className="flex items-baseline justify-between gap-3 text-label text-ink">
       {label}
-      <span className="text-caption font-normal text-ink-faint tabular">{detail}</span>
+      <span className="text-caption-plain text-ink-faint tabular">{detail}</span>
     </h3>
   )
 }
@@ -80,9 +81,9 @@ function SubHeading({ label, detail }: { label: string; detail: ReactNode }) {
 /** A date drawn the way a desk diary prints it: the day large, the weekday under it. */
 function DateMark({ date }: { date: string }) {
   return (
-    <span className="grid grid-cols-1 w-11 shrink-0 text-left leading-none">
+    <span className="grid w-11 shrink-0 grid-cols-1 text-left leading-none">
       <span className="text-label text-ink tabular">{formatDate(date, { year: false })}</span>
-      <span className="mt-1 text-caption font-normal text-ink-faint">
+      <span className="mt-1 text-caption-plain text-ink-faint">
         {weekday(date, { short: true })}
       </span>
     </span>
@@ -101,9 +102,9 @@ function EventList({ group, asOf }: { group: EventGroup; asOf: string }) {
               className="flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-focus"
             >
               <DateMark date={item.date} />
-              <span className="grid grid-cols-1 min-w-0 flex-1 gap-0.5">
+              <span className="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
                 <span className="truncate text-label text-ink">{item.name}</span>
-                <Figures text={item.label} className="text-caption font-normal text-ink-soft" />
+                <Figures text={item.label} className="text-caption-plain text-ink-soft" />
               </span>
               <span className="shrink-0 pt-px text-caption text-ink-faint">
                 {untilLabel(item.date, asOf)}
@@ -131,7 +132,7 @@ function WeekRow({ week }: { week: SipWeek }) {
         {/* Two lines, like the dated rows above: the range, then what runs in it. */}
         <span className="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
           <span className="text-label text-ink tabular">{rangeLabel(week.from, week.to)}</span>
-          <span className="text-caption font-normal text-ink-soft">
+          <span className="text-caption-plain text-ink-soft">
             {formatCount(week.count)} {week.count === 1 ? 'SIP' : 'SIPs'} ·{' '}
             {formatCount(week.customers)} {week.customers === 1 ? 'customer' : 'customers'}
           </span>
@@ -140,14 +141,14 @@ function WeekRow({ week }: { week: SipWeek }) {
         <ChevronDown
           aria-hidden
           className={cn(
-            'size-4 shrink-0 text-ink-hint transition-transform duration-200',
+            'size-4 shrink-0 text-ink-hint transition-transform duration-state',
             open && 'rotate-180',
           )}
         />
       </button>
       <AnimatePresence initial={false}>
         {open ? (
-          <motion.div
+          <m.div
             id={panelId}
             initial={{ height: 0, opacity: 0 }}
             animate={{
@@ -196,7 +197,7 @@ function WeekRow({ week }: { week: SipWeek }) {
                 </div>
               ))}
             </div>
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </li>

@@ -77,7 +77,7 @@ export function CustomerRecord() {
             </div>
             <Skeleton className="h-9 w-36 rounded-md" />
           </div>
-          <div className="rounded-b-lg border-t border-hairline-soft bg-canvas-top/60 px-5 py-4">
+          <div className="rounded-b-lg border-t border-hairline-soft bg-footer-wash px-5 py-4">
             <Skeleton className="h-3 w-4/5" />
           </div>
         </Card>

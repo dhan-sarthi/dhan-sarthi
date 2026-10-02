@@ -2,10 +2,16 @@ import type { RmInsights } from '@dhan/contracts'
 import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { formatCount, formatMonth, formatPct } from '../../lib/format.ts'
-import { Card, DeltaPill, Money, SectionLabel } from '../../ui/index.ts'
+import {
+  Card,
+  DeltaPill,
+  Money,
+  MonthColumns,
+  MonthLines,
+  SectionLabel,
+  type MonthLine,
+} from '../../ui/index.ts'
 import { lastStep, latest, lowerFirst, pctChange, stepSentence, sum } from './derive.ts'
-import { MonthColumns } from './MonthColumns.tsx'
-import { MonthLines, type MonthLine } from './MonthLines.tsx'
 
 /*
  * The book over twelve months as small multiples: six tiles on one surface, all drawn against
@@ -23,6 +29,11 @@ import { MonthLines, type MonthLine } from './MonthLines.tsx'
  * A series the API sends empty (activity and refusals, until there is something to count) gets a
  * sentence in place of its chart. A flat line at zero would claim the console looked and found
  * nothing; an empty array means there was nothing to look at.
+ *
+ * The tiles are the kit's month charts (`MonthLines`, `MonthColumns`): a hover shows a month's
+ * values, and under a finger a tap keeps the month until a tap elsewhere. The grid measures the
+ * card, not the window: three across from about 900px of card (a 1280 laptop), two from about
+ * 670, one below that.
  */
 
 const CHART_HEIGHT = 124
@@ -50,7 +61,7 @@ export function TrendBand({ insights }: { insights: RmInsights }) {
 
   return (
     // Clipped to its radius so the hairline grid inside meets the rounded corners cleanly.
-    <Card padded={false} className="overflow-hidden" aria-labelledby="insights-trends">
+    <Card padded={false} className="@container overflow-hidden" aria-labelledby="insights-trends">
       <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline-soft px-5 py-4">
         <SectionLabel id="insights-trends">Twelve months</SectionLabel>
         <p className="text-caption text-ink-faint">
@@ -59,14 +70,14 @@ export function TrendBand({ insights }: { insights: RmInsights }) {
         </p>
       </header>
       {months.length === 0 || series.bookBalance.length === 0 ? (
-        <p className="px-5 py-10 text-center text-label font-normal text-ink-soft">
+        <p className="px-5 py-10 text-center text-label-plain text-ink-soft">
           There are no month-end balances to chart yet. The first month-end after customers join the
           book starts the series.
         </p>
       ) : (
         // A 1px gap over a hairline ground draws the dividers, so the grid can reflow from three
         // columns to two to one without a border rule per breakpoint.
-        <div className="grid grid-cols-1 gap-px bg-hairline-soft md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-px bg-hairline-soft @2xl:grid-cols-2 @4xl:grid-cols-3">
           {tiles.map((tile) => (
             <TileView key={tile.id} tile={tile} />
           ))}
@@ -105,16 +116,16 @@ function TileView({ tile }: { tile: Tile }) {
       </div>
       {/* A fixed line height, so a tile whose context carries a legend keeps its chart level
           with its neighbours'. */}
-      <div className="mt-1 h-4 truncate text-caption leading-4 font-normal text-ink-faint">
+      <div className="mt-1 h-4 truncate text-caption-plain leading-4 text-ink-faint">
         {tile.context}
       </div>
       <div className="mt-2" style={{ minHeight: CHART_HEIGHT }}>
         {tile.chart ?? (tile.empty ? <EmptyChart {...tile.empty} /> : null)}
       </div>
+      {/* What the chart draws, in the API's words: the tile's source line, which wraps rather
+          than losing its end in a narrow tile. */}
       {tile.caption && tile.chart ? (
-        <p className="mt-1 truncate text-micro leading-4 font-normal tracking-normal text-ink-faint">
-          {tile.caption}
-        </p>
+        <p className="mt-1 text-caption-plain text-ink-faint">{tile.caption}</p>
       ) : null}
     </section>
   )
@@ -128,7 +139,7 @@ function EmptyChart({ title, body }: { title: string; body: string }) {
       style={{ height: CHART_HEIGHT }}
     >
       <p className="text-label text-ink">{title}</p>
-      <p className="mt-0.5 text-caption font-normal text-ink-soft">{body}</p>
+      <p className="mt-0.5 text-caption-plain text-ink-soft">{body}</p>
     </div>
   )
 }
@@ -389,7 +400,7 @@ function LegendKey({
           'inline-block w-3',
           kind === 'solid'
             ? 'h-0.5 rounded-full bg-chart-1'
-            : 'border-t-[1.5px] border-dashed border-chart-neutral-400',
+            : 'border-t-[1.5px] border-dashed border-chart-comparison',
         )}
       />
       <span className="text-ink-soft">{label}</span>

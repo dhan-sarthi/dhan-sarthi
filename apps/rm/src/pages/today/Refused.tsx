@@ -50,7 +50,7 @@ export function Refused({ refusals }: { refusals: readonly AdviceItem[] }) {
           {total !== null && total > 0 ? (
             <p className="mb-3 flex items-baseline gap-2">
               <span className="text-display text-ink tabular">{formatCount(total)}</span>
-              <span className="text-label font-normal text-ink-soft">
+              <span className="text-label-plain text-ink-soft">
                 {total === 1 ? 'mis-sale' : 'mis-sales'} prevented
                 {oldest ? ` since ${formatMonth(oldest)}` : ''}
               </span>
@@ -94,7 +94,7 @@ function RefusalRow({ group }: { group: RefusalGroup }) {
           </Fragment>
         ))}
       </p>
-      <blockquote title={words} className="line-clamp-2 text-label font-normal text-ink">
+      <blockquote title={words} className="line-clamp-2 text-label-plain text-ink">
         {words}
       </blockquote>
       {group.ruleId ? (
