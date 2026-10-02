@@ -800,7 +800,8 @@ describe(
            GROUP BY 1 ORDER BY 1`,
         )
         assert.deepEqual(Object.fromEntries(tables.rows.map((r) => [r.table_schema, r.n])), {
-          app: 16,
+          // 0015 added the six RM tables.
+          app: 22,
           // 0013 added bank.other_holdings.
           bank: 13,
           ref: 7,

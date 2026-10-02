@@ -45,11 +45,14 @@ export function PropertyList({
   items,
   className,
   layout = 'rows',
+  labelWidth = 'regular',
 }: {
   items: readonly Property[]
   className?: string
   /** `rows` for a narrow rail, `grid` for a wide card (two columns of pairs). */
   layout?: 'rows' | 'grid'
+  /** `narrow` for a rail under ~320px, so a value like "Married · 2 dependents" keeps one line. */
+  labelWidth?: 'regular' | 'narrow'
 }) {
   return (
     <dl
@@ -61,7 +64,12 @@ export function PropertyList({
       {items.map((item, i) => (
         <div
           key={i}
-          className="grid grid-cols-[8.5rem_minmax(0,1fr)] items-baseline gap-3 text-label"
+          className={cn(
+            'grid items-baseline gap-3 text-label',
+            labelWidth === 'narrow'
+              ? 'grid-cols-[6.75rem_minmax(0,1fr)]'
+              : 'grid-cols-[8.5rem_minmax(0,1fr)]',
+          )}
         >
           <dt className="font-normal text-ink-faint">{item.label}</dt>
           <dd className="min-w-0 text-ink">{item.value}</dd>

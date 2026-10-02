@@ -1273,6 +1273,27 @@ function Notices() {
               Promise.reject(new ApiError(429, 'RATE_LIMITED', 'Too many reveals this hour.'))
             }
           />
+          {/* Inside a narrow rail's property row: the row's label names it, so the field's own
+              caption is for screen readers only. */}
+          <PropertyList
+            labelWidth="narrow"
+            items={[
+              {
+                label: 'Date of birth',
+                value: (
+                  <MaskedField
+                    label="Date of birth"
+                    masked="•• ••• 1983"
+                    hideLabel
+                    onReveal={() =>
+                      new Promise((resolve) => setTimeout(() => resolve('14 Mar 1983'), 600))
+                    }
+                  />
+                ),
+              },
+              { label: 'Family', value: 'Married · 2 dependents' },
+            ]}
+          />
         </Card>
       </div>
     </Section>

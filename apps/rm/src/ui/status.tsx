@@ -22,7 +22,12 @@ export const SEVERITY: Record<SignalSeverity, { label: string; tone: ChipTone }>
   opportunity: { label: 'Worth knowing', tone: 'budget' },
 }
 
-const SEVERITY_ICON = { urgent: CircleAlert, important: Eye, opportunity: Lightbulb } as const
+/** The shape that goes with each level, for marks too narrow to carry the word. */
+export const SEVERITY_ICON = {
+  urgent: CircleAlert,
+  important: Eye,
+  opportunity: Lightbulb,
+} as const
 
 export function SeverityChip({
   severity,

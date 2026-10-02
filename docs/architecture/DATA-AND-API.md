@@ -1,7 +1,7 @@
 # Data model and API surface
 
 This document is the contract between the API and everything around it: the tables the API reads
-and writes, the roles that may touch them, the 52 routes and what each returns, and the session,
+and writes, the roles that may touch them, the 70 routes and what each returns, and the session,
 idempotency, caching and rate-limit rules that make many concurrent reviewers safe. It also
 records the avatar integration in the detail a reviewer of the compliance story will want. The
 route table is the human-readable twin of `packages/contracts/src/registry.ts`, which is the

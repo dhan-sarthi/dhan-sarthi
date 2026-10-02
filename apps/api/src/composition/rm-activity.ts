@@ -9,7 +9,12 @@
  *
  * The context carries everything the activity side could need, ports and services both, so
  * adding a dependency is an edit to this file and to the class that takes it, not to the root.
+ *
+ * What each book customer did comes from the fixtures, which only `adapters/memory` may name, so
+ * it is read from there (`generatedBookActivity`) under every source: it is part of the synthetic
+ * persona, as the ledger the Postgres seed writes is.
  */
+import { generatedBookActivity } from '../adapters/memory/book-activity.memory.ts'
 import { ActivitySimulator } from '../application/rm/simulator.ts'
 import { RmActivityService } from '../application/rm/activity.service.ts'
 import type { AdvisoryService } from '../application/advisory.service.ts'
@@ -82,12 +87,21 @@ export function wireRmActivity(ctx: RmActivityWiringContext): RmActivityWiring {
     scope: ctx.rm.scope,
     book: ctx.rm.book,
     accessLog: ctx.rm.accessLog,
+    shelf: ctx.ports.shelf,
+    desk: ctx.ports.desk,
     clock: ctx.clock,
     log: ctx.log,
   })
   const simulator = new ActivitySimulator({
-    sessions: ctx.ports.sessions,
+    bank: ctx.ports.bank,
+    desk: ctx.ports.desk,
+    sessionStore: ctx.ports.sessions,
+    sessions: ctx.services.sessions,
+    advisory: ctx.services.advisory,
+    decisions: ctx.services.decisions,
+    conversation: ctx.services.conversation,
     book: ctx.rm.book,
+    activity: generatedBookActivity(),
     clock: ctx.clock,
     log: ctx.log,
   })

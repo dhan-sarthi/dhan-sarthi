@@ -63,6 +63,7 @@ export {
   HealthDot,
   SEGMENT,
   SEVERITY,
+  SEVERITY_ICON,
   SegmentBadge,
   SeverityChip,
   StrengthBadge,

@@ -1,44 +1,69 @@
-import { useMe } from '../../api/queries.ts'
+import { useToday } from '../../api/queries.ts'
 import { useSession } from '../../api/session.ts'
-import { formatDate } from '../../lib/format.ts'
-import { PageHeader, Skeleton } from '../../ui/index.ts'
-import { KpiStripSkeleton, ListCardSkeleton, PageLoading } from '../placeholder.tsx'
+import { Card, ErrorState, PageHeader, Skeleton } from '../../ui/index.ts'
+import { AskedForYou } from './AskedForYou.tsx'
+import { CallQueue } from './CallQueue.tsx'
+import { ComingUp } from './ComingUp.tsx'
+import { firstName, greeting, headline } from './derive.ts'
+import { KpiStrip } from './KpiStrip.tsx'
+import { Refused } from './Refused.tsx'
+import { TodayGrid } from './TodayGrid.tsx'
+import { TodaySkeleton } from './TodaySkeleton.tsx'
 
-/** The greeting goes by the wall clock; every figure under it goes by the as-of date. */
-function greeting(): string {
-  const hour = new Date().getHours()
-  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-}
-
+/**
+ * Today: the RM's morning. Greeting and the date the book is at; four figures; then who to call
+ * and why, with the first call already open. Everything on the page is one read (`rmToday`), so
+ * it loads, fails and retries as one.
+ */
 export function Today() {
   const session = useSession()
-  const me = useMe()
-  const first = session?.rm.name.split(' ')[0] ?? ''
+  const today = useToday()
+  const name = session ? firstName(session.rm.name) : ''
+
   return (
     <>
       <PageHeader
-        title={`${greeting()}, ${first}`}
+        title={
+          name ? `${greeting(new Date().getHours())}, ${name}` : greeting(new Date().getHours())
+        }
         subtitle={
-          me.data ? (
-            `Your book as of ${formatDate(me.data.asOf)}`
-          ) : (
-            <Skeleton className="mt-1 h-4 w-40" />
-          )
+          today.data ? (
+            headline(today.data)
+          ) : today.isPending ? (
+            <Skeleton className="mt-1 h-4 w-72" />
+          ) : null
         }
       />
-      <PageLoading label="Loading today">
-        <div className="grid gap-6">
-          <KpiStripSkeleton />
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <ListCardSkeleton rows={8} />
-            <div className="grid content-start gap-6">
-              <ListCardSkeleton rows={3} />
-              <ListCardSkeleton rows={3} />
-              <ListCardSkeleton rows={4} />
-            </div>
-          </div>
+
+      {today.data ? (
+        <div className="grid grid-cols-1 gap-6">
+          <KpiStrip kpis={today.data.kpis} />
+          <TodayGrid
+            queue={
+              <CallQueue
+                queue={today.data.queue}
+                handoffs={today.data.handoffs}
+                asOf={today.data.asOf}
+              />
+            }
+            asked={<AskedForYou handoffs={today.data.handoffs} />}
+            upcoming={<ComingUp upcoming={today.data.upcoming} asOf={today.data.asOf} />}
+            refused={<Refused refusals={today.data.refusals} />}
+          />
         </div>
-      </PageLoading>
+      ) : today.isPending ? (
+        <TodaySkeleton />
+      ) : (
+        <Card>
+          <ErrorState
+            size="page"
+            title="Today did not load"
+            error={today.error}
+            onRetry={() => void today.refetch()}
+            retrying={today.isFetching}
+          />
+        </Card>
+      )}
     </>
   )
 }

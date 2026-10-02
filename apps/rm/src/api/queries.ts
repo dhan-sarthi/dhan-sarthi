@@ -65,12 +65,18 @@ export function useToday() {
  * Opening a customer writes a "viewed" entry to the access log, so this query is never refetched
  * behind the RM's back: no refetch on focus, a long stale time. A reload is a new open, and is
  * logged as one.
+ *
+ * The abort signal is left unused on purpose. React Query cancels a query whose function read
+ * the signal when its last observer unmounts, and the remount then sends a second request; under
+ * StrictMode's mount-unmount-mount that wrote every open to the log twice. Without the signal the
+ * remount joins the request already in flight, and an open the server has logged is not undone
+ * by dropping its reply anyway.
  */
 export function useCustomer(cif: string, purpose?: string) {
   return useQuery({
     queryKey: keys.customer(cif),
-    queryFn: ({ signal }) =>
-      api('rmCustomer', { params: { cif }, ...(purpose ? { query: { purpose } } : {}), signal }),
+    queryFn: () =>
+      api('rmCustomer', { params: { cif }, ...(purpose ? { query: { purpose } } : {}) }),
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
     enabled: cif !== '',

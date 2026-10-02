@@ -47,6 +47,8 @@ import { PostgresAuditStore } from '../adapters/postgres/audit-store.postgres.ts
 import { PostgresBankData } from '../adapters/postgres/bank-data.postgres.ts'
 import { PostgresLeaseStore } from '../adapters/postgres/lease-store.postgres.ts'
 import { PostgresProductShelf } from '../adapters/postgres/product-shelf.postgres.ts'
+import { PostgresRmActivity } from '../adapters/postgres/rm-activity.postgres.ts'
+import { PostgresRmDesk } from '../adapters/postgres/rm-desk.postgres.ts'
 import { PostgresSeedInfo } from '../adapters/postgres/seed-provenance.postgres.ts'
 import { PostgresSessionStore } from '../adapters/postgres/session-store.postgres.ts'
 import { PostgresSnapshotStore } from '../adapters/postgres/snapshot-store.postgres.ts'
@@ -214,11 +216,10 @@ export function bankAdapters(
         audit: new PostgresAuditStore(db, clock),
         leases: new PostgresLeaseStore(db, clock),
         seed,
-        // FOR NOW, the memory RM adapters under Postgres too: the desk is the fixtures' two RMs
-        // and the activity lives as long as the process. Migration 0015 and the Postgres RM
-        // adapters replace these two lines; nothing above this file changes when they do.
-        rmDesk: generatedRmDesk(clock),
-        rmActivity: new InMemoryRmActivity(clock),
+        // The desk, the book and what the RM did, from migration 0015's tables: the seed writes
+        // the desk and the book, and a sign-in, a note or an access entry outlives the process.
+        rmDesk: new PostgresRmDesk(db, clock),
+        rmActivity: new PostgresRmActivity(db, clock),
       }
     }
     case 'idbi-sandbox': {

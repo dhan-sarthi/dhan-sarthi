@@ -24,8 +24,11 @@ export function SplitView({
   return (
     <div
       className={cn(
-        'grid items-start gap-5 transition-[grid-template-columns] duration-300 ease-out',
-        open ? 'grid-cols-[minmax(0,1fr)_var(--spacing-rail)]' : 'grid-cols-[minmax(0,1fr)_0px]',
+        'grid items-start transition-[grid-template-columns] duration-300 ease-out',
+        // No gap while shut: the list runs to the same right edge as anything full-width above it.
+        open
+          ? 'grid-cols-[minmax(0,1fr)_var(--spacing-rail)] gap-5'
+          : 'grid-cols-[minmax(0,1fr)_0px] gap-0',
         className,
       )}
     >

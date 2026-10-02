@@ -1,8 +1,11 @@
 # RM Desk — the relationship manager's console
 
-Status: being built, 2 October 2026, on branch `rm-console`. This is the build spec; every builder
-reads it before touching code. Reference screens and what to take from each:
-[`docs/assets/rm-console/refs/README.md`](../assets/rm-console/refs/README.md).
+Status: built and integrated, 2 October 2026, on branch `rm-console`, uncommitted and not
+deployed until the owner reviews it. Every page below works end to end for both RMs against the
+memory source, the API also runs it on Postgres (migration 0015), and the whole tree is green
+(`pnpm build`, `typecheck`, `lint`, `format:check`, `test`). This was the build spec; how to run
+it and the demo logins are in [`apps/rm/README.md`](../../apps/rm/README.md). Reference screens and
+what was taken from each: [`docs/assets/rm-console/refs/README.md`](../assets/rm-console/refs/README.md).
 
 ## Why it exists
 
@@ -211,6 +214,10 @@ pnpm install && pnpm build
 BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api      # :3001
 pnpm --filter @dhan/rm dev                                # :5173, proxies /api to :3001
 ```
+
+Sign in as `204117` / `desk-204117` (Meera) or `204388` / `desk-204388` (Arjun). The simulator
+needs about a minute and a half after the API starts before every journey is in;
+[`apps/rm/README.md`](../../apps/rm/README.md) has what to expect, the copilot's key and Postgres.
 
 ## Not in this build
 

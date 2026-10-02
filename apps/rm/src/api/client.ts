@@ -59,9 +59,13 @@ export class ApiError extends Error {
     this.body = body
   }
 
-  /** No answer, or the API itself is down. */
+  /**
+   * No answer, or the API itself is down. A 5xx without the API's own error body came from
+   * something in front of it (the dev proxy answers 500 with an empty body when nothing listens),
+   * so it counts; a 5xx the API wrote itself is a server error, not an unreachable server.
+   */
   get unreachable(): boolean {
-    return this.status === 0 ? this.code !== 'ABORTED' : this.status >= 500
+    return this.status === 0 ? this.code !== 'ABORTED' : this.status >= 500 && this.body === null
   }
 }
 

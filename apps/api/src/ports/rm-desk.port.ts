@@ -8,9 +8,9 @@
  * impossible rather than unlikely.
  *
  * Implemented by `adapters/memory/rm-desk.memory.ts` (seeded from the fixtures' desk through
- * `generatedRmDesk`, under every source for now) and, from migration 0015,
- * `adapters/postgres/rm-desk.postgres.ts` (`app.rm_users`, `app.rm_sessions`,
- * `app.rm_assignments`).
+ * `generatedRmDesk`) under the memory source and, from migration 0015,
+ * `adapters/postgres/rm-desk.postgres.ts` (`app.rm_users`, `app.rm_sessions`, `app.rm_book`)
+ * under Postgres.
  */
 import type { Timestamp } from '@dhan/contracts'
 

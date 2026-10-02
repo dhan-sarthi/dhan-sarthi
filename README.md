@@ -15,7 +15,7 @@
 ![AWS](https://img.shields.io/badge/AWS-ECS%20%C2%B7%20RDS%20%C2%B7%20CloudFront-016A4D?style=flat-square&logo=amazonwebservices&logoColor=white)
 <br>
 ![suitability rules](https://img.shields.io/badge/suitability%20rules-9-0E3329?style=flat-square)
-![tests](https://img.shields.io/badge/tests-865%20%2B%2073%20integration-0E3329?style=flat-square)
+![tests](https://img.shields.io/badge/tests-1168%20%2B%2055%20integration-0E3329?style=flat-square)
 ![keys on the client](https://img.shields.io/badge/keys%20on%20the%20client-0-0E3329?style=flat-square)
 
 </div>
@@ -297,7 +297,7 @@ Held by `pnpm test` over the four generated ledgers, with no provider configured
 | Statement realism | every narration matches a declared rail template; the account's IFSC is IDBI's and the salary remitter's is the employer's; MCC on every merchant line and on nothing else |
 | Calibration | UPI debits per month, ticket distribution and the share of payments under ₹500 stay inside bands cited to NPCI and the RBI Payment System Report |
 | Two data paths, one answer | the in-memory profile and Postgres load the same customer file for every customer at six clock positions (CI's Postgres job) |
-| Tests | **865 passing**: core 218 · contracts 25 · fixtures 171 · api 256 · mobile 195, plus **73** Postgres integration tests that CI runs against a fresh database on every push to `main` |
+| Tests | **1,168 passing**: core 331 · contracts 46 · fixtures 185 · api 351 · mobile 207 · rm 48, plus **55** Postgres integration tests that CI runs against a fresh database on every push to `main` |
 
 ---
 
@@ -399,7 +399,7 @@ BANK_SOURCE=idbi-sandbox AVATAR_PROVIDER=none pnpm dev:api
 Checks:
 
 ```bash
-pnpm test                                    # builds packages, then all 865 tests
+pnpm test                                    # builds packages, then all 1,168 tests
 pnpm lint && pnpm typecheck && pnpm format:check
 pnpm --filter @dhan/api seed:check           # the database still matches the generator, by hash
 curl -s localhost:3001/api/v1/openapi.json   # every route, generated from the registry
@@ -410,7 +410,7 @@ What the sandbox actually returns, and every trap in it, is
 
 ## API
 
-Fifty-two routes, all under `/api/v1`, every one declared in `packages/contracts/src/registry.ts`,
+Seventy routes, all under `/api/v1`, every one declared in `packages/contracts/src/registry.ts`,
 which also generates the OpenAPI document, the client's types and the route tests, so a route that
 is not in the registry cannot exist. The full table is
 [`docs/architecture/DATA-AND-API.md`](docs/architecture/DATA-AND-API.md); a test walks it against
@@ -426,12 +426,13 @@ the registry in both directions so it cannot drift.
 | Account Aggregator | `/consent/aa` and its two IDBI webhooks | The six-call consent flow, verified before it grants anything. |
 | The avatar | `/avatar/availability` · `/avatar/session` · the waitlist · the call record | Account pool, daily minute budget, reaper, teardown. |
 | Operator | `/operator/avatar/status` · `/operator/seed` · `/operator/mapping-report` | Behind `X-Operator-Key`. |
+| RM console | the 18 routes under `/rm/` | The relationship manager's desk (`apps/rm`): sign-in, the book, today, a customer's file, insights, the refusals and the access log, and the copilot. Behind an `rm_` bearer, book-scoped. |
 
 ## Project layout
 
 ```
 apps/
-  mobile/                       Expo + Expo Router + NativeWind: the product, and the only client
+  mobile/                       Expo + Expo Router + NativeWind: the product, and the customer's only client
     app/(onboarding)/           welcome · mobile · otp · consent · reading · checklist · about · goal
                                 · risk · ready
     app/(tabs)/                 Home (spend.tsx) · Plan · Uday · Grow · Protect
@@ -440,6 +441,8 @@ apps/
     src/avatar/                 the call: one transport per provider SDK
     src/screens/                screens shared by a tab and a route (CreditContent)
     src/ui/                     Text (eight type roles) · Sheet · Checklist · ScoreGlow · … · interop.ts
+  rm/                           Vite + React: the relationship manager's console (RM Desk); its README
+                                has the demo logins
   api/                          Fastify 5: the only process that holds a secret
     src/application/            the services: advisory · decision · record · session · aa-consent · avatar
     src/adapters/idbi-sandbox/  the bank, written from 42 captured bodies rather than from the spec

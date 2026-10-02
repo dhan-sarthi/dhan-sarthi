@@ -12,6 +12,11 @@ export interface MaskedFieldProps {
   masked: string
   /** Asks the server to unmask. Resolves with the value; the server logs the reason. */
   onReveal: (reason: string) => Promise<string>
+  /**
+   * Keeps the caption for screen readers only, for a field inside a property row whose own
+   * label already says what it is. The dialog still names the field.
+   */
+  hideLabel?: boolean
   className?: string
 }
 
@@ -22,7 +27,13 @@ const MIN_REASON = 5
  * is written to the access log by the server. The value is held in this component's state only,
  * never cached, so leaving the page masks it again.
  */
-export function MaskedField({ label, masked, onReveal, className }: MaskedFieldProps) {
+export function MaskedField({
+  label,
+  masked,
+  onReveal,
+  hideLabel = false,
+  className,
+}: MaskedFieldProps) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [value, setValue] = useState<string | null>(null)
@@ -50,7 +61,9 @@ export function MaskedField({ label, masked, onReveal, className }: MaskedFieldP
 
   return (
     <div className={cn('grid gap-0.5', className)}>
-      <span className="text-caption font-normal text-ink-faint">{label}</span>
+      <span className={cn('text-caption font-normal text-ink-faint', hideLabel && 'sr-only')}>
+        {label}
+      </span>
       <div className="flex items-center gap-2">
         <span
           className={cn('tabular text-label', value ? 'text-ink' : 'tracking-wide text-ink-soft')}

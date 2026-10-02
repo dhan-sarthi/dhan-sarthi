@@ -10,6 +10,11 @@ import { Button } from './Button.tsx'
  */
 export function describeError(error: unknown): string {
   if (isApiError(error)) {
+    // Before the code: a dead API behind the proxy arrives as a bare 5xx, and the icon beside
+    // this sentence already says the server is not reachable.
+    if (error.unreachable && error.code !== 'TIMEOUT') {
+      return 'The console could not reach the server. Check the connection and try again.'
+    }
     switch (error.code) {
       case 'NETWORK':
         return 'The console could not reach the server. Check the connection and try again.'

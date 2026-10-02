@@ -198,11 +198,12 @@ export class RmConsoleService {
       this.deps.activity.facts([cif]),
       this.deps.auth.profile(rm),
     ])
+    const activity = facts.get(cif) ?? NO_ACTIVITY
     const view = customer360({
       state,
-      facts: facts.get(cif) ?? NO_ACTIVITY,
+      facts: activity,
       assignedRm: profile,
-      prompts: this.deps.copilot.prompts(state),
+      prompts: this.deps.copilot.prompts(state, activity),
     })
     // After the file is assembled, so the log records an open that showed the RM something.
     await this.deps.accessLog.record(rm, cif, 'viewed', purpose)
