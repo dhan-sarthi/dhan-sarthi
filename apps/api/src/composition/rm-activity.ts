@@ -73,8 +73,11 @@ export interface RmActivityWiring {
   simulator: ActivitySimulator
   /** After the routes are registered. Starts the simulator when `RM_SIMULATE` is on. */
   start(): void
-  /** On close: stop between customers rather than mid-write. */
-  stop(): void
+  /**
+   * On close: stop between customers rather than mid-write, waiting (within the simulator's
+   * bound) for the customer in hand to finish.
+   */
+  stop(): Promise<void>
 }
 
 export function wireRmActivity(ctx: RmActivityWiringContext): RmActivityWiring {
@@ -96,6 +99,8 @@ export function wireRmActivity(ctx: RmActivityWiringContext): RmActivityWiring {
     bank: ctx.ports.bank,
     desk: ctx.ports.desk,
     sessionStore: ctx.ports.sessions,
+    audit: ctx.ports.audit,
+    snapshots: ctx.ports.snapshots,
     sessions: ctx.services.sessions,
     advisory: ctx.services.advisory,
     decisions: ctx.services.decisions,

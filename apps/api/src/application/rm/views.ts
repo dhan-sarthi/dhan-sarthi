@@ -10,6 +10,7 @@ import {
   attritionWatch,
   conductBand,
   evaluate,
+  figureBasis,
   goalLabel,
   initials,
   relationshipStrength,
@@ -27,9 +28,10 @@ import type {
   Customer360Stage,
   GoalSummary,
   RmProfile,
+  SignalKind,
 } from '@dhan/contracts'
 import type { ActivityFacts } from './activity.service.ts'
-import { HIGH_INTEREST_PCT } from './customer-state.ts'
+import { BALANCE_SERIES_MONTHS, HIGH_INTEREST_PCT } from './customer-state.ts'
 import type { CustomerState } from './customer-state.ts'
 
 const round1 = (n: number): number => Math.round(n * 10) / 10
@@ -46,9 +48,16 @@ export function goalSummary(s: CustomerState): GoalSummary {
     kind: s.goal.kind,
     label: goalLabel(s.goal),
     targetAmount: s.goal.targetAmount,
+    // The engine reads an absent basis as today's money, so the wire says so rather than null.
+    amountBasis: s.goal.amountBasis ?? 'today',
     targetDate: s.goal.targetDate,
     health: s.health,
   }
+}
+
+/** Each kind among the signals once, in the engine's order. */
+function kindsOf(signals: readonly { kind: SignalKind }[]): SignalKind[] {
+  return [...new Set(signals.map((x) => x.kind))]
 }
 
 export function strengthOf(s: CustomerState, f: ActivityFacts): BookRow['strength'] {
@@ -95,6 +104,8 @@ export function bookRow(s: CustomerState, f: ActivityFacts): BookRow {
     goal: goalSummary(s),
     topSignal: s.signals[0] ?? null,
     signalCount: s.signals.length,
+    signals: s.signals,
+    signalKinds: kindsOf(s.signals),
     strength: strengthOf(s, f),
     attrition: attritionOf(s, f),
     lastActivityAt: f.lastActivityAt,
@@ -263,6 +274,7 @@ export function customer360({
 
   return {
     asOf: s.asOf,
+    basis: figureBasis(s.asOf, BALANCE_SERIES_MONTHS),
     profile: {
       cif: s.cif,
       name: customer.custName,
@@ -317,6 +329,8 @@ export function customer360({
         policies: s.file.policies.map((p) => ({ name: p.name, cover: p.sumAssured ?? null })),
       },
       netWorth: s.netWorth,
+      balances: s.balances,
+      withIdbi: s.withIdbi,
       balanceSeries: s.balanceSeries,
     },
     income: {
@@ -364,6 +378,7 @@ export function customer360({
     projection: s.roadmap.projection,
     signals: s.signals,
     nextActions: actions.map((a) => actionOf(s, a)),
+    upcoming: s.upcoming,
     consent: consentOf(s),
     uday: { calls: f.udayCalls, lastCallAt: f.lastCallAt },
     products: { held: s.idbiProducts, gaps: s.gaps.map((g) => g.productName) },

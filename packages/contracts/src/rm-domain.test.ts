@@ -5,17 +5,22 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  AccessEntrySchema,
   AdviceItemSchema,
   BalancePointSchema,
   BookRowSchema,
   CitedSentenceSchema,
   FactSchema,
+  FigureBasisSchema,
+  GoalSummarySchema,
+  KpiSchema,
   SignalSchema,
 } from './rm-domain.ts'
 import { RmAskRequestSchema } from './routes/rm-copilot.ts'
 import {
   RmCustomerQuerySchema,
   RmHandoffPatchSchema,
+  RmInsightsSchema,
   RmNoteRequestSchema,
   RmRevealRequestSchema,
   RmSignInRequestSchema,
@@ -81,11 +86,14 @@ describe('a book row', () => {
       kind: 'debt_payoff',
       label: 'Clear the card',
       targetAmount: 186_000,
+      amountBasis: 'today',
       targetDate: '2027-03-01',
       health: 'at_risk',
     },
     topSignal: SIGNAL,
-    signalCount: 3,
+    signalCount: 2,
+    signals: [SIGNAL, { ...SIGNAL, kind: 'idle_cash', severity: 'opportunity', figure: 228_000 }],
+    signalKinds: ['expensive_debt', 'idle_cash'],
     strength: { level: 'high', reason: 'Active 6 days ago · 3 IDBI products · 62% with IDBI' },
     attrition: { flagged: false, reasons: [] },
     lastActivityAt: '2026-08-26',
@@ -107,6 +115,20 @@ describe('a book row', () => {
     assert.equal(BookRowSchema.safeParse({ ...ROW, walletSharePct: null }).success, true)
   })
 
+  it('carries every signal and every signal kind, not only the top one', () => {
+    // The Idle cash tab filters on `signalKinds`: a customer whose idle cash ranks below a card
+    // is still a customer with idle cash.
+    const parsed = BookRowSchema.parse(ROW)
+    assert.deepEqual(parsed.signalKinds, ['expensive_debt', 'idle_cash'])
+    assert.equal(parsed.signals.length, parsed.signalCount)
+    const { signals: _s, ...withoutSignals } = ROW
+    assert.equal(BookRowSchema.safeParse(withoutSignals).success, false)
+    const { signalKinds: _k, ...withoutKinds } = ROW
+    assert.equal(BookRowSchema.safeParse(withoutKinds).success, false)
+    // A kind is a signal kind: the handoff the engine adds to everyone is never one.
+    assert.equal(BookRowSchema.safeParse({ ...ROW, signalKinds: ['human_handoff'] }).success, false)
+  })
+
   it('refuses a segment that is not one of the three', () => {
     assert.equal(BookRowSchema.safeParse({ ...ROW, segment: 'gold' }).success, false)
   })
@@ -120,6 +142,121 @@ describe('a book row', () => {
       BalancePointSchema.safeParse({ month: '2026-09-01', total: 0, withIdbi: 0 }).success,
       false,
     )
+  })
+})
+
+describe('a goal summary', () => {
+  const GOAL = {
+    kind: 'retirement',
+    label: 'Retirement',
+    targetAmount: 11_10_00_000,
+    targetDate: '2051-09-01',
+    health: 'off_track',
+  }
+
+  it('says which money its target is in, and only in the two the engine knows', () => {
+    for (const amountBasis of ['today', 'at_horizon']) {
+      assert.equal(GoalSummarySchema.safeParse({ ...GOAL, amountBasis }).success, true)
+    }
+    assert.equal(GoalSummarySchema.safeParse({ ...GOAL, amountBasis: 'nominal' }).success, false)
+    // Required: a projection drawn against a target of unknown basis is the bug it fixes.
+    assert.equal(GoalSummarySchema.safeParse(GOAL).success, false)
+  })
+})
+
+describe('as at, or month-end', () => {
+  const BASIS = {
+    asOf: '2026-09-01',
+    asOfLabel: 'As at 1 Sep 2026',
+    seriesFrom: '2025-09',
+    seriesTo: '2026-08',
+    lastMonthEnd: '2026-08-31',
+    seriesLabel: '12 month-ends, Sep 2025 to Aug 2026',
+    lastMonthEndLabel: 'Month-end, 31 Aug 2026',
+  }
+
+  it('names both dates a figure can be read at', () => {
+    assert.equal(FigureBasisSchema.safeParse(BASIS).success, true)
+    assert.equal(FigureBasisSchema.safeParse({ ...BASIS, seriesTo: '2026-08-31' }).success, false)
+    const { lastMonthEndLabel: _l, ...withoutLabel } = BASIS
+    assert.equal(FigureBasisSchema.safeParse(withoutLabel).success, false)
+  })
+
+  it('prints a part of a whole as a count with what it is out of', () => {
+    const KPI = {
+      id: 'goals_on_track',
+      label: 'Goals on track',
+      value: 9,
+      unit: 'count',
+      outOf: 38,
+      delta: null,
+      deltaLabel: 'of 38 customers',
+      series: null,
+      seriesLabel: null,
+    }
+    assert.equal(KpiSchema.safeParse(KPI).success, true)
+    const { outOf: _o, ...withoutOutOf } = KPI
+    assert.equal(KpiSchema.safeParse(withoutOutOf).success, false)
+    const { seriesLabel: _s, ...withoutSeriesLabel } = KPI
+    assert.equal(KpiSchema.safeParse(withoutSeriesLabel).success, false)
+  })
+
+  it('gives Insights its as-at headline and a label for every series', () => {
+    const months = ['2026-07', '2026-08']
+    const series = {
+      bookBalance: [1, 2],
+      withIdbi: [1, 2],
+      inflow: [1, 2],
+      outflow: [1, 2],
+      sipDebits: [1, 2],
+      sipBook: [1, 2],
+      activity: [],
+      refusals: [],
+    }
+    const insights = {
+      asOf: '2026-09-01',
+      basis: BASIS,
+      asAt: {
+        customers: 38,
+        relationshipValue: 10_61_10_567,
+        balances: 5_60_00_000,
+        withIdbi: 5_20_00_000,
+        walletSharePct: 92.9,
+        sipMonthly: 4_43_500,
+        sipCustomers: 20,
+      },
+      months,
+      series,
+      seriesLabels: Object.fromEntries(Object.keys(series).map((k) => [k, k])),
+      allocation: { byAssetClass: [], bySegment: [] },
+      goalHealth: { on_track: 9, at_risk: 20, off_track: 9 },
+      signals: [],
+      refusalsByRule: [],
+      topMovers: [],
+    }
+    assert.equal(RmInsightsSchema.safeParse(insights).success, true)
+    const { sipDebits: _d, ...labelsWithoutDebits } = insights.seriesLabels
+    assert.equal(
+      RmInsightsSchema.safeParse({ ...insights, seriesLabels: labelsWithoutDebits }).success,
+      false,
+    )
+  })
+})
+
+describe('an access entry', () => {
+  const ENTRY = {
+    id: 'acc-1',
+    at: '2026-10-02T09:00:00.000Z',
+    cif: 'IDBI0003308471',
+    name: 'IDBI0003308471',
+    action: 'denied',
+    purpose: 'Relationship review',
+    detail: 'Customer file',
+  }
+
+  it('records a refused attempt as well as what an RM was allowed to see', () => {
+    assert.equal(AccessEntrySchema.safeParse(ENTRY).success, true)
+    assert.equal(AccessEntrySchema.safeParse({ ...ENTRY, action: 'refused' }).success, false)
   })
 })
 

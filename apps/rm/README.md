@@ -30,6 +30,8 @@ What to expect after the API starts:
   `rm activity simulated`). The console works throughout; last-active dates, handoffs, refusals
   and the journey tab fill in as journeys land. `RM_SIMULATE=0` skips the journeys and
   `RM_WARM=0` the warm-up. `pnpm dev:api` runs with `--watch`, so an API edit restarts both.
+  On the memory source a restart also forgets every session: the console's next request comes
+  back 401 and it asks you to sign in again, which is expected and not a fault.
 - **The copilot** (Brief me, Ask) is phrased by the model when `OPENAI_API_KEY` is set in
   `apps/api/.env`, and labelled "AI-written from the record"; with no key, or on any failure, the
   rules write it from the same numbered facts. Node's `--env-file` does not override a variable
@@ -37,22 +39,44 @@ What to expect after the API starts:
   `.env`; if the copilot falls back to the rules when it should not, start the API with
   `env -u OPENAI_API_KEY pnpm dev:api`.
 - **On Postgres**, `pnpm --filter @dhan/api migrate && pnpm --filter @dhan/api seed` applies
-  migration 0015 and seeds the desk, then `BANK_SOURCE=postgres AVATAR_PROVIDER=none pnpm dev:api`.
+  migrations 0015 and 0016 and seeds the desk, then `BANK_SOURCE=postgres AVATAR_PROVIDER=none pnpm dev:api`.
   The API does not migrate at boot, and a reseed wipes the journeys, so restart the API after one.
 
-`VITE_API_PROXY_TARGET` points the proxy at another API. `/kit` (dev server only) renders every
-component in `src/ui/` with sample props; it is not in a production build, and `scripts/check-bundle.mjs`
-fails the build if it is.
+`VITE_API_PROXY_TARGET` points the proxy at another API. The proxy sends `X-Forwarded-For` with
+the browser's address, as the load balancer does in production; start the API with
+`TRUST_PROXY=1` to have it believe that one hop, so its logs and per-address rate limits see the
+browser rather than the proxy:
+
+```bash
+TRUST_PROXY=1 BANK_SOURCE=memory AVATAR_PROVIDER=none pnpm dev:api
+```
+
+The variable in the shell wins over the `TRUST_PROXY=false` in `apps/api/.env`, for the same
+`--env-file` reason as the key above. Without it the API keys every proxied request on the
+proxy's own address, as before; both work, and the per-address rate limits hold either way: the
+proxy appends the browser's address to any `X-Forwarded-For` the browser sent, and one trusted
+hop reads only that last entry. `TRUST_PROXY=1` is for a local API only: anything that reaches
+that API directly, not through the proxy, can then pick its own address with the header. Behind
+CloudFront and the load balancer the right value is the hop count `2`; `apps/api/src/config.ts`
+says why.
+
+`/kit` (dev server only) renders every component in `src/ui/` with sample props; it is not in a
+production build, and `scripts/check-bundle.mjs` fails the build if it is.
+
+`pnpm --filter @dhan/rm test` runs the console's 115 unit tests (formatting, Cmd-K ranking, axis
+ticks, the copilot's citations and tiles, and each page's pure helpers) under `node --test`; the
+pages themselves are checked by walking them in a browser, as there is no component or end-to-end
+suite.
 
 ## Layout
 
 ```
 src/api/        client.ts (typed over ROUTES), session.ts (the RM bearer), queries.ts (one hook per route)
 src/ui/         the component kit; pages import from src/ui/index.ts only
-src/shell/      sidebar, top bar, Cmd-K search, the auth guard
+src/shell/      sidebar, top bar, Cmd-K search, the auth guard, the lazy pages and their skeletons
 src/features/   copilot/: the Brief me and Ask panel, opened from any customer page (Cmd-J)
 src/pages/      one folder per route: today, book, customer (five tabs), insights, record, access, login
-src/lib/        format.ts (₹, dates, %), cn.ts, motion.ts
+src/lib/        format.ts (₹, dates, %, last active), search.ts (Cmd-K ranking), scale.ts (axis ticks), cn.ts, motion.ts
 scripts/        tokens-css.mjs, check-bundle.mjs
 ```
 

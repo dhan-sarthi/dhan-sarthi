@@ -16,6 +16,7 @@ import type {
   Customer360,
   CustomersResponse,
   ErrorBody,
+  RmAccessLog,
   RmBook,
   RmInsights,
   RmToday,
@@ -251,8 +252,34 @@ describe('the RM book', () => {
     await get(`/api/v1/rm/customers/${KARAN_CIF}`, meera)
     const [plain] = await root.deps.rmActivity.listAccess('rm-204117', 1)
     assert.equal(plain?.purpose, 'Relationship review')
-    // Arjun's refused open is not Meera's entry, and a 403 logs nothing for anyone.
-    assert.deepEqual(await root.deps.rmActivity.listAccess('rm-204388', 10), [])
+    // Arjun's refused opens are his entries, never Meera's.
+    const mine = await root.deps.rmActivity.listAccess('rm-204117', 50)
+    assert.ok(mine.every((e) => e.action !== 'denied'))
+  })
+
+  it('logs every refused attempt as denied, for the RM who tried, and a 404 not at all', async () => {
+    // The 403 test above ran first: Arjun tried Karan's file and seven routes under it.
+    const entries = await root.deps.rmActivity.listAccess('rm-204388', 50)
+    assert.ok(entries.every((e) => e.action === 'denied' && e.cif === KARAN_CIF))
+    // Oldest first, each saying what was tried; the brief and the question are the copilot
+    // routes', which name their own purpose.
+    const tried = entries.map((e) => e.purpose).reverse()
+    assert.equal(tried.length, 8)
+    assert.deepEqual(tried.slice(0, 6), [
+      'Relationship review',
+      'Open the journey',
+      'Open the advice record',
+      'Verify the advice record',
+      'Add a note',
+      'KYC check',
+    ])
+    assert.equal(entries.find((e) => e.purpose === 'KYC check')?.detail, 'dateOfBirth')
+    // Read back through the route, the entry names the cif, not the customer the 403 withheld.
+    const log = (await get('/api/v1/rm/access-log', arjun)).json<RmAccessLog>()
+    assert.equal(log.entries[0]?.name, KARAN_CIF)
+    // Meera's 404 on a cif nobody holds names no customer, so there is nothing to log it against.
+    const meeras = await root.deps.rmActivity.listAccess('rm-204117', 50)
+    assert.ok(meeras.every((e) => e.cif !== 'IDBI0000000000'))
   })
 
   it('keeps the mobile picker to exactly the four heroes, in their order', async () => {
@@ -347,7 +374,7 @@ describe('the RM book', () => {
     // The RM clock is 1 September and the series ends at August's close.
     const t = (await get('/api/v1/rm/today', meera)).json<RmToday>()
     const value = t.kpis.find((k) => k.id === 'book_value')
-    assert.equal(value?.deltaLabel, 'in balances in August')
+    assert.equal(value?.deltaLabel, 'in month-end balances over August')
   })
 
   it('answers Insights: twelve months aligned across every ledger series', async () => {
@@ -367,5 +394,107 @@ describe('the RM book', () => {
     )
     assert.ok(i.signals.length > 0)
     assert.ok(i.topMovers.length <= 5)
+  })
+
+  it('gives every idea one definition: as at the RM clock in a headline, month-ends in a chart', async () => {
+    const book = (await get('/api/v1/rm/book', meera)).json<RmBook>()
+    const today = (await get('/api/v1/rm/today', meera)).json<RmToday>()
+    const insights = (await get('/api/v1/rm/insights', meera)).json<RmInsights>()
+    const basis = {
+      asOf: '2026-09-01',
+      asOfLabel: 'As at 1 Sep 2026',
+      seriesFrom: '2025-09',
+      seriesTo: '2026-08',
+      lastMonthEnd: '2026-08-31',
+      seriesLabel: '12 month-ends, Sep 2025 to Aug 2026',
+      lastMonthEndLabel: 'Month-end, 31 Aug 2026',
+    }
+    assert.deepEqual(book.basis, basis)
+    assert.deepEqual(today.basis, basis)
+    assert.deepEqual(insights.basis, basis)
+
+    // With IDBI and the wallet share: the same sums on Book and Insights, as at the clock.
+    // To the paisa, as the totals are rounded.
+    const sum = (f: (r: RmBook['rows'][number]) => number) =>
+      Math.round(book.rows.reduce((n, r) => n + f(r), 0) * 100) / 100
+    assert.equal(
+      book.totals.withIdbi,
+      sum((r) => r.withIdbi),
+    )
+    assert.equal(insights.asAt.withIdbi, book.totals.withIdbi)
+    assert.equal(insights.asAt.balances, book.totals.balances)
+    assert.equal(insights.asAt.walletSharePct, book.totals.walletSharePct)
+    assert.equal(
+      book.totals.walletSharePct,
+      Math.round((book.totals.withIdbi / book.totals.balances) * 1000) / 10,
+    )
+    assert.equal(insights.asAt.relationshipValue, book.totals.relationshipValue)
+    // The chart's last point is a month-end, and a different figure: payday falls between.
+    assert.notEqual(insights.series.withIdbi.at(-1), insights.asAt.withIdbi)
+
+    // The SIP book is registered SIPs everywhere; the statements' debits are their own series.
+    const kpi = (id: string) => today.kpis.find((k) => k.id === id)
+    assert.equal(kpi('sip_book')?.value, book.totals.sipMonthly)
+    assert.equal(insights.asAt.sipMonthly, book.totals.sipMonthly)
+    assert.equal(insights.asAt.sipCustomers, book.rows.filter((r) => r.sipMonthly > 0).length)
+    assert.deepEqual(insights.series.sipDebits, insights.series.sipBook)
+    assert.equal(insights.seriesLabels.sipDebits, 'SIP debits per statements, each month')
+    assert.match(kpi('sip_book')?.deltaLabel ?? '', /^registered SIPs · \d+ of 38 customers$/)
+    assert.equal(kpi('book_value')?.value, book.totals.relationshipValue)
+    assert.equal(kpi('book_value')?.seriesLabel, 'Month-end balances, Sep 2025 to Aug 2026')
+
+    // Goals on track: nine customers out of thirty-eight, never 23.7%.
+    const onTrack = book.rows.filter((r) => r.goal.health === 'on_track').length
+    assert.deepEqual(
+      [kpi('goals_on_track')?.value, kpi('goals_on_track')?.unit, kpi('goals_on_track')?.outOf],
+      [onTrack, 'count', 38],
+    )
+    assert.equal(insights.goalHealth.on_track, onTrack)
+
+    // One customer: the header's share is the row's, as at the clock; the chart is month-ends.
+    const row = book.rows.find((r) => r.cif === KARAN_CIF)
+    const c = (await get(`/api/v1/rm/customers/${KARAN_CIF}`, meera)).json<Customer360>()
+    assert.deepEqual(c.basis, basis)
+    assert.equal(c.money.withIdbi, row?.withIdbi)
+    assert.equal(c.money.walletSharePct, row?.walletSharePct)
+    assert.equal(
+      c.money.walletSharePct,
+      Math.round((c.money.withIdbi / c.money.balances) * 1000) / 10,
+    )
+    assert.equal(c.money.balanceSeries.at(-1)?.month, basis.seriesTo)
+  })
+
+  it('carries every signal on a row, so a tab and the rail see what the file sees', async () => {
+    const book = (await get('/api/v1/rm/book', meera)).json<RmBook>()
+    let behindTop = 0
+    for (const row of book.rows) {
+      assert.equal(row.signals.length, row.signalCount, row.name)
+      assert.deepEqual(row.signals[0] ?? null, row.topSignal, row.name)
+      assert.deepEqual(row.signalKinds, [...new Set(row.signals.map((s) => s.kind))], row.name)
+      if (row.signalKinds.includes('idle_cash') && row.topSignal?.kind !== 'idle_cash')
+        behindTop += 1
+    }
+    const idle = book.rows.filter((r) => r.signalKinds.includes('idle_cash')).length
+    assert.equal(book.segments.find((s) => s.id === 'idle_cash')?.count, idle)
+    assert.ok(behindTop > 0, 'some idle cash ranks below a bigger signal, and is still counted')
+  })
+
+  it('gives the customer file its own next thirty days and the money its goal is in', async () => {
+    const today = (await get('/api/v1/rm/today', meera)).json<RmToday>()
+    const book = (await get('/api/v1/rm/book', meera)).json<RmBook>()
+    let items = 0
+    for (const row of book.rows) {
+      const c = (await get(`/api/v1/rm/customers/${row.cif}`, meera)).json<Customer360>()
+      assert.deepEqual(
+        c.upcoming,
+        today.upcoming.filter((u) => u.cif === row.cif),
+        row.name,
+      )
+      items += c.upcoming.length
+      assert.ok(['today', 'at_horizon'].includes(c.goal.amountBasis), row.name)
+      assert.equal(row.goal.amountBasis, c.goal.amountBasis, row.name)
+    }
+    assert.equal(items, today.upcoming.length)
+    assert.ok(items > 0)
   })
 })

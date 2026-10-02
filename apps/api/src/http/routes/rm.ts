@@ -5,6 +5,7 @@
  *
  * Every route that names a cif asks `rmScope.assertInBook` before anything else, in the handler
  * where a reviewer can see it: 403 for a customer in another RM's book, 404 for one nobody holds.
+ * The handler also says what was attempted, which is what a 403's `denied` access entry records.
  */
 import { routeById } from '@dhan/contracts'
 import type { Registrar } from '../register.ts'
@@ -25,7 +26,10 @@ export function rmRoutes(r: Registrar, s: AppServices): void {
   r(routeById('rmToday'), async ({ rm }) => s.rmConsole.today(rm))
 
   r(routeById('rmCustomer'), async ({ rm, params, query }) => {
-    await s.rmScope.assertInBook(rm, params.cif)
+    await s.rmScope.assertInBook(rm, params.cif, {
+      purpose: query.purpose,
+      detail: 'Customer file',
+    })
     return s.rmConsole.customer(rm, params.cif, query.purpose)
   })
 

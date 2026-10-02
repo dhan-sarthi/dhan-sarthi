@@ -24,6 +24,7 @@ import {
   BookRowSchema,
   BookTabSchema,
   Customer360Schema,
+  FigureBasisSchema,
   HandoffSchema,
   JourneyEventSchema,
   KpiSchema,
@@ -117,11 +118,19 @@ export const rmMeRoute = defineRoute({
 
 export const RmBookSchema = z.object({
   asOf: IsoDateSchema,
+  /** As-at for the totals and each row's figures; month-ends for each row's series. */
+  basis: FigureBasisSchema,
   rows: z.array(BookRowSchema),
+  /** Sums of the rows, as at the as-of date. */
   totals: z.object({
     customers: z.number().int().nonnegative(),
     relationshipValue: MoneySchema,
+    /** Every balance at any bank: what `walletSharePct` divides by. */
+    balances: MoneySchema,
     withIdbi: MoneySchema,
+    /** With IDBI over all balances across the book; null for a book with no balances. */
+    walletSharePct: z.number().nullable(),
+    /** Registered SIPs a month (the mandates on the holdings), not the debits on statements. */
     sipMonthly: MoneySchema,
     openHandoffs: z.number().int().nonnegative(),
   }),
@@ -144,6 +153,7 @@ export const rmBookRoute = defineRoute({
 
 export const RmTodaySchema = z.object({
   asOf: IsoDateSchema,
+  basis: FigureBasisSchema,
   kpis: z.array(KpiSchema),
   queue: z.array(QueueItemSchema),
   handoffs: z.array(HandoffSchema),
@@ -356,19 +366,71 @@ export const rmRevealRoute = defineRoute({
 
 const LabelledValueSchema = z.object({ id: z.string(), label: z.string(), value: MoneySchema })
 
+/** The keys of `RmInsights.series`, each with a label in `seriesLabels`. */
+const INSIGHT_SERIES = [
+  'bookBalance',
+  'withIdbi',
+  'inflow',
+  'outflow',
+  'sipDebits',
+  'sipBook',
+  'activity',
+  'refusals',
+] as const
+export const InsightSeriesKeySchema = z.enum(INSIGHT_SERIES)
+export type InsightSeriesKey = z.infer<typeof InsightSeriesKeySchema>
+
 export const RmInsightsSchema = z.object({
   asOf: IsoDateSchema,
+  basis: FigureBasisSchema,
+  /**
+   * The headline figures, as at the as-of date: the same definitions and the same numbers as
+   * the Book's totals and Today's KPIs. A tile leads with these; its chart is the month-ends.
+   */
+  asAt: z.object({
+    customers: z.number().int().nonnegative(),
+    relationshipValue: MoneySchema,
+    /** Every balance at any bank. */
+    balances: MoneySchema,
+    withIdbi: MoneySchema,
+    /** Null for a book with no balances. */
+    walletSharePct: z.number().nullable(),
+    /** The SIP book: registered SIPs a month, as on Book and Today. */
+    sipMonthly: MoneySchema,
+    /** Customers with at least one registered SIP. */
+    sipCustomers: z.number().int().nonnegative(),
+  }),
   /** The x axis every series is aligned to, oldest first. */
   months: z.array(YearMonthSchema),
   series: z.object({
+    /** Balances at each month-end, every bank. */
     bookBalance: z.array(z.number()),
+    /** Balances at IDBI at each month-end. */
     withIdbi: z.array(z.number()),
+    /** Money in during each month, per statements, self-transfers left out. */
     inflow: z.array(z.number()),
     outflow: z.array(z.number()),
+    /**
+     * Investment debits on the statements during each month: SIP debits per statements. Not the
+     * SIP book, which is `asAt.sipMonthly` (registered SIPs) and has no history.
+     */
+    sipDebits: z.array(z.number()),
+    /** @deprecated The same numbers as `sipDebits`, under the old name. Read `sipDebits`. */
     sipBook: z.array(z.number()),
     activity: z.array(z.number()),
     refusals: z.array(z.number()),
   }),
+  /** What each series is, in words to print beside its chart. */
+  seriesLabels: z.object({
+    bookBalance: z.string(),
+    withIdbi: z.string(),
+    inflow: z.string(),
+    outflow: z.string(),
+    sipDebits: z.string(),
+    sipBook: z.string(),
+    activity: z.string(),
+    refusals: z.string(),
+  }) satisfies z.ZodType<Record<InsightSeriesKey, string>>,
   allocation: z.object({
     byAssetClass: z.array(LabelledValueSchema),
     bySegment: z.array(

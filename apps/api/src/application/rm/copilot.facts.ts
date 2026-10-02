@@ -134,6 +134,26 @@ function unstop(text: string): string {
   return text.trim().replace(/\.+$/, '')
 }
 
+/**
+ * A decision's journey title leads with its outcome as a label ("Put off: Pay ₹9,126 off the
+ * card"). Copied into a fact like that, the model read the label as part of a quotation and wrote
+ * "Karan was told, 'Put off: …'", so the fact says who did what to which suggestion.
+ */
+const DECISION_VERBS: Readonly<Record<string, string>> = {
+  'Did it': 'acted on the suggestion',
+  Declined: 'declined the suggestion',
+  'Put off': 'put off the suggestion',
+  'Pushed back': 'pushed back on the suggestion',
+}
+
+function decided(first: string, title: string): string {
+  const m = /^(Did it|Declined|Put off|Pushed back): (.+)$/.exec(title.trim())
+  const verb = m?.[1] === undefined ? undefined : DECISION_VERBS[m[1]]
+  return m?.[2] === undefined || verb === undefined
+    ? `: ${unstop(title)}`
+    : ` ${first} ${verb} "${unstop(m[2])}"`
+}
+
 const HEALTH_WORDS = { on_track: 'on track', at_risk: 'at risk', off_track: 'off track' } as const
 
 const SCOPE_WORDS: Readonly<Record<ConsentScope, string>> = {
@@ -511,7 +531,7 @@ export function factSheet(state: CustomerState, record: CopilotRecord): FactShee
     .slice(0, MAX_DECISIONS)
     .map((e) => ({
       id: sheet.add(
-        `On ${dated(e.at)}: ${unstop(e.title)}${e.detail ? `. ${e.detail}` : ''}`,
+        `On ${dated(e.at)}${decided(first, e.title)}${e.detail ? `. ${e.detail}` : ''}`,
         'decision',
         e.id,
       ),

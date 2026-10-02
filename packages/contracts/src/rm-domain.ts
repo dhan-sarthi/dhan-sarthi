@@ -34,6 +34,7 @@ import {
   ConsentScopeSchema,
   ConsentStatusSchema,
   EmploymentTypeSchema,
+  GoalAmountBasisSchema,
   GoalKindSchema,
   HoldingSchema,
   IncomeFactsSchema,
@@ -54,6 +55,37 @@ export const YearMonthSchema = z
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'expected YYYY-MM')
   .describe('Calendar month, YYYY-MM')
 export type YearMonth = z.infer<typeof YearMonthSchema>
+
+/**
+ * Which date a figure is read at, and the words that say so. One scheme on every page:
+ *
+ * - a **headline figure** (a total, a share, a KPI, a highlight) is as at the as-of date, the RM
+ *   clock;
+ * - a **chart** is the last twelve complete month-ends before it, and so is every change worked
+ *   out from one (a 3-month change, a month's delta, a top mover).
+ *
+ * The two differ on purpose. The as-of date is the 1st, payday for most of the book, so an as-at
+ * balance sits a salary above the month-end before it: a payday drawn as growth is the mistake
+ * the month-end series exists to avoid. A page that puts one beside the other labels each with
+ * these strings rather than writing its own, so every page says the same thing about the same
+ * date.
+ */
+export const FigureBasisSchema = z.object({
+  /** The RM clock: what every headline figure is read at. */
+  asOf: IsoDateSchema,
+  /** "As at 1 Sep 2026", beside a headline figure. */
+  asOfLabel: z.string(),
+  /** The first and last month of every twelve-month series, oldest first. */
+  seriesFrom: YearMonthSchema,
+  seriesTo: YearMonthSchema,
+  /** The day a series' last point is read at: the last complete month-end before the as-of date. */
+  lastMonthEnd: IsoDateSchema,
+  /** "12 month-ends, Sep 2025 to Aug 2026", beside a chart. */
+  seriesLabel: z.string(),
+  /** "Month-end, 31 Aug 2026", beside a figure read off a series' last point. */
+  lastMonthEndLabel: z.string(),
+})
+export type FigureBasis = z.infer<typeof FigureBasisSchema>
 
 /* ------------------------------------------------------------------ *
  * The RM
@@ -151,6 +183,12 @@ export const GoalSummarySchema = z.object({
   kind: GoalKindSchema,
   label: z.string(),
   targetAmount: MoneySchema,
+  /**
+   * Which money `targetAmount` is in: `today` (today's rupees, which the projection's real-terms
+   * line is read against) or `at_horizon` (the rupees of the target year, read against the
+   * nominal bands). A goal that never said is `today`, as the engine reads it.
+   */
+  amountBasis: GoalAmountBasisSchema,
   targetDate: IsoDateSchema,
   health: GoalHealthSchema,
 })
@@ -174,10 +212,14 @@ export const BookRowSchema = z.object({
   employmentType: EmploymentTypeSchema,
   riskProfile: RiskProfileSchema,
   segment: SegmentSchema,
-  /** Assets we can see: every balance at any bank plus holdings. */
+  /** Assets we can see: every balance at any bank plus holdings. As at the as-of date. */
   relationshipValue: MoneySchema,
+  /** Balances at IDBI, as at the as-of date (not a month-end). */
   withIdbi: MoneySchema,
-  /** Null when the customer holds no balance at any bank: there is no share to divide out. */
+  /**
+   * With IDBI over all balances, as at the as-of date. Null when the customer holds no balance at
+   * any bank: there is no share to divide out.
+   */
   walletSharePct: z.number().nullable(),
   netWorth: MoneySchema,
   monthlyIncome: MoneySchema,
@@ -189,11 +231,23 @@ export const BookRowSchema = z.object({
    * balance is not the last point unless the as-of date is itself a month-end.
    */
   balanceSeries: z.array(BalancePointSchema),
-  /** Null where three months ago had nothing to measure a change against. */
+  /**
+   * The change over the last three month-ends of `balanceSeries` (month-end to month-end, never
+   * the as-of balance). Null where three months ago had nothing to measure a change against.
+   */
   balanceChange3mPct: z.number().nullable(),
   goal: GoalSummarySchema,
+  /** `signals[0]`: the engine's first, or null where it has none. */
   topSignal: SignalSchema.nullable(),
+  /** `signals.length`. */
   signalCount: z.number().int().nonnegative(),
+  /** Every signal the customer has, in the engine's order, for the preview rail. */
+  signals: z.array(SignalSchema),
+  /**
+   * Every kind among `signals`, each once, in the engine's order: what a tab filters on, so the
+   * Idle cash tab shows every customer with idle cash and not only those where it ranks first.
+   */
+  signalKinds: z.array(SignalKindSchema),
   strength: StrengthSchema,
   attrition: AttritionSchema,
   lastActivityAt: IsoDateSchema.nullable(),
@@ -282,16 +336,27 @@ export const UpcomingItemSchema = z.object({
 })
 export type UpcomingItem = z.infer<typeof UpcomingItemSchema>
 
+/**
+ * One figure on Today's strip. `value` is as at the as-of date; `delta` and `series`, where a KPI
+ * has them, are month-end figures, and their labels say so.
+ */
 export const KpiSchema = z.object({
   id: z.string(),
   label: z.string(),
   value: z.number(),
   unit: z.enum(['inr', 'count', 'pct']),
+  /**
+   * What a count is out of, where it is a part of a whole ("9 of 38"); null otherwise. The tile
+   * prints the count and this, not a percentage of it.
+   */
+  outOf: z.number().int().nonnegative().nullable(),
   /** In the KPI's own unit; null where there is no earlier figure to compare with. */
   delta: z.number().nullable(),
   deltaLabel: z.string().nullable(),
   /** A sparkline, oldest first, where the KPI has a history. */
   series: z.array(z.number()).nullable(),
+  /** What the sparkline draws ("Month-end balances, Sep 2025 to Aug 2026"); null without one. */
+  seriesLabel: z.string().nullable(),
 })
 export type Kpi = z.infer<typeof KpiSchema>
 
@@ -438,6 +503,11 @@ export const AccessActionSchema = z.enum([
   'asked',
   'noted',
   'contacted',
+  /**
+   * A refused attempt: the RM named a customer outside their book and got 403. Logged because a
+   * log of what an RM was allowed to see says nothing about what they tried to.
+   */
+  'denied',
 ])
 export type AccessAction = z.infer<typeof AccessActionSchema>
 
@@ -447,6 +517,10 @@ export const AccessEntrySchema = z.object({
   /** A real instant, not the simulated date: the log records when the RM looked. */
   at: TimestampSchema,
   cif: CifSchema,
+  /**
+   * The customer's name. On a `denied` entry it is the cif again: the customer is outside the
+   * RM's book, and the log does not hand them the name the 403 withheld.
+   */
   name: z.string(),
   action: AccessActionSchema,
   purpose: z.string(),
@@ -533,7 +607,11 @@ export type Customer360Protection = z.infer<typeof Customer360ProtectionSchema>
 
 export const Customer360MoneySchema = z.object({
   accounts: z.array(Customer360AccountSchema),
-  /** Null when the customer holds no balance at any bank, as on the book row. */
+  /**
+   * `withIdbi` over `balances`, as at the as-of date: the book row's figure. The last point of
+   * `balanceSeries` is a month-end and gives a different share. Null when the customer holds no
+   * balance at any bank, as on the book row.
+   */
   walletSharePct: z.number().nullable(),
   holdings: z.array(Customer360HoldingSchema),
   liabilities: z.array(Customer360LiabilitySchema),
@@ -544,6 +622,11 @@ export const Customer360MoneySchema = z.object({
     net: MoneySchema,
     allocation: AllocationSchema,
   }),
+  /** Every balance at any bank, as at the as-of date: what `walletSharePct` divides by. */
+  balances: MoneySchema,
+  /** Balances at IDBI, as at the as-of date; the same figure as the book row's `withIdbi`. */
+  withIdbi: MoneySchema,
+  /** Month-ends, as on the book row; `Customer360.basis` labels them. */
   balanceSeries: z.array(BalancePointSchema),
 })
 export type Customer360Money = z.infer<typeof Customer360MoneySchema>
@@ -613,6 +696,8 @@ export type Customer360Consent = z.infer<typeof Customer360ConsentSchema>
 /** Everything the customer page shows, in one read. */
 export const Customer360Schema = z.object({
   asOf: IsoDateSchema,
+  /** Which figures are as at the as-of date and which are month-ends, in words. */
+  basis: FigureBasisSchema,
   profile: Customer360ProfileSchema,
   segment: SegmentSchema,
   strength: StrengthSchema,
@@ -650,6 +735,11 @@ export const Customer360Schema = z.object({
   projection: ProjectionSchema.nullable(),
   signals: z.array(SignalSchema),
   nextActions: z.array(Customer360ActionSchema),
+  /**
+   * This customer's next thirty days (maturities, EMIs ending, SIP dates, renewals), soonest
+   * first: the same items Today's "Coming up" lists for them.
+   */
+  upcoming: z.array(UpcomingItemSchema),
   consent: Customer360ConsentSchema,
   /** Real avatar calls only. Calls are never simulated, so zero is an honest answer. */
   uday: z.object({

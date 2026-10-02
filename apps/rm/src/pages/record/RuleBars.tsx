@@ -1,4 +1,5 @@
 import type { RuleCount } from '@dhan/contracts'
+import { ListFilter, X } from 'lucide-react'
 import { cn } from '../../lib/cn.ts'
 import { formatCount, formatPct } from '../../lib/format.ts'
 import { Tooltip } from '../../ui/index.ts'
@@ -12,6 +13,10 @@ import { ruleName } from './advice.ts'
  * Bars are HTML rather than a chart library's: the label wraps instead of being cut at an axis
  * width, the count is printed rather than hidden in a hover, and each row is a real button.
  * The longest bar sets the scale; the rule book's own sentence is one hover or focus away.
+ *
+ * Each row has to look like the control it is: a pointer and a tint on hover, a filter mark that
+ * appears at the row's end, and once chosen a pressed state (the wash and a ring, the same as the
+ * Rule dropdown's choice) whose end mark becomes the ✕ that clears it.
  */
 export function RuleBars({
   rules,
@@ -52,9 +57,9 @@ export function RuleBars({
                 aria-pressed={active}
                 onClick={() => onSelect(active ? null : rule.ruleId)}
                 className={cn(
-                  'grid w-full grid-cols-[minmax(9rem,13rem)_minmax(0,1fr)_2.25rem] items-center gap-x-4 rounded-md px-2 py-1.5 text-left transition-colors duration-150',
-                  'hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus',
-                  active && 'bg-brand-wash hover:bg-brand-wash',
+                  'group/bar grid w-full cursor-pointer grid-cols-[minmax(9rem,13rem)_minmax(0,1fr)_2.25rem_1rem] items-center gap-x-4 rounded-md px-2 py-1.5 text-left transition-colors duration-150',
+                  'hover:bg-brand-wash/70 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus',
+                  active && 'bg-brand-wash ring-1 ring-brand/25 ring-inset hover:bg-brand-wash',
                 )}
               >
                 <span
@@ -81,6 +86,17 @@ export function RuleBars({
                   )}
                 >
                   {formatCount(rule.count)}
+                </span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    'inline-flex justify-end transition-opacity duration-150 [&_svg]:size-3.5',
+                    active
+                      ? 'text-brand-deep opacity-100'
+                      : 'text-ink-faint opacity-0 group-hover/bar:opacity-100 group-focus-visible/bar:opacity-100',
+                  )}
+                >
+                  {active ? <X /> : <ListFilter />}
                 </span>
               </button>
             </Tooltip>

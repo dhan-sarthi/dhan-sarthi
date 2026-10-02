@@ -45,6 +45,25 @@ test('a cited id with no fact behind it gets no number and no marker', () => {
   )
 })
 
+test('a sentence prints its footnotes in ascending number, never "2 1"', () => {
+  // A tile above the brief cites F14 first, so F14 is 1 and F6 is 2 by the time this sentence,
+  // citing [F6, F14] in the server's order, is drawn.
+  const notes = numberCitations(
+    [
+      { text: 'tile', cites: ['F14'] },
+      { text: 'a', cites: ['F6', 'F14'] },
+    ],
+    facts,
+  )
+  assert.deepEqual(
+    notesFor({ text: 'a', cites: ['F6', 'F14'] }, notes).map((n) => [n.fact.id, n.n]),
+    [
+      ['F14', 1],
+      ['F6', 2],
+    ],
+  )
+})
+
 test('uncited facts keep the server order', () => {
   const notes = numberCitations([{ text: 'a', cites: ['F6'] }], facts)
   assert.deepEqual(
@@ -80,6 +99,7 @@ test('a "They may ask" line splits into its question and its answer', () => {
 
 test('fact references read as a desk would quote them', () => {
   assert.equal(sourceRef({ kind: 'roadmap', ref: 'v3' }), 'Version 3')
+  assert.equal(sourceRef({ kind: 'roadmap', ref: 'v0' }), null)
   assert.equal(
     sourceRef({ kind: 'ledger', ref: 'ledger:mandate_returned:S00000330' }),
     'Line S00000330',

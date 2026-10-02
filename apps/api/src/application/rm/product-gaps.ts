@@ -20,7 +20,7 @@
  * Pure and here rather than in `@dhan/core`: it is not a definition from the spec's table but a
  * reading of the shelf, and the shelf is the API's to supply.
  */
-import { evaluate, rupees } from '@dhan/core'
+import { evaluate, rupeesTitle } from '@dhan/core'
 import type { Holding, Product, Snapshot } from '@dhan/core'
 
 export type GapNeed = 'life_cover' | 'health_cover' | 'monthly_investing' | 'sweep_in'
@@ -105,7 +105,7 @@ function lifeCover(facts: GapFacts): ProductGap | null {
     need: 'life_cover',
     productId: pick.product.productId,
     productName: pick.product.name,
-    why: `${rupees(protection.gap)} short on life cover, with ${people}.`,
+    why: `${rupeesTitle(protection.gap)} short on life cover, with ${people}.`,
   }
 }
 
@@ -161,7 +161,7 @@ function monthlyInvesting(facts: GapFacts): ProductGap | null {
     need: 'monthly_investing',
     productId: pick.product.productId,
     productName: pick.product.name,
-    why: `${rupees(surplus.deployable)} a month left over and no SIP running.`,
+    why: `${rupeesTitle(surplus.deployable)} a month left over and no SIP running.`,
   }
 }
 
@@ -182,7 +182,7 @@ function sweepIn(facts: GapFacts): ProductGap | null {
     need: 'sweep_in',
     productId: pick.product.productId,
     productName: pick.product.name,
-    why: `${rupees(facts.snapshot.balances.idleFloor)} idle in savings with no sweep-in.`,
+    why: `${rupeesTitle(facts.snapshot.balances.idleFloor)} idle in savings with no sweep-in.`,
   }
 }
 

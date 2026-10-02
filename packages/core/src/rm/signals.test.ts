@@ -175,6 +175,28 @@ describe('toSignals', () => {
     ])
   })
 
+  it('prints a lakh or more short in every sentence, and keeps the detail exact', () => {
+    // ₹2,28,000 in one line and ₹2.28L in the next reads as two figures. A sentence (title, why,
+    // opener) is short from a lakh up; the detail line and the evidence stay exact, because
+    // they are what an RM checks against a statement.
+    const exactLakh = /₹\d{1,3}(?:,\d{2})*,\d{2},\d{3}\b/
+    let sentences = 0
+    for (const i of insights) {
+      const v = voiceInsight(i)
+      if (v === null) continue
+      for (const text of [v.signal.title, v.why, v.opener]) {
+        sentences += 1
+        assert.doesNotMatch(text, exactLakh, `${i.kind}: ${text}`)
+      }
+    }
+    assert.ok(sentences >= 30, 'every kind was voiced')
+    assert.equal(
+      voiceInsight(insights.find((i) => i.kind === 'idle_cash') as Insight)?.why,
+      '₹3.2L has sat untouched in savings for 7 months.',
+    )
+    assert.match(byKind('idle_cash').detail, /₹3,20,000/)
+  })
+
   it('never says "you", and never uses the words the copy rules ban', () => {
     for (const text of allCopy(insights)) {
       assert.doesNotMatch(text, /\byou(r|rs|'re|'ve|rself)?\b/i, text)

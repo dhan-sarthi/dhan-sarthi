@@ -8,8 +8,8 @@ import { Card, EmptyState, ErrorState, Money, PageHeader, Skeleton } from '../..
 import { PageLoading } from '../placeholder.tsx'
 import { Composition } from './Composition.tsx'
 import { InsightsSkeleton } from './InsightsSkeleton.tsx'
+import { lowerFirst } from './derive.ts'
 import { RefusalsByRule, SignalsByKind } from './Ranked.tsx'
-import { sum } from './derive.ts'
 import { TopMovers } from './TopMovers.tsx'
 import { TrendBand } from './TrendBand.tsx'
 
@@ -56,8 +56,8 @@ export function Insights() {
 }
 
 function InsightsView({ insights }: { insights: RmInsights }) {
-  const customers = sum(insights.allocation.bySegment.map((s) => s.customers))
-  const value = sum(insights.allocation.byAssetClass.map((p) => p.value))
+  // The same as-at sums Book's totals and Today's KPIs print, so the three pages agree.
+  const { customers, relationshipValue } = insights.asAt
 
   if (customers === 0) {
     return (
@@ -82,7 +82,8 @@ function InsightsView({ insights }: { insights: RmInsights }) {
         subtitle={
           <>
             <span className="text-ink tabular">{formatCount(customers)}</span> customers ·{' '}
-            <Money value={value} short className="text-ink" /> we can see across every bank
+            <Money value={relationshipValue} short className="text-ink" /> we can see across every
+            bank, {lowerFirst(insights.basis.asOfLabel)}
           </>
         }
       />

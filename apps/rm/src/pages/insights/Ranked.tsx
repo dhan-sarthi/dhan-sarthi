@@ -1,5 +1,7 @@
 import type { RmInsights, SignalSeverity } from '@dhan/contracts'
-import { ShieldCheck } from 'lucide-react'
+import { ChevronDown, ShieldCheck } from 'lucide-react'
+import { useId, useState } from 'react'
+import { Link } from 'react-router'
 import { cn } from '../../lib/cn.ts'
 import { formatCount } from '../../lib/format.ts'
 import { Card, CardHeader, EmptyState, SEVERITY, SeverityChip } from '../../ui/index.ts'
@@ -8,9 +10,9 @@ import { sharePct, sum } from './derive.ts'
 /*
  * Two ranked-bar cards: what the engine is flagging across the book, and what Uday refused.
  *
- * Bars are HTML, not a chart library: each is a label, a thin track and a count, so the label
- * wraps instead of being cut off at an axis width, and the count is always printed rather than
- * hidden in a hover. The longest bar sets the scale for the whole card.
+ * Bars are HTML, not a chart library: each is a label, a thin track and a count, so the count is
+ * always printed rather than hidden in a hover. The longest bar sets the scale for the whole
+ * card, collapsed groups included, so opening one never rescales the bars already showing.
  */
 
 interface RankedRow {
@@ -18,34 +20,65 @@ interface RankedRow {
   label: string
   count: number
   fill: string
+  /** Where the row opens, when it is a filter on another page. */
+  to?: string
+  /** The row's name for a screen reader when it is a link. */
+  linkLabel?: string
 }
 
 function RankedBars({
   rows,
   max,
   label,
+  labelWidth = '11rem',
+  id,
 }: {
   rows: readonly RankedRow[]
   max: number
   label: string
+  /** The widest a label may take before it wraps; sized so the card's longest label does not. */
+  labelWidth?: string
+  id?: string
 }) {
+  const grid = 'grid items-center gap-x-3 py-1'
+  const columns = { gridTemplateColumns: `minmax(7rem,${labelWidth}) minmax(0,1fr) 2rem` }
   return (
-    <ul className="grid gap-1" aria-label={label}>
-      {rows.map((row) => (
-        <li
-          key={row.id}
-          className="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_2rem] items-center gap-x-3 py-1"
-        >
-          <span className="text-label text-ink">{row.label}</span>
-          <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-ground-deep">
-            <span
-              className={cn('block h-full rounded-full', row.fill)}
-              style={{ width: `max(${Math.min(100, sharePct(row.count, max))}%, 3px)` }}
-            />
-          </span>
-          <span className="text-right text-label text-ink tabular">{formatCount(row.count)}</span>
-        </li>
-      ))}
+    <ul className="grid gap-1" aria-label={label} id={id}>
+      {rows.map((row) => {
+        const body = (
+          <>
+            <span className="text-label text-ink">{row.label}</span>
+            <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-ground-deep">
+              <span
+                className={cn('block h-full rounded-full', row.fill)}
+                style={{ width: `max(${Math.min(100, sharePct(row.count, max))}%, 3px)` }}
+              />
+            </span>
+            <span className="text-right text-label text-ink tabular">{formatCount(row.count)}</span>
+          </>
+        )
+        return (
+          <li key={row.id}>
+            {row.to ? (
+              <Link
+                to={row.to}
+                aria-label={row.linkLabel}
+                className={cn(
+                  grid,
+                  '-mx-2 rounded-md px-2 transition-colors duration-150 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus',
+                )}
+                style={columns}
+              >
+                {body}
+              </Link>
+            ) : (
+              <div className={grid} style={columns}>
+                {body}
+              </div>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -64,6 +97,12 @@ const SEVERITY_FILL: Record<SignalSeverity, string> = {
   important: 'bg-streak',
   opportunity: 'bg-budget',
 }
+
+/**
+ * Worth knowing (subscriptions, habit costs, price rises) is the least actionable group and
+ * usually the largest, so it starts folded: its total is shown, its rows are one click away.
+ */
+const FOLDED: ReadonlySet<SignalSeverity> = new Set(['opportunity'])
 
 /**
  * Grouped by severity, ranked by count inside each group. Ranked by count alone, the two kinds
@@ -95,23 +134,14 @@ export function SignalsByKind({ insights }: { insights: RmInsights }) {
       ) : (
         <div className="grid gap-4">
           {groups.map((group) => (
-            <section
+            <SignalGroup
               key={group.severity}
-              aria-label={`${SEVERITY[group.severity].label}: ${group.rows.length} kinds`}
-              className="grid gap-1.5"
-            >
-              <div className="flex items-center gap-2">
-                <SeverityChip severity={group.severity} />
-                <span className="text-caption text-ink-faint tabular">
-                  {formatCount(sum(group.rows.map((r) => r.count)))}
-                </span>
-              </div>
-              <RankedBars
-                rows={group.rows}
-                max={max}
-                label={`${SEVERITY[group.severity].label} signals by kind`}
-              />
-            </section>
+              severity={group.severity}
+              rows={group.rows}
+              max={max}
+              // Folding is only worth it when another group is open above it.
+              foldable={FOLDED.has(group.severity) && groups.length > 1}
+            />
           ))}
         </div>
       )}
@@ -119,11 +149,60 @@ export function SignalsByKind({ insights }: { insights: RmInsights }) {
   )
 }
 
+function SignalGroup({
+  severity,
+  rows,
+  max,
+  foldable,
+}: {
+  severity: SignalSeverity
+  rows: readonly RankedRow[]
+  max: number
+  foldable: boolean
+}) {
+  const [open, setOpen] = useState(!foldable)
+  const listId = useId()
+  const count = sum(rows.map((r) => r.count))
+  const name = SEVERITY[severity].label
+  return (
+    <section aria-label={`${name}: ${rows.length} kinds`} className="grid gap-1.5">
+      <div className="flex items-center gap-2">
+        <SeverityChip severity={severity} />
+        <span className="text-caption text-ink-faint tabular">{formatCount(count)}</span>
+        {foldable ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={() => setOpen((v) => !v)}
+            className="ml-auto inline-flex h-6 items-center gap-1 rounded-sm px-1.5 text-caption text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            {open ? 'Hide' : `Show ${rows.length} kinds`}
+            <ChevronDown
+              aria-hidden
+              className={cn('size-3.5 transition-transform duration-150', open && 'rotate-180')}
+            />
+          </button>
+        ) : null}
+      </div>
+      {open ? (
+        <RankedBars rows={rows} max={max} label={`${name} signals by kind`} id={listId} />
+      ) : (
+        // Folded, the kinds are still named, so the RM knows what is behind the button.
+        <p id={listId} className="text-caption font-normal text-ink-faint">
+          {rows.map((r) => r.label).join(', ')}
+        </p>
+      )}
+    </section>
+  )
+}
+
 /* ---------------------------------------------------------------- Refusals */
 
 /**
  * Every BLOCKED verdict across the book, counted by the rule that gave it. One series, so one
- * colour; the advice record holds each refusal with the words the customer heard.
+ * colour. Each rule opens the advice record filtered to it, where every refusal is held with the
+ * words the customer heard.
  */
 export function RefusalsByRule({ insights }: { insights: RmInsights }) {
   const rows = insights.refusalsByRule
@@ -151,6 +230,7 @@ export function RefusalsByRule({ insights }: { insights: RmInsights }) {
           <p className="mb-3 text-label font-normal text-ink-soft">
             <span className="text-ink tabular">{formatCount(total)}</span> product
             {total === 1 ? '' : 's'} Uday turned down, each recorded with the rule that stopped it.
+            Choose a rule to read them.
           </p>
           <RankedBars
             rows={rows.map((r) => ({
@@ -158,8 +238,12 @@ export function RefusalsByRule({ insights }: { insights: RmInsights }) {
               label: r.label,
               count: r.count,
               fill: 'bg-chart-1',
+              to: `/record?rule=${encodeURIComponent(r.ruleId)}`,
+              linkLabel: `${r.label}: ${formatCount(r.count)} refusal${r.count === 1 ? '' : 's'}. Open them in the advice record.`,
             }))}
             max={max}
+            // "Cover bundled with investment", the longest rule name, on one line.
+            labelWidth="13.5rem"
             label="Refusals by rule"
           />
         </>

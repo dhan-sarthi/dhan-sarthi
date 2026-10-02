@@ -9,17 +9,28 @@
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { BOOK_ACTIVITY, RM_BOOK } from '@dhan/fixtures'
+import { createHash } from 'node:crypto'
+import { addDays } from '@dhan/core'
+import { ALL_PERSONAS, BOOK_ACTIVITY, PERSONAS, RM_BOOK } from '@dhan/fixtures'
 import type { RmJourney } from '@dhan/contracts'
 import { FixedClock } from '../../src/adapters/clock/fixed-clock.ts'
 import { InMemoryAuditStore } from '../../src/adapters/memory/audit-store.memory.ts'
 import { InMemorySessionStore } from '../../src/adapters/memory/session-store.memory.ts'
 import { InMemorySnapshotStore } from '../../src/adapters/memory/snapshot-store.memory.ts'
-import { ActivitySimulator, isJourney } from '../../src/application/rm/simulator.ts'
+import {
+  ActivitySimulator,
+  FIRST_DAY,
+  LAST_DAY,
+  isJourney,
+  journeyDay,
+  journeyFinished,
+  journeyPlan,
+} from '../../src/application/rm/simulator.ts'
 import type { SimulationReport } from '../../src/application/rm/simulator.ts'
 import { silentLogger } from '../../src/infra/logger.ts'
 import type { AuditStore, SessionStore, SnapshotStore } from '../../src/ports/index.ts'
 import {
+  ANCHOR,
   KARAN_CIF,
   MEERA,
   PRIYA_CIF,
@@ -40,11 +51,24 @@ const cifOf = (slug: string): string => {
 /** Two enquiries and a recent request; one enquiry; one recent request and a ULIP. */
 const SAMPLE = ['sneha', 'farhan', 'imran'].map(cifOf)
 
-function simulator(root: TestRoot, only: readonly string[]): ActivitySimulator {
+/**
+ * The four heroes' reviewer sessions as `HistoryService` seeds them over eight months, hashed
+ * with ids and wall-clock stamps taken out. Taken from commit 9c83556, before the simulator's
+ * days moved: a change here is a change to what the mobile app shows, and needs its own reason.
+ */
+const REVIEWER_SEEDING_SHA256 = '1191f0647419388262b34f00fbdf51e2831fd8f2f549ecf70b6dfa1a1243eae5'
+
+function simulator(
+  root: TestRoot,
+  only: readonly string[],
+  sessionStore: SessionStore = root.deps.sessions,
+): ActivitySimulator {
   return new ActivitySimulator({
     bank: root.deps.bank,
     desk: root.deps.rmDesk,
-    sessionStore: root.deps.sessions,
+    sessionStore,
+    audit: root.deps.audit,
+    snapshots: root.deps.snapshots,
     sessions: root.services.sessions,
     advisory: root.services.advisory,
     decisions: root.services.decisions,
@@ -203,6 +227,197 @@ describe('the activity simulator', () => {
     })
   })
 
+  describe('cut off part way', () => {
+    /** The store, dead after `alive` clock moves: a process killed in the middle of a journey. */
+    function killedAfter(store: SessionStore, alive: number): SessionStore {
+      let moves = 0
+      return new Proxy(store, {
+        get(target, prop, receiver) {
+          const value: unknown = Reflect.get(target, prop, receiver)
+          if (typeof value !== 'function') return value
+          if (prop !== 'patch') return value.bind(target)
+          return (...args: unknown[]) => {
+            moves += 1
+            if (moves > alive) return Promise.reject(new Error('process killed'))
+            return (value as (...a: unknown[]) => unknown).apply(target, args)
+          }
+        },
+      })
+    }
+
+    it('finishes an unfinished journey on the next boot, exactly as one run would have laid it', async () => {
+      const cif = SAMPLE[0]!
+      const clean = await makeRoot()
+      const cut = await makeRoot()
+      try {
+        assert.equal((await run(simulator(clean, [cif]))).simulated, 1)
+        const expected = await comparable(clean, cif)
+
+        // Killed at three different points: early in the first stretch, around an enquiry, and
+        // in the last months. Each is resumed over the same stores by a fresh simulator.
+        for (const alive of [4, 9, 14]) {
+          for (const s of await cut.deps.sessions.listByCif(cif))
+            await cut.deps.sessions.erase(s.id)
+          const killed = await run(simulator(cut, [cif], killedAfter(cut.deps.sessions, alive)))
+          assert.deepEqual([killed.simulated, killed.failed], [0, 1], `killed after ${alive}`)
+          const [partial] = (await cut.deps.sessions.listByCif(cif)).filter(isJourney)
+          assert.ok(partial, 'the cut journey is on the record')
+          const plan = journeyPlan(cif, BOOK_ACTIVITY[cif] ?? null, ANCHOR, ANCHOR)
+          assert.equal(journeyFinished(partial, plan), false, 'and not marked done')
+
+          const resumed = await run(simulator(cut, [cif]))
+          assert.deepEqual([resumed.simulated, resumed.resumed, resumed.failed], [1, 1, 0])
+          const [done] = (await cut.deps.sessions.listByCif(cif)).filter(isJourney)
+          assert.ok(done && journeyFinished(done, plan))
+          assert.deepEqual(await comparable(cut, cif), expected, `killed after ${alive}`)
+          assert.ok((await cut.deps.audit.verifyChain(done.id)).ok)
+
+          // And a third boot finds it done.
+          const again = await run(simulator(cut, [cif]))
+          assert.deepEqual([again.simulated, again.skipped], [0, 1])
+        }
+      } finally {
+        await Promise.all([clean.close(), cut.close()])
+      }
+    })
+
+    it('lets the customer in hand finish when stopped, and gives up on one that hangs', async () => {
+      const root = await makeRoot()
+      try {
+        const [first, second] = SAMPLE
+        const sim = simulator(root, [first!, second!])
+        sim.start()
+        // Wait for the first journey to be under way, then stop.
+        while ((await root.deps.sessions.listByCif(first!)).filter(isJourney).length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+        }
+        await sim.stop()
+        await sim.ready()
+        const [journey] = (await root.deps.sessions.listByCif(first!)).filter(isJourney)
+        const plan = journeyPlan(first!, BOOK_ACTIVITY[first!] ?? null, ANCHOR, ANCHOR)
+        assert.ok(journey && journeyFinished(journey, plan), 'the customer in hand finished')
+        assert.equal(
+          (await root.deps.sessions.listByCif(second!)).length,
+          0,
+          'the next never began',
+        )
+        assert.equal(sim.report()?.simulated, 1)
+
+        // A store that never answers: stop() returns within its bound rather than hang the close.
+        const hung = new Proxy(root.deps.sessions, {
+          get(target, prop, receiver) {
+            const value: unknown = Reflect.get(target, prop, receiver)
+            if (typeof value !== 'function') return value
+            if (prop === 'patch') return () => new Promise(() => {})
+            return value.bind(target)
+          },
+        })
+        const stuck = simulator(root, [second!], hung)
+        stuck.start()
+        while ((await root.deps.sessions.listByCif(second!)).filter(isJourney).length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+        }
+        // The bound's timer does not hold a process open on its own (nothing could finish the
+        // customer then), so this test holds the loop open while it waits.
+        const hold = setTimeout(() => undefined, 5_000)
+        const asked = performance.now()
+        await stuck.stop(50)
+        clearTimeout(hold)
+        assert.ok(performance.now() - asked < 1_000, 'stop() was bounded')
+      } finally {
+        await root.close()
+      }
+    })
+  })
+
+  it('lands each customer’s last months on their own day, the same day every run', () => {
+    const days = ALL_PERSONAS.map((p) => journeyDay(p.customer.cif))
+    assert.deepEqual(
+      days,
+      ALL_PERSONAS.map((p) => journeyDay(p.customer.cif)),
+    )
+    assert.ok(days.every((d) => d >= FIRST_DAY && d <= LAST_DAY))
+    assert.ok(new Set(days).size >= 15, `${new Set(days).size} different days`)
+
+    for (const [cif, activity] of Object.entries(BOOK_ACTIVITY)) {
+      const plan = journeyPlan(cif, activity, ANCHOR, ANCHOR)
+      // The walk ends in August, before the clock and before a recent request to talk.
+      assert.equal(plan.lastDay.slice(0, 7), '2026-08', cif)
+      const handoff = plan.steps.find((s) => s.kind === 'handoff')
+      if (handoff?.kind === 'handoff') assert.ok(plan.lastDay < handoff.on, cif)
+      if (!activity.recentHandoff) {
+        assert.equal(Number(plan.lastDay.slice(8, 10)), journeyDay(cif), cif)
+      }
+      const months = plan.steps.reduce((n, s) => n + (s.kind === 'months' ? s.months : 0), 0)
+      assert.equal(months, 12, cif)
+    }
+    // A request three days old pulls the last month to before it.
+    const late = journeyPlan(
+      'X',
+      { enquiries: [], recentHandoff: true, handoffDaysAgo: 30 },
+      ANCHOR,
+      ANCHOR,
+    )
+    assert.ok(late.lastDay < addDays(ANCHOR, -30))
+  })
+
+  it('leaves a reviewer’s seeded history byte for byte as it was, simulator or not', async () => {
+    /*
+     * The mobile app's history is `HistoryService` over a reviewer's session, and the simulator
+     * now lands its own months on a day of each customer's own. The seeding itself must not
+     * move: the hash below was taken from the code before the simulator's days changed (commit
+     * 9c83556), and it holds whether or not a journey was laid down beside the session first.
+     */
+    async function seeded(root: TestRoot): Promise<string> {
+      const out: unknown[] = []
+      for (const persona of PERSONAS) {
+        const { session } = await createSession(root.app, persona.customer.cif)
+        const stored = await root.deps.sessions.getById(session.id)
+        const trail = await root.deps.audit.listForSession(session.id)
+        const versions = await root.deps.snapshots.listRoadmaps(session.id)
+        const strip = <T extends object>(row: T, keys: readonly string[]): Partial<T> =>
+          Object.fromEntries(Object.entries(row).filter(([k]) => !keys.includes(k))) as Partial<T>
+        const VOLATILE = [
+          'id',
+          'sessionId',
+          'subjectId',
+          'snapshotId',
+          'consentId',
+          'adviceRecordId',
+          'prevHash',
+          'recordHash',
+          'tokenHash',
+          'createdAt',
+          'expiresAt',
+          'lastActiveAt',
+          // The memory store numbers rows across every session: a journey written first moves it.
+          'seq',
+        ]
+        out.push({
+          cif: persona.customer.cif,
+          session: stored && strip(stored, VOLATILE),
+          decisions: trail.decisions.map((d) => strip(d, VOLATILE)),
+          advice: trail.adviceRecords.map((a) => strip(a, VOLATILE)),
+          versions: versions.map((v) => strip(v, VOLATILE)),
+        })
+      }
+      return createHash('sha256').update(JSON.stringify(out)).digest('hex')
+    }
+
+    const plain = await makeRoot({ env: { SEED_HISTORY_MONTHS: '8' } })
+    const beside = await makeRoot({ env: { SEED_HISTORY_MONTHS: '8' } })
+    try {
+      const alone = await seeded(plain)
+      // The heroes walked by the simulator first, as on a memory boot, then opened by reviewers.
+      const heroes = PERSONAS.map((p) => p.customer.cif)
+      assert.equal((await run(simulator(beside, heroes))).simulated, heroes.length)
+      assert.equal(await seeded(beside), alone)
+      assert.equal(alone, REVIEWER_SEEDING_SHA256)
+    } finally {
+      await Promise.all([plain.close(), beside.close()])
+    }
+  })
+
   it('keeps the process answering while it lays journeys down', async () => {
     const root = await makeRoot({ env: { RM_SIMULATE: '1' } })
     const CEILING_MS = 1_000
@@ -232,7 +447,7 @@ describe('the activity simulator', () => {
     } finally {
       clearInterval(sampler)
       // Between customers, not mid-journey: the run ends at the next customer boundary.
-      root.rm.simulator.stop()
+      await root.rm.simulator.stop()
       await root.rm.simulator.ready()
       await root.close()
     }

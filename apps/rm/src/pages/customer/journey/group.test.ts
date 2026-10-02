@@ -2,13 +2,18 @@ import type { JourneyEvent } from '@dhan/contracts'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  OUTCOME_WORDS,
   byMonth,
   countBy,
   diffSummary,
   diffValue,
+  foldReviews,
+  isRoutineReview,
   matches,
   monthHeading,
+  netChange,
   splitDecision,
+  titleHasAmount,
 } from './group.ts'
 
 /* An event built from literals: only what a test names differs from a quiet default. */
@@ -112,4 +117,124 @@ test('splitDecision draws the outcome apart from what was decided', () => {
     outcome: null,
     rest: 'Something else: entirely',
   })
+})
+
+/* A monthly review as the API writes it: the engine, from the statements, a figure re-sized. */
+function review(id: string, at: string, before: number, after: number): JourneyEvent {
+  return event({
+    id,
+    at,
+    detail: `Plan refreshed with the statements to ${at}.`,
+    diff: [{ field: 'Monthly commitment', before, after }],
+  })
+}
+
+test('a review from the statements that only re-sizes figures is routine; anything else is not', () => {
+  assert.equal(isRoutineReview(review('a', '2026-08-06', 8204, 9126)), true)
+  assert.equal(
+    isRoutineReview(
+      event({
+        detail: 'Plan refreshed for August 2026, with July’s statements.',
+        diff: [
+          {
+            field: 'Current stage',
+            before: 'Free up about ₹2,535 a month',
+            after: 'Free up about ₹2,472 a month',
+          },
+        ],
+      }),
+    ),
+    true,
+  )
+  // A stage of a different kind is a milestone, not a review.
+  assert.equal(
+    isRoutineReview(
+      event({
+        detail: 'Plan refreshed for November 2025, with October’s statements.',
+        diff: [
+          {
+            field: 'Current stage',
+            before: 'Build ₹2,16,375 they can reach',
+            after: 'Free up about ₹2,907 a month',
+          },
+        ],
+      }),
+    ),
+    false,
+  )
+  assert.equal(
+    isRoutineReview(
+      event({ title: 'First plan', detail: 'First plan, built from the statements on file.' }),
+    ),
+    false,
+  )
+  // The customer caused it.
+  assert.equal(
+    isRoutineReview(
+      event({
+        detail: 'Plan refreshed after they passed on "Sweep ₹5,92,984 into a deposit".',
+        diff: [{ field: 'Monthly commitment', before: 1, after: 2 }],
+      }),
+    ),
+    false,
+  )
+  assert.equal(
+    isRoutineReview(
+      event({
+        detail: 'Plan refreshed with the latest statements.',
+        diff: [{ field: 'Goal', before: 'Retirement', after: 'Clear expensive debt' }],
+      }),
+    ),
+    false,
+  )
+  assert.equal(isRoutineReview(event({ kind: 'decision', detail: 'Plan refreshed for x' })), false)
+})
+
+test('foldReviews folds a run of reviews into one row where the newest stood', () => {
+  const events = [
+    event({ id: 'd3', kind: 'decision', at: '2026-08-06', source: 'customer' }),
+    review('r3', '2026-08-06', 8204, 9126),
+    event({ id: 'h', kind: 'handoff', at: '2026-07-06', source: 'customer' }),
+    review('r2', '2026-07-06', 5716, 8204),
+    review('r1', '2026-06-06', 6980, 5716),
+    event({
+      id: 'first',
+      title: 'First plan',
+      at: '2025-09-06',
+      detail: 'First plan, built from the statements on file.',
+    }),
+    review('r0', '2025-08-06', 1, 2),
+  ]
+  const rows = foldReviews(events)
+  assert.deepEqual(
+    rows.map((r) => (r.type === 'reviews' ? r.events.map((e) => e.id).join('+') : r.id)),
+    // The first plan breaks the run, and a run of one is left alone.
+    ['d3', 'r3+r2+r1', 'h', 'first', 'r0'],
+  )
+  assert.equal(rows[1]?.at, '2026-08-06')
+  // The rows group by month like the events they stand for.
+  assert.deepEqual(
+    byMonth(rows).map((g) => [g.month, g.events.length]),
+    [
+      ['2026-08', 2],
+      ['2026-07', 1],
+      ['2025-09', 1],
+      ['2025-08', 1],
+    ],
+  )
+})
+
+test('netChange runs from the oldest review’s before to the newest one’s after', () => {
+  assert.deepEqual(
+    netChange([review('r3', '2026-08-06', 8204, 9126), review('r2', '2026-07-06', 5716, 8204)]),
+    [{ field: 'Monthly commitment', before: 5716, after: 9126 }],
+  )
+})
+
+test('two deferrals read as two different words, and a title that names the amount is not repeated', () => {
+  assert.notEqual(OUTCOME_WORDS['Put off'].word, OUTCOME_WORDS['Pushed back'].word)
+  assert.equal(titleHasAmount('Pay ₹21,126 off the card', 21126), true)
+  assert.equal(titleHasAmount('Sweep ₹11,10,510 into a deposit', 1110510), true)
+  assert.equal(titleHasAmount('Check their subscriptions', 500), false)
+  assert.equal(titleHasAmount('Check their subscriptions', null), false)
 })

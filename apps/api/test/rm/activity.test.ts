@@ -26,10 +26,22 @@ import type {
   RmRevealResponse,
   RmToday,
 } from '@dhan/contracts'
-import { HISTORY_RESOLVED_DAYS, handoffStatus } from '../../src/application/rm/activity.service.ts'
-import { JOURNEY_MONTHS, isJourney } from '../../src/application/rm/simulator.ts'
-import type { Session } from '../../src/ports/index.ts'
-import { ANCHOR, ARJUN, MEERA, bearer, makeRoot, signInRm } from '../helpers/app.ts'
+import {
+  HISTORY_RESOLVED_DAYS,
+  handoffStatus,
+  oneHistory,
+  planReason,
+} from '../../src/application/rm/activity.service.ts'
+import {
+  JOURNEY_HINT,
+  JOURNEY_MONTHS,
+  isJourney,
+  journeyPlan,
+} from '../../src/application/rm/simulator.ts'
+import type { AuditTrail, Session } from '../../src/ports/index.ts'
+import { HistoryService } from '../../src/application/history.service.ts'
+import { silentLogger } from '../../src/infra/logger.ts'
+import { ANCHOR, ARJUN, MEERA, bearer, createSession, makeRoot, signInRm } from '../helpers/app.ts'
 import type { TestRoot } from '../helpers/app.ts'
 
 const ULIP = 'LIC_ULIP_401'
@@ -92,13 +104,21 @@ describe('the activity behind the book', () => {
     const months = Array.from({ length: JOURNEY_MONTHS }, (_, i) =>
       addMonths(ANCHOR, i - JOURNEY_MONTHS).slice(0, 7),
     )
-    for (const [cif] of BOOK) {
+    for (const [cif, activity] of BOOK) {
       const session = await journeySession(cif)
-      // Home where `create` left it: the session reads like any other at the RM clock.
+      const plan = journeyPlan(cif, activity, ANCHOR, ANCHOR)
+      // Home where `create` left it: the session reads like any other at the RM clock, and the
+      // completion marker, written last, is on the walk's last day.
       assert.equal(session.asOf, ANCHOR, cif)
+      assert.equal(session.lastSeen, plan.lastDay, cif)
 
       const versions = await root.deps.snapshots.listRoadmaps(session.id)
-      assert.equal(versions[0]?.atSim, addMonths(ANCHOR, -JOURNEY_MONTHS), cif)
+      const [walk] = plan.steps
+      assert.equal(walk?.kind, 'months')
+      if (walk?.kind === 'months') {
+        assert.equal(versions[0]?.atSim, addMonths(walk.end, -walk.months), cif)
+      }
+      assert.equal(versions[0]?.atSim.slice(0, 7), months[0], cif)
       const trail = await root.deps.audit.listForSession(session.id)
       const decided = new Set(trail.decisions.map((d) => d.atSim.slice(0, 7)))
       for (const m of months) assert.ok(decided.has(m), `${cif}: a decision in ${m}`)
@@ -206,19 +226,24 @@ describe('the activity behind the book', () => {
       assert.equal(book.totals.openHandoffs, recent.length)
     }
 
-    // A customer with history's requests only: on the journey, every one resolved by history.
+    // A customer with history's requests only: on the journey, every one resolved by history,
+    // the one in the walk's last month too, although that is inside thirty days of the clock.
     let historyRequests = 0
+    let insideThirtyDays = 0
     for (const [cif, activity] of BOOK) {
       if (activity.recentHandoff) continue
       const token = RM_ASSIGNMENTS[cif] === MEERA_ID ? meera : arjun
+      const { lastSeen } = await journeySession(cif)
       const journey = (await get(`/api/v1/rm/customers/${cif}/journey`, token)).json<RmJourney>()
       for (const e of journey.events.filter((x) => x.kind === 'handoff')) {
         historyRequests += 1
-        assert.ok(e.at < addDays(ANCHOR, -HISTORY_RESOLVED_DAYS), `${cif}: ${e.at} is history`)
+        assert.ok(e.at <= lastSeen, `${cif}: ${e.at} is history`)
+        if (e.at >= addDays(ANCHOR, -HISTORY_RESOLVED_DAYS)) insideThirtyDays += 1
         assert.match(e.detail ?? '', /Resolved\.$/)
       }
     }
     assert.ok(historyRequests > 0, 'history wrote requests for the rule to resolve')
+    assert.ok(insideThirtyDays > 0, 'the last month of history is recent, and still history')
   })
 
   it('resolves a request by history only once it is older than thirty days', () => {
@@ -287,6 +312,114 @@ describe('the activity behind the book', () => {
     const refused = record.records.find((r) => r.verdict === 'BLOCKED')
     if (refused) assert.match(refused.spoken ?? '', /\byou/i)
     assert.equal(record.chains, 1)
+  })
+
+  it('lands each customer’s last months on their own day, and reads last activity off them', async () => {
+    // Every journey deciding on the 1st made the whole book "last active 4 weeks ago".
+    const days = new Set<number>()
+    for (const [token, rmId] of [
+      [meera, MEERA_ID],
+      [arjun, ARJUN_ID],
+    ] as const) {
+      const book = (await get('/api/v1/rm/book', token)).json<RmBook>()
+      for (const row of book.rows) {
+        const activity = BOOK_ACTIVITY[row.cif]
+        if (!activity || RM_ASSIGNMENTS[row.cif] !== rmId) continue
+        const session = await journeySession(row.cif)
+        const trail = await root.deps.audit.listForSession(session.id)
+        // The true latest event on the record: nothing at the desk has written to it yet.
+        const latest = [...trail.decisions, ...trail.adviceRecords]
+          .map((r) => r.atSim)
+          .reduce((a, b) => (a > b ? a : b))
+        assert.equal(row.lastActivityAt, latest, row.name)
+        const lastMonth = trail.decisions
+          .filter((d) => d.atSim <= session.lastSeen)
+          .map((d) => d.atSim)
+          .reduce((a, b) => (a > b ? a : b))
+        assert.equal(lastMonth, session.lastSeen, `${row.name}: the walk ends on its marker`)
+        assert.equal(lastMonth.slice(0, 7), '2026-08', row.name)
+        days.add(Number(lastMonth.slice(8, 10)))
+      }
+    }
+    assert.ok(days.size >= 15, `the last month lands on ${days.size} different days`)
+    assert.ok(![...days].some((d) => d < 2 || d > 28), [...days].join(', '))
+  })
+
+  it('says why a plan moved in the RM’s words, never the simulated clock’s', async () => {
+    let plans = 0
+    for (const [cif] of BOOK) {
+      const token = RM_ASSIGNMENTS[cif] === MEERA_ID ? meera : arjun
+      const { events } = (await get(`/api/v1/rm/customers/${cif}/journey`, token)).json<RmJourney>()
+      for (const e of events.filter((x) => x.kind === 'plan')) {
+        plans += 1
+        // A day may be named ("the statements to 23 Apr 2026"); the machinery may not.
+        assert.doesNotMatch(e.detail ?? '', /clock|Re-cut|moved to/, e.detail ?? '')
+        assert.match(
+          e.detail ?? '',
+          e.title === 'First plan' ? /^First plan, built from/ : /^Plan refreshed /,
+        )
+      }
+    }
+    assert.ok(plans > BOOK.length, 'plans were read')
+  })
+
+  it('shows a hero one history when a reviewer has opened them beside the simulator', async () => {
+    // A memory boot gave every hero a journey; a reviewer then opens one, and the app seeds the
+    // months behind their day one, as `root.ts` does for every reviewer session.
+    const [hero] = HEROES.filter((cif) => RM_ASSIGNMENTS[cif] === MEERA_ID)
+    assert.ok(hero, 'Meera has a hero')
+    const created = await createSession(root.app, hero)
+    const opened = await root.deps.sessions.getById(created.session.id)
+    assert.ok(opened)
+    const reviewer = await new HistoryService({
+      advisory: root.services.advisory,
+      decisions: root.services.decisions,
+      sessions: root.deps.sessions,
+      months: 8,
+      log: silentLogger,
+    }).seed(opened)
+    const firstMonth = addMonths(ANCHOR, -8).slice(0, 7)
+
+    const journey = await journeySession(hero)
+    const [mine, theirs] = await Promise.all([
+      root.deps.audit.listForSession(reviewer.id),
+      root.deps.audit.listForSession(journey.id),
+    ])
+    assert.ok(mine.decisions.length >= 8 && theirs.decisions.length >= JOURNEY_MONTHS)
+    const reviewerIds = new Set([...mine.decisions, ...mine.adviceRecords].map((r) => r.id))
+    const journeyIds = new Set([...theirs.decisions, ...theirs.adviceRecords].map((r) => r.id))
+
+    const { events } = (await get(`/api/v1/rm/customers/${hero}/journey`)).json<RmJourney>()
+    const rows = events.filter((e) => e.kind === 'decision' || e.kind === 'advice')
+    for (const e of rows) {
+      // From the reviewer's first month on, only what the customer was shown; before it, the
+      // simulator's months, so the year still reads as one.
+      if (e.at.slice(0, 7) >= firstMonth) assert.ok(reviewerIds.has(e.id), `${e.at} ${e.title}`)
+      else assert.ok(journeyIds.has(e.id), `${e.at} ${e.title}`)
+    }
+    assert.ok(rows.some((e) => journeyIds.has(e.id)))
+    assert.ok(rows.some((e) => reviewerIds.has(e.id)))
+    const months = new Map<string, Set<string>>()
+    for (const e of rows) {
+      const month = e.at.slice(0, 7)
+      months.set(month, (months.get(month) ?? new Set()).add(reviewerIds.has(e.id) ? 'r' : 'j'))
+    }
+    for (const [month, from] of months) assert.equal(from.size, 1, `${month}: one history`)
+
+    // One first plan; the reviewer's first version reads as a refresh of the plan before it.
+    const plans = events.filter((e) => e.kind === 'plan')
+    assert.equal(plans.filter((e) => e.title === 'First plan').length, 1)
+    assert.ok(plans.filter((e) => e.title === 'First plan').every((e) => e.at < `${firstMonth}-01`))
+    assert.ok(plans.every((e) => !/clock/.test(e.detail ?? '')))
+
+    // The record keeps every row on both chains: hiding one there would prove nothing.
+    const record = (await get(`/api/v1/rm/customers/${hero}/record`)).json<RmCustomerRecord>()
+    assert.equal(record.records.length, mine.adviceRecords.length + theirs.adviceRecords.length)
+    assert.equal(record.chains, 2)
+
+    // Someone has the app open at the RM clock: the hero was active today.
+    const row = (await get('/api/v1/rm/book')).json<RmBook>().rows.find((r) => r.cif === hero)
+    assert.equal(row?.lastActivityAt, ANCHOR)
   })
 
   it('counts the activity month by month on Insights', async () => {
@@ -414,13 +547,133 @@ describe('the activity behind the book', () => {
       .json<RmToday>()
       .handoffs.find((h) => h.id === handoff.id)
     assert.equal(still?.status, 'open', 'nothing was written')
-    const afterLog = (await get('/api/v1/rm/access-log', arjun)).json<RmAccessLog>().entries.length
-    assert.equal(afterLog, before)
+    // The refused attempt is Arjun's entry, not Meera's, and it does not hand him the name.
+    const afterLog = (await get('/api/v1/rm/access-log', arjun)).json<RmAccessLog>().entries
+    assert.equal(afterLog.length, before + 1)
+    assert.deepEqual(
+      [afterLog[0]?.action, afterLog[0]?.cif, afterLog[0]?.name, afterLog[0]?.purpose],
+      ['denied', handoff.cif, handoff.cif, 'Mark a request to talk as resolved'],
+    )
+    const meeraLog = (await get('/api/v1/rm/access-log')).json<RmAccessLog>().entries
+    assert.ok(meeraLog.every((e) => e.action !== 'denied'))
 
     const nobody = await send('PATCH', '/api/v1/rm/handoffs/no-such-handoff', {
       status: 'contacted',
     })
     assert.equal(nobody.statusCode, 404)
     assert.equal(nobody.json<ErrorBody>().code, 'NOT_FOUND')
+  })
+})
+
+describe('one history out of several sessions', () => {
+  /** A session with only what `oneHistory` reads: who opened it, and when. */
+  const session = (id: string, journey: boolean, createdAt: string): Session =>
+    ({
+      id,
+      clientHint: journey ? JOURNEY_HINT : 'web',
+      createdAt,
+      lastSeen: '2026-08-15',
+    }) as unknown as Session
+  const trail = (dates: string[]): AuditTrail =>
+    ({
+      decisions: dates.map((atSim, i) => ({ id: `${atSim}#${i}`, atSim })),
+      adviceRecords: [],
+      avatarSessions: [],
+    }) as unknown as AuditTrail
+  const HOME = '2026-09-01'
+  const YEAR = Array.from({ length: 12 }, (_, i) => addMonths('2025-09-15', i))
+  const EIGHT = Array.from({ length: 8 }, (_, i) => addMonths('2026-01-01', i))
+
+  it('keeps a reviewer’s months over the simulator’s, and the simulator’s before them', () => {
+    const h = oneHistory(
+      {
+        cif: 'C1',
+        sessions: [
+          session('sim', true, '2026-10-01T00:00:00Z'),
+          session('r1', false, '2026-10-02T00:00:00Z'),
+        ],
+        trails: [trail(YEAR), trail([...EIGHT, '2026-09-01', '2026-09-04'])],
+      },
+      HOME,
+    )
+    assert.deepEqual(
+      h.trails[0]?.decisions.map((d) => d.atSim),
+      ['2025-09-15', '2025-10-15', '2025-11-15', '2025-12-15'],
+    )
+    // The reviewer's whole record, their day one and after included.
+    assert.equal(h.trails[1]?.decisions.length, 10)
+    assert.equal(h.keeps('sim', '2026-03-15'), false)
+    assert.equal(h.keeps('sim', '2025-12-15'), true)
+    // The record underneath is untouched.
+    assert.equal(h.record.trails[0]?.decisions.length, 12)
+  })
+
+  it('keeps the newest reviewer’s seeded months, and what every reviewer did from day one', () => {
+    const h = oneHistory(
+      {
+        cif: 'C1',
+        sessions: [
+          session('old', false, '2026-10-01T00:00:00Z'),
+          session('new', false, '2026-10-05T00:00:00Z'),
+        ],
+        trails: [trail([...EIGHT, '2026-09-01', '2026-09-20']), trail(EIGHT)],
+      },
+      HOME,
+    )
+    // The older reviewer's seeded months are the newer one's; their own taps are not seeded.
+    assert.deepEqual(
+      h.trails[0]?.decisions.map((d) => d.atSim),
+      ['2026-09-01', '2026-09-20'],
+    )
+    assert.equal(h.trails[1]?.decisions.length, 8)
+  })
+
+  it('leaves a lone session as it is', () => {
+    const h = oneHistory(
+      { cif: 'C1', sessions: [session('sim', true, 'x')], trails: [trail(YEAR)] },
+      HOME,
+    )
+    assert.equal(h.trails[0]?.decisions.length, 12)
+  })
+})
+
+describe('a plan’s reason, for the RM', () => {
+  it('says which statements moved a plan, not that the simulated clock did', () => {
+    assert.equal(
+      planReason('Re-cut after the clock moved to 1 August 2026.', '2026-08-01', false),
+      "Plan refreshed for August 2026, with July's statements.",
+    )
+    assert.equal(
+      planReason('Re-cut after the clock moved to 23 April 2026.', '2026-04-23', false),
+      'Plan refreshed with the statements to 23 Apr 2026.',
+    )
+    assert.equal(
+      planReason('Re-cut on 3 March 2026 with the latest statements.', '2026-03-03', false),
+      'Plan refreshed with the latest statements.',
+    )
+  })
+
+  it('keeps the customer’s own reason, in the third person', () => {
+    assert.equal(
+      planReason('Re-cut after you passed on "Open a sweep-in".', '2026-05-01', false),
+      'Plan refreshed after they passed on "Open a sweep-in".',
+    )
+    assert.equal(
+      planReason('Re-cut after you withdrew investments.', '2026-05-01', false),
+      'Plan refreshed after they withdrew investments.',
+    )
+    assert.equal(
+      planReason('Goal chosen by the customer.', '2026-05-01', false),
+      'Goal chosen by the customer.',
+    )
+  })
+
+  it('calls a first plan a first plan only where nothing came before it', () => {
+    const first = 'First plan, built from the statements on file.'
+    assert.equal(planReason(first, '2025-09-15', true), first)
+    assert.equal(
+      planReason(first, '2026-01-01', false),
+      "Plan refreshed for January 2026, with December's statements.",
+    )
   })
 })

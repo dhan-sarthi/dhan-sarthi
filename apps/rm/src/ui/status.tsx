@@ -2,6 +2,7 @@ import type { GoalHealth, Segment, SignalSeverity, Strength } from '@dhan/contra
 import { CircleAlert, Eye, Lightbulb } from 'lucide-react'
 import { cn } from '../lib/cn.ts'
 import { Chip, type ChipTone } from './Chip.tsx'
+import { useBadgeTabIndex } from './interactive-row.tsx'
 import { Tooltip } from './Tooltip.tsx'
 
 /*
@@ -57,10 +58,11 @@ export const SEGMENT: Record<Segment, { label: string; tone: ChipTone; rule: str
 
 export function SegmentBadge({ segment, className }: { segment: Segment; className?: string }) {
   const { label, tone, rule } = SEGMENT[segment]
+  const tabIndex = useBadgeTabIndex()
   return (
     <Tooltip content={rule}>
       <span
-        tabIndex={0}
+        tabIndex={tabIndex}
         className="inline-flex rounded-sm focus-visible:outline-2 focus-visible:outline-focus"
       >
         <Chip tone={tone} className={className}>
@@ -132,10 +134,11 @@ const STRENGTH_BARS: Record<Strength['level'], number> = { high: 3, medium: 2, l
 export function StrengthBadge({ strength, className }: { strength: Strength; className?: string }) {
   const bars = STRENGTH_BARS[strength.level]
   const low = strength.level === 'low'
+  const tabIndex = useBadgeTabIndex()
   return (
     <Tooltip content={strength.reason}>
       <span
-        tabIndex={0}
+        tabIndex={tabIndex}
         aria-label={`Relationship strength ${STRENGTH_LABEL[strength.level]}. ${strength.reason}`}
         className={cn(
           'inline-flex items-center gap-1.5 rounded-sm text-label whitespace-nowrap focus-visible:outline-2 focus-visible:outline-focus',

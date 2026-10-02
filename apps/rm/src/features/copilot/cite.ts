@@ -35,7 +35,11 @@ export function numberCitations(
   return notes
 }
 
-/** The footnotes one sentence carries, in its own citing order, without repeats. */
+/**
+ * The footnotes one sentence carries, without repeats, in ascending number. The server already
+ * sends a sentence's ids in the order the screen numbers them, but the tiles above a brief take
+ * the first numbers, so a sentence citing a tile's fact and a new one could otherwise read "4 1".
+ */
 export function notesFor(
   sentence: CitedSentence,
   notes: ReadonlyMap<FactId, Footnote>,
@@ -49,7 +53,7 @@ export function notesFor(
       out.push(note)
     }
   }
-  return out
+  return out.sort((a, b) => a.n - b.n)
 }
 
 /** Facts the answer had in front of it but did not cite, in the server's order. */
@@ -113,8 +117,11 @@ export function sourceRef(source: Fact['source']): string | null {
   if (!ref) return null
   switch (source.kind) {
     case 'roadmap': {
+      // Version 0 is the desk's own read of the plan as at the record date, never a version the
+      // customer was given, so it has no number worth quoting.
       const version = /^v(\d+)$/.exec(ref)
-      return version ? `Version ${version[1] ?? ''}` : ref
+      if (!version) return ref
+      return version[1] === '0' ? null : `Version ${version[1] ?? ''}`
     }
     case 'ledger': {
       const line = ref.split(':').pop() ?? ref

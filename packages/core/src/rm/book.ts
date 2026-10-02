@@ -7,7 +7,7 @@
  * be reconciled by adding up the rows on screen.
  */
 import { ruleBook } from '../suitability.ts'
-import { monthName } from './format.ts'
+import { monthLabel, monthName } from './format.ts'
 import type { GoalHealth } from './health.ts'
 import type { Segment } from './segment.ts'
 import { isBalanceAccount, walletSharePct } from './segment.ts'
@@ -269,11 +269,17 @@ export function misSalesPrevented(advice: readonly { verdict: string }[]): numbe
 export interface Kpi {
   id: string
   label: string
+  /** As at the as-of date. */
   value: number
   unit: 'inr' | 'count' | 'pct'
+  /** What a count is out of, where it is a part of a whole; null otherwise. */
+  outOf: number | null
+  /** Month-end figures where present; the label says so. */
   delta: number | null
   deltaLabel: string | null
   series: number[] | null
+  /** What the series draws, in words; null without one. */
+  seriesLabel: string | null
 }
 
 export interface TodayKpiInput {
@@ -287,12 +293,15 @@ export interface TodayKpiInput {
 
 /**
  * The four figures across the top of Today: book value, the SIP book, goals on track and open
- * handoffs.
+ * handoffs. Every value is as at the as-of date, the same figure Book and Insights lead with.
  *
- * Book value's change is the month's change in **balances**, not in book value: holdings are
- * flat before the anchor, so a book-value delta would be a balance delta wearing a bigger
- * label. The label says which it is. The SIP book has no history for the same reason, so it has
- * no delta rather than a zero one.
+ * Book value's change is the month's change in **month-end balances**, not in book value:
+ * holdings are flat before the anchor, so a book-value delta would be a balance delta wearing a
+ * bigger label. The label says which it is, and that it is month-end to month-end. The SIP book
+ * is registered SIPs (the mandates on the holdings), not the investment debits on statements,
+ * and has no history for the same reason as holdings, so it has no delta rather than a zero
+ * one. Goals on track is a count out of the book ("9 of 38"), not a percentage of it: a desk
+ * reads nine customers, not 23.7% of one.
  */
 export function todayKpis(input: TodayKpiInput): Kpi[] {
   const totals = bookTotals(input.rows)
@@ -303,48 +312,62 @@ export function todayKpis(input: TodayKpiInput): Kpi[] {
   const withSip = input.rows.filter((r) => r.sipMonthly > 0).length
   const oldest = input.openHandoffWaits.reduce((m, d) => Math.max(m, d), 0)
 
+  const first = series[0]
   return [
     {
       id: 'book_value',
       label: 'Book value',
       value: totals.relationshipValue,
       unit: 'inr',
+      outOf: null,
       delta: last !== undefined && prev !== undefined ? last.total - prev.total : null,
       // The month by name: the series ends at the last complete month, so on 1 September the
       // change is August's, and "this month" read as September.
       deltaLabel:
-        last !== undefined && prev !== undefined ? `in balances in ${monthName(last.month)}` : null,
+        last !== undefined && prev !== undefined
+          ? `in month-end balances over ${monthName(last.month)}`
+          : null,
       series: series.length > 0 ? series.map((p) => p.total) : null,
+      seriesLabel:
+        first !== undefined && last !== undefined
+          ? `Month-end balances, ${monthLabel(first.month)} to ${monthLabel(last.month)}`
+          : null,
     },
     {
       id: 'sip_book',
       label: 'Monthly SIP book',
       value: totals.sipMonthly,
       unit: 'inr',
+      outOf: null,
       delta: null,
-      deltaLabel: `${withSip} of ${totals.customers} customers investing monthly`,
+      deltaLabel: `registered SIPs · ${withSip} of ${totals.customers} customers`,
       series: null,
+      seriesLabel: null,
     },
     {
       id: 'goals_on_track',
       label: 'Goals on track',
-      value: goals.onTrackPct ?? 0,
-      unit: 'pct',
+      value: goals.on_track,
+      unit: 'count',
+      outOf: totals.customers,
       delta: null,
-      deltaLabel: `${goals.on_track} of ${totals.customers} customers`,
+      deltaLabel: `of ${totals.customers} customers`,
       series: null,
+      seriesLabel: null,
     },
     {
       id: 'open_handoffs',
       label: 'Open handoffs',
       value: input.openHandoffWaits.length,
       unit: 'count',
+      outOf: null,
       delta: null,
       deltaLabel:
         input.openHandoffWaits.length === 0
           ? null
           : `oldest waiting ${oldest} ${oldest === 1 ? 'day' : 'days'}`,
       series: null,
+      seriesLabel: null,
     },
   ]
 }

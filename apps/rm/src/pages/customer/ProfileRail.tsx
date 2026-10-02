@@ -1,6 +1,6 @@
 import type { Customer360Consent } from '@dhan/contracts'
-import { BadgeCheck, CircleAlert, CircleCheck, CircleMinus } from 'lucide-react'
-import { useReveal } from '../../api/queries.ts'
+import { BadgeCheck, CircleAlert, CircleCheck, CircleMinus, UserRoundCheck } from 'lucide-react'
+import { useMe, useReveal } from '../../api/queries.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatDate, formatDuration, daysBetween } from '../../lib/format.ts'
 import {
@@ -8,13 +8,13 @@ import {
   Card,
   CardDivider,
   Chip,
-  MaskedField,
   Money,
   PropertyList,
   SectionLabel,
   Skeleton,
 } from '../../ui/index.ts'
 import { languageName, plural, type CustomerFile } from './customer-file.ts'
+import { RevealField } from './RevealField.tsx'
 
 /**
  * The typed attributes beside every tab, after Attio's record rail: who the customer is, whether
@@ -39,11 +39,9 @@ export function ProfileRail({ customer }: { customer: CustomerFile }) {
             {
               label: 'Date of birth',
               value: (
-                <MaskedField
+                <RevealField
                   label="Date of birth"
                   masked={profile.dateOfBirthMasked}
-                  hideLabel
-                  className="[&>div]:flex-wrap [&>div]:gap-x-2 [&>div]:gap-y-0"
                   onReveal={async (reason) => {
                     const reply = await reveal.mutateAsync({ field: 'dateOfBirth', reason })
                     return /^\d{4}-\d{2}-\d{2}$/.test(reply.value)
@@ -107,26 +105,45 @@ export function ProfileRail({ customer }: { customer: CustomerFile }) {
         <ConsentBlock consent={customer.consent} />
 
         <CardDivider />
-        <SectionLabel className="mb-3">Assigned RM</SectionLabel>
-        <div className="flex items-center gap-3">
-          <Avatar
-            name={profile.assignedRm.name}
-            initials={profile.assignedRm.initials}
-            size="md"
-            tone="brand"
-          />
-          <div className="min-w-0">
-            <p className="truncate text-label text-ink">{profile.assignedRm.name}</p>
-            <p className="text-caption font-normal text-ink-faint">
-              {profile.assignedRm.desk}, {profile.assignedRm.city}
-            </p>
-            <p className="text-caption font-normal text-ink-faint">
-              Employee no. <span className="tabular">{profile.assignedRm.employeeNo}</span>
-            </p>
-          </div>
-        </div>
+        <AssignedRm assigned={profile.assignedRm} />
       </Card>
     </aside>
+  )
+}
+
+/**
+ * Whose book the customer is in. In the RM's own book that is always them, so it is one line;
+ * the full card (name, desk, employee number) is for a file someone else holds.
+ */
+function AssignedRm({ assigned }: { assigned: CustomerFile['profile']['assignedRm'] }) {
+  const me = useMe()
+  if (me.data?.rm.rmId === assigned.rmId) {
+    return (
+      <p
+        className="flex items-center gap-2 text-label text-ink-soft"
+        title={`Assigned to you, ${assigned.desk}, ${assigned.city}`}
+      >
+        <UserRoundCheck aria-hidden className="size-4 shrink-0 text-brand" />
+        Your customer
+      </p>
+    )
+  }
+  return (
+    <section>
+      <SectionLabel className="mb-3">Assigned RM</SectionLabel>
+      <div className="flex items-center gap-3">
+        <Avatar name={assigned.name} initials={assigned.initials} size="md" tone="brand" />
+        <div className="min-w-0">
+          <p className="truncate text-label text-ink">{assigned.name}</p>
+          <p className="text-caption font-normal text-ink-faint">
+            {assigned.desk}, {assigned.city}
+          </p>
+          <p className="text-caption font-normal text-ink-faint">
+            Employee no. <span className="tabular">{assigned.employeeNo}</span>
+          </p>
+        </div>
+      </div>
+    </section>
   )
 }
 

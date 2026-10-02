@@ -27,13 +27,29 @@
  * so a request the desk never touched counts as open only for `HISTORY_RESOLVED_DAYS` after it
  * was made: older than that, it is history's own claim that the conversation happened, and it is
  * shown as resolved. The simulator's recent handoffs and a reviewer's own tap are inside the
- * window, and they are the requests a desk should see.
+ * window, and they are the requests a desk should see. Where the history is known the line is
+ * drawn exactly rather than by age (`Request.history`): on a journey session the simulator's walk
+ * ends on the session's `lastSeen` (its completion marker), and every request on or before it is
+ * the history's own; on a reviewer's session every request before the day it opened on was
+ * seeded. Only a request made after those (the fixtures' recent one, a reviewer's tap) can be
+ * open.
+ *
+ * One history per customer (`oneHistory`). A hero the simulator walked on a memory boot and a
+ * reviewer then opened has two sessions over the same months, each with its own decisions on the
+ * same snapshots, and two reviewers on one hero each seeded the same months. The most recent
+ * reviewer's is what the customer was shown, so in the months it covers every other session's
+ * seeded rows are left out of the journey, the activity facts, the monthly counts and the
+ * handoffs. The record is not: `customerRecord`, the refusals and the chain walks read every row
+ * on every chain, because a record with rows hidden proves nothing.
  */
 import {
   SIGNAL_LABELS,
+  addMonths,
+  dateLabel,
   daysBetween,
   findInsights,
   goalLabel,
+  monthName,
   plural,
   refusalsByRule,
   revoice,
@@ -67,6 +83,7 @@ import type {
   RmRevealResponse,
   Timestamp,
 } from '@dhan/contracts'
+import { FIRST_PLAN_REASON } from '../advisory.service.ts'
 import { NotFound } from '../errors.ts'
 import type { Logger } from '../../infra/logger.ts'
 import type {
@@ -93,9 +110,9 @@ import { isJourney } from './simulator.ts'
 /** What the book row, the strength badge and the attrition watch need to know per customer. */
 export interface ActivityFacts {
   /**
-   * The latest simulated date of anything the customer or the desk did: a decision, a product
-   * question, a call, a note, a contact, the last time a person opened the app. Null where
-   * nothing is on record.
+   * The latest simulated date of anything the customer or the desk did, on the customer's one
+   * history: a decision, a product question, a call, a note, a contact, or the day a reviewer's
+   * session stands at (a person has the app open on that day). Null where nothing is on record.
    */
   lastActivityAt: IsoDate | null
   /** A SIP the customer paused (an accepted `pause_sip`), for the attrition watch. */
@@ -130,7 +147,7 @@ export const HISTORY_RESOLVED_DAYS = 30
 
 /** How many access entries the log page reads. */
 const ACCESS_LOG_LIMIT = 200
-/** How long the population's names are trusted in process. A reseed shows up within it. */
+/** How long the population's names and ledger ends are trusted in process. A reseed shows up within it. */
 const NAMES_TTL_MS = 60_000
 /** Insights per snapshot, kept because a snapshot never changes once written. */
 const INSIGHT_MEMO_SIZE = 512
@@ -164,6 +181,26 @@ interface Request {
   cif: string
   session: Session
   decision: DecisionRecord
+  /**
+   * Laid down as the customer's past, not asked: on a journey session, on or before the day its
+   * walk ended (`lastSeen`, the completion marker); on a reviewer's session, before the day it
+   * was opened on (its seeded months). History's own claim that the conversation happened, so
+   * never open.
+   */
+  history: boolean
+}
+
+/**
+ * The customer's one history: the record set with the simulated rows that another session also
+ * covers left out (`oneHistory`), and the same test for plan versions, which are read apart.
+ */
+interface History extends CustomerRecordSet {
+  /** Every row on every session, for what counts the record (refusals). */
+  record: CustomerRecordSet
+  /** Whether a row dated `atSim` on `sessionId` is on the one history. */
+  keeps: (sessionId: string, atSim: IsoDate) => boolean
+  /** The day `create` opens a session for this customer on: a reviewer's rows before it are seeded. */
+  home: IsoDate
 }
 
 export interface RmActivityDeps {
@@ -185,19 +222,90 @@ export interface RmActivityDeps {
 
 /**
  * A handoff's status: its last change at the desk, else open while it is recent and resolved by
- * history once it is older than `HISTORY_RESOLVED_DAYS` before the RM clock.
+ * history once it is older than `HISTORY_RESOLVED_DAYS` before the RM clock. A request laid down
+ * as history (`fromHistory`, `Request.history`) is resolved whatever its age: the simulator's
+ * months now land on the customer's own day, and the last of them is inside thirty days.
  */
 export function handoffStatus(
   requestedOn: IsoDate,
   changes: readonly Pick<HandoffStatusChange, 'status' | 'note'>[],
   asOf: IsoDate,
+  fromHistory = false,
 ): { status: HandoffStatus; note: string | null } {
   const last = changes[changes.length - 1]
   if (last) return { status: last.status, note: last.note }
-  if (daysBetween(requestedOn, asOf) > HISTORY_RESOLVED_DAYS)
+  if (fromHistory || daysBetween(requestedOn, asOf) > HISTORY_RESOLVED_DAYS)
     return { status: 'resolved', note: null }
   return { status: 'open', note: null }
 }
+
+const MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const
+
+/**
+ * Why a plan version was cut, in the RM's words.
+ *
+ * The stored reason is the customer's ("Re-cut after you passed on …") and, for a version the
+ * clock cut, quotes the simulated clock itself ("Re-cut after the clock moved to 1 August
+ * 2026"), which is the demo's machinery, not a reason an RM would give. A version the clock cut
+ * is a plan refreshed on newer statements, and says which: on the 1st, the month just closed
+ * ("Plan refreshed for August 2026, with July's statements"); on any other day, the statements to
+ * that day. A reason the customer gave is kept, after "Plan refreshed", and re-voiced. `isFirst`
+ * is false for a first version that follows another history on the journey: on one history it is
+ * a refresh, not a first plan.
+ */
+export function planReason(reason: string, atSim: IsoDate, isFirst: boolean): string {
+  if (reason === FIRST_PLAN_REASON && isFirst) return reason
+  if (reason === FIRST_PLAN_REASON || /^Re-cut after the clock moved to /.test(reason)) {
+    return atSim.slice(8, 10) === '01'
+      ? `Plan refreshed for ${monthName(atSim)} ${atSim.slice(0, 4)}, with ${monthName(addMonths(atSim, -1))}'s statements.`
+      : `Plan refreshed with the statements to ${dateLabel(atSim)}.`
+  }
+  if (/^Re-cut on .* with the latest statements\.$/.test(reason)) {
+    return 'Plan refreshed with the latest statements.'
+  }
+  const after = /^Re-cut after (.+)$/.exec(reason)
+  if (after?.[1] !== undefined) return `Plan refreshed after ${revoice(after[1])}`
+  // A reason this does not know is the customer's own words, re-voiced, with any spoken date
+  // ("1 August 2026") left out rather than quoted.
+  const spoken = new RegExp(
+    String.raw`\b(on |to )?\d{1,2} (${[...MONTH_WORDS].join('|')}) \d{4}\b`,
+    'g',
+  )
+  return revoice(
+    reason
+      .replace(spoken, '')
+      .replace(/\s+([.,])/g, '$1')
+      .replace(/\s{2,}/g, ' '),
+  )
+}
+
+const MONTH_WORDS: ReadonlySet<string> = new Set([
+  ...MONTHS_SHORT,
+  'January',
+  'February',
+  'March',
+  'April',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+])
 
 /** What moved between two plan versions, in the four things an RM reads a plan by. */
 export function planDiff(before: RoadmapVersion | null, after: RoadmapVersion): JourneyDiff[] {
@@ -248,6 +356,7 @@ export class RmActivityService {
   private names: { at: number; byCif: Promise<ReadonlyMap<string, string>> } | null = null
   private readonly rmNames = new Map<string, Promise<string>>()
   private readonly insightMemo = new Map<string, Insight[]>()
+  private readonly homes = new Map<string, { at: number; home: Promise<IsoDate> }>()
 
   constructor(deps: RmActivityDeps) {
     this.deps = deps
@@ -267,8 +376,7 @@ export class RmActivityService {
     const entries = await Promise.all(
       cifs.map(async (cif): Promise<[string, ActivityFacts]> => {
         try {
-          const set = await this.recordOf(cif)
-          return [cif, factsOf(set, changes, notes, asOf)]
+          return [cif, factsOf(await this.historyOf(cif), changes, notes, asOf)]
         } catch (err) {
           this.deps.log.warn({ cif, err: (err as Error).message }, 'rm activity: facts not read')
           return [cif, NO_ACTIVITY]
@@ -287,13 +395,14 @@ export class RmActivityService {
       const out: Handoff[] = []
       for (const cif of cifs) {
         try {
-          const set = await this.recordOf(cif)
-          for (const request of requestsOf(set)) {
+          const history = await this.historyOf(cif)
+          for (const request of requestsOf(history, history.home)) {
             // The status first: a year of history's resolved requests needs no reason read.
             const { status } = handoffStatus(
               request.decision.atSim,
               changesOf(request, changes),
               asOf,
+              request.history,
             )
             if (status === 'resolved') continue
             out.push(await this.handoffOf(request, changes, names, versions))
@@ -345,7 +454,7 @@ export class RmActivityService {
       for (const n of notes) count(n.atSim)
       for (const c of changes) count(c.atSim)
       for (const cif of cifs) {
-        const set = await this.recordOf(cif).catch(() => null)
+        const set = await this.historyOf(cif).catch(() => null)
         if (!set) continue
         set.trails.forEach((trail, i) => {
           for (const d of trail.decisions) count(d.atSim)
@@ -372,8 +481,8 @@ export class RmActivityService {
    */
   async journey(rm: RmCaller, cif: string): Promise<RmJourney> {
     void rm
-    const [set, changes, notes, products] = await Promise.all([
-      this.recordOf(cif),
+    const [history, changes, notes, products] = await Promise.all([
+      this.historyOf(cif),
       this.statusChanges([cif]),
       this.deps.activity.listNotes([cif]),
       this.productNames(),
@@ -400,34 +509,53 @@ export class RmActivityService {
       })
     }
 
+    // Plan versions across the one history, oldest first. Each is read against the version before
+    // it on its own session, or, for a session's first, against the one history's version before
+    // it: a reviewer's first plan that follows the simulator's months is a refresh of that plan,
+    // not a first plan, and its diff is what moved since.
     const versionsOf = this.versionsReader()
-    for (const [i, session] of set.sessions.entries()) {
-      const trail = set.trails[i]
-      if (!trail) continue
-      const versions = await versionsOf(session.id)
-      for (const [v, version] of versions.entries()) {
-        const diff = planDiff(versions[v - 1] ?? null, version)
-        // A re-cut that moved none of the four things is the record's business, not the
-        // timeline's: every decision re-cuts the plan, and a dozen "nothing changed" rows a
-        // year would bury the ones that did.
-        if (v > 0 && diff.length === 0) continue
-        push(
-          {
-            id: version.id,
-            at: version.atSim,
-            kind: 'plan',
-            source: 'engine',
-            title: v === 0 ? 'First plan' : 'Plan updated',
-            detail: revoice(version.reasonForChange),
-            diff,
-            verdict: null,
-            ruleId: null,
-            amount: null,
-          },
-          version.createdAt,
-        )
+    const kept: { sessionId: string; version: RoadmapVersion }[] = []
+    for (const session of history.sessions) {
+      for (const version of await versionsOf(session.id)) {
+        if (history.keeps(session.id, version.atSim)) kept.push({ sessionId: session.id, version })
       }
+    }
+    kept.sort(
+      (a, b) =>
+        a.version.atSim.localeCompare(b.version.atSim) ||
+        a.version.createdAt.localeCompare(b.version.createdAt),
+    )
+    const lastOn = new Map<string, RoadmapVersion>()
+    let lastAny: RoadmapVersion | null = null
+    for (const { sessionId, version } of kept) {
+      const before = lastOn.get(sessionId) ?? lastAny
+      lastOn.set(sessionId, version)
+      lastAny = version
+      const diff = planDiff(before, version)
+      // A re-cut that moved none of the four things is the record's business, not the
+      // timeline's: every decision re-cuts the plan, and a dozen "nothing changed" rows a
+      // year would bury the ones that did.
+      if (before !== null && diff.length === 0) continue
+      push(
+        {
+          id: version.id,
+          at: version.atSim,
+          kind: 'plan',
+          source: 'engine',
+          title: before === null ? 'First plan' : 'Plan updated',
+          detail: planReason(version.reasonForChange, version.atSim, before === null),
+          diff,
+          verdict: null,
+          ruleId: null,
+          amount: null,
+        },
+        version.createdAt,
+      )
+    }
 
+    for (const [i, session] of history.sessions.entries()) {
+      const trail = history.trails[i]
+      if (!trail) continue
       const adviceById = new Map(trail.adviceRecords.map((r) => [r.id, r]))
       for (const d of trail.decisions) {
         if (isHandoff(d)) continue
@@ -493,7 +621,7 @@ export class RmActivityService {
       }
     }
 
-    for (const request of requestsOf(set)) {
+    for (const request of requestsOf(history, history.home)) {
       const handoff = await this.handoffOf(request, changes, names, versionsOf)
       push(
         {
@@ -623,7 +751,10 @@ export class RmActivityService {
   ): Promise<RmHandoffResponse> {
     const request = await this.findRequest(rm, handoffId)
     if (!request) throw new NotFound(`No handoff with id ${handoffId}.`)
-    await this.deps.scope.assertInBook(rm, request.cif)
+    await this.deps.scope.assertInBook(rm, request.cif, {
+      purpose: `Mark a request to talk as ${patch.status}`,
+      detail: patch.note ?? null,
+    })
 
     await this.deps.activity.appendHandoffStatus({
       handoffId,
@@ -705,7 +836,9 @@ export class RmActivityService {
         id: e.id,
         at: e.at,
         cif: e.cif,
-        name: names.get(e.cif) ?? e.cif,
+        // A refused attempt was on a customer outside the book: the log does not hand the RM
+        // the name the 403 withheld.
+        name: e.action === 'denied' ? e.cif : (names.get(e.cif) ?? e.cif),
         action: e.action,
         purpose: e.purpose,
         detail: e.detail,
@@ -717,10 +850,35 @@ export class RmActivityService {
    * Reading the record
    * ---------------------------------------------------------------- */
 
+  /** Every row on every session: what the record, the refusals and the chain walks read. */
   private async recordOf(cif: string): Promise<CustomerRecordSet> {
     const sessions = await this.deps.sessions.listByCif(cif)
     const trails = await Promise.all(sessions.map((s) => this.deps.audit.listForSession(s.id)))
     return { cif, sessions, trails }
+  }
+
+  /** The customer's one history: what the journey, the facts, the counts and the handoffs read. */
+  private async historyOf(cif: string): Promise<History> {
+    const [record, home] = await Promise.all([this.recordOf(cif), this.homeOf(cif)])
+    return oneHistory(record, home)
+  }
+
+  /**
+   * The day `create` opens a session for this customer on, as `SessionService.create` works it
+   * out: the RM clock (the session anchor), or the end of the ledger where it stops first.
+   * Cached briefly; a source that cannot say answers the RM clock.
+   */
+  private homeOf(cif: string): Promise<IsoDate> {
+    const now = this.deps.clock.now().getTime()
+    const held = this.homes.get(cif)
+    if (held && now - held.at < NAMES_TTL_MS) return held.home
+    const asOf = this.deps.book.asOf
+    const home = this.deps.bank.ledgerHorizon(cif).then(
+      (h) => (asOf > h.to ? h.to : asOf),
+      () => asOf,
+    )
+    this.homes.set(cif, { at: now, home })
+    return home
   }
 
   private statusChanges(cifs: readonly string[]): Promise<HandoffStatusChange[]> {
@@ -745,7 +903,7 @@ export class RmActivityService {
     const rest = everyone.filter((cif) => !mine.includes(cif)).sort()
     for (const cif of [...mine, ...rest]) {
       const set = await this.recordOf(cif)
-      const found = requestsOf(set).find((r) => r.decision.id === handoffId)
+      const found = requestsOf(set, await this.homeOf(cif)).find((r) => r.decision.id === handoffId)
       if (found) return found
     }
     return null
@@ -763,7 +921,12 @@ export class RmActivityService {
   ): Promise<Handoff> {
     const asOf = this.deps.book.asOf
     const requestedOn = request.decision.atSim
-    const { status, note } = handoffStatus(requestedOn, changesOf(request, changes), asOf)
+    const { status, note } = handoffStatus(
+      requestedOn,
+      changesOf(request, changes),
+      asOf,
+      request.history,
+    )
     const { reason, context } = await this.reasonOf(request, versions)
     return {
       id: request.decision.id,
@@ -894,6 +1057,67 @@ export class RmActivityService {
  * Pure helpers over one customer's record
  * ------------------------------------------------------------------ */
 
+/**
+ * One history per customer, out of every session they have had.
+ *
+ * Seeded months overlap: a hero the simulator walked on a memory boot and a reviewer then opened
+ * has both sessions over the same months, each with its own decisions on the same snapshots, and
+ * two reviewers who opened the same hero each seeded the same months behind their day one. The
+ * rule is a claim on months. Sessions are read most trusted first: reviewers' sessions, newest
+ * first (what the customer was last shown), then the simulator's. A session's seeded rows (every
+ * row on a journey session; a reviewer's rows dated before `home`, the day it opened on) claim
+ * the months from the first to the last of them, and a seeded row in a month a more trusted
+ * session has already claimed is left out. What a reviewer did on or after `home` is never left
+ * out: it is not seeded, it happened.
+ *
+ * Calls are kept whole: a call is a real instant, never seeded. The record keeps every row; this
+ * is the view the journey, the activity facts, the monthly counts and the handoffs read.
+ */
+export function oneHistory(record: CustomerRecordSet, home: IsoDate): History {
+  const seeded = (session: Session, atSim: IsoDate): boolean => isJourney(session) || atSim < home
+  const order = record.sessions
+    .map((session, i) => ({ session, trail: record.trails[i] }))
+    .sort(
+      (a, b) =>
+        Number(isJourney(a.session)) - Number(isJourney(b.session)) ||
+        b.session.createdAt.localeCompare(a.session.createdAt),
+    )
+
+  const claimed: { from: string; to: string }[] = []
+  const lost = new Map<string, { from: string; to: string }[]>()
+  for (const { session, trail } of order) {
+    lost.set(session.id, [...claimed])
+    let from: string | null = null
+    let to: string | null = null
+    for (const at of [
+      ...(trail?.decisions ?? []).map((d) => d.atSim),
+      ...(trail?.adviceRecords ?? []).map((a) => a.atSim),
+    ]) {
+      if (!seeded(session, at)) continue
+      const month = monthOf(at)
+      if (from === null || month < from) from = month
+      if (to === null || month > to) to = month
+    }
+    if (from !== null && to !== null) claimed.push({ from, to })
+  }
+
+  const keeps = (sessionId: string, atSim: IsoDate): boolean => {
+    const session = record.sessions.find((s) => s.id === sessionId)
+    if (!session || !seeded(session, atSim)) return true
+    const month = monthOf(atSim)
+    return !(lost.get(sessionId) ?? []).some((c) => month >= c.from && month <= c.to)
+  }
+  const trails = record.trails.map((trail, i) => {
+    const id = record.sessions[i]?.id ?? ''
+    return {
+      ...trail,
+      decisions: trail.decisions.filter((d) => keeps(id, d.atSim)),
+      adviceRecords: trail.adviceRecords.filter((a) => keeps(id, a.atSim)),
+    }
+  })
+  return { cif: record.cif, sessions: record.sessions, trails, record, keeps, home }
+}
+
 /** The desk's changes to one request, oldest first. */
 function changesOf(
   request: Request,
@@ -906,14 +1130,20 @@ function isHandoff(d: DecisionRecord): boolean {
   return d.actionKind === 'talk_to_rm' && d.kind === 'did_it'
 }
 
-/** Every request to talk to the RM on the customer's record, oldest first. */
-function requestsOf(set: CustomerRecordSet): Request[] {
+/**
+ * Every request to talk to the RM on these rows, oldest first, each marked where it is history's
+ * own (`Request.history`): `home` is the day the customer's sessions open on.
+ */
+function requestsOf(set: CustomerRecordSet, home: IsoDate): Request[] {
   const out: Request[] = []
   set.trails.forEach((trail, i) => {
     const session = set.sessions[i]
     if (!session) return
-    for (const d of trail.decisions)
-      if (isHandoff(d)) out.push({ cif: set.cif, session, decision: d })
+    for (const d of trail.decisions) {
+      if (!isHandoff(d)) continue
+      const history = isJourney(session) ? d.atSim <= session.lastSeen : d.atSim < home
+      out.push({ cif: set.cif, session, decision: d, history })
+    }
   })
   return out.sort((a, b) =>
     a.decision.atSim < b.decision.atSim ? -1 : a.decision.atSim > b.decision.atSim ? 1 : 0,
@@ -938,23 +1168,33 @@ function callDate(call: AvatarSessionRecord, trail: AuditTrail, session: Session
   return at ?? session.asOf
 }
 
+/**
+ * What the book row needs, off the customer's one history. The latest activity is the true
+ * latest event on it: the newest decision, question, call, note or contact, and for a reviewer's
+ * session the day its clock stands on (somebody has the app open on that day; `lastSeen` is
+ * where "since you were away" opens, a week back, and is not a visit). Refusals are counted on
+ * the record, every chain, because the Record page lists every one of them.
+ */
 function factsOf(
-  set: CustomerRecordSet,
+  set: History,
   changes: readonly HandoffStatusChange[],
   notes: readonly RmNote[],
   asOf: IsoDate,
 ): ActivityFacts {
   let last: string | null = null
-  let refusals = 0
   let udayCalls = 0
   let lastCallAt: string | null = null
   const sipMoves: { at: string; paused: boolean }[] = []
+  const refusals = set.record.trails.reduce(
+    (n, t) => n + t.adviceRecords.filter((a) => a.verdict === 'BLOCKED').length,
+    0,
+  )
 
   set.trails.forEach((trail, i) => {
     const session = set.sessions[i]
     if (!session) return
     // A person opened the app: a reviewer's session says so. The simulator's never did.
-    if (!isJourney(session)) last = latestOf(last, session.lastSeen)
+    if (!isJourney(session)) last = latestOf(last, session.asOf)
     for (const d of trail.decisions) {
       last = latestOf(last, d.atSim)
       if (d.kind !== 'did_it') continue
@@ -963,10 +1203,7 @@ function factsOf(
         sipMoves.push({ at: d.atSim, paused: false })
       }
     }
-    for (const a of trail.adviceRecords) {
-      last = latestOf(last, a.atSim)
-      if (a.verdict === 'BLOCKED') refusals += 1
-    }
+    for (const a of trail.adviceRecords) last = latestOf(last, a.atSim)
     for (const call of callsOf(trail)) {
       udayCalls += 1
       last = latestOf(last, callDate(call, trail, session))
@@ -978,12 +1215,13 @@ function factsOf(
   const mine = changes.filter((c) => c.cif === set.cif)
   for (const c of mine) last = latestOf(last, c.atSim)
 
-  const openHandoff = requestsOf(set).some(
+  const openHandoff = requestsOf(set, set.home).some(
     (r) =>
       handoffStatus(
         r.decision.atSim,
         mine.filter((c) => c.handoffId === r.decision.id),
         asOf,
+        r.history,
       ).status === 'open',
   )
   sipMoves.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))

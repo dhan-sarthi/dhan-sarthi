@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  dateLabel,
   firstName,
   initials,
   monthLabel,
@@ -74,6 +75,8 @@ describe('names and dates', () => {
     assert.equal(monthLabel('2025-10-31'), 'Oct 2025')
     assert.equal(monthName('2026-08'), 'August')
     assert.equal(monthName('2025-12-31'), 'December')
+    assert.equal(dateLabel('2026-09-01'), '1 Sep 2026')
+    assert.equal(dateLabel('2026-08-31'), '31 Aug 2026')
   })
 
   it('pluralises a count', () => {

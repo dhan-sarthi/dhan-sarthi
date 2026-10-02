@@ -45,84 +45,98 @@ export function Toolbar({
 
   const filtered = shown !== of
 
+  // The toolbar measures its own width, not the window's: beside the preview rail it has less
+  // room, and the count and the "Sort by" words give way before the controls do.
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Input
-        ref={input}
-        type="text"
-        role="searchbox"
-        aria-label="Search the book by name, CIF or city"
-        placeholder="Search by name, CIF or city"
-        autoComplete="off"
-        spellCheck={false}
-        value={query}
-        onChange={(e) => onQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Escape') return
-          // Handled here, so an open preview does not also close on the same key.
-          e.stopPropagation()
-          if (query !== '') onQuery('')
-          else e.currentTarget.blur()
-        }}
-        className="w-full max-w-sm"
-        leading={<Search aria-hidden />}
-        trailing={
-          query !== '' ? (
-            <IconButton
-              label="Clear search"
-              icon={<X aria-hidden />}
-              size="sm"
-              tooltip={false}
-              onClick={() => {
-                onQuery('')
-                input.current?.focus()
-              }}
-            />
-          ) : (
-            <Kbd aria-hidden className="mr-1">
-              /
-            </Kbd>
-          )
-        }
-      />
-      <p className="text-label font-normal text-ink-faint tabular" aria-live="polite">
-        {filtered ? (
-          <>
-            <span className="text-ink">{formatCount(shown)}</span> of {formatCount(of)}
-          </>
-        ) : (
-          `${formatCount(of)} ${of === 1 ? 'customer' : 'customers'}`
-        )}
-      </p>
-
-      <div className="ml-auto flex items-center gap-1.5">
-        <label htmlFor="book-sort" className="mr-1 text-label font-normal text-ink-faint">
-          Sort by
-        </label>
-        <Select
-          id="book-sort"
-          value={sort}
-          onChange={(e) => {
-            if (isSortKey(e.target.value)) onSort(e.target.value)
+    <div className="@container">
+      <div className="flex items-center gap-3">
+        <Input
+          ref={input}
+          type="text"
+          role="searchbox"
+          aria-label="Search the book by name, CIF or city"
+          placeholder="Search by name, CIF or city"
+          autoComplete="off"
+          spellCheck={false}
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return
+            // Handled here, so an open preview does not also close on the same key.
+            e.stopPropagation()
+            if (query !== '') onQuery('')
+            else e.currentTarget.blur()
           }}
-          className="w-72"
-        >
-          {SORTS.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-        </Select>
-        <IconButton
-          variant="secondary"
-          label={
-            dir === 'desc' ? 'Descending: switch to ascending' : 'Ascending: switch to descending'
+          className="min-w-44 flex-1 @3xl:max-w-sm"
+          leading={<Search aria-hidden />}
+          trailing={
+            query !== '' ? (
+              <IconButton
+                label="Clear search"
+                icon={<X aria-hidden />}
+                size="sm"
+                tooltip={false}
+                onClick={() => {
+                  onQuery('')
+                  input.current?.focus()
+                }}
+              />
+            ) : (
+              <Kbd aria-hidden className="mr-1">
+                /
+              </Kbd>
+            )
           }
-          icon={
-            dir === 'desc' ? <ArrowDownWideNarrow aria-hidden /> : <ArrowUpNarrowWide aria-hidden />
-          }
-          onClick={() => onSort(sort, dir === 'desc' ? 'asc' : 'desc')}
         />
+        <p
+          className="sr-only text-label font-normal whitespace-nowrap text-ink-faint tabular @2xl:not-sr-only"
+          aria-live="polite"
+        >
+          {filtered ? (
+            <>
+              <span className="text-ink">{formatCount(shown)}</span> of {formatCount(of)}
+            </>
+          ) : (
+            `${formatCount(of)} ${of === 1 ? 'customer' : 'customers'}`
+          )}
+        </p>
+
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <label
+            htmlFor="book-sort"
+            className="sr-only mr-1 text-label font-normal whitespace-nowrap text-ink-faint @3xl:not-sr-only"
+          >
+            Sort by
+          </label>
+          <Select
+            id="book-sort"
+            value={sort}
+            onChange={(e) => {
+              if (isSortKey(e.target.value)) onSort(e.target.value)
+            }}
+            className="w-52 @3xl:w-72"
+          >
+            {SORTS.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+          <IconButton
+            variant="secondary"
+            label={
+              dir === 'desc' ? 'Descending: switch to ascending' : 'Ascending: switch to descending'
+            }
+            icon={
+              dir === 'desc' ? (
+                <ArrowDownWideNarrow aria-hidden />
+              ) : (
+                <ArrowUpNarrowWide aria-hidden />
+              )
+            }
+            onClick={() => onSort(sort, dir === 'desc' ? 'asc' : 'desc')}
+          />
+        </div>
       </div>
     </div>
   )

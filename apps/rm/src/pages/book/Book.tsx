@@ -2,10 +2,12 @@ import type { BookRow, BookTab, RmBook } from '@dhan/contracts'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { Inbox, SearchX, Users } from 'lucide-react'
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
-  type FocusEvent,
+  useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
@@ -16,28 +18,28 @@ import {
   Button,
   Card,
   DataTable,
-  Disclaimer,
   EmptyState,
   ErrorState,
   PageHeader,
   SEGMENT,
   SEVERITY,
-  SegmentTabs,
   Skeleton,
   SplitView,
 } from '../../ui/index.ts'
 import { PageLoading, TableSkeleton } from '../placeholder.tsx'
+import { BookTabs } from './BookTabs.tsx'
 import { bookColumns } from './columns.tsx'
-import { fitColumns, useWidth } from './fit.ts'
+import { fitColumns, useMedia, useWidth } from './fit.ts'
 import { useBookParams } from './params.ts'
 import { Preview } from './Preview.tsx'
 import {
+  ASKED_FOR_YOU,
   IN_TAB,
   defaultDir,
-  hiddenFromTab,
   isSortKey,
   matchesQuery,
   sliceTotals,
+  tabLabel,
   type SortDir,
   type SortKey,
 } from './rows.ts'
@@ -45,17 +47,35 @@ import { SummaryBand } from './SummaryBand.tsx'
 import { Toolbar } from './Toolbar.tsx'
 
 /**
+ * The band's chart starts unfolded only on a screen with room for it and a page of rows under
+ * it; on a laptop (1280 or 1366 wide, or 900 tall) the page opens on the list.
+ */
+const ROOMY = '(min-width: 1440px) and (min-height: 960px)'
+
+/**
+ * Below 1440 wide the book's rail is narrower than the kit's 440px, so that on a 1280 or 1366
+ * laptop the list beside it still holds the customer, the value and the top signal, and the tabs
+ * over it fit on one line.
+ */
+const LAPTOP = '(max-width: 1439px)'
+const LAPTOP_RAIL = { '--spacing-rail': '380px' } as CSSProperties
+
+const CHART_PREF_KEY = 'dhan.rm.book.chart.v1'
+
+/**
  * Book: every customer in the RM's book, in one dense, quiet table.
  *
- * The page is a summary band (the whole book), segment tabs with their counts, search and sort,
- * then the table, whose footer adds up whatever slice is on screen. A row opens a preview rail
- * beside the list rather than over it, so the RM can walk the book with the arrow keys and keep
- * their place. Every piece of that state is in the address (see `params.ts`).
+ * The page is a strip of the whole book's figures (with a chart of the view the RM can unfold),
+ * the tabs with their counts, search and sort, then the table, whose footer adds up whatever
+ * slice is on screen. A row opens a preview rail beside everything under the title, so the RM
+ * can walk the book with the arrow keys and keep their place. Every piece of that state but the
+ * chart's fold is in the address (see `params.ts`).
  */
 export function Book() {
   const book = useBook()
+  const chart = useChartFold()
 
-  if (book.data) return <BookView book={book.data} />
+  if (book.data) return <BookView book={book.data} chart={chart} />
   if (book.isError) {
     return (
       <>
@@ -72,43 +92,75 @@ export function Book() {
       </>
     )
   }
-  return <BookLoading />
+  return <BookLoading expanded={chart.expanded} />
 }
 
-function BookLoading() {
+/**
+ * Whether the band's chart is unfolded: the RM's own choice once they have made one (kept in
+ * this browser only), and until then open on a roomy screen and folded on a laptop.
+ */
+function useChartFold(): { expanded: boolean; toggle: () => void } {
+  const roomy = useMedia(ROOMY)
+  const [choice, setChoice] = useState<boolean | null>(() => {
+    try {
+      const saved = window.localStorage.getItem(CHART_PREF_KEY)
+      return saved === 'open' ? true : saved === 'closed' ? false : null
+    } catch {
+      return null
+    }
+  })
+  const expanded = choice ?? roomy
+  const toggle = useCallback(() => {
+    const next = !expanded
+    setChoice(next)
+    try {
+      window.localStorage.setItem(CHART_PREF_KEY, next ? 'open' : 'closed')
+    } catch {
+      // Private windows and blocked storage: the fold still works for this visit.
+    }
+  }, [expanded])
+  return { expanded, toggle }
+}
+
+function BookLoading({ expanded }: { expanded: boolean }) {
   return (
     <>
       <PageHeader title="Book" subtitle={<Skeleton className="mt-1 h-4 w-64" />} />
       <PageLoading label="Loading your book">
-        <div className="grid gap-5">
-          <Card padded={false} className="grid h-[13.5rem] grid-cols-[1fr_1.3fr_0.95fr]">
-            <div className="flex flex-col gap-3 p-5">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-10 w-36" />
-              <Skeleton className="h-3 w-56" />
-              <Skeleton className="mt-auto h-2.5 w-full rounded-full" />
-            </div>
-            <div className="grid content-start gap-3 border-l border-hairline-soft p-5">
-              <Skeleton className="h-3 w-32" />
-              <Skeleton className="h-6 w-24" />
-              <Skeleton className="mt-2 h-24 w-full" />
-            </div>
-            <div className="grid content-start gap-5 border-l border-hairline-soft p-5">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="grid gap-2">
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-2.5 w-36" />
-                  </div>
-                  <Skeleton className="h-5 w-14" />
+        <div className="grid gap-4">
+          <Card padded={false}>
+            <div className="flex h-16 items-center gap-6 px-5">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="grid flex-1 gap-1.5">
+                  <Skeleton className="h-2.5 w-20" />
+                  <Skeleton className="h-4 w-28" />
                 </div>
               ))}
+              <Skeleton className="h-control-sm w-24 rounded-sm" />
             </div>
+            {expanded ? (
+              <div className="grid h-48 grid-cols-[1.35fr_1fr] border-t border-hairline-soft">
+                <div className="grid content-start gap-3 p-5">
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="mt-2 h-20 w-full" />
+                </div>
+                <div className="grid content-start gap-3 border-l border-hairline-soft p-5">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-2.5 w-full rounded-full" />
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-3 w-full" />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </Card>
-          <Skeleton className="h-[3.25rem] w-full rounded-lg" />
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-control w-96 rounded-md" />
-            <Skeleton className="ml-auto h-control w-80 rounded-md" />
+          <div className="grid gap-3">
+            <Skeleton className="h-11 w-full max-w-2xl rounded-lg" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-control w-96 rounded-md" />
+              <Skeleton className="ml-auto h-control w-80 rounded-md" />
+            </div>
           </div>
           <TableSkeleton rows={10} />
         </div>
@@ -117,13 +169,24 @@ function BookLoading() {
   )
 }
 
-function BookView({ book }: { book: RmBook }) {
+function BookView({
+  book,
+  chart,
+}: {
+  book: RmBook
+  chart: { expanded: boolean; toggle: () => void }
+}) {
   const [params, setParams] = useBookParams()
   const navigate = useNavigate()
+  const laptop = useMedia(LAPTOP)
   const listRef = useRef<HTMLDivElement>(null)
+  // What was typed into a call note, per customer, so walking away from a row keeps the draft.
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
+  // The customer whose log-a-call form is open; moving the preview to someone else closes it.
+  const [loggingCif, setLoggingCif] = useState<string | null>(null)
 
-  const tabCounts = useMemo(
-    () => new Map(book.segments.map((s) => [s.id, s.count] as const)),
+  const tabs = useMemo(
+    () => book.segments.map((s) => ({ ...s, label: tabLabel(s.id, s.label) })),
     [book.segments],
   )
   const inTab = useMemo(() => book.rows.filter(IN_TAB[params.tab]), [book.rows, params.tab])
@@ -135,14 +198,25 @@ function BookView({ book }: { book: RmBook }) {
     () => (params.cif ? (book.rows.find((r) => r.cif === params.cif) ?? null) : null),
     [book.rows, params.cif],
   )
-  const totals = useMemo(() => sliceTotals(visible, book.asOf), [visible, book.asOf])
+  const totals = useMemo(() => sliceTotals(visible), [visible])
 
   // The table's own width, less its two hairline borders, decides which columns it can hold.
   const width = useWidth(listRef, 1140) - 2
   const fit = fitColumns(width, selected !== null)
   const columns = useMemo(
-    () => bookColumns({ asOf: book.asOf, totals, signal: fit.signal }),
-    [book.asOf, totals, fit.signal],
+    () =>
+      bookColumns({
+        asOf: book.asOf,
+        totals,
+        fit,
+        seriesLabel: book.basis.seriesLabel,
+        asOfLabel: book.basis.asOfLabel,
+        // On the Asked tab every row has asked: the chip would say nothing and cost the room.
+        askedChip: params.tab !== 'asked_for_rm',
+      }),
+    // `fit` is rebuilt every render; its three parts are what the columns read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [book.asOf, book.basis, totals, fit.signal, fit.slim, params.tab],
   )
 
   const sorting: SortingState = [{ id: params.sort, desc: params.dir === 'desc' }]
@@ -163,9 +237,7 @@ function BookView({ book }: { book: RmBook }) {
   useEffect(() => {
     if (scrolledTo.current || !params.cif) return
     scrolledTo.current = true
-    const row = listRef.current
-      ?.querySelector(`[data-cif="${CSS.escape(params.cif)}"]`)
-      ?.closest('tr')
+    const row = listRef.current?.querySelector(`tr[data-row-id="${CSS.escape(params.cif)}"]`)
     if (!row) return
     // Only when it is out of sight, and then to the middle: the table's header sticks under the
     // top bar and its footer to the bottom of the window, so "nearest" can park the row
@@ -176,35 +248,33 @@ function BookView({ book }: { book: RmBook }) {
 
   const select = (cif: string | null) => setParams({ cif })
 
-  /** With the preview open, it follows keyboard focus down the list. */
-  function onListFocus(event: FocusEvent<HTMLDivElement>) {
-    if (!selected || !(event.target instanceof HTMLTableRowElement)) return
-    const cif = event.target.querySelector<HTMLElement>('[data-cif]')?.dataset['cif']
-    if (cif && cif !== selected.cif) select(cif)
+  /** Enter or a click opens the preview; Enter on the row already previewed opens the file. */
+  function onRowClick(row: BookRow, event: { type: string }) {
+    if (event.type === 'keydown' && selected?.cif === row.cif) {
+      void navigate(`/customers/${encodeURIComponent(row.cif)}`)
+      return
+    }
+    select(row.cif)
   }
 
-  /** Enter opens the preview; Enter on the row already previewed opens the profile. Esc closes. */
+  /** With the preview open, it follows keyboard focus down the list. */
+  function onRowFocus(row: BookRow) {
+    if (selected && row.cif !== selected.cif) select(row.cif)
+  }
+
+  /** Esc on the list closes the preview; inside the rail, the rail handles its own Esc. */
   function onListKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape' && selected) {
       event.preventDefault()
       select(null)
-      return
-    }
-    if (event.key !== 'Enter' || !selected) return
-    if (!(event.target instanceof HTMLTableRowElement)) return
-    const cif = event.target.querySelector<HTMLElement>('[data-cif]')?.dataset['cif']
-    if (cif === selected.cif) {
-      event.preventDefault()
-      event.stopPropagation()
-      void navigate(`/customers/${encodeURIComponent(cif)}`)
     }
   }
 
-  const tabLabel = book.segments.find((s) => s.id === params.tab)?.label ?? 'All'
-  const hidden =
-    params.tab === 'idle_cash'
-      ? hiddenFromTab(tabCounts.get('idle_cash') ?? 0, book.rows, 'idle_cash')
-      : 0
+  const currentTab = tabs.find((s) => s.id === params.tab)?.label ?? 'All'
+  const query = params.q.trim()
+  const viewLabel = `${params.tab === 'all' ? 'the whole book' : currentTab}${
+    query ? `, matching ‘${query}’` : ''
+  } · ${formatCount(visible.length)} ${visible.length === 1 ? 'customer' : 'customers'}`
   const actNow = book.rows.filter((r) => r.topSignal?.severity === 'urgent').length
 
   if (book.rows.length === 0) {
@@ -242,66 +312,80 @@ function BookView({ book }: { book: RmBook }) {
         }
       />
 
-      <div className="grid gap-5">
-        <SummaryBand book={book} onShowHandoffs={() => setParams({ tab: 'asked_for_rm' })} />
-
-        <div className="grid gap-3">
-          <SegmentTabs
-            label="Book segments"
-            tabs={book.segments}
-            value={params.tab}
-            onChange={(tab) => setParams({ tab })}
-          />
-          <Toolbar
-            query={params.q}
-            onQuery={(q) => setParams({ q })}
-            sort={params.sort}
-            dir={params.dir}
-            onSort={(sort: SortKey, dir?: SortDir) =>
-              setParams({ sort, dir: dir ?? defaultDir(sort) })
-            }
-            shown={visible.length}
-            of={inTab.length}
-          />
-          {hidden > 0 ? (
-            <Disclaimer>
-              {formatCount(inTab.length)} with idle cash as their top signal. {formatCount(hidden)}{' '}
-              more have idle cash behind a bigger signal; their files list it.
-            </Disclaimer>
-          ) : null}
-        </div>
-
+      {/* The rail sits beside everything under the title, so it opens at the top of the page,
+          beside the band, rather than half way down beside the first rows. */}
+      <div style={laptop ? LAPTOP_RAIL : undefined}>
         <SplitView
           open={selected !== null}
           rail={
             selected ? (
-              <Preview row={selected} asOf={book.asOf} onClose={() => select(null)} />
+              <Preview
+                row={selected}
+                basis={book.basis}
+                onClose={() => select(null)}
+                logging={loggingCif === selected.cif}
+                onLogging={(open) => setLoggingCif(open ? selected.cif : null)}
+                draft={drafts[selected.cif] ?? ''}
+                onDraft={(text) => setDrafts((all) => ({ ...all, [selected.cif]: text }))}
+                compact={laptop}
+              />
             ) : null
           }
         >
-          <div ref={listRef} onFocus={onListFocus} onKeyDownCapture={onListKeyDown}>
-            <DataTable
-              caption={`Customers in your book, ${tabLabel}`}
-              data={visible}
-              columns={columns}
-              getRowId={(r: BookRow) => r.cif}
-              sorting={sorting}
-              onSortingChange={onSortingChange}
-              columnVisibility={fit.visibility}
-              onRowClick={(r: BookRow) => select(r.cif)}
-              selectedId={selected?.cif ?? null}
-              stickyTop={56}
-              empty={
-                <NoRows
-                  tab={params.tab}
-                  tabLabel={tabLabel}
-                  hidden={hidden}
-                  query={params.q}
-                  onClearSearch={() => setParams({ q: '' })}
-                  onAllTab={() => setParams({ tab: 'all' })}
-                />
-              }
+          <div className="grid gap-4">
+            <SummaryBand
+              book={book}
+              view={visible}
+              viewLabel={viewLabel}
+              expanded={chart.expanded}
+              onToggle={chart.toggle}
+              onShowAsked={() => setParams({ tab: 'asked_for_rm', q: '' })}
             />
+
+            <div className="grid gap-3">
+              <BookTabs
+                label="Book segments and work"
+                tabs={tabs}
+                value={params.tab}
+                onChange={(tab) => setParams({ tab })}
+              />
+              <Toolbar
+                query={params.q}
+                onQuery={(q) => setParams({ q })}
+                sort={params.sort}
+                dir={params.dir}
+                onSort={(sort: SortKey, dir?: SortDir) =>
+                  setParams({ sort, dir: dir ?? defaultDir(sort) })
+                }
+                shown={visible.length}
+                of={inTab.length}
+              />
+            </div>
+
+            <div ref={listRef} onKeyDown={onListKeyDown}>
+              <DataTable
+                caption={`Customers in your book, ${currentTab}`}
+                data={visible}
+                columns={columns}
+                getRowId={(r: BookRow) => r.cif}
+                sorting={sorting}
+                onSortingChange={onSortingChange}
+                columnVisibility={fit.visibility}
+                onRowClick={onRowClick}
+                onRowFocus={onRowFocus}
+                selectedId={selected?.cif ?? null}
+                stickyTop={56}
+                empty={
+                  <NoRows
+                    tab={params.tab}
+                    tabLabel={currentTab}
+                    query={params.q}
+                    onClearSearch={() => setParams({ q: '' })}
+                    onAllTab={() => setParams({ tab: 'all' })}
+                  />
+                }
+              />
+            </div>
           </div>
         </SplitView>
       </div>
@@ -313,15 +397,12 @@ function BookView({ book }: { book: RmBook }) {
 function NoRows({
   tab,
   tabLabel,
-  hidden,
   query,
   onClearSearch,
   onAllTab,
 }: {
   tab: BookTab
   tabLabel: string
-  /** Customers the tab counts that the rows cannot show (idle cash behind a bigger signal). */
-  hidden: number
   query: string
   onClearSearch: () => void
   onAllTab: () => void
@@ -369,18 +450,12 @@ function NoRows({
       title: 'Every goal is on track',
       body: 'A customer whose plan has a shortfall, an urgent signal or no route to the goal shows up here.',
     },
-    idle_cash:
-      hidden > 0
-        ? {
-            title: 'Nobody has idle cash as their top signal',
-            body: `${formatCount(hidden)} ${hidden === 1 ? 'customer has' : 'customers have'} idle cash behind a bigger signal; their files list it.`,
-          }
-        : {
-            title: 'Nobody is sitting on idle cash',
-            body: 'A customer who keeps more in savings than they need, month after month, shows up here.',
-          },
+    idle_cash: {
+      title: 'Nobody is sitting on idle cash',
+      body: 'A customer who keeps more in savings than they need, month after month, shows up here.',
+    },
     asked_for_rm: {
-      title: 'Nobody has asked for you',
+      title: `Nobody has ${ASKED_FOR_YOU.toLowerCase()}`,
       body: 'When a customer taps Talk to your relationship manager in the app, they show up here.',
     },
   }

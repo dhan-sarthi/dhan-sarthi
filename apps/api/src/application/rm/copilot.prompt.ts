@@ -51,6 +51,9 @@ const RULES = (first: string): string[] => [
   '- Never calculate. Every figure you write (an amount, a rate, a count, a date, a number of',
   '  months) must appear, written the same way, in a fact the sentence cites. Do not add,',
   '  subtract, round, convert to lakh or crore, or work out a difference or a total.',
+  '- Keep each figure to what its fact says it is, beside the same word: the balance a customer',
+  '  can reach is not the shortfall, and the cover needed is not the cover held. A sentence that',
+  '  gives a figure another meaning is deleted.',
   `- You never decide whether a product suits ${first}; the bank's rules do. Name a product only`,
   '  where a cited fact names it. Never put forward a product a fact says was refused, and never',
   '  put forward an investment while a fact says the rules hold investments back. Report a',
@@ -65,7 +68,8 @@ const CITE_RULE =
   'End every sentence with the ids of the facts it rests on, in square brackets, like [F2] or ' +
   '[F4, F9]. One sentence per line, under 30 words; never two sentences on one line. A ' +
   'sentence with no ids, an id that does not exist, or a figure its cited facts do not ' +
-  'contain is deleted before the RM sees it.'
+  'contain is deleted before the RM sees it. A second sentence on a line is split off and ' +
+  'shown as its own point.'
 
 function factBlock(people: PromptPeople, facts: readonly Fact[]): string {
   return [
@@ -94,8 +98,11 @@ export function briefPrompt(people: PromptPeople, facts: readonly Fact[]): ChatM
     `- Since the last contact: what has happened since the RM last spoke to ${first} (requests,`,
     '  decisions, refusals, what the statement shows), or, where no contact is on record, what is',
     '  new on the record.',
-    '- Talk about: the two or three things worth raising, in the order the facts rank them:',
-    '  Urgent first, then Important, then Opportunity.',
+    '- Talk about: the two or three things worth raising. The facts that open "Urgent:",',
+    '  "Important:" or "Opportunity:" are the signals, listed in the order the bank ranks them.',
+    '  Write about them in that order, one point per sentence that stands on its own. Do not write',
+    '  "Urgent", "Important" or "Opportunity" yourself, and do not number or sequence the points',
+    '  ("first", "next"): the console orders them by that ranking and adds the tag.',
     '- Be careful about: what not to offer and why, any refusal and the words the customer heard,',
     '  and anything that would make advice wrong.',
     `- They may ask: questions ${first} is likely to raise, each with the short answer the facts give.`,

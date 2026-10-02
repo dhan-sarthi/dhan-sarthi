@@ -1,13 +1,18 @@
 import type { Allocation } from '@dhan/contracts'
 import { cn } from '../lib/cn.ts'
 import { formatInr, formatPct } from '../lib/format.ts'
+import { useBadgeTabIndex } from './interactive-row.tsx'
 import { Tooltip } from './Tooltip.tsx'
 
-/** Fixed order and fixed colours, so equity is the same green in every row of the book. */
+/**
+ * Fixed order and fixed colours, so equity is the same green in every row of the book. The `cash`
+ * class is every bank balance, fixed deposits included, so it is named for what it holds: a
+ * banker reads "cash" as idle money.
+ */
 export const ALLOCATION_PARTS = [
   { key: 'equity', label: 'Equity', fill: 'bg-chart-equity' },
   { key: 'fixed', label: 'Fixed income', fill: 'bg-chart-fixed' },
-  { key: 'cash', label: 'Cash', fill: 'bg-chart-cash' },
+  { key: 'cash', label: 'Deposits & cash', fill: 'bg-chart-cash' },
 ] as const satisfies readonly { key: keyof Allocation; label: string; fill: string }[]
 
 export interface AllocationBarProps {
@@ -44,12 +49,13 @@ export function AllocationBar({
   const parts = shares(allocation)
   const total = parts.reduce((s, p) => s + p.value, 0)
   const summary = parts.map((p) => `${p.label} ${formatPct(Math.round(p.pct))}`).join(', ')
+  const badgeTab = useBadgeTabIndex()
 
   const bar = (
     <div
       role="img"
       aria-label={total > 0 ? summary : 'No balances or holdings'}
-      tabIndex={legend ? undefined : 0}
+      tabIndex={legend ? undefined : badgeTab}
       className={cn(
         'flex w-full gap-[2px] overflow-hidden rounded-full focus-visible:outline-2 focus-visible:outline-focus',
         size === 'thin' ? 'h-1.5' : 'h-2.5',

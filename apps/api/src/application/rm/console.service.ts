@@ -16,6 +16,7 @@ import {
   bookTotals,
   bookUpcoming,
   callQueue,
+  figureBasis,
   goalHealthCounts,
   refusalsByRule,
   segmentBreakdown,
@@ -27,6 +28,8 @@ import type {
   BookRow,
   BookTab,
   Customer360,
+  FigureBasis,
+  InsightSeriesKey,
   RmBook,
   RmInsights,
   RmMe,
@@ -39,7 +42,7 @@ import type { RmBookScope } from './book-scope.ts'
 import type { RmBookService } from './book.service.ts'
 import type { RmCaller } from './caller.ts'
 import type { RmCopilotService } from './copilot.service.ts'
-import { paise } from './customer-state.ts'
+import { BALANCE_SERIES_MONTHS, paise } from './customer-state.ts'
 import type { CustomerState } from './customer-state.ts'
 import type { RmAuthService } from './rm-auth.service.ts'
 import { bookRow, customer360 } from './views.ts'
@@ -58,18 +61,38 @@ const TAB_LABEL: Readonly<Record<BookTab, string>> = {
   mass: 'Mass',
   at_risk: 'At risk',
   idle_cash: 'Idle cash',
-  asked_for_rm: 'Asked for RM',
+  asked_for_rm: 'Asked for you',
 }
 
-/** Which rows each tab shows. The contract's comment on `BookTab` is the definition. */
-const IN_TAB: Readonly<Record<BookTab, (row: BookRow, state: CustomerState) => boolean>> = {
+/**
+ * Which rows each tab shows. The contract's comment on `BookTab` is the definition, and every
+ * test here reads the row alone, so the console can apply the same filter to the rows it has
+ * and arrive at the same count.
+ */
+export const IN_TAB: Readonly<Record<BookTab, (row: BookRow) => boolean>> = {
   all: () => true,
   priority: (row) => row.segment === 'priority',
   affluent: (row) => row.segment === 'affluent',
   mass: (row) => row.segment === 'mass',
   at_risk: (row) => row.goal.health !== 'on_track',
-  idle_cash: (_row, state) => state.signals.some((s) => s.kind === 'idle_cash'),
+  idle_cash: (row) => row.signalKinds.includes('idle_cash'),
   asked_for_rm: (row) => row.openHandoff,
+}
+
+/**
+ * What each Insights series is, in words for beside its chart. Balances are month-ends; flows,
+ * debits and counts are totals over each calendar month. The SIP series is the debits the
+ * statements file as investment, which is not the SIP book: that is registered SIPs, `asAt`.
+ */
+const SERIES_LABEL: Readonly<Record<InsightSeriesKey, string>> = {
+  bookBalance: 'Balances at each month-end, every bank',
+  withIdbi: 'Balances with IDBI at each month-end',
+  inflow: 'Money in during each month, per statements',
+  outflow: 'Money out during each month, per statements',
+  sipDebits: 'SIP debits per statements, each month',
+  sipBook: 'SIP debits per statements, each month',
+  activity: 'Decisions, questions, calls and notes, each month',
+  refusals: 'Refusals by Uday, each month',
 }
 
 const SEVERITY_RANK: Readonly<Record<SignalSeverity, number>> = {
@@ -78,7 +101,12 @@ const SEVERITY_RANK: Readonly<Record<SignalSeverity, number>> = {
   opportunity: 2,
 }
 
-const ASSET_CLASS_LABEL = { cash: 'Cash', equity: 'Equity', fixed: 'Fixed income' } as const
+// `cash` is every bank balance, fixed deposits included; "Cash" alone reads as idle money.
+const ASSET_CLASS_LABEL = {
+  cash: 'Deposits & cash',
+  equity: 'Equity',
+  fixed: 'Fixed income',
+} as const
 const SEGMENT_LABEL = { priority: 'Priority', affluent: 'Affluent', mass: 'Mass' } as const
 
 /** `YYYY-MM` of a date or a month key. */
@@ -98,6 +126,11 @@ export class RmConsoleService {
 
   constructor(deps: RmConsoleDeps) {
     this.deps = deps
+  }
+
+  /** As at the RM clock for headline figures; the twelve month-ends before it for charts. */
+  private basis(): FigureBasis {
+    return figureBasis(this.deps.book.asOf, BALANCE_SERIES_MONTHS)
   }
 
   async me(rm: RmCaller): Promise<RmMe> {
@@ -122,30 +155,32 @@ export class RmConsoleService {
 
   async book(rm: RmCaller): Promise<RmBook> {
     const { states, facts } = await this.loadBook(rm)
-    const pairs = states
-      .map((state) => ({ state, row: bookRow(state, facts.get(state.cif) ?? NO_ACTIVITY) }))
+    const rows = states
+      .map((state) => bookRow(state, facts.get(state.cif) ?? NO_ACTIVITY))
       // Largest relationship first, then by name: the order a desk reads a book in, and stable.
       .sort(
         (a, b) =>
-          b.row.relationshipValue - a.row.relationshipValue ||
-          (a.row.name < b.row.name ? -1 : a.row.name > b.row.name ? 1 : 0),
+          b.relationshipValue - a.relationshipValue ||
+          (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
       )
-    const rows = pairs.map((p) => p.row)
     const totals = bookTotals(rows)
     return {
       asOf: this.deps.book.asOf,
+      basis: this.basis(),
       rows,
       totals: {
         customers: totals.customers,
         relationshipValue: paise(totals.relationshipValue),
+        balances: paise(totals.balances),
         withIdbi: paise(totals.withIdbi),
+        walletSharePct: totals.walletSharePct,
         sipMonthly: paise(totals.sipMonthly),
         openHandoffs: rows.filter((r) => r.openHandoff).length,
       },
       segments: (Object.keys(TAB_LABEL) as BookTab[]).map((id) => ({
         id,
         label: TAB_LABEL[id],
-        count: pairs.filter((p) => IN_TAB[id](p.row, p.state)).length,
+        count: rows.filter(IN_TAB[id]).length,
       })),
     }
   }
@@ -170,6 +205,7 @@ export class RmConsoleService {
 
     return {
       asOf: this.deps.book.asOf,
+      basis: this.basis(),
       kpis: todayKpis({ rows, openHandoffWaits: open.map((h) => h.waitingDays) }).map((k) =>
         k.unit === 'inr'
           ? { ...k, value: paise(k.value), delta: k.delta === null ? null : paise(k.delta) }
@@ -223,6 +259,7 @@ export class RmConsoleService {
 
     const flows = this.monthlyFlows(states, months)
     const allocation = allocationTotals(rows)
+    const totals = bookTotals(rows)
     const goals = goalHealthCounts(rows.map((r) => r.goal.health))
     const allSignals = states.flatMap((s) => s.signals)
     const worst = new Map<string, SignalSeverity>()
@@ -235,12 +272,25 @@ export class RmConsoleService {
 
     return {
       asOf: this.deps.book.asOf,
+      basis: this.basis(),
+      // The same sums as the Book's footer and Today's strip, so a headline here and there is
+      // one number: as at the RM clock, never the last month-end of the chart under it.
+      asAt: {
+        customers: totals.customers,
+        relationshipValue: paise(totals.relationshipValue),
+        balances: paise(totals.balances),
+        withIdbi: paise(totals.withIdbi),
+        walletSharePct: totals.walletSharePct,
+        sipMonthly: paise(totals.sipMonthly),
+        sipCustomers: rows.filter((r) => r.sipMonthly > 0).length,
+      },
       months,
       series: {
         bookBalance: balances.map((p) => p.total),
         withIdbi: balances.map((p) => p.withIdbi),
         inflow: flows.inflow,
         outflow: flows.outflow,
+        sipDebits: flows.invested,
         sipBook: flows.invested,
         activity,
         // Counted off the same refusal items Today lists, by the month each was given in. Empty
@@ -270,6 +320,7 @@ export class RmConsoleService {
         severity: worst.get(k.kind) ?? 'opportunity',
         count: k.count,
       })),
+      seriesLabels: SERIES_LABEL,
       refusalsByRule: refusalsByRule(refusals),
       topMovers: rows
         .filter((r): r is BookRow & { balanceChange3mPct: number } => r.balanceChange3mPct !== null)
@@ -293,8 +344,9 @@ export class RmConsoleService {
    *
    * Self-transfers are left out on both sides: money moving between two of a customer's own
    * accounts was neither earned nor spent, and counting it would double every sweep. "Invested"
-   * is the debits the statement files as investment — the SIP book as the ledger shows it each
-   * month, which moves with the mandates, where holdings before the anchor do not.
+   * is the debits the statement files as investment: SIP debits per statements, which move with
+   * the mandates where holdings before the anchor do not. It is not the SIP book, which is the
+   * registered SIPs on the holdings and the one figure every page leads with.
    */
   private monthlyFlows(
     states: readonly CustomerState[],

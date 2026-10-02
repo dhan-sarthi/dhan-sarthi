@@ -2,17 +2,23 @@
  * The RM copilot: "Brief me for a meeting" and "Ask about this customer", scoped to one customer
  * in the caller's book (docs/product/rm-console.md, "Copilot rules").
  *
- * Four files, one job each, and this one only runs them in order:
+ * Five files, one job each, and this one only runs them in order:
  *
  * 1. `copilot.facts.ts` reads the customer's state at the RM clock and their activity into
  *    numbered lines, `F1 … Fn`, each with its source. Deterministic: the same record gives the
  *    same lines.
  * 2. `copilot.prompt.ts` hands those lines, and nothing else, to the copilot's own model, and
  *    asks for one sentence a line, each ending with the ids it rests on.
- * 3. `copilot.guard.ts` keeps a sentence only if every id exists and every figure in it appears
- *    in a fact it cites. Too few survive, or the model is off, slow or wrong, and
+ * 3. `copilot.guard.ts` keeps a sentence only if every id exists, every figure in it appears in
+ *    a fact it cites, and every rupee figure keeps the meaning that fact gives it
+ *    (`copilot.meaning.ts`). Too few survive, or the model is off, slow or wrong, and
  * 4. `copilot.rules.ts` writes the brief or the answer from the same lines. That is an answer,
  *    not an error: `phrasedBy: 'rules'`, and every sentence still cites its facts.
+ * 5. `copilot.arrange.ts` shapes either brief the same way before the RM reads it: one sentence
+ *    a line, "Talk about" and "Be careful about" in the engine's signal order, and each talking
+ *    point tagged by its signal's severity. The model never decides what is urgent or what comes
+ *    first. Every brief and answer leaves with each sentence's citations once each and in the
+ *    order the console numbers its footnotes, so they print ascending ("1 2", never "2 1").
  *
  * **The model never decides suitability.** A question naming a shelf product runs `evaluate()`
  * first, over the same snapshot, goal and shelf the console reads, and the verdict travels back
@@ -24,7 +30,7 @@
  * own breaker, so a brief that times out can never open the breaker on the customer's `/ask`.
  * Both routes are checked against the caller's book in their handlers before they reach here.
  */
-import { firstName } from '@dhan/core'
+import { firstName, ruleLabel } from '@dhan/core'
 import type {
   CitedSentence,
   RmAnswer,
@@ -39,6 +45,15 @@ import { NO_ACTIVITY } from './activity.service.ts'
 import type { ActivityFacts, RmActivityService } from './activity.service.ts'
 import type { RmBookService } from './book.service.ts'
 import type { RmCaller } from './caller.ts'
+import {
+  WHOLE_LINE_SECTIONS,
+  arrangeBrief,
+  briefInReadingOrder,
+  factRanks,
+  inReadingOrder,
+  oneSentenceALine,
+} from './copilot.arrange.ts'
+import type { Arranged } from './copilot.arrange.ts'
 import { factSheet, withVerdict } from './copilot.facts.ts'
 import type { CopilotRecord } from './copilot.facts.ts'
 import { candidates, screen } from './copilot.guard.ts'
@@ -48,6 +63,13 @@ import type { PromptPeople } from './copilot.prompt.ts'
 import { productCheck, rulesAnswer, rulesBrief, suggestedPrompts } from './copilot.rules.ts'
 import type { BriefPart } from './copilot.rules.ts'
 import type { CustomerState } from './customer-state.ts'
+
+/** A check's outcome in the access log, in the words the Advice record uses, not a rule's code. */
+const CHECK_WORDS: Readonly<Record<RmCheckVerdict['verdict'], (ruleId: string | null) => string>> =
+  {
+    BLOCKED: (ruleId) => `refused under "${ruleLabel(ruleId ?? '')}"`,
+    PASS: () => 'every rule passed',
+  }
 
 export interface RmCopilotDeps {
   book: RmBookService
@@ -72,8 +94,11 @@ export interface RmCopilotDeps {
  */
 export const MIN_MODEL_SENTENCES = 4
 
-/** The most sentences a model's section or answer keeps, as the rules' brief keeps. */
-const SECTION_MAX = 4
+/**
+ * The most sentences a model's section or answer keeps. One more than the rules' brief keeps,
+ * because a point the model wrote as two sentences arrives here as two.
+ */
+const SECTION_MAX = 5
 const ANSWER_MAX = 4
 
 export class RmCopilotService {
@@ -87,35 +112,50 @@ export class RmCopilotService {
     const started = performance.now()
     const state = await this.deps.book.state(cif)
     const sheet = factSheet(state, await this.record(rm, cif))
-    const rules = rulesBrief(state, sheet)
+    const ranks = factRanks(sheet)
+    const rules = arrangeBrief(rulesBrief(state, sheet), ranks, sheet.facts).sections
 
     let sections: BriefPart[] = rules
     let phrasedBy: RmBrief['phrasedBy'] = 'rules'
     const output = await this.complete(() => briefPrompt(this.people(rm, state), sheet.facts))
     if (output !== null) {
-      const screened = screen(candidates(output, briefHeading), { facts: sheet.facts, state }, true)
-      this.logScreen('brief', cif, screened, started)
-      if (screened.kept.length >= MIN_MODEL_SENTENCES) {
-        sections = BRIEF_SECTIONS.map((title) => {
-          const own = screened.kept
+      const screened = screen(
+        candidates(oneSentenceALine(output, briefHeading, WHOLE_LINE_SECTIONS), briefHeading),
+        { facts: sheet.facts, state },
+        true,
+      )
+      const arranged = arrangeBrief(
+        BRIEF_SECTIONS.map((title) => ({
+          title,
+          sentences: screened.kept
             .filter((c) => c.section === title)
-            .slice(0, SECTION_MAX)
-            .map(({ text, cites }) => ({ text, cites }))
-          // A heading the model left empty, or emptied by the guard, keeps the rules' sentences
-          // rather than reaching the RM blank.
-          return {
-            title,
-            sentences:
-              own.length > 0 ? own : (rules.find((r) => r.title === title)?.sentences ?? []),
-          }
-        })
+            .map(({ text, cites }) => ({ text, cites })),
+        })),
+        ranks,
+        sheet.facts,
+      )
+      this.logScreen('brief', cif, screened, started, arranged)
+      const kept = arranged.sections.reduce((n, part) => n + part.sentences.length, 0)
+      if (kept >= MIN_MODEL_SENTENCES) {
+        // A heading the model left empty, or emptied by the guard, keeps the rules' sentences
+        // rather than reaching the RM blank. The cap comes after the ordering, so it is the
+        // lowest-ranked points that go.
+        sections = arranged.sections.map((part) => ({
+          title: part.title,
+          sentences:
+            part.sentences.length > 0
+              ? part.sentences.slice(0, SECTION_MAX)
+              : (rules.find((r) => r.title === part.title)?.sentences ?? []),
+        }))
         phrasedBy = 'model'
       }
     }
 
     await this.deps.accessLog.record(rm, cif, 'briefed', 'Meeting brief')
     return {
-      sections,
+      // Last, over the brief as it will be read: a rules part standing in for an empty model
+      // part changes which ids are cited first.
+      sections: briefInReadingOrder(sections),
       facts: sheet.facts,
       phrasedBy,
       generatedAt: this.deps.clock.now().toISOString(),
@@ -152,7 +192,7 @@ export class RmCopilotService {
       check = { factId: added.id, productId: product.productId }
     }
 
-    let sentences: CitedSentence[] = rulesAnswer(question, sheet, check)
+    let sentences: CitedSentence[] = inReadingOrder(rulesAnswer(question, sheet, check))
     let phrasedBy: RmAnswer['phrasedBy'] = 'rules'
     const output = await this.complete(() =>
       askPrompt({
@@ -165,12 +205,12 @@ export class RmCopilotService {
     )
     if (output !== null) {
       const screened = screen(
-        candidates(output, () => null),
+        candidates(oneSentenceALine(output), () => null),
         { facts: sheet.facts, state },
         false,
       )
       this.logScreen('ask', cif, screened, started)
-      const kept = screened.kept.slice(0, ANSWER_MAX).map(({ text, cites }) => ({ text, cites }))
+      const kept = inReadingOrder(screened.kept.slice(0, ANSWER_MAX))
       // Where a product was checked, an answer that never states the check is not an answer to
       // the question asked; the rules' answer leads with it.
       const statesCheck = check === null || kept.some((s) => s.cites.includes(check.factId))
@@ -187,7 +227,7 @@ export class RmCopilotService {
         cif,
         'checked',
         'Suitability check from a question',
-        `${verdict.productName}: ${verdict.verdict}${verdict.ruleId ? ` (${verdict.ruleId})` : ''}. Asked: ${question}`,
+        `${verdict.productName}: ${CHECK_WORDS[verdict.verdict](verdict.ruleId)}. Asked: ${question}`,
       )
     } else {
       await this.deps.accessLog.record(rm, cif, 'asked', 'Question about the customer', question)
@@ -264,18 +304,29 @@ export class RmCopilotService {
     }
   }
 
-  /** Counts and reasons only: the sentences carry the customer's figures and stay out of the log. */
-  private logScreen(kind: 'brief' | 'ask', cif: string, screened: Screened, started: number): void {
+  /**
+   * Counts and reasons only: the sentences carry the customer's figures and stay out of the log.
+   * For a brief, `arranged` adds what the ordering dropped and whether it had to reorder at all.
+   */
+  private logScreen(
+    kind: 'brief' | 'ask',
+    cif: string,
+    screened: Screened,
+    started: number,
+    arranged?: Arranged,
+  ): void {
     const reasons: Record<string, number> = {}
-    for (const d of screened.dropped) reasons[d.reason] = (reasons[d.reason] ?? 0) + 1
+    const dropped = [...screened.dropped, ...(arranged?.dropped ?? [])]
+    for (const d of dropped) reasons[d.reason] = (reasons[d.reason] ?? 0) + 1
     this.deps.log.info(
       {
         kind,
         cif,
         model: this.deps.model.name,
         offered: screened.kept.length + screened.dropped.length,
-        kept: screened.kept.length,
+        kept: screened.kept.length - (arranged?.dropped.length ?? 0),
         dropped: reasons,
+        ...(arranged ? { reordered: arranged.reordered } : {}),
         ms: Math.round(performance.now() - started),
       },
       'rm copilot: model sentences screened',

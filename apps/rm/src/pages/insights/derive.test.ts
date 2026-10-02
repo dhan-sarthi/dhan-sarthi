@@ -2,12 +2,17 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   earliest,
+  endLabelSide,
   lastStep,
   latest,
+  isLabelledMonth,
+  lineY,
+  lowerFirst,
   moverBase,
   pctChange,
   shareLabel,
   sharePct,
+  stepSentence,
   sum,
   toRows,
 } from './derive.ts'
@@ -63,4 +68,49 @@ test('chart rows align every series to the months and leave a missing point as a
     { month: '2026-07', a: 1, b: 9 },
     { month: '2026-08', a: 2, b: null },
   ])
+})
+
+test('a line not read from zero spans the plot inside its padding, highest at the top', () => {
+  const y = lineY([100, 150, 200], 100, 20)
+  assert.equal(y(200), 20)
+  assert.equal(y(100), 80)
+  assert.equal(y(150), 50)
+})
+
+test('a flat line sits in the middle of the plot, not on an edge', () => {
+  const y = lineY([5, 5, 5], 90, 10)
+  assert.equal(y(5), 45)
+})
+
+test('an end label goes on the side the line leaves clear', () => {
+  // Rising: the first label under its point, the last above it.
+  assert.equal(endLabelSide([1, 2, 3], 'first'), 'below')
+  assert.equal(endLabelSide([1, 2, 3], 'last'), 'above')
+  // Falling: the other way round.
+  assert.equal(endLabelSide([3, 2, 1], 'first'), 'above')
+  assert.equal(endLabelSide([3, 2, 1], 'last'), 'below')
+  // Level ends (the SIP debits flatten out) are labelled above.
+  assert.equal(endLabelSide([4, 4], 'last'), 'above')
+  assert.equal(endLabelSide([7], 'first'), 'above')
+})
+
+test("a month's count is said against the month before, in words with no judgement", () => {
+  const refusals = [0, 1, 3, 4, 3, 2, 5, 4, 4, 3, 4, 1]
+  assert.equal(stepSentence(refusals, 'Aug', 'Jul'), '1 in Aug, 3 fewer than Jul')
+  assert.equal(stepSentence([2, 5], 'Aug', 'Jul'), '5 in Aug, 3 more than Jul')
+  assert.equal(stepSentence([4, 4], 'Aug', 'Jul'), '4 in Aug, the same as Jul')
+  assert.equal(stepSentence([4], 'Aug', null), '4 in Aug')
+  assert.equal(stepSentence([], 'Aug', 'Jul'), null)
+})
+
+test('the month axis always names the latest month, then every other one back from it', () => {
+  const labelled = Array.from({ length: 12 }, (_, i) => i).filter((i) => isLabelledMonth(i, 12))
+  // Sep 2025 … Aug 2026: Oct, Dec, Feb, Apr, Jun, Aug.
+  assert.deepEqual(labelled, [1, 3, 5, 7, 9, 11])
+  assert.equal(isLabelledMonth(0, 1), true)
+})
+
+test('an API label reads mid-sentence with only its first letter lowered', () => {
+  assert.equal(lowerFirst('As at 1 Sep 2026'), 'as at 1 Sep 2026')
+  assert.equal(lowerFirst(''), '')
 })

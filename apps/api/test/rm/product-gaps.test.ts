@@ -79,7 +79,7 @@ describe('product gaps', () => {
     const [gap] = productGaps(f)
     assert.equal(gap?.need, 'life_cover')
     assert.equal(gap?.productId, 'LIC_TERM_201')
-    assert.match(gap?.why ?? '', /₹1,80,00,000 short on life cover, with 2 dependents\./)
+    assert.match(gap?.why ?? '', /₹1.8Cr short on life cover, with 2 dependents\./)
   })
 
   it('names no life cover where nobody depends on the income', () => {

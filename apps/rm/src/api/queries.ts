@@ -6,7 +6,7 @@
  */
 import type { BodyInputOf, SuccessOf } from '@dhan/contracts'
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, isApiError } from './client.ts'
+import { api, COPILOT_TIMEOUT_MS, isApiError } from './client.ts'
 import { clearSession, setSession } from './session.ts'
 
 export function makeQueryClient(): QueryClient {
@@ -113,10 +113,16 @@ export function useRefusals() {
   })
 }
 
+/**
+ * The log is written by reads elsewhere (opening a file, a refused attempt on one outside the
+ * book), which invalidate nothing here, so the page asks again every time it is opened rather
+ * than showing a copy from before the RM's last open.
+ */
 export function useAccessLog() {
   return useQuery({
     queryKey: keys.accessLog(),
     queryFn: ({ signal }) => api('rmAccessLog', { signal }),
+    staleTime: 0,
   })
 }
 
@@ -207,7 +213,7 @@ export function useVerifyBook() {
 export function useBrief(cif: string) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: () => api('rmBrief', { params: { cif } }),
+    mutationFn: () => api('rmBrief', { params: { cif }, timeoutMs: COPILOT_TIMEOUT_MS }),
     onSuccess: () => void client.invalidateQueries({ queryKey: keys.accessLog() }),
   })
 }
@@ -215,7 +221,8 @@ export function useBrief(cif: string) {
 export function useAsk(cif: string) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (body: BodyInputOf<'rmAsk'>) => api('rmAsk', { params: { cif }, body }),
+    mutationFn: (body: BodyInputOf<'rmAsk'>) =>
+      api('rmAsk', { params: { cif }, body, timeoutMs: COPILOT_TIMEOUT_MS }),
     onSuccess: () => void client.invalidateQueries({ queryKey: keys.accessLog() }),
   })
 }

@@ -6,6 +6,7 @@ import { cn } from '../../lib/cn.ts'
 import { formatCount } from '../../lib/format.ts'
 import { Button, Skeleton, describeError } from '../../ui/index.ts'
 import { clockTime } from './advice.ts'
+import { IntactSummary } from './Intact.tsx'
 
 /*
  * The book's "Verify every chain": the action and its result in one place, along the foot of the
@@ -14,6 +15,9 @@ import { clockTime } from './advice.ts'
  * Nothing is green until the real verification has run in this view. Before that the strip says
  * the chains are unchecked; after it, it says exactly how many records were walked and when,
  * and a broken chain names the customer and the record it breaks at.
+ *
+ * A clean result is the page's proof, so it is the one moment drawn in the brand's full fill,
+ * led by the count ("224 of 224 records intact"); the button steps back to a ghost beside it.
  */
 export function VerifyBookStrip({
   verify,
@@ -39,7 +43,7 @@ export function VerifyBookStrip({
     <div
       className={cn(
         'flex flex-wrap items-center gap-x-6 gap-y-3 rounded-b-lg border-t px-6 py-4 transition-colors duration-300',
-        tone === 'valid' && 'border-brand/15 bg-brand-wash',
+        tone === 'valid' && 'border-brand-deep bg-brand text-on-brand',
         tone === 'broken' && 'border-danger/20 bg-danger-soft/60',
         tone === 'error' && 'border-hairline-soft bg-canvas-top',
         tone === 'idle' && 'border-hairline-soft bg-canvas-top',
@@ -60,6 +64,12 @@ export function VerifyBookStrip({
                 {describeError(verify.error)}
               </p>
             </>
+          ) : result?.valid ? (
+            <IntactSummary
+              checked={result.checked}
+              checkedAt={result.checkedAt}
+              scope="in your book"
+            />
           ) : result ? (
             <Outcome result={result} names={names} />
           ) : (
@@ -74,7 +84,11 @@ export function VerifyBookStrip({
         </div>
       </div>
       <Button
-        variant={result && !verify.isError ? 'secondary' : 'primary'}
+        variant={tone === 'valid' ? 'ghost' : result && !verify.isError ? 'secondary' : 'primary'}
+        className={cn(
+          tone === 'valid' &&
+            'text-on-brand hover:bg-on-brand/10 hover:text-on-brand active:bg-on-brand/15',
+        )}
         icon={<ShieldCheck aria-hidden />}
         loading={verify.isPending}
         onClick={() => verify.mutate()}
@@ -98,7 +112,7 @@ function StatusIcon({ tone }: { tone: 'idle' | 'valid' | 'broken' | 'error' }) {
       aria-hidden
       className={cn(
         'mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full [&_svg]:size-4.5',
-        tone === 'valid' && 'bg-brand text-on-brand',
+        tone === 'valid' && 'bg-on-brand text-brand',
         tone === 'broken' && 'bg-danger text-on-brand',
         tone === 'error' && 'bg-danger-soft text-danger',
         tone === 'idle' && 'border border-hairline bg-surface text-ink-soft',
@@ -117,18 +131,6 @@ function Outcome({
   names: ReadonlyMap<string, string>
 }) {
   const records = `${formatCount(result.checked)} record${result.checked === 1 ? '' : 's'}`
-  if (result.valid) {
-    return (
-      <>
-        <p className="text-heading text-ink">Every chain in your book verifies</p>
-        <p className="mt-0.5 max-w-[72ch] text-label font-normal text-pretty text-ink-soft">
-          All <span className="tabular">{records}</span> recomputed to the hashes they were written
-          with, at <span className="tabular">{clockTime(result.checkedAt)}</span>. Not one word has
-          changed since it was recorded.
-        </p>
-      </>
-    )
-  }
   const count = result.broken.length
   return (
     <>

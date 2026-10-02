@@ -47,10 +47,13 @@ function trim(n: number): string {
 }
 
 /**
- * The figure a title leads with: short from a lakh up, exact below it.
+ * A figure in a sentence: short from a lakh up, exact below it.
  *
  * "₹1.86L outstanding" reads at a glance; "₹1.8k a year" does not, and at that size the exact
- * figure is no longer to count than the short one.
+ * figure is no longer to count than the short one. Every sentence the console shows (a signal's
+ * title, the queue's why and opener, a "Coming up" line) prints its figures through this, so a
+ * lakh is never ₹2.28L in one line and ₹2,28,000 in the next. The exact figure stays where it
+ * is checked against a statement: a table cell, a detail line, an evidence line.
  */
 export function rupeesTitle(n: number): string {
   return Math.abs(n) >= 1e5 ? rupeesShort(n) : rupees(n)
@@ -79,6 +82,12 @@ export function shortDate(iso: string, asOf?: string): string {
   return asOf !== undefined && asOf.slice(0, 4) !== year
     ? `${day} ${month} ${year}`
     : `${day} ${month}`
+}
+
+/** "1 Sep 2026": a date with its year, for a label that has to stand on its own. */
+export function dateLabel(iso: string): string {
+  const month = MONTHS[Number(iso.slice(5, 7)) - 1] ?? iso.slice(5, 7)
+  return `${Number(iso.slice(8, 10))} ${month} ${iso.slice(0, 4)}`
 }
 
 /** "Sep 2026" for a 'YYYY-MM' key or a full date. */

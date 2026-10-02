@@ -16,8 +16,17 @@ import {
   TimelineMonth,
 } from '../../ui/index.ts'
 import { Composer } from './journey/Composer.tsx'
-import { EventRow } from './journey/EventRow.tsx'
-import { FILTERS, byMonth, countBy, matches, monthHeading, type FilterId } from './journey/group.ts'
+import { EventRow, ReviewsRow } from './journey/EventRow.tsx'
+import {
+  FILTERS,
+  byMonth,
+  countBy,
+  foldReviews,
+  matches,
+  monthHeading,
+  type FilterId,
+  type JourneyRow,
+} from './journey/group.ts'
 
 /**
  * The customer's journey: every plan version, decision, check Uday ran, request for a person,
@@ -26,6 +35,9 @@ import { FILTERS, byMonth, countBy, matches, monthHeading, type FilterId } from 
  * The note box sits at the top because that is where the RM's own entry will land. A plan
  * version is one line until it is opened; the newest is open from the start, because "what did
  * the plan just do" is the question the tab is most often opened to answer.
+ *
+ * Under All, the engine's monthly reviews fold into one row per run, with the net change shown,
+ * so the decisions, refusals and calls are what the eye meets. Plan versions lists every one.
  */
 export function CustomerJourney() {
   const { cif = '' } = useParams()
@@ -42,7 +54,14 @@ export function CustomerJourney() {
 
   const events = useMemo(() => journey.data?.events ?? [], [journey.data])
   const counts = useMemo(() => countBy(events), [events])
-  const months = useMemo(() => byMonth(events.filter((e) => matches(filter, e))), [events, filter])
+  const months = useMemo(() => {
+    const shown = events.filter((e) => matches(filter, e))
+    const rows: JourneyRow[] =
+      filter === 'all'
+        ? foldReviews(shown)
+        : shown.map((event) => ({ type: 'event', id: event.id, at: event.at, event }))
+    return byMonth(rows)
+  }, [events, filter])
   // The newest plan version starts open; every other starts closed. A toggle flips from there.
   const newestPlan = useMemo(() => events.find((e) => e.kind === 'plan')?.id ?? null, [events])
   const isOpen = (id: string) => (id === newestPlan) !== toggled.has(id)
@@ -143,17 +162,27 @@ export function CustomerJourney() {
             label={monthHeading(group.month)}
             count={group.events.length}
           >
-            {group.events.map((event, i) => (
-              <EventRow
-                key={event.id}
-                event={event}
-                cif={cif}
-                last={i === group.events.length - 1}
-                expanded={isOpen(event.id)}
-                onToggle={() => toggle(event.id)}
-                fresh={event.id === fresh}
-              />
-            ))}
+            {group.events.map((row, i) =>
+              row.type === 'reviews' ? (
+                <ReviewsRow
+                  key={row.id}
+                  reviews={row.events}
+                  last={i === group.events.length - 1}
+                  expanded={isOpen(row.id)}
+                  onToggle={() => toggle(row.id)}
+                />
+              ) : (
+                <EventRow
+                  key={row.id}
+                  event={row.event}
+                  cif={cif}
+                  last={i === group.events.length - 1}
+                  expanded={isOpen(row.id)}
+                  onToggle={() => toggle(row.id)}
+                  fresh={row.id === fresh}
+                />
+              ),
+            )}
           </TimelineMonth>
         ))}
       </div>

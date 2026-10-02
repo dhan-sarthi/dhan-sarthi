@@ -1,4 +1,17 @@
-import { ChevronDown, Eye, EyeOff, KeyRound, LockKeyhole } from 'lucide-react'
+import {
+  ChevronDown,
+  CircleAlert,
+  Eye,
+  EyeOff,
+  Hand,
+  KeyRound,
+  Landmark,
+  ListOrdered,
+  LockKeyhole,
+  ShieldCheck,
+  TimerReset,
+  type LucideIcon,
+} from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
@@ -7,14 +20,25 @@ import { useSignIn } from '../../api/queries.ts'
 import { getEndReason, useSession } from '../../api/session.ts'
 import { cn } from '../../lib/cn.ts'
 import { duration, ease } from '../../lib/motion.ts'
-import { Brand } from '../../shell/Brand.tsx'
-import { Avatar, Button, Field, IconButton, Input, describeError } from '../../ui/index.ts'
+import {
+  Avatar,
+  Button,
+  Chip,
+  Field,
+  IconButton,
+  Input,
+  describeError,
+  type ChipTone,
+} from '../../ui/index.ts'
 import { DEMO_DESKS, type DemoDesk } from './demo-access.ts'
 
 /**
- * Sign in. A split screen: the form on the left, and on the right one line about what the console
- * is for over the deep IDBI green, with a preview of the call list drawn as shapes, not figures.
+ * Sign in. A split screen: the form on the left, and on the right what the console is for over
+ * the deep IDBI green, the three things it does, and a call list drawn in words, not figures.
  * Nothing on this page is a number from the book; there is no RM yet to show one to.
+ *
+ * Both columns hang from the same top line, so the two headings start level and the form grows
+ * downward when Demo access opens instead of jumping up to stay centred.
  */
 export function Login() {
   const session = useSession()
@@ -26,6 +50,24 @@ export function Login() {
     <div className="grid min-h-screen grid-cols-1 gap-4 bg-ground p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)]">
       <FormPanel redirectTo={from} />
       <StoryPanel />
+    </div>
+  )
+}
+
+/** Where both columns' content starts, below the lockup: one line, so the headings sit level. */
+const CONTENT_TOP = 'pt-[clamp(5.5rem,13vh,8.5rem)]'
+
+/**
+ * Whose desk this is, set in type: the bank's name first, then the product's. Deliberately not
+ * the bank's logo, which is IDBI's to supply.
+ */
+function Lockup() {
+  return (
+    <div className="grid gap-1">
+      <p className="text-micro tracking-micro text-ink-faint uppercase">
+        For <span className="text-brand">IDBI Bank</span> · Relationship Manager Desk
+      </p>
+      <p className="text-title text-ink">Dhan Sarthi</p>
     </div>
   )
 }
@@ -74,14 +116,20 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
   }
 
   return (
-    <section className="flex flex-col rounded-xl border border-hairline bg-surface px-8 py-7 sm:px-12">
-      <Brand />
+    <section
+      className={cn(
+        'relative flex flex-col rounded-xl border border-hairline bg-surface px-8 pb-7 sm:px-12',
+        CONTENT_TOP,
+      )}
+    >
+      <div className="absolute top-7 left-8 sm:left-12">
+        <Lockup />
+      </div>
 
-      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
+      <div className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col pb-8">
         <h1 className="text-display text-ink">Sign in to RM Desk</h1>
         <p className="mt-2 text-body text-ink-soft">
-          Your book, today&rsquo;s calls and the advice record, for IDBI Bank&rsquo;s relationship
-          managers.
+          Your book, today&rsquo;s calls and the advice record.
         </p>
 
         {ended ? (
@@ -181,8 +229,9 @@ function FormPanel({ redirectTo }: { redirectTo: string }) {
   )
 }
 
+/** Open from the start: this is a demo build, and a judge should not have to find the logins. */
 function DemoAccess({ onFill }: { onFill: (desk: DemoDesk) => void }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const panelId = useId()
   return (
     <div className="mt-6 rounded-lg border border-hairline">
@@ -257,18 +306,33 @@ function DemoAccess({ onFill }: { onFill: (desk: DemoDesk) => void }) {
 
 /* ---------------------------------------------------------------- The story panel */
 
-/** Abstract rows for the preview card: shapes of a call list, deliberately without figures. */
-const PREVIEW_ROWS = [
-  { name: 'w-28', why: 'w-44', tag: 'bg-danger-soft/90', tagW: 'w-14' },
-  { name: 'w-24', why: 'w-52', tag: 'bg-streak-soft/90', tagW: 'w-16' },
-  { name: 'w-32', why: 'w-40', tag: 'bg-budget/80', tagW: 'w-[4.5rem]' },
-] as const
+/** The console's three stories, each a page an RM opens: Today, the customer file, the Record. */
+const PROOFS: readonly { icon: LucideIcon; title: string; body: string }[] = [
+  {
+    icon: ListOrdered,
+    title: 'Ranked calls with the why',
+    body: 'Who to call first, and the reason in a sentence.',
+  },
+  {
+    icon: Landmark,
+    title: 'Money across every bank',
+    body: 'Balances, loans and cover, at IDBI and beyond.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Every refusal, hash-chained',
+    body: 'What Uday would not sell, and the words it used.',
+  },
+]
 
 function StoryPanel() {
   return (
     <section
       aria-label="About RM Desk"
-      className="relative hidden overflow-hidden rounded-xl bg-brand-deep lg:flex lg:flex-col"
+      className={cn(
+        'relative hidden overflow-hidden rounded-xl bg-brand-deep lg:flex lg:flex-col',
+        CONTENT_TOP,
+      )}
     >
       {/* Depth from the tokens' own greens: lighter where the light falls, ink in the corner. */}
       <div
@@ -290,75 +354,97 @@ function StoryPanel() {
         }}
       />
 
-      <div className="relative px-14 pt-16">
+      <div className="relative px-14">
         <p className="max-w-[15ch] text-figure text-balance text-on-ink">
           Every customer, every goal, one view.
         </p>
-        <p className="mt-6 max-w-md text-body text-on-ink/75">
+        <p className="mt-5 max-w-lg text-body text-on-ink/80">
           Uday runs the daily loop for hundreds of customers and hands you only the moments that
-          need a person, with the reason and the figure behind each one.
+          need a person, with the reason behind each one.
         </p>
-      </div>
 
-      <div className="relative flex flex-1 items-center px-14 py-10">
-        <PreviewCard />
-      </div>
-
-      <div className="relative px-14 pb-12">
-        <ul className="flex flex-wrap gap-x-6 gap-y-2 text-caption text-on-ink/70">
-          <li>Ranked calls with the why</li>
-          <li aria-hidden>·</li>
-          <li>Money across every bank</li>
-          <li aria-hidden>·</li>
-          <li>Every refusal, hash-chained</li>
+        <ul className="mt-8 grid max-w-xl gap-3.5">
+          {PROOFS.map(({ icon: Icon, title, body }) => (
+            <li key={title} className="flex items-start gap-3.5">
+              <span
+                aria-hidden
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-on-ink/10 text-success ring-1 ring-on-ink/15"
+              >
+                <Icon className="size-4" />
+              </span>
+              <span className="grid gap-0.5 pt-px">
+                <span className="text-heading text-on-ink">{title}</span>
+                <span className="text-label font-normal text-on-ink/70">{body}</span>
+              </span>
+            </li>
+          ))}
         </ul>
+      </div>
+
+      <div className="relative px-14 pt-11 pb-10">
+        <PreviewCard />
       </div>
     </section>
   )
 }
 
+/**
+ * Three rows of a call list as the console draws them: who, what kind of call, and why, in words.
+ * No names and no figures: before sign-in there is no book to read them from.
+ */
+const PREVIEW_ROWS: readonly {
+  initials: string
+  kind: string
+  tone: ChipTone
+  icon: LucideIcon
+  why: string
+}[] = [
+  {
+    initials: 'DK',
+    kind: 'Asked for a call',
+    tone: 'brand',
+    icon: Hand,
+    why: 'Wants to talk about clearing the card first',
+  },
+  {
+    initials: 'NV',
+    kind: 'Deposit maturing',
+    tone: 'streak',
+    icon: TimerReset,
+    why: 'Matures this month; left alone it renews at the counter rate',
+  },
+  {
+    initials: 'TS',
+    kind: 'Expensive card debt',
+    tone: 'danger',
+    icon: CircleAlert,
+    why: 'Uday holds back every investment until it clears',
+  },
+]
+
 function PreviewCard() {
   return (
-    <div aria-hidden className="relative w-full max-w-[34rem]">
-      {/* A second sheet behind the first, so the card reads as one of a stack, not a sticker. */}
-      <div className="absolute inset-x-6 -top-3 h-full rounded-xl bg-on-ink/6 ring-1 ring-on-ink/10" />
-      <div className="relative rounded-xl bg-on-ink/[0.09] p-5 ring-1 ring-on-ink/15">
-        <div className="flex items-center justify-between">
-          <span className="text-micro tracking-micro text-on-ink/75 uppercase">Call today</span>
-          <svg viewBox="0 0 120 32" className="h-8 w-28 text-success" fill="none">
-            <defs>
-              <linearGradient id="login-spark" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M2 26 C 18 24, 26 20, 38 21 S 58 14, 70 15 S 92 8, 104 7 L 118 4 L118 32 L2 32 Z"
-              fill="url(#login-spark)"
-            />
-            <path
-              d="M2 26 C 18 24, 26 20, 38 21 S 58 14, 70 15 S 92 8, 104 7 L 118 4"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            />
-            <circle cx="118" cy="4" r="2.5" fill="currentColor" />
-          </svg>
-        </div>
-        <ul className="mt-4 grid gap-3">
-          {PREVIEW_ROWS.map((row, i) => (
-            <li key={i} className="flex items-center gap-3 rounded-lg bg-on-ink/[0.06] px-3 py-2.5">
-              <span className="w-3 text-caption tabular text-on-ink/50">{i + 1}</span>
-              <span className="size-7 shrink-0 rounded-full bg-on-ink/20" />
-              <span className="grid flex-1 gap-1.5">
-                <span className={cn('h-2 rounded-full bg-on-ink/45', row.name)} />
-                <span className={cn('h-1.5 rounded-full bg-on-ink/20', row.why)} />
-              </span>
-              <span className={cn('h-4 rounded-sm', row.tag, row.tagW)} />
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+    <figure
+      aria-hidden
+      className="w-full max-w-[34rem] overflow-hidden rounded-xl bg-surface shadow-overlay ring-1 ring-on-ink/20"
+    >
+      <figcaption className="flex items-center justify-between border-b border-hairline-soft px-5 py-2.5">
+        <span className="text-micro tracking-micro text-ink-faint uppercase">Call today</span>
+        <span className="text-caption font-normal text-ink-hint">Ranked by Uday</span>
+      </figcaption>
+      <ul className="divide-y divide-hairline-soft">
+        {PREVIEW_ROWS.map((row) => (
+          <li key={row.initials} className="flex items-center gap-3.5 px-5 py-3">
+            <Avatar name={row.initials} initials={row.initials} size="md" />
+            <span className="grid min-w-0 flex-1 justify-items-start gap-1">
+              <Chip tone={row.tone} icon={<row.icon aria-hidden />}>
+                {row.kind}
+              </Chip>
+              <span className="truncate text-label font-normal text-ink-soft">{row.why}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </figure>
   )
 }

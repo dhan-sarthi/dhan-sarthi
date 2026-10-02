@@ -24,7 +24,8 @@ export function InsightsSkeleton() {
                 <Skeleton className="h-5 w-14" />
               </div>
               <Skeleton className="mt-2 h-3 w-40" />
-              <Skeleton className="mt-3 h-[112px] w-full rounded-md" />
+              <Skeleton className="mt-2 h-[124px] w-full rounded-md" />
+              <Skeleton className="mt-2 h-2.5 w-48" />
             </div>
           ))}
         </div>
@@ -55,6 +56,10 @@ export function InsightsSkeleton() {
       </Card>
 
       <Card padded={false} className="overflow-hidden">
+        <div className="flex items-center justify-between border-b border-hairline-soft px-5 py-4">
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-3 w-28" />
+        </div>
         <div className="grid grid-cols-1 gap-px bg-hairline-soft md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }, (_, i) => (
             <div

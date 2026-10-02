@@ -16,14 +16,19 @@
  *   customer is never put forward. The model does not decide suitability; this is the backstop
  *   behind the prompt's rule, not the rule itself.
  * - **No word the desk has banned** ("envelope", "deployable surplus", "DPD" …).
+ * - **A rupee figure keeps the meaning its fact gives it** (`copilot.meaning.ts`): a sentence
+ *   that calls the balance Imran can reach "short", where the fact gives the shortfall as
+ *   another figure, is dropped.
  *
- * What it cannot check is meaning: a sentence that quotes "2" from "2 dependents" as a count of
- * loans passes. That is why every sentence carries its citations to the screen, and why the UI
- * labels model text "check before advising".
+ * Meaning is checked only for rupee figures and only on a contradiction the cited facts prove;
+ * a sentence that quotes "2" from "2 dependents" as a count of loans still passes. That is why
+ * every sentence carries its citations to the screen, and why the UI labels model text "check
+ * before advising".
  */
 import { evaluate } from '@dhan/core'
 import type { CitedSentence, Fact } from '@dhan/contracts'
 import type { ShelfProduct } from '../../ports/index.ts'
+import { mislabelledFigure } from './copilot.meaning.ts'
 import type { CustomerState } from './customer-state.ts'
 
 /* ------------------------------------------------------------------ *
@@ -207,6 +212,7 @@ export type DropReason =
   | 'uncited'
   | 'unknown_fact'
   | 'figure_not_in_facts'
+  | 'figure_meaning'
   | 'product_not_in_facts'
   | 'refused_product_put_forward'
   | 'banned_word'
@@ -282,6 +288,7 @@ export function dropReason(sentence: CitedSentence, ctx: GuardContext): DropReas
   const sources = cited.filter((f): f is Fact => f !== undefined)
   if (BANNED.test(text)) return 'banned_word'
   if (unsupportedFigures(text, sources).length > 0) return 'figure_not_in_facts'
+  if (mislabelledFigure(text, sources) !== null) return 'figure_meaning'
 
   const named = productsNamed(text, ctx.state.shelf)
   if (named.length > 0) {

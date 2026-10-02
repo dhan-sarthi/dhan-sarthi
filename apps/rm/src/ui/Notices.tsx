@@ -3,6 +3,7 @@ import { BookOpenCheck, Info, ShieldAlert, ShieldCheck, Sparkles } from 'lucide-
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 import { formatCount } from '../lib/format.ts'
+import { useBadgeTabIndex } from './interactive-row.tsx'
 import { Tooltip } from './Tooltip.tsx'
 
 /*
@@ -88,9 +89,11 @@ export function VerifiedBadge({ status, records, checkedAt, className }: Verifie
   ]
     .filter(Boolean)
     .join(', ')
+  // A stop of its own for the tooltip, unless it sits in a row that is already one.
+  const badgeTab = useBadgeTabIndex()
   const badge = (
     <span
-      tabIndex={detail ? 0 : undefined}
+      tabIndex={detail ? badgeTab : undefined}
       className={cn(
         'inline-flex h-6 items-center gap-1.5 rounded-sm px-2 text-label whitespace-nowrap focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-3.5',
         status === 'verified' && 'bg-brand-soft text-brand-deep',

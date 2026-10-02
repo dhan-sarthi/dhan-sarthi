@@ -7,7 +7,7 @@
  * and the label still names the month's last instalment, never a day it cannot see.
  */
 import { addDays, addMonths, daysInMonth, fromYmd, ymd } from '../dates.ts'
-import { rupees } from './format.ts'
+import { rupeesTitle } from './format.ts'
 import { cmp } from './util.ts'
 
 export type UpcomingKind = 'deposit_maturing' | 'emi_ending' | 'sip_date' | 'policy_renewal'
@@ -115,7 +115,7 @@ export function upcomingEvents(
       push(
         'deposit_maturing',
         a.maturityDate,
-        `${rupees(a.currentBalance)} ${kind} matures`,
+        `${rupeesTitle(a.currentBalance)} ${kind} matures`,
         a.currentBalance,
       )
     }
@@ -123,7 +123,7 @@ export function upcomingEvents(
     const d = facts.snapshot?.balances.maturingSoon
     if (d && inWindow(d.maturityDate)) {
       const kind = DEPOSIT_NAME[d.accountType] ?? 'Deposit'
-      push('deposit_maturing', d.maturityDate, `${rupees(d.amount)} ${kind} matures`, d.amount)
+      push('deposit_maturing', d.maturityDate, `${rupeesTitle(d.amount)} ${kind} matures`, d.amount)
     }
   }
 
@@ -158,7 +158,7 @@ export function upcomingEvents(
     push(
       'emi_ending',
       date,
-      `Last ${rupees(l.emiAmount)} EMI on the ${l.loanType.toLowerCase()}`,
+      `Last ${rupeesTitle(l.emiAmount)} EMI on the ${l.loanType.toLowerCase()}`,
       l.emiAmount,
     )
   }
@@ -176,7 +176,7 @@ export function upcomingEvents(
       push(
         'sip_date',
         date,
-        `${amount === null ? capitalise(what) : `${rupees(amount)} ${what}`} ${what === 'SIP' ? 'into' : 'to'} ${h.name}`,
+        `${amount === null ? capitalise(what) : `${rupeesTitle(amount)} ${what}`} ${what === 'SIP' ? 'into' : 'to'} ${h.name}`,
         amount,
       )
     }

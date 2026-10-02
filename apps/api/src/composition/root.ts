@@ -406,7 +406,19 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
    * edit; this root only calls them.
    */
   const rmAuth = new RmAuthService({ desk: deps.rmDesk, clock })
-  const rmScope = new RmBookScope({ desk: deps.rmDesk, bank: deps.bank })
+  const rmAccessLog = new RmAccessLog({ activity: deps.rmActivity })
+  const rmScope = new RmBookScope({
+    desk: deps.rmDesk,
+    bank: deps.bank,
+    // Every 403 on a customer outside the caller's book is an access entry for the caller.
+    onDenied: async (rm, cif, attempt) => {
+      try {
+        await rmAccessLog.record(rm, cif, 'denied', attempt.purpose, attempt.detail)
+      } catch (err) {
+        log.warn({ rmId: rm.rmId, cif, err: (err as Error).message }, 'denied access not logged')
+      }
+    },
+  })
   const rmBook = new RmBookService({
     bank: deps.bank,
     shelf: deps.shelf,
@@ -414,7 +426,6 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
     asOf: config.SEED_ANCHOR,
     log,
   })
-  const rmAccessLog = new RmAccessLog({ activity: deps.rmActivity })
   const rmActivity = wireRmActivity({
     config,
     log,
@@ -530,7 +541,9 @@ export async function buildRoot(config: Config, options: RootOptions = {}): Prom
   app.addHook('onClose', async () => {
     if (reaperTimer) clearInterval(reaperTimer)
     rmBook.stop()
-    rmActivity.stop()
+    // The journey in hand is finished before the process goes, within the simulator's bound;
+    // one cut off anyway is resumed on the next boot.
+    await rmActivity.stop()
     await avatar.shutdown()
   })
 

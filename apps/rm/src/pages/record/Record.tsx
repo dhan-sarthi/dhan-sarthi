@@ -11,6 +11,7 @@ import {
   CardHeader,
   EmptyState,
   ErrorState,
+  Money,
   PageHeader,
   SectionLabel,
   Select,
@@ -18,7 +19,7 @@ import {
   SkeletonStat,
 } from '../../ui/index.ts'
 import { PageLoading } from '../placeholder.tsx'
-import { RULE_COUNT, RULES, ruleName } from './advice.ts'
+import { RULE_COUNT, RULES, refusedStake, ruleName } from './advice.ts'
 import { AdviceLedger, LedgerSkeleton } from './AdviceLedger.tsx'
 import { RuleBars } from './RuleBars.tsx'
 import { VerifyBookStrip } from './VerifyBookStrip.tsx'
@@ -31,7 +32,21 @@ import { VerifyBookStrip } from './VerifyBookStrip.tsx'
  * refusal in the customer's own words, the full ledger, and the hash chains verified on demand.
  * The rule filter lives in the address (`?rule=RISK_CEILING`), so another page can link
  * straight to one rule's refusals.
+ *
+ * The sidebar calls this page "Advice record", which is what it holds; the title says what the
+ * record proves. The eyebrow above the title carries the sidebar's name, so the page is the one
+ * the RM clicked.
  */
+
+/** The title, under the sidebar's name for the page. */
+const TITLE = (
+  <>
+    <span className="mb-1.5 block text-micro tracking-micro text-ink-faint uppercase">
+      Advice record<span className="sr-only">:</span>
+    </span>
+    Mis-sales prevented
+  </>
+)
 export function Record() {
   const refusals = useRefusals()
   const [search, setSearch] = useSearchParams()
@@ -55,7 +70,7 @@ export function Record() {
   if (refusals.isError) {
     return (
       <>
-        <PageHeader title="Mis-sales prevented" />
+        <PageHeader title={TITLE} />
         <Card>
           <ErrorState
             size="page"
@@ -110,7 +125,7 @@ function RecordView({
     ) : (
       <>
         <span className="tabular">{formatCount(summary.customers)}</span> customer
-        {summary.customers === 1 ? '' : 's'}
+        {summary.customers === 1 ? '' : 's'} in your book had a sale refused
         {summary.from ? <>, {spanLabel(summary.from, summary.to)}</> : null}. Each refusal is a
         verdict of the rules, kept word for word in a hash chain.
       </>
@@ -118,7 +133,7 @@ function RecordView({
 
   return (
     <>
-      <PageHeader title="Mis-sales prevented" subtitle={subtitle} />
+      <PageHeader title={TITLE} subtitle={subtitle} />
 
       <Card padded={false} className="mb-8">
         {data.total === 0 ? (
@@ -223,6 +238,7 @@ function RecordView({
 interface Summary {
   customers: number
   products: number
+  stake: ReturnType<typeof refusedStake>
   from: string | null
   to: string | null
   latest: AdviceItem | null
@@ -244,6 +260,7 @@ function summarise(items: readonly AdviceItem[]): Summary {
   return {
     customers: names.size,
     products: products.size,
+    stake: refusedStake(items),
     from,
     to,
     // Newest first is the route's order; the first item is the latest refusal.
@@ -263,19 +280,40 @@ function spanLabel(from: string | null, to: string | null): string {
 function Headline({ data, summary }: { data: RmRefusals; summary: Summary }) {
   const latest = summary.latest
   const first = latest ? (latest.name.split(/\s+/)[0] ?? latest.name) : ''
+  const stake = summary.stake
   return (
     <div className="flex flex-col p-6">
-      <div className="flex items-end gap-4">
-        <p className="text-figure text-ink tabular">{formatCount(data.total)}</p>
-        <p className="mb-1.5 text-heading text-ink">
-          sale{data.total === 1 ? '' : 's'} Uday refused to make
-        </p>
+      <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+        <div>
+          <p className="text-figure text-ink tabular">{formatCount(data.total)}</p>
+          <p className="mt-1 text-heading text-pretty text-ink">
+            sale{data.total === 1 ? '' : 's'} Uday refused to make
+          </p>
+        </div>
+        {/* The stake in rupees, summed from the same records: what the customers asked to put
+            into the products the rules turned down. */}
+        {stake.monthly > 0 || stake.oneOff > 0 ? (
+          <div className="sm:border-l sm:border-hairline-soft sm:pl-8">
+            <p className="text-figure text-ink">
+              <Money value={stake.monthly > 0 ? stake.monthly : stake.oneOff} short="auto" />
+            </p>
+            <p className="mt-1 text-heading text-pretty text-ink">
+              {stake.monthly > 0 ? 'a month' : 'in one-off sums'} customers asked to put in
+            </p>
+          </div>
+        ) : null}
       </div>
-      <p className="mt-2 text-label font-normal text-ink-soft">
+      <p className="mt-3 text-label font-normal text-pretty text-ink-soft">
         On <span className="tabular">{summary.products}</span> product
         {summary.products === 1 ? '' : 's'}, under{' '}
         <span className="tabular">{data.byRule.length}</span> of the{' '}
         <span className="tabular">{RULE_COUNT}</span> rules
+        {stake.monthly > 0 && stake.oneOff > 0 ? (
+          <>
+            , and <Money value={stake.oneOff} short="auto" /> more in one-off sums
+          </>
+        ) : null}
+        . Each amount is the one the customer asked about, summed from the records below.
       </p>
 
       {latest && latest.spoken ? (
@@ -312,7 +350,7 @@ function Headline({ data, summary }: { data: RmRefusals; summary: Summary }) {
 function RecordSkeleton() {
   return (
     <>
-      <PageHeader title="Mis-sales prevented" subtitle={<Skeleton className="mt-1 h-4 w-96" />} />
+      <PageHeader title={TITLE} subtitle={<Skeleton className="mt-1 h-4 w-96" />} />
       <PageLoading label="Loading the advice record">
         <Card padded={false} className="mb-8">
           <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)]">

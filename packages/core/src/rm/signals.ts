@@ -3,7 +3,9 @@
  *
  * The engine writes to the customer ("₹1,86,240 at 34.8% costs you ₹5,401 a month"). The RM
  * reads about the customer, in the third person, with the figure first ("Card at 34.8% —
- * ₹1.86L outstanding"). Nothing else changes on the way through:
+ * ₹1.86L outstanding"). A sentence (the title, the queue's why, the opener) prints a figure of a
+ * lakh or more short and anything smaller exact, through `rupeesTitle`; the detail line keeps
+ * every figure exact, for checking against a statement. Nothing else changes on the way through:
  *
  * - **No new arithmetic.** Every figure in a signal is one the insight already states, read back
  *   out of its own headline, detail and evidence. Re-deriving them from the snapshot would be a
@@ -174,7 +176,7 @@ function linesFor(i: InsightLike): Lines | null {
             detail:
               'A missed repayment is on record. Uday holds back every investment until it clears.',
             figure: emis,
-            why: `${rupees(emis)} a month goes to EMIs and a repayment was missed, so investing is on hold.`,
+            why: `${rupeesTitle(emis)} a month goes to EMIs and a repayment was missed, so investing is on hold.`,
             opener: `${rupeesTitle(emis)} a month goes to EMIs and one repayment was missed. Shall we get it settled first?`,
           }
     }
@@ -188,8 +190,8 @@ function linesFor(i: InsightLike): Lines | null {
         title: `Card at ${rate}% — ${rupeesTitle(balance)} outstanding`,
         detail: `${rupees(interest)} a month in interest. Uday blocks every investment until it is cleared.`,
         figure: balance,
-        why: `${rupees(balance)} on a card at ${rate}% costs ${rupees(interest)} a month in interest.`,
-        opener: `${rupees(interest)} a month is going on card interest. Shall we plan to clear it?`,
+        why: `${rupeesTitle(balance)} on a card at ${rate}% costs ${rupeesTitle(interest)} a month in interest.`,
+        opener: `${rupeesTitle(interest)} a month is going on card interest. Shall we plan to clear it?`,
       }
     }
 
@@ -205,7 +207,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${plural(months, 'month')} of savings — ${rupeesTitle(shortfall)} short of ${goal}`,
         detail: `${rupees(reach)} in reach against ${rupees(outgo)} going out a month. Under three months, one bad month becomes a loan.`,
         figure: shortfall,
-        why: `Savings cover ${plural(months, 'month')} of outgoings, ${rupees(shortfall)} short of ${goal}.`,
+        why: `Savings cover ${plural(months, 'month')} of outgoings, ${rupeesTitle(shortfall)} short of ${goal}.`,
         opener: `${plural(months, 'month')} of savings is thin cover. Shall we build that up before anything else?`,
       }
     }
@@ -227,7 +229,7 @@ function linesFor(i: InsightLike): Lines | null {
             : `${rupeesTitle(gap)} short on life cover — ${dependents(count)}, no policy`,
         detail: `Ten times income is the rule of thumb: ${rupeesTitle(needed)} needed, ${held}. Term cover is the cheapest way to close it.`,
         figure: gap,
-        why: `${rupees(gap)} short on life cover, with ${dependents(count)} relying on that income.`,
+        why: `${rupeesTitle(gap)} short on life cover, with ${dependents(count)} relying on that income.`,
         opener: `${rupeesTitle(gap)} is the life cover gap for ${dependents(count)}. Worth ten minutes on term cover?`,
       }
     }
@@ -243,7 +245,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(amount)} deposit matures ${when(days)}`,
         detail: `Matures ${shortDate(date)}${earning}. Left alone it auto-renews at the counter rate.`,
         figure: amount,
-        why: `${rupees(amount)} deposit matures ${when(days)} and auto-renews if nobody acts.`,
+        why: `${rupeesTitle(amount)} deposit matures ${when(days)} and auto-renews if nobody acts.`,
         opener: `${rupeesTitle(amount)} matures on ${shortDate(date)}. Shall we decide where it goes before it renews?`,
       }
     }
@@ -258,7 +260,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(emi)} a month frees up in ${plural(left, 'month')}`,
         detail: `The ${loan} ends after ${plural(left, 'more instalment', 'more instalments')}. Claimed before the first free month, it never drifts into spending.`,
         figure: emi,
-        why: `${rupees(emi)} a month frees up when the ${loan} ends in ${plural(left, 'month')}.`,
+        why: `${rupeesTitle(emi)} a month frees up when the ${loan} ends in ${plural(left, 'month')}.`,
         opener: `${rupeesTitle(emi)} a month frees up once the ${loan} ends. Shall we plan where it goes?`,
       }
     }
@@ -271,7 +273,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(floor)} idle in savings for ${plural(months, 'month')}`,
         detail: `The balance never fell below ${rupees(floor)} in that time. Savings pays 2.7%, under inflation; a sweep-in still comes back any day.`,
         figure: floor,
-        why: `${rupees(floor)} has sat untouched in savings for ${plural(months, 'month')}.`,
+        why: `${rupeesTitle(floor)} has sat untouched in savings for ${plural(months, 'month')}.`,
         opener: `${rupeesTitle(floor)} has sat in savings for ${plural(months, 'month')}. Worth putting it to work while it stays reachable?`,
       }
     }
@@ -288,7 +290,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(annual)} a year more for ${merchant}`,
         detail: `${rupees(from)} a month until ${month}, ${rupees(to)} since. Worth asking whether it is still wanted.`,
         figure: annual,
-        why: `${merchant} went from ${rupees(from)} to ${rupees(to)} a month in ${month}: ${rupees(annual)} a year more.`,
+        why: `${merchant} went from ${rupeesTitle(from)} to ${rupeesTitle(to)} a month in ${month}: ${rupeesTitle(annual)} a year more.`,
         opener: `${rupeesTitle(annual)} a year more on ${merchant} since ${month}. Still worth keeping?`,
       }
     }
@@ -301,7 +303,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(annual)} a year on ${plural(count, 'subscription')}`,
         detail: 'A statement shows no usage, so only the customer knows which are still in use.',
         figure: annual,
-        why: `${rupees(annual)} a year across ${plural(count, 'subscription')}.`,
+        why: `${rupeesTitle(annual)} a year across ${plural(count, 'subscription')}.`,
         opener: `${rupeesTitle(annual)} a year goes on ${plural(count, 'subscription')}. Are all of them still in use?`,
       }
     }
@@ -322,7 +324,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(extra)} a month more on ${name} — up ${pct}%`,
         detail: `${rupees(prior)} a month became ${rupees(recent)} over three months, with nothing large behind it.`,
         figure: extra,
-        why: `${category} is up ${pct}% in three months, ${rupees(extra)} a month more.`,
+        why: `${category} is up ${pct}% in three months, ${rupeesTitle(extra)} a month more.`,
         opener: `${rupeesTitle(extra)} a month more on ${name} lately. Anything behind it?`,
       }
     }
@@ -340,7 +342,7 @@ function linesFor(i: InsightLike): Lines | null {
         title: `${rupeesTitle(annual)} a year on ${merchant} — ${times} times a month`,
         detail: `Usually ${rupees(typical)} at a time. Small enough that it never feels like much.`,
         figure: annual,
-        why: `${rupees(annual)} a year on ${merchant}, ${times} times a month.`,
+        why: `${rupeesTitle(annual)} a year on ${merchant}, ${times} times a month.`,
         opener: `${rupeesTitle(annual)} a year on ${merchant}. Worth setting a monthly cap?`,
       }
     }

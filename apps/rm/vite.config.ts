@@ -13,11 +13,18 @@ import { defineConfig } from 'vite'
  * `VITE_API_PROXY_TARGET` points the proxy at another API instance (a scratch API on :3011, say)
  * without touching the one the rest of the team is using on :3001. `strictPort: false` because
  * the mobile web target or a second console may already hold 5173 on a reviewer's machine.
+ *
+ * `xfwd` adds X-Forwarded-For (and -Host, -Proto, -Port) with the browser's address, as the
+ * load balancer does in production. The API ignores it unless it is started with TRUST_PROXY=1,
+ * which makes `request.ip`, and so every per-address rate limit and log line, the browser's
+ * address rather than the proxy's. Without TRUST_PROXY nothing changes: the API keys on the
+ * socket, which is this proxy, exactly as before.
  */
 const proxy = {
   '/api': {
     target: process.env['VITE_API_PROXY_TARGET'] ?? 'http://127.0.0.1:3001',
     changeOrigin: true,
+    xfwd: true,
   },
 }
 
@@ -39,14 +46,26 @@ export default defineConfig({
   define: { __BUILD_SHA__: JSON.stringify(buildSha()) },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   build: {
-    // One app chunk plus the chart library on its own: charts change least and weigh most, so a
-    // page change does not make every RM download them again. Route-level splitting can come
-    // with the pages; a ~700 kB internal console on a desk connection is not worth a warning.
+    // Every page behind sign-in is a chunk of its own (`src/shell/pages.ts`), and the chart
+    // library travels in the one chunk the charted pages share, so nothing of it loads before a
+    // chart is on screen.
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
+        /*
+         * Two named vendor chunks, both needed from the first paint. React changes least, so it
+         * caches across releases. The icons are one small chunk because pages share them in
+         * different combinations, which otherwise makes a scatter of sub-kilobyte chunks.
+         *
+         * Recharts is deliberately not named here. A manual chunk swallows the dependencies of
+         * what it holds unless another manual chunk claims them first, and a "charts" chunk took
+         * React DOM and clsx with it, so the entry imported the whole chart library to reach
+         * them. Left to Rollup, recharts lands in the shared chunk of the pages that draw charts.
+         */
         manualChunks(id) {
-          return /node_modules[\\/].*(recharts|victory-vendor|d3-)/.test(id) ? 'charts' : undefined
+          if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react'
+          if (/node_modules[\\/]lucide-react[\\/]/.test(id)) return 'icons'
+          return undefined
         },
       },
     },

@@ -10,12 +10,13 @@ import type {
   BookRow,
   BookTab,
   GoalHealth,
+  GoalKind,
+  Segment,
   Signal,
   SignalSeverity,
   Strength,
 } from '@dhan/contracts'
 import { allocationTotals, bookTotals } from '@dhan/core'
-import { daysBetween } from '../../lib/format.ts'
 
 /* ---------------------------------------------------------------- Tabs */
 
@@ -34,11 +35,9 @@ export function isBookTab(value: string | null): value is BookTab {
 }
 
 /**
- * Which rows each tab shows, from what a row carries. Every tab but one is exact. The server
- * counts a customer under Idle cash when *any* of their signals is idle cash, but a row only
- * carries its top signal, so the console can only see idle cash where it is the top one.
- * `hiddenFromTab` says how many the list therefore cannot show, and the page says so out loud
- * rather than letting the tab's count and the list disagree in silence.
+ * Which rows each tab shows, from what a row carries, by the contract's definition of `BookTab`.
+ * Idle cash reads `signalKinds`, every kind the customer has and not only the top one, which is
+ * exactly what the server counts: the tab's number and the rows under it agree by construction.
  */
 export const IN_TAB: Readonly<Record<BookTab, (row: BookRow) => boolean>> = {
   all: () => true,
@@ -46,13 +45,26 @@ export const IN_TAB: Readonly<Record<BookTab, (row: BookRow) => boolean>> = {
   affluent: (row) => row.segment === 'affluent',
   mass: (row) => row.segment === 'mass',
   at_risk: (row) => row.goal.health !== 'on_track',
-  idle_cash: (row) => row.topSignal?.kind === 'idle_cash',
+  idle_cash: (row) => row.signalKinds.includes('idle_cash'),
   asked_for_rm: (row) => row.openHandoff,
 }
 
-/** Customers the server counts in a tab that the rows cannot show. Zero for every exact tab. */
-export function hiddenFromTab(serverCount: number, rows: readonly BookRow[], tab: BookTab): number {
-  return Math.max(0, serverCount - rows.filter(IN_TAB[tab]).length)
+/**
+ * The tabs in two groups: who the customer is (their segment) and what there is to do (the
+ * work). The strip draws a divider between them, so two kinds of filter never read as one set.
+ */
+export const SEGMENT_TABS: readonly BookTab[] = ['all', 'priority', 'affluent', 'mass']
+export const WORK_TABS: readonly BookTab[] = ['at_risk', 'idle_cash', 'asked_for_rm']
+
+/**
+ * The console's one name for a customer who tapped Talk to your relationship manager: Today's
+ * KPI, the row chip, the rail's banner and the journey's filter all say it. The server sends the
+ * same words for the tab; the page names it here as well, so the tab cannot drift from the rest.
+ */
+export const ASKED_FOR_YOU = 'Asked for you'
+
+export function tabLabel(id: BookTab, serverLabel: string): string {
+  return id === 'asked_for_rm' ? ASKED_FOR_YOU : serverLabel
 }
 
 /* ---------------------------------------------------------------- Search */
@@ -140,13 +152,10 @@ export interface SliceTotals {
   allocation: ReturnType<typeof allocationTotals>
   onTrack: number
   actNow: number
-  lowStrength: number
-  /** Customers with any activity on record in the 30 days up to the as-of date. */
-  activeIn30Days: number
 }
 
 /** The footer row: what the rows on screen add up to, never the whole book's figure. */
-export function sliceTotals(rows: readonly BookRow[], asOf: string): SliceTotals {
+export function sliceTotals(rows: readonly BookRow[]): SliceTotals {
   const totals = bookTotals(rows)
   return {
     customers: totals.customers,
@@ -154,11 +163,71 @@ export function sliceTotals(rows: readonly BookRow[], asOf: string): SliceTotals
     allocation: allocationTotals(rows),
     onTrack: rows.filter((r) => r.goal.health === 'on_track').length,
     actNow: rows.filter((r) => r.topSignal?.severity === 'urgent').length,
-    lowStrength: rows.filter((r) => r.strength.level === 'low').length,
-    activeIn30Days: rows.filter((r) => {
-      if (r.lastActivityAt === null) return false
-      const days = daysBetween(r.lastActivityAt, asOf)
-      return days >= 0 && days <= 30
-    }).length,
   }
+}
+
+/* ---------------------------------------------------------------- Row forms */
+
+/**
+ * A signal title split for a two-line table cell: the head is what happened, the tail the
+ * qualifier that rides on the second line beside the severity. "₹4.2Cr short on life cover — 2
+ * dependents" becomes "₹4.2Cr short on life cover" and "2 dependents"; "₹30,500 a month in EMIs,
+ * a repayment missed" becomes "₹30,500 a month in EMIs" and "a repayment missed". A title with
+ * neither break is all head. Nothing is reworded: the two parts are the title, cut once, and the
+ * full sentence stays in the cell's tooltip and in the preview rail.
+ */
+export function splitSignalTitle(title: string): { head: string; tail: string | null } {
+  // The first dash or comma that is followed by a space: "₹30,500" keeps its comma.
+  const match = /\s—\s|,\s/.exec(title)
+  if (!match || match.index === 0) return { head: title, tail: null }
+  const head = title.slice(0, match.index).trim()
+  const tail = title.slice(match.index + match[0].length).trim()
+  return tail === '' ? { head: title, tail: null } : { head, tail }
+}
+
+/** "Retirement · 2042": the goal by a short name and the year it is due, for a narrow cell. */
+const GOAL_SHORT: Readonly<Record<GoalKind, string | null>> = {
+  retirement: 'Retirement',
+  emergency_fund: 'Emergency',
+  debt_payoff: 'Clear debt',
+  protection: 'Cover',
+  // A wealth target is whatever the customer called it ("Home", "Daughter's college").
+  wealth_target: null,
+}
+
+export function goalRowLabel(goal: BookRow['goal']): string {
+  const name = GOAL_SHORT[goal.kind] ?? goal.label
+  const year = goal.targetDate.slice(0, 4)
+  return `${name} · ${year}`
+}
+
+/* ---------------------------------------------------------------- By segment */
+
+export interface SegmentSlice {
+  segment: Segment
+  customers: number
+  relationshipValue: number
+  /** Share of the slice's relationship value, 0 to 100; 0 for an empty slice. */
+  sharePct: number
+}
+
+const SEGMENT_ORDER: readonly Segment[] = ['priority', 'affluent', 'mass']
+
+/**
+ * How the rows on screen divide by segment, by relationship value: the bar over the table, which
+ * follows the tab and the search. Every segment is listed, empty ones at zero, so the bar keeps
+ * its order as the view changes.
+ */
+export function segmentBreakdown(rows: readonly BookRow[]): SegmentSlice[] {
+  const total = rows.reduce((s, r) => s + r.relationshipValue, 0)
+  return SEGMENT_ORDER.map((segment) => {
+    const mine = rows.filter((r) => r.segment === segment)
+    const value = mine.reduce((s, r) => s + r.relationshipValue, 0)
+    return {
+      segment,
+      customers: mine.length,
+      relationshipValue: value,
+      sharePct: total > 0 ? (value / total) * 100 : 0,
+    }
+  })
 }

@@ -8,12 +8,21 @@ export { Button, buttonVariants } from './Button.tsx'
 export { Card, CardDivider, CardFooter, CardHeader } from './Card.tsx'
 export {
   AreaChart,
+  BAND_SWATCH,
+  BandChart,
   BarChart,
   ChartTooltipCard,
   Donut,
+  PROJECTION_SWATCH,
+  ProjectionChart,
   SmallMultiple,
+  formatTick,
   formatValue,
+  projectionPath,
+  scenarioRoles,
+  type BandDatum,
   type DonutSlice,
+  type ScenarioRoles,
   type SeriesDef,
   type ValueFormat,
 } from './charts.tsx'
@@ -38,6 +47,7 @@ export { EmptyState } from './EmptyState.tsx'
 export { ErrorState, describeError } from './ErrorState.tsx'
 export { Field, Input, Select, Textarea } from './Field.tsx'
 export { IconButton } from './IconButton.tsx'
+export { InteractiveRow, useBadgeTabIndex } from './interactive-row.tsx'
 export { Kbd, modKey } from './Kbd.tsx'
 export { PageHeader, PropertyList, type Property } from './Layout.tsx'
 export { MaskedField } from './MaskedField.tsx'

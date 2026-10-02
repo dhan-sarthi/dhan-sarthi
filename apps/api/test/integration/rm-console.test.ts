@@ -845,6 +845,22 @@ describe('rm console on postgres', { skip: NO_DATABASE }, () => {
       const refused = await get(`/api/v1/rm/customers/${meeras}/journey`, arjun)
       assert.equal(refused.statusCode, 403, refused.body)
       assert.equal(refused.json<ErrorBody>().code, 'FORBIDDEN')
+      // The refused attempt is on the record, as Arjun's (0016 widened the CHECK for it).
+      const denied = await owner.query<{ action: string; cif: string; purpose: string }>(
+        `SELECT action, cif, purpose FROM app.rm_access_log
+         WHERE rm_id = $1 ORDER BY ordinal DESC LIMIT 1`,
+        [ARJUN_ID],
+      )
+      assert.deepEqual(denied.rows[0], {
+        action: 'denied',
+        cif: meeras,
+        purpose: 'Open the journey',
+      })
+      const log = (await get('/api/v1/rm/access-log', arjun)).json<RmAccessLog>()
+      assert.deepEqual(
+        [log.entries[0]?.action, log.entries[0]?.cif, log.entries[0]?.name],
+        ['denied', meeras, meeras],
+      )
 
       const today = await get('/api/v1/rm/today')
       assert.equal(today.statusCode, 200, today.body)

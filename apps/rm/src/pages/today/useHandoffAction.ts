@@ -10,10 +10,11 @@ export type HandoffStatusChange = 'contacted' | 'resolved'
 /**
  * Marking a request contacted or resolved, optimistically.
  *
- * The inbox changes the moment the RM clicks; the server's answer then refetches Today (the
- * shared mutation invalidates it), which also moves the queue and the open-handoffs figure. If
- * the server refuses, the inbox is put back exactly as it was and the toast says so in plain
- * words: the request is still open, and nothing pretends otherwise.
+ * The request changes the moment the RM clicks (a resolved one leaves the queue with its row);
+ * the server's answer then refetches Today (the shared mutation invalidates it), which also moves
+ * the queue and the asked-for-a-call figure. If the server refuses, Today is put back exactly as
+ * it was and the toast says so in plain words: the request is still open, and nothing pretends
+ * otherwise.
  */
 export function useHandoffAction() {
   const client = useQueryClient()
@@ -27,10 +28,10 @@ export function useHandoffAction() {
       await client.cancelQueries({ queryKey: key })
       const before = client.getQueryData<RmToday>(key)
       if (before) {
-        client.setQueryData<RmToday>(key, {
-          ...before,
-          handoffs: applyHandoffStatus(before.handoffs, handoff.id, status, note ?? null),
-        })
+        client.setQueryData<RmToday>(
+          key,
+          applyHandoffStatus(before, handoff.id, status, note ?? null),
+        )
       }
       const who = firstName(handoff.name)
       try {
@@ -39,7 +40,7 @@ export function useHandoffAction() {
           description:
             status === 'resolved'
               ? `${who}’s request is closed. It stays on the journey.`
-              : `${who}’s request stays here until it is resolved.`,
+              : `${who}’s request stays on Today until it is resolved.`,
         })
         return true
       } catch (error) {

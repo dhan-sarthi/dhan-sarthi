@@ -29,6 +29,6 @@ export const DEMO_DESKS: readonly DemoDesk[] = [
     password: 'desk-204388',
     name: 'Arjun Menon',
     desk: 'Digital Wealth Desk, Bengaluru',
-    note: 'A second book, to show that one RM cannot open another’s customers',
+    note: 'A second book: try opening one of Meera’s customers',
   },
 ]

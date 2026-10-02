@@ -105,7 +105,7 @@ export function attritionWatch(input: AttritionInput): Attrition {
 
   const change = balanceChangePct(input.balanceSeries, 3, 'withIdbi')
   if (change !== null && change < -ATTRITION_BALANCE_DROP_PCT) {
-    reasons.push(`IDBI balances down ${Math.round(Math.abs(change))}% in 3 months`)
+    reasons.push(`IDBI month-end balances down ${Math.round(Math.abs(change))}% in 3 months`)
   }
 
   const share = input.walletSharePct

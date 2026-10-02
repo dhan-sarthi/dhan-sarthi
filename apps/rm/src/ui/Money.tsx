@@ -1,10 +1,14 @@
 import { cn } from '../lib/cn.ts'
-import { formatInr, splitInr } from '../lib/format.ts'
+import { formatInr, prefersShort, splitInr } from '../lib/format.ts'
 
 export interface MoneyProps {
   value: number
-  /** ₹4.8L. The exact figure is kept as the hover title, so nothing is lost by shortening. */
-  short?: boolean
+  /**
+   * ₹4.8L. The exact figure is kept as the hover title, so nothing is lost by shortening. `auto`
+   * is the rule for prose: in full under ₹1 lakh (₹22,501), short from there up (₹2.3Cr), the
+   * same as `formatInrProse` for a plain string.
+   */
+  short?: boolean | 'auto'
   /** Superscript paise (₹6⁴¹). Off by default: the console counts whole rupees. */
   paise?: boolean
   /** A leading + on positive values. */
@@ -35,7 +39,7 @@ export function Money({
     : undefined
   const full = formatInr(value, { paise, signed })
 
-  if (short) {
+  if (short === true || (short === 'auto' && prefersShort(value))) {
     return (
       <span title={full} className={cn('tabular whitespace-nowrap', tone, className)}>
         {formatInr(value, { short: true, signed })}

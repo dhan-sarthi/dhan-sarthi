@@ -36,7 +36,9 @@ import {
   type CustomerFile,
   type HoldingGroup,
 } from './customer-file.ts'
-import { Block, CardSkeleton, TAB_STACK, Meter, TabLoading } from './parts.tsx'
+import { Block, CardSkeleton, Meter, TAB_STACK, TabLoading } from './parts.tsx'
+import { ProseInr } from './figures.tsx'
+import { midSentence } from './prose.ts'
 
 /**
  * Money: everything the customer has and owes, across every bank we can see. Net worth and its
@@ -69,8 +71,9 @@ export function CustomerMoney() {
   )
 }
 
-function AsAt({ date }: { date: string }) {
-  return <span className="text-caption font-normal text-ink-faint">As at {formatDate(date)}</span>
+/** "As at 1 Sep 2026", in the API's words, beside every figure read on the as-of date. */
+function AsAt({ customer }: { customer: CustomerFile }) {
+  return <span className="text-caption font-normal text-ink-faint">{customer.basis.asOfLabel}</span>
 }
 
 /* ---------------------------------------------------------------- Net worth */
@@ -80,7 +83,7 @@ function NetWorth({ customer }: { customer: CustomerFile }) {
   const total = allocation.cash + allocation.equity + allocation.fixed
   return (
     <Card>
-      <CardHeader title="Net worth" actions={<AsAt date={customer.asOf} />} />
+      <CardHeader title="Net worth" actions={<AsAt customer={customer} />} />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="min-w-0">
           <Money value={net} className={cn('text-figure', net < 0 ? 'text-danger' : 'text-ink')} />
@@ -162,9 +165,17 @@ function changePct(first: number | undefined, last: number | undefined): number 
 }
 
 function BalanceHistory({ customer }: { customer: CustomerFile }) {
+  const { basis } = customer
   const series = customer.money.balanceSeries
   const first = series[0]
   const last = series[series.length - 1]
+  // The chart's last point is a month-end; the share on the header is as at the 1st, a payday
+  // later. Where the two differ by a point or more, the caption says both, so 12% here and 26%
+  // on the header read as two dates, not two answers.
+  const monthEndShare =
+    last && last.total > 0 ? Math.round((last.withIdbi / last.total) * 100) : null
+  const asAtShare =
+    customer.money.walletSharePct !== null ? Math.round(customer.money.walletSharePct) : null
   // Where every balance is already with IDBI the two lines are one; drawing both would only
   // lay a dashed line over a solid one.
   const allIdbi = customer.money.accounts.every((a) => a.isIdbi)
@@ -188,6 +199,7 @@ function BalanceHistory({ customer }: { customer: CustomerFile }) {
               label={allIdbi ? 'All balances, all with IDBI' : 'All banks'}
               value={last.total}
               change={changePct(first.total, last.total)}
+              basis={basis.lastMonthEndLabel}
             />
             {allIdbi ? null : (
               <LegendStat
@@ -195,6 +207,7 @@ function BalanceHistory({ customer }: { customer: CustomerFile }) {
                 label="With IDBI"
                 value={last.withIdbi}
                 change={changePct(first.withIdbi, last.withIdbi)}
+                basis={basis.lastMonthEndLabel}
               />
             )}
           </div>
@@ -209,9 +222,19 @@ function BalanceHistory({ customer }: { customer: CustomerFile }) {
             label={`Month-end balances from ${formatMonth(first.month)} to ${formatMonth(last.month)}`}
           />
           <p className="mt-3 text-caption font-normal text-ink-faint">
-            Month-end balances in every linked account, {formatMonth(first.month)} to{' '}
-            {formatMonth(last.month)}. Holdings and loans are not charted; they are shown below as
-            at {formatDate(customer.asOf)}.
+            {basis.seriesLabel}, every linked account. Holdings and loans are not charted; they are
+            shown below, {midSentence(basis.asOfLabel)}.
+            {!allIdbi &&
+            monthEndShare !== null &&
+            asAtShare !== null &&
+            Math.abs(monthEndShare - asAtShare) >= 1 ? (
+              <>
+                {' '}
+                With IDBI is {formatPct(monthEndShare)} of balances at the{' '}
+                {formatDate(basis.lastMonthEnd, { year: false })} month-end and{' '}
+                {formatPct(asAtShare)} {midSentence(basis.asOfLabel)}, after payday.
+              </>
+            ) : null}
           </p>
         </>
       )}
@@ -224,11 +247,14 @@ function LegendStat({
   label,
   value,
   change,
+  basis,
 }: {
   swatch: ReactNode
   label: string
   value: number
   change: number | null
+  /** "Month-end, 31 Aug 2026": the date the figure is read on. */
+  basis: string
 }) {
   return (
     <div className="min-w-0">
@@ -241,7 +267,8 @@ function LegendStat({
         {change !== null ? <DeltaPill value={change} /> : null}
       </div>
       <p className="mt-0.5 text-caption font-normal text-ink-faint">
-        Last month-end, 12-month change
+        {basis}
+        {change !== null ? ' · change over 12 month-ends' : ''}
       </p>
     </div>
   )
@@ -250,14 +277,12 @@ function LegendStat({
 /* ---------------------------------------------------------------- Accounts */
 
 function Accounts({ customer }: { customer: CustomerFile }) {
-  const { accounts, walletSharePct } = customer.money
+  const { accounts, walletSharePct, balances: total, withIdbi } = customer.money
   const groups = groupByBank(accounts)
-  const total = groups.reduce((s, g) => s + g.total, 0)
-  const withIdbi = groups.filter((g) => g.isIdbi).reduce((s, g) => s + g.total, 0)
   const name = firstName(customer.profile.name)
 
   return (
-    <Block title="Accounts" count={accounts.length} actions={<AsAt date={customer.asOf} />}>
+    <Block title="Accounts" count={accounts.length} actions={<AsAt customer={customer} />}>
       {accounts.length === 0 ? (
         <EmptyState
           className="py-5"
@@ -370,7 +395,7 @@ function Holdings({ customer }: { customer: CustomerFile }) {
   const name = firstName(customer.profile.name)
 
   return (
-    <Block title="Holdings" count={holdings.length} actions={<AsAt date={customer.asOf} />}>
+    <Block title="Holdings" count={holdings.length} actions={<AsAt customer={customer} />}>
       {holdings.length === 0 ? (
         <EmptyState
           className="py-5"
@@ -380,17 +405,25 @@ function Holdings({ customer }: { customer: CustomerFile }) {
       ) : (
         <>
           <dl className="mb-5 grid grid-cols-3 gap-4">
+            {/* The gain belongs to the value, so its pill sits there, with what was put in under
+                it as the base it is measured from. */}
             <div>
               <dt className="text-caption text-ink-faint">Value</dt>
-              <dd className="mt-1 text-title text-ink">
+              <dd className="mt-1 flex items-center gap-2 text-title text-ink">
                 <Money value={current} />
+                <GainPill invested={invested} current={current} />
+              </dd>
+              <dd className="mt-0.5 text-caption font-normal text-ink-faint">
+                on <Money value={invested} /> put in
               </dd>
             </div>
             <div>
-              <dt className="text-caption text-ink-faint">Put in</dt>
-              <dd className="mt-1 flex items-center gap-2 text-title text-ink">
-                <Money value={invested} />
-                <GainPill invested={invested} current={current} />
+              <dt className="text-caption text-ink-faint">Gain</dt>
+              <dd className="mt-1 text-title text-ink">
+                <Money value={current - invested} signed toned />
+              </dd>
+              <dd className="mt-0.5 text-caption font-normal text-ink-faint">
+                Value less what was put in
               </dd>
             </div>
             <div>
@@ -521,7 +554,7 @@ function Loans({ customer }: { customer: CustomerFile }) {
     <Block
       title="Loans and cards"
       count={loans.length}
-      actions={loans.length > 0 ? <AsAt date={customer.asOf} /> : null}
+      actions={loans.length > 0 ? <AsAt customer={customer} /> : null}
     >
       {loans.length === 0 ? (
         <EmptyState
@@ -533,8 +566,8 @@ function Loans({ customer }: { customer: CustomerFile }) {
       ) : (
         <>
           <p className="mb-4 text-body text-ink-soft">
-            <Money value={outstanding} className="font-semibold text-ink" /> outstanding,{' '}
-            <Money value={emi} className="font-semibold text-ink" /> a month in repayments
+            <ProseInr value={outstanding} className="font-semibold text-ink" /> outstanding,{' '}
+            <ProseInr value={emi} className="font-semibold text-ink" /> a month in repayments
             {share !== null ? <>, {formatPct(Math.round(share))} of income</> : null}.
           </p>
           <div
@@ -604,14 +637,14 @@ function Protection({ customer }: { customer: CustomerFile }) {
   const dependents = customer.profile.dependents
   const covered = p.lifeCoverNeeded > 0 && p.gap <= 0
   return (
-    <Block title="Protection" actions={<AsAt date={customer.asOf} />}>
+    <Block title="Protection" actions={<AsAt customer={customer} />}>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="min-w-0">
           <p className="text-caption text-ink-faint">Life cover</p>
           {p.lifeCoverNeeded === 0 ? (
             <>
               <p className="mt-1 text-heading text-ink">
-                {p.lifeCover > 0 ? <Money value={p.lifeCover} short /> : 'None'}
+                {p.lifeCover > 0 ? <ProseInr value={p.lifeCover} /> : 'None'}
               </p>
               <p className="mt-1 text-caption font-normal text-ink-soft">
                 No dependents, so the rule of thumb asks for no life cover.
@@ -620,9 +653,9 @@ function Protection({ customer }: { customer: CustomerFile }) {
           ) : (
             <>
               <p className="mt-1 text-heading text-ink">
-                <Money value={p.lifeCover} short />{' '}
+                <ProseInr value={p.lifeCover} />{' '}
                 <span className="text-label font-normal text-ink-soft">
-                  of <Money value={p.lifeCoverNeeded} short /> needed
+                  of <ProseInr value={p.lifeCoverNeeded} /> needed
                 </span>
               </p>
               <Meter
@@ -642,7 +675,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
                   'Covers the need'
                 ) : (
                   <>
-                    <Money value={p.gap} short /> short · {plural(dependents, 'dependent')}
+                    <ProseInr value={p.gap} /> short · {plural(dependents, 'dependent')}
                   </>
                 )}
               </p>
@@ -685,7 +718,7 @@ function Protection({ customer }: { customer: CustomerFile }) {
                 <span className="min-w-0 text-ink">{policy.name}</span>
                 {policy.cover !== null ? (
                   <span className="shrink-0 text-ink-soft">
-                    <Money value={policy.cover} short /> cover
+                    <ProseInr value={policy.cover} /> cover
                   </span>
                 ) : (
                   <span className="shrink-0 text-ink-faint">Cover not stated</span>

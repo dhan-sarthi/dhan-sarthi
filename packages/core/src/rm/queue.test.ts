@@ -118,7 +118,7 @@ describe('callQueue', () => {
     const row = queue.find((q) => q.cif === 'C1')
     assert.equal(row?.id, 'signal:C1:expensive_debt')
     assert.equal(row?.signal?.title, 'Card at 34.8% — ₹1.86L outstanding')
-    assert.equal(row?.why, '₹1,86,240 on a card at 34.8% costs ₹5,401 a month in interest.')
+    assert.equal(row?.why, '₹1.86L on a card at 34.8% costs ₹5,401 a month in interest.')
     assert.equal(
       row?.opener,
       '₹5,401 a month is going on card interest. Shall we plan to clear it?',

@@ -226,8 +226,8 @@ carrying a card at 34.8%" without a generator. `*.testkit.ts` is a test helper: 
 `dist` by `packages/core/tsconfig.json`, loaded by `tsconfig.test.json`, and never picked up by
 `node --test`.
 
-The whole tree is **1,168 tests, zero failures** as of 2 October 2026: core 331, contracts 46,
-fixtures 185, api 351, mobile 207, rm 48. The API's integration files run 100 tests when
+The whole tree is **1,293 tests, zero failures** as of 2 October 2026: core 335, contracts 52,
+fixtures 185, api 399, mobile 207, rm 115. The API's integration files run 100 tests when
 `DATABASE_URL` is set rather than the 45 that need no database, so Postgres adds 55 more, and CI
 runs them against a fresh database on every push to `main`.
 

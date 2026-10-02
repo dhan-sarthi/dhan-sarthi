@@ -14,7 +14,8 @@
  * Three behaviours on top of `fetch`:
  *
  *   timeout   12 s on every call. A hung request is indistinguishable from a dead API, and the
- *             page needs a signal it can put into words, not a spinner.
+ *             page needs a signal it can put into words, not a spinner. A call that waits on a
+ *             model passes its own (`COPILOT_TIMEOUT_MS`).
  *   retry     once, GET only, on a network failure or a 5xx. Mutations are never retried here: a
  *             logged call written twice is a wrong record.
  *   401       on an RM route ends the session. The token has lapsed or been revoked, and every
@@ -35,6 +36,13 @@ import type {
 import { clearSession, getToken } from './session.ts'
 
 const TIMEOUT_MS = 12_000
+/**
+ * For the copilot's brief and questions. The API gives the model `RM_COPILOT_TIMEOUT_MS` (20 s by
+ * default) and then answers from the rules, so the console has to wait longer than that: at 12 s
+ * a slow model showed the RM "took too long" where the server was about to send the rules'
+ * answer.
+ */
+export const COPILOT_TIMEOUT_MS = 25_000
 const RETRY_DELAY_MS = 250
 /** Where the API lives when it is not behind the same origin. Empty means same origin. */
 const BASE = import.meta.env.VITE_API_BASE ?? ''
@@ -120,6 +128,8 @@ export interface CallOptions {
   /** Sent as If-None-Match on routes that set an ETag. A match comes back as `notModified`. */
   etag?: string
   signal?: AbortSignal
+  /** How long to wait for an answer, in milliseconds. 12 s unless the call says otherwise. */
+  timeoutMs?: number
 }
 
 export type Input<Id extends RouteId> = ParamsArg<Id> & QueryArg<Id> & BodyArg<Id> & CallOptions
@@ -200,11 +210,12 @@ async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   outer: AbortSignal | undefined,
+  timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(
     () => controller.abort(new DOMException('The request timed out.', 'TimeoutError')),
-    TIMEOUT_MS,
+    timeoutMs,
   )
   const relay = (): void => controller.abort(outer?.reason)
   if (outer?.aborted) relay()
@@ -267,7 +278,7 @@ export async function request<Id extends RouteId>(
   const attempts = route.method === 'GET' ? 2 : 1
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const res = await fetchWithTimeout(url, init, input.signal)
+      const res = await fetchWithTimeout(url, init, input.signal, input.timeoutMs ?? TIMEOUT_MS)
       const text = await res.text()
       let json: unknown = null
       if (text) {

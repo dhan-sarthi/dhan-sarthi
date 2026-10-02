@@ -89,7 +89,7 @@ describe('attritionWatch', () => {
       ...calm,
       balanceSeries: series([1_00_000, 95_000, 90_000, 80_000]),
     })
-    assert.deepEqual(down.reasons, ['IDBI balances down 20% in 3 months'])
+    assert.deepEqual(down.reasons, ['IDBI month-end balances down 20% in 3 months'])
     const edge = attritionWatch({
       ...calm,
       balanceSeries: series([1_00_000, 95_000, 90_000, 85_000]),
@@ -133,7 +133,7 @@ describe('attritionWatch', () => {
     })
     assert.equal(all.flagged, true)
     assert.deepEqual(all.reasons, [
-      'IDBI balances down 50% in 3 months',
+      'IDBI month-end balances down 50% in 3 months',
       'Only 12% of balances with IDBI',
       'No activity on record',
       'A SIP is paused',

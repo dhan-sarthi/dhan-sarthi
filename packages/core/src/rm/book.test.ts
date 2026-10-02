@@ -198,16 +198,22 @@ describe('todayKpis', () => {
   it('reports the four figures across the top of Today', () => {
     const kpis = todayKpis({ rows, openHandoffWaits: [3, 9, 1] })
     assert.deepEqual(
-      kpis.map((k) => [k.id, k.value, k.unit, k.delta, k.deltaLabel]),
+      kpis.map((k) => [k.id, k.value, k.unit, k.outOf, k.delta, k.deltaLabel]),
       [
-        // The last point is September's close here, so the change is September's.
-        ['book_value', 77_00_000, 'inr', 40_000, 'in balances in September'],
-        ['sip_book', 30_000, 'inr', null, '2 of 4 customers investing monthly'],
-        ['goals_on_track', 50, 'pct', null, '2 of 4 customers'],
-        ['open_handoffs', 3, 'count', null, 'oldest waiting 9 days'],
+        // The last point is September's close here, so the change is September's, and the
+        // label says it is month-end to month-end rather than the as-at value beside it.
+        ['book_value', 77_00_000, 'inr', null, 40_000, 'in month-end balances over September'],
+        ['sip_book', 30_000, 'inr', null, null, 'registered SIPs · 2 of 4 customers'],
+        // A count out of the book, never a percentage of it.
+        ['goals_on_track', 2, 'count', 4, null, 'of 4 customers'],
+        ['open_handoffs', 3, 'count', null, null, 'oldest waiting 9 days'],
       ],
     )
     assert.deepEqual(kpis[0]?.series, [27_20_000, 27_60_000, 28_00_000])
+    assert.deepEqual(
+      kpis.map((k) => k.seriesLabel),
+      ['Month-end balances, Jul 2026 to Sep 2026', null, null, null],
+    )
   })
 
   it('stays honest on an empty book', () => {
@@ -216,8 +222,8 @@ describe('todayKpis', () => {
       kpis.map((k) => [k.id, k.value, k.delta, k.deltaLabel, k.series]),
       [
         ['book_value', 0, null, null, null],
-        ['sip_book', 0, null, '0 of 0 customers investing monthly', null],
-        ['goals_on_track', 0, null, '0 of 0 customers', null],
+        ['sip_book', 0, null, 'registered SIPs · 0 of 0 customers', null],
+        ['goals_on_track', 0, null, 'of 0 customers', null],
         ['open_handoffs', 0, null, null, null],
       ],
     )

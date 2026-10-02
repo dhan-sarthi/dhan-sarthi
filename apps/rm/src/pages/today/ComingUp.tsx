@@ -51,7 +51,7 @@ export function ComingUp({ upcoming, asOf }: { upcoming: readonly UpcomingItem[]
                 detail={
                   <>
                     {formatCount(groups.sip.count)} instalments ·{' '}
-                    <Money value={groups.sip.amount} short />
+                    <Money value={groups.sip.amount} short="auto" />
                   </>
                 }
               />
@@ -136,7 +136,7 @@ function WeekRow({ week }: { week: SipWeek }) {
             {formatCount(week.customers)} {week.customers === 1 ? 'customer' : 'customers'}
           </span>
         </span>
-        <Money value={week.amount} short className="text-label text-ink" />
+        <Money value={week.amount} short="auto" className="text-label text-ink" />
         <ChevronDown
           aria-hidden
           className={cn(
@@ -169,7 +169,7 @@ function WeekRow({ week }: { week: SipWeek }) {
                     <span>
                       {weekday(day.date, { short: true })} {formatDate(day.date, { year: false })}
                     </span>
-                    <Money value={day.amount} short />
+                    <Money value={day.amount} short="auto" />
                   </p>
                   <ul className="grid grid-cols-1 gap-0.5 border-l border-hairline pl-3">
                     {day.items.map((item, i) => (

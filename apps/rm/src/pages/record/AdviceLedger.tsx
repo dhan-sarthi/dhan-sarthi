@@ -1,6 +1,14 @@
 import type { AdviceItem, VerdictOutcome } from '@dhan/contracts'
-import { Ban, Check, ChevronDown, CircleHelp, Minus, Quote, ShieldAlert } from 'lucide-react'
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
+import {
+  Check,
+  ChevronDown,
+  CircleHelp,
+  Minus,
+  Quote,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { cn } from '../../lib/cn.ts'
 import { formatDate } from '../../lib/format.ts'
@@ -74,19 +82,28 @@ function columnsFor(variant: LedgerVariant): Column[] {
       ]
 }
 
-const VERDICT_TONE: Record<VerdictOutcome, 'danger' | 'brand' | 'neutral'> = {
-  BLOCKED: 'danger',
-  PASS: 'brand',
-  UNKNOWN_PRODUCT: 'neutral',
-}
-
+/**
+ * The verdict, in the one word every page uses for it. A refusal is the rules doing their job,
+ * so it is the brand's shield in ink on the brand wash, the same mark Today and the book's record
+ * put beside a refused product; red is kept for a chain that breaks. A pass is a quiet outline:
+ * nothing to look at twice.
+ */
 export function VerdictChip({ verdict }: { verdict: VerdictOutcome }) {
-  const Icon = verdict === 'BLOCKED' ? Ban : verdict === 'PASS' ? Check : CircleHelp
+  if (verdict === 'BLOCKED') {
+    return (
+      <Chip
+        tone="brand"
+        icon={<ShieldCheck aria-hidden className="text-brand" />}
+        className="bg-brand-wash font-medium text-ink ring-1 ring-brand/20 ring-inset"
+      >
+        {VERDICT_WORDS.BLOCKED}
+      </Chip>
+    )
+  }
   return (
     <Chip
-      tone={VERDICT_TONE[verdict]}
-      icon={<Icon aria-hidden />}
-      className="font-semibold tracking-wide"
+      tone={verdict === 'PASS' ? 'outline' : 'neutral'}
+      icon={verdict === 'PASS' ? <Check aria-hidden /> : <CircleHelp aria-hidden />}
     >
       {VERDICT_WORDS[verdict]}
     </Chip>
@@ -358,25 +375,68 @@ function RuleCell({ item }: { item: AdviceItem }) {
 }
 
 /**
- * The sentence the customer heard, word for word. A product off the shelf was never put to the
+ * The sentence the customer heard, word for word. The page's claim is "kept word for word", so
+ * the sentence is shown whole. Only one that would run past four lines is held at three with
+ * "Show full wording" under it: holding a four-line sentence at three would hide two words
+ * behind a link as long as the line it saved. A product off the shelf was never put to the
  * rules and may have no sentence; its recorded wording stands in, in the quieter ink.
  */
 function Heard({ item, open }: { item: AdviceItem; open: boolean }) {
+  const textRef = useRef<HTMLSpanElement | null>(null)
+  const [clipped, setClipped] = useState(false)
+  const [full, setFull] = useState(false)
+  const whole = open || full
+
+  // How many lines the sentence takes depends on the column's width, so it is measured, and
+  // measured again when the column changes (the profile rail, a narrower window). A clamped box
+  // still reports its whole content as `scrollHeight`, so the count is the same either way.
+  useEffect(() => {
+    const el = textRef.current
+    if (!el || whole || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      const line = parseFloat(getComputedStyle(el).lineHeight)
+      setClipped(line > 0 && Math.round(el.scrollHeight / line) > 4)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [whole, item.spoken])
+
   if (item.spoken === null) {
     return <p className="text-label font-normal text-ink-faint">{item.recorded}</p>
   }
   return (
-    <p className="flex gap-2 text-label font-normal text-ink">
+    <div className="flex gap-2 text-label font-normal text-ink">
       <Quote aria-hidden className="mt-0.5 size-3.5 shrink-0 text-ink-hint" />
-      <span className="sr-only">The customer heard: </span>
-      <span className={cn('max-w-[80ch]', !open && 'line-clamp-2')}>{item.spoken}</span>
-    </p>
+      <div className="min-w-0">
+        <p className="max-w-[80ch]">
+          <span className="sr-only">The customer heard, word for word: </span>
+          <span
+            ref={textRef}
+            className={cn('block text-pretty', clipped && !whole && 'line-clamp-3')}
+          >
+            {item.spoken}
+          </span>
+        </p>
+        {clipped && !whole ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setFull(true)
+            }}
+            className="mt-1 rounded-sm text-caption text-brand underline-offset-3 hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            Show full wording
+          </button>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
 const RUNG: Record<RungState, { icon: typeof Check; text: string; word: string }> = {
   passed: { icon: Check, text: 'text-ink-soft', word: 'Cleared' },
-  failed: { icon: Ban, text: 'text-danger', word: 'Stopped here' },
+  failed: { icon: ShieldCheck, text: 'text-brand-deep', word: 'Refused here' },
   not_reached: { icon: Minus, text: 'text-ink-hint', word: 'Not reached' },
 }
 

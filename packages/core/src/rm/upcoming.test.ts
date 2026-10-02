@@ -29,7 +29,7 @@ describe('upcomingEvents', () => {
         name: 'Rohan Verma',
         kind: 'deposit_maturing',
         date: '2026-09-11',
-        label: '₹2,00,000 FD matures',
+        label: '₹2L FD matures',
         amount: 2_00_000,
       },
       {

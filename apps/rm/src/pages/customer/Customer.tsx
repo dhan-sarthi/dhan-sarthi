@@ -4,9 +4,10 @@ import { Link, Outlet } from 'react-router'
 import { isApiError } from '../../api/client.ts'
 import { CopilotPanel } from '../../features/copilot/index.tsx'
 import { Button, EmptyState, ErrorState, LinkTabs, LoadingRegion } from '../../ui/index.ts'
-import { firstName, useCustomerFile } from './customer-file.ts'
+import { firstName, useCustomerFile, type FileContext } from './customer-file.ts'
 import { CustomerHeader, HeaderSkeleton, Highlights } from './CustomerHeader.tsx'
 import { NoteDialog, type NoteKind } from './NoteDialog.tsx'
+import { useOpenRequest } from './open-request.ts'
 import { ProfileRail, RailSkeleton } from './ProfileRail.tsx'
 
 /**
@@ -20,7 +21,9 @@ import { ProfileRail, RailSkeleton } from './ProfileRail.tsx'
 export function Customer() {
   const { cif, query } = useCustomerFile()
   const [note, setNote] = useState<NoteKind | null>(null)
+  const request = useOpenRequest(cif, query.data?.asOf)
   const base = `/customers/${encodeURIComponent(cif)}`
+  const context: FileContext = { request, logCall: () => setNote('call') }
 
   if (query.isError)
     return (
@@ -36,7 +39,7 @@ export function Customer() {
   const tabs = (
     <LinkTabs
       label="Customer file"
-      className="mb-6"
+      className="mb-4"
       tabs={[
         { to: base, label: 'Overview', end: true },
         { to: `${base}/journey`, label: 'Journey' },
@@ -66,7 +69,7 @@ export function Customer() {
       {tabs}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18.75rem] min-[87.5rem]:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0">
-          <Outlet />
+          <Outlet context={context} />
         </div>
         {customer ? <ProfileRail customer={customer} /> : <RailSkeleton />}
       </div>
@@ -75,7 +78,9 @@ export function Customer() {
           <NoteDialog
             cif={customer.profile.cif}
             name={firstName(customer.profile.name)}
+            gender={customer.profile.gender}
             asOf={customer.asOf}
+            request={request}
             kind={note}
             onKindChange={setNote}
             onClose={() => setNote(null)}

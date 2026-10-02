@@ -10,8 +10,16 @@ import {
   type VisibilityState,
 } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
-import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useState,
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { cn } from '../lib/cn.ts'
+import { InteractiveRow } from './interactive-row.tsx'
 import { Skeleton } from './Skeleton.tsx'
 
 declare module '@tanstack/react-table' {
@@ -45,7 +53,17 @@ export interface DataTableProps<Row> {
    * side rail hides its widest columns so the rest keep room to read.
    */
   columnVisibility?: VisibilityState
-  onRowClick?: (row: Row) => void
+  /**
+   * A click, Enter or Space on a row. The event says which: a page that opens a preview on the
+   * first press and the file on the second can tell a keypress from a click.
+   */
+  onRowClick?: (row: Row, event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => void
+  /**
+   * Keyboard focus landed on a row, by Tab or the arrow keys, so a preview can follow it down the
+   * list. Focus moving to a control inside the row does not count. Rows take focus only when
+   * they are clickable.
+   */
+  onRowFocus?: (row: Row) => void
   selectedId?: string | null
   loading?: boolean
   /** Shown in place of the body when there are no rows (and not loading). */
@@ -79,8 +97,11 @@ function widthStyle(width: number | string | undefined): CSSProperties | undefin
  *
  * Sortable headers announce their order (`aria-sort`) and tint the sorted column. Rows are
  * keyboard reachable when they open something: Tab lands on a row, the arrows move between rows,
- * Enter opens it. Column footers render as a sticky aggregate row (count, Σ value), and loading
- * draws skeleton rows of the same height, so the table never jumps when the data arrives.
+ * Enter opens it, and `onRowFocus` tells the page which row the keyboard is on. A clickable row
+ * is one Tab stop, however many badges it holds (see `interactive-row.tsx`). Every body row
+ * carries `data-row-id`, its `getRowId`, so a page can find the row an event came from without
+ * marking up its cells. Column footers render as a sticky aggregate row (count, Σ value), and
+ * loading draws skeleton rows of the same height, so the table never jumps when the data arrives.
  */
 export function DataTable<Row>({
   data,
@@ -92,6 +113,7 @@ export function DataTable<Row>({
   initialSorting = [],
   columnVisibility = {},
   onRowClick,
+  onRowFocus,
   selectedId = null,
   loading = false,
   empty,
@@ -126,9 +148,11 @@ export function DataTable<Row>({
   const stickyHead: CSSProperties | undefined = inPage ? { top: stickyTop } : undefined
 
   function onRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, row: Row) {
+    // Only the row's own keys: Enter on a button inside a row belongs to the button.
+    if (event.target !== event.currentTarget) return
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      onRowClick?.(row)
+      onRowClick?.(row, event)
       return
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -245,47 +269,57 @@ export function DataTable<Row>({
               </td>
             </tr>
           ) : (
-            rows.map((row) => {
-              const selected = row.id === selectedId
-              const clickable = onRowClick !== undefined
-              return (
-                <tr
-                  key={row.id}
-                  data-selected={selected || undefined}
-                  aria-current={selected || undefined}
-                  tabIndex={clickable ? 0 : undefined}
-                  onClick={clickable ? () => onRowClick(row.original) : undefined}
-                  onKeyDown={clickable ? (e) => onRowKeyDown(e, row.original) : undefined}
-                  className={cn(
-                    rowHeight,
-                    'group/row transition-colors duration-100',
-                    clickable &&
-                      'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus',
-                    selected ? 'bg-row-selected' : clickable && 'hover:bg-row-hover',
-                  )}
-                >
-                  {row.getVisibleCells().map((cell, i, cells) => {
-                    const meta = cell.column.columnDef.meta
-                    return (
-                      <td
-                        key={cell.id}
-                        className={cn(
-                          'border-b border-hairline-soft px-3 align-middle',
-                          layout === 'fixed' && 'overflow-hidden',
-                          i === 0 && 'pl-4',
-                          i === cells.length - 1 && 'pr-4',
-                          ALIGN[meta?.align ?? 'left'],
-                          meta?.align === 'right' && 'tabular',
-                          meta?.cellClassName,
-                        )}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    )
-                  })}
-                </tr>
-              )
-            })
+            <RowScope interactive={onRowClick !== undefined}>
+              {rows.map((row) => {
+                const selected = row.id === selectedId
+                const clickable = onRowClick !== undefined
+                return (
+                  <tr
+                    key={row.id}
+                    data-row-id={row.id}
+                    data-selected={selected || undefined}
+                    aria-current={selected || undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    onClick={clickable ? (e) => onRowClick(row.original, e) : undefined}
+                    onKeyDown={clickable ? (e) => onRowKeyDown(e, row.original) : undefined}
+                    onFocus={
+                      clickable && onRowFocus
+                        ? (e: FocusEvent<HTMLTableRowElement>) => {
+                            if (e.target === e.currentTarget) onRowFocus(row.original)
+                          }
+                        : undefined
+                    }
+                    className={cn(
+                      rowHeight,
+                      'group/row transition-colors duration-100',
+                      clickable &&
+                        'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus',
+                      selected ? 'bg-row-selected' : clickable && 'hover:bg-row-hover',
+                    )}
+                  >
+                    {row.getVisibleCells().map((cell, i, cells) => {
+                      const meta = cell.column.columnDef.meta
+                      return (
+                        <td
+                          key={cell.id}
+                          className={cn(
+                            'border-b border-hairline-soft px-3 align-middle',
+                            layout === 'fixed' && 'overflow-hidden',
+                            i === 0 && 'pl-4',
+                            i === cells.length - 1 && 'pr-4',
+                            ALIGN[meta?.align ?? 'left'],
+                            meta?.align === 'right' && 'tabular',
+                            meta?.cellClassName,
+                          )}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </RowScope>
           )}
         </tbody>
 
@@ -319,6 +353,11 @@ export function DataTable<Row>({
       </table>
     </div>
   )
+}
+
+/** Clickable rows are one Tab stop each, so the badges inside them give theirs up. */
+function RowScope({ interactive, children }: { interactive: boolean; children: ReactNode }) {
+  return interactive ? <InteractiveRow>{children}</InteractiveRow> : <>{children}</>
 }
 
 /** The usual first cell: avatar, a name, and a quiet line under it ("34 · Pune"). */

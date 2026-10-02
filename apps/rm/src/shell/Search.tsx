@@ -1,19 +1,29 @@
+import type { BookRow } from '@dhan/contracts'
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useBook } from '../api/queries.ts'
+import { useSession } from '../api/session.ts'
 import { formatInr } from '../lib/format.ts'
+import { matchPage, rankBy, rankCustomers, type CustomerMatch } from '../lib/search.ts'
 import {
   Avatar,
   CommandPalette,
   SEGMENT,
   useCommandShortcut,
   type CommandGroupDef,
+  type CommandItemDef,
 } from '../ui/index.ts'
 import { NAV } from './nav.ts'
+import { useRecentCustomers } from './recent.ts'
+
+/** More than this and the list stops being an answer and starts being the book again. */
+const MAX_CUSTOMERS = 8
 
 /**
- * Cmd-K over the book and the pages. Customers are searchable by name, CIF and city; the hint
- * gives the segment and the relationship value so two people with one name are told apart.
+ * Cmd-K over the book and the pages. Customers are found by name, CIF or city and ranked by how
+ * well they match (`lib/search.ts`): the person typed comes first, and a name that merely shares
+ * some letters is not listed. Before anything is typed it offers the customers opened most
+ * recently. Each row says segment and city, so two people with one name are told apart.
  */
 export function useSearch() {
   const [open, setOpen] = useState(false)
@@ -31,28 +41,63 @@ export function SearchPalette({
 }) {
   const navigate = useNavigate()
   const book = useBook()
+  const session = useSession()
+  const recent = useRecentCustomers(session?.rm.rmId ?? null)
+  const [query, setQuery] = useState('')
+  // Every open starts from an empty box and the recent list, however the palette was closed
+  // (Esc, a pick, or Cmd-K again). Adjusted during render rather than in an effect, so the
+  // stale query never paints.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) setQuery('')
+  }
 
   const groups = useMemo<CommandGroupDef[]>(() => {
-    const customers = (book.data?.rows ?? []).map((row) => ({
+    const rows = book.data?.rows ?? []
+    const toItem = (row: BookRow, match: CustomerMatch | null): CommandItemDef => ({
       id: row.cif,
       label: row.name,
-      hint: `${SEGMENT[row.segment].label} · ${row.city} · ${formatInr(row.relationshipValue, { short: true })}`,
-      keywords: [row.cif, row.city, row.segment],
+      highlight: match?.highlight ?? null,
+      // A CIF match shows the CIF, so the RM can see it was the number that matched.
+      hint: [
+        SEGMENT[row.segment].label,
+        row.city,
+        match?.field === 'cif' ? row.cif : formatInr(row.relationshipValue, { short: true }),
+      ].join(' · '),
       icon: <Avatar name={row.name} initials={row.initials} size="sm" />,
-      onSelect: () => navigate(`/customers/${encodeURIComponent(row.cif)}`),
-    }))
-    const pages = NAV.map((item) => ({
-      id: `page:${item.to}`,
-      label: item.label,
-      hint: item.hint,
-      icon: <item.icon aria-hidden />,
-      onSelect: () => navigate(item.to),
-    }))
+      onSelect: () => void navigate(`/customers/${encodeURIComponent(row.cif)}`),
+    })
+
+    const typed = query.trim() !== ''
+    const pages = (typed ? rankBy(NAV, (item) => matchPage(query, item)) : NAV).map(
+      (item): CommandItemDef => ({
+        id: `page:${item.to}`,
+        label: item.label,
+        hint: item.hint,
+        icon: <item.icon aria-hidden />,
+        onSelect: () => void navigate(item.to),
+      }),
+    )
+
+    if (!typed) {
+      const byCif = new Map(rows.map((r) => [r.cif, r] as const))
+      const recentRows = recent.flatMap((cif) => {
+        const row = byCif.get(cif)
+        return row ? [row] : []
+      })
+      return [
+        { heading: 'Recent', items: recentRows.map((row) => toItem(row, null)) },
+        { heading: 'Go to', items: pages },
+      ]
+    }
+
+    const customers = rankCustomers(query, rows, MAX_CUSTOMERS)
     return [
-      { heading: 'Customers', items: customers },
+      { heading: 'Customers', items: customers.map(({ row, match }) => toItem(row, match)) },
       { heading: 'Go to', items: pages },
     ]
-  }, [book.data, navigate])
+  }, [book.data, navigate, query, recent])
 
   return (
     <CommandPalette
@@ -60,6 +105,9 @@ export function SearchPalette({
       onOpenChange={onOpenChange}
       groups={groups}
       loading={book.isPending}
+      query={query}
+      onQueryChange={setQuery}
+      emptyText={`No customer or page matches ‘${query.trim()}’. Search looks at names, CIFs and cities.`}
     />
   )
 }

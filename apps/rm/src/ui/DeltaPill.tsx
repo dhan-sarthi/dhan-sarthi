@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { cn } from '../lib/cn.ts'
 import { formatCount, formatInr, formatPct } from '../lib/format.ts'
 
@@ -29,7 +29,8 @@ function text(value: number, unit: DeltaUnit): string {
 
 /**
  * A small rounded chip with an arrow: "↗ 2.4%". The arrow and the sign carry the direction, so
- * the colour can be read as a bonus rather than the message.
+ * the colour can be read as a bonus rather than the message. No change is a plain grey "0%" with
+ * no mark at all: a dash beside a zero read as a minus.
  */
 export function DeltaPill({
   value,
@@ -40,7 +41,7 @@ export function DeltaPill({
 }: DeltaPillProps) {
   const direction = value > 0 ? 'up' : value < 0 ? 'down' : 'flat'
   const good = direction === 'flat' ? null : (direction === 'up') !== invert
-  const Icon = direction === 'up' ? ArrowUpRight : direction === 'down' ? ArrowDownRight : Minus
+  const Icon = direction === 'up' ? ArrowUpRight : direction === 'down' ? ArrowDownRight : null
   const sign = direction === 'up' ? '+' : direction === 'down' ? '−' : ''
   return (
     <span
@@ -54,7 +55,7 @@ export function DeltaPill({
         className,
       )}
     >
-      <Icon aria-hidden strokeWidth={2.25} />
+      {Icon ? <Icon aria-hidden strokeWidth={2.25} /> : null}
       <span>
         {sign}
         {text(value, unit)}

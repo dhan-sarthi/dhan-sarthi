@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { txn } from '../snapshot.testkit.ts'
-import { balanceChangePct, monthlyBalanceSeries } from './series.ts'
+import { balanceChangePct, figureBasis, monthEnds, monthlyBalanceSeries } from './series.ts'
 import type { BalancePoint } from './series.ts'
 
 const AS_OF = '2026-09-01'
@@ -112,5 +112,37 @@ describe('balanceChangePct', () => {
     assert.equal(balanceChangePct([]), null)
     assert.equal(balanceChangePct(points([1_00_000, 1_10_000])), null)
     assert.equal(balanceChangePct(points([0, 10_000, 20_000, 30_000])), null)
+  })
+})
+
+describe('figureBasis', () => {
+  it('names the as-at date and the twelve month-ends the charts are read on', () => {
+    assert.deepEqual(figureBasis(AS_OF), {
+      asOf: '2026-09-01',
+      asOfLabel: 'As at 1 Sep 2026',
+      seriesFrom: '2025-09',
+      seriesTo: '2026-08',
+      lastMonthEnd: '2026-08-31',
+      seriesLabel: '12 month-ends, Sep 2025 to Aug 2026',
+      lastMonthEndLabel: 'Month-end, 31 Aug 2026',
+    })
+  })
+
+  it('reads the same month-ends the balance series is cut on', () => {
+    const series = monthlyBalanceSeries([], AS_OF)
+    const ends = monthEnds(AS_OF)
+    assert.deepEqual(
+      series.map((p) => p.month),
+      ends.map((d) => d.slice(0, 7)),
+    )
+    const basis = figureBasis(AS_OF)
+    assert.equal(series[0]?.month, basis.seriesFrom)
+    assert.equal(series[series.length - 1]?.month, basis.seriesTo)
+  })
+
+  it('counts the as-of month when the clock stands on its last day', () => {
+    const basis = figureBasis('2026-08-31', 3)
+    assert.equal(basis.lastMonthEnd, '2026-08-31')
+    assert.equal(basis.seriesLabel, '3 month-ends, Jun 2026 to Aug 2026')
   })
 })

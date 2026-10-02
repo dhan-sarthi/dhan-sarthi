@@ -532,7 +532,7 @@ describe('the copilot routes', () => {
     assert.equal(log.length, logBefore + 1)
     assert.equal(log[0]?.action, 'checked')
     assert.equal(log[0]?.cif, KARAN_CIF)
-    assert.match(log[0]?.detail ?? '', /LIC Market Plus ULIP: BLOCKED/)
+    assert.match(log[0]?.detail ?? '', /LIC Market Plus ULIP: refused under "Expensive debt first"/)
   })
 
   it('drops a model sentence that puts a refused product forward, and keeps one that states the refusal', async () => {
@@ -602,7 +602,12 @@ describe('the copilot routes', () => {
     assert.equal(b.status, 403)
     assert.equal(a.status, 403)
     assert.equal(model.calls.length, calls, 'the model was never asked')
-    assert.equal((await root.deps.rmActivity.listAccess('rm-204388', 50)).length, before)
+    // The refusals are on the log as refusals; nothing was briefed or asked.
+    const log = await root.deps.rmActivity.listAccess('rm-204388', 50)
+    assert.deepEqual(
+      log.slice(0, log.length - before).map((e) => e.action),
+      ['denied', 'denied'],
+    )
   })
 
   it('offers the customer page questions about this customer', async () => {

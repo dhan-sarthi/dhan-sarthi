@@ -2,11 +2,12 @@ import type { Customer360 } from '@dhan/contracts'
 import { skipToken, useQuery } from '@tanstack/react-query'
 import { Sparkles, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useId, useLayoutEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useSearchParams } from 'react-router'
 import { keys } from '../../api/queries.ts'
 import { formatDate } from '../../lib/format.ts'
-import { slideFromRight } from '../../lib/motion.ts'
+import { duration, ease, slideFromRight } from '../../lib/motion.ts'
 import {
   Avatar,
   IconButton,
@@ -21,9 +22,12 @@ import { AskView } from './Ask.tsx'
 import { BriefView } from './Brief.tsx'
 import { firstName } from './names.ts'
 import {
+  COPILOT_PARAM,
   PANEL_ID,
   closeCopilot,
   copilotUi,
+  isCopilotMode,
+  openCopilot,
   setCopilotMode,
   toggleCopilot,
   useCopilotUi,
@@ -41,13 +45,15 @@ function useCachedCustomer(cif: string): Customer360 | undefined {
 
 /**
  * Mounted once by the customer layout. It owns the Cmd/Ctrl-J shortcut while a customer page is
- * open, closes itself when the RM leaves that customer, and draws the panel in a portal so no
- * transformed ancestor can pin it to the page instead of the window.
+ * open, opens itself when the address asks (`?copilot=brief`), closes itself when the RM leaves
+ * that customer, and draws the sheet in a portal so no transformed ancestor can pin it to the
+ * page instead of the window.
  */
 export function CopilotPanel({ cif }: { cif: string }) {
   const ui = useCopilotUi()
   const customer = useCachedCustomer(cif)
   const open = ui.openCif === cif && customer !== undefined
+  useOpenFromAddress(cif)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -74,63 +80,57 @@ export function CopilotPanel({ cif }: { cif: string }) {
 
   return createPortal(
     <AnimatePresence>
+      {open ? <Scrim key={`${cif}-scrim`} /> : null}
       {open ? <PanelSurface key={cif} cif={cif} customer={customer} mode={ui.mode} /> : null}
     </AnimatePresence>,
     document.body,
   )
 }
 
-const GAP = 12
-
 /**
- * Keeps the panel clear of the customer's header. Where any part of the header (the name, the CIF,
- * Log a call) reaches into the panel's column, the panel starts below it; where nothing does, as
- * on a narrower window where the actions wrap under the name, it rises to the top bar and keeps
- * the height for the brief. Once the header scrolls away the panel follows it up. Written straight
- * to the element on scroll, so following the page costs no React render.
+ * `?copilot=brief` or `?copilot=ask` opens the panel on that mode, then leaves the address, so
+ * Back and a reload show the file as the RM left it rather than reopening the panel.
  */
-function followHeader(panel: HTMLElement | null): (() => void) | undefined {
-  if (!panel) return undefined
-  const topbar =
-    Number.parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue('--spacing-topbar'),
-    ) || 56
-  const header = document.querySelector<HTMLElement>('#main header')
-  let frame = 0
-  const place = () => {
-    frame = 0
-    // From the layout, not the box: the slide-in moves the box sideways while it plays.
-    const left = window.innerWidth - GAP - panel.offsetWidth
-    let below = 0
-    if (header?.isConnected) {
-      for (const el of header.querySelectorAll<HTMLElement>('*')) {
-        // Leaves and controls only: the header's own rows span the page and always "overlap".
-        if (el.childElementCount > 0 && el.tagName !== 'BUTTON') continue
-        const box = el.getBoundingClientRect()
-        if (box.width > 0 && box.right > left - GAP && box.bottom > below) below = box.bottom
-      }
-    }
-    // A header reaching past half the window is not one the panel should shrink for.
-    if (below > window.innerHeight / 2) below = 0
-    panel.style.top = `${Math.max(topbar, below) + GAP}px`
-  }
-  const schedule = () => {
-    if (!frame) frame = requestAnimationFrame(place)
-  }
-  place()
-  window.addEventListener('scroll', schedule, { passive: true })
-  window.addEventListener('resize', schedule)
-  return () => {
-    cancelAnimationFrame(frame)
-    window.removeEventListener('scroll', schedule)
-    window.removeEventListener('resize', schedule)
-  }
+function useOpenFromAddress(cif: string) {
+  const [params, setParams] = useSearchParams()
+  const asked = params.get(COPILOT_PARAM)
+  useEffect(() => {
+    if (!isCopilotMode(asked)) return
+    openCopilot(cif, asked)
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete(COPILOT_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+  }, [asked, cif, setParams])
 }
 
 /**
- * A slide-over, not a modal: it starts under the customer's header and leaves the header and the
- * file beside it in view and usable, so the RM can check a figure on the page against the brief.
- * Focus moves into it on open and back to where it was on close; Esc closes it.
+ * A light wash over the file while the sheet is open, so the sheet reads as on top of the page
+ * rather than a card dropped onto it. The sidebar and the top bar stay clear and live. A click on
+ * the wash closes the sheet, as Esc does; the file stays readable through it.
+ */
+function Scrim() {
+  return (
+    <motion.div
+      aria-hidden
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: duration.state, ease: ease.out } }}
+      exit={{ opacity: 0, transition: { duration: duration.feedback, ease: ease.in } }}
+      onClick={closeCopilot}
+      className="fixed top-topbar right-0 bottom-0 left-sidebar z-30 bg-ink/[0.07]"
+    />
+  )
+}
+
+/**
+ * A side sheet, full height under the top bar, not a modal: the sidebar, the search and the top
+ * bar stay usable, and the file shows through the wash beside it so the RM can hold a figure on
+ * the page against the brief. Focus moves into it on open and back to where it was on close; Esc
+ * and a click on the wash close it.
  */
 function PanelSurface({
   cif,
@@ -153,8 +153,6 @@ function PanelSurface({
     const target = panel.querySelector<HTMLElement>('[data-autofocus]') ?? panel
     target.focus({ preventScroll: true })
   }, [])
-
-  useLayoutEffect(() => followHeader(ref.current), [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -186,7 +184,7 @@ function PanelSurface({
       tabIndex={-1}
       data-copilot-panel
       {...slideFromRight}
-      className="fixed top-[calc(var(--spacing-topbar)+0.75rem)] right-3 bottom-3 z-30 flex w-rail max-w-[calc(100vw-1.5rem)] max-[85rem]:w-100 flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-overlay outline-none"
+      className="fixed top-topbar right-0 bottom-0 z-30 flex w-rail max-w-full flex-col overflow-hidden border-l border-hairline bg-surface shadow-overlay outline-none max-[72rem]:w-100 min-[90rem]:w-120"
     >
       <Tabs
         value={mode}
@@ -238,7 +236,13 @@ function PanelSurface({
         </header>
 
         <TabsContent value="brief" className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-8">
-          <BriefView cif={cif} name={name} asOf={asOf} onAsk={() => setCopilotMode('ask')} />
+          <BriefView
+            cif={cif}
+            name={name}
+            asOf={asOf}
+            file={customer}
+            onAsk={() => setCopilotMode('ask')}
+          />
         </TabsContent>
         <TabsContent value="ask" className="flex min-h-0 flex-1 flex-col pt-0">
           <AskView cif={cif} name={name} asOf={asOf} prompts={customer.copilotPrompts} />

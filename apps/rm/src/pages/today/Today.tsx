@@ -1,7 +1,6 @@
 import { useToday } from '../../api/queries.ts'
 import { useSession } from '../../api/session.ts'
 import { Card, ErrorState, PageHeader, Skeleton } from '../../ui/index.ts'
-import { AskedForYou } from './AskedForYou.tsx'
 import { CallQueue } from './CallQueue.tsx'
 import { ComingUp } from './ComingUp.tsx'
 import { firstName, greeting, headline } from './derive.ts'
@@ -12,8 +11,9 @@ import { TodaySkeleton } from './TodaySkeleton.tsx'
 
 /**
  * Today: the RM's morning. Greeting and the date the book is at; four figures; then who to call
- * and why, with the first call already open. Everything on the page is one read (`rmToday`), so
- * it loads, fails and retries as one.
+ * and why, with the first call already open. Everything on the page but one figure is one read
+ * (`rmToday`), so it loads, fails and retries as one; the refusal count is the Record's own read,
+ * and the Refused card shows its rows without it if that read fails.
  */
 export function Today() {
   const session = useSession()
@@ -46,7 +46,6 @@ export function Today() {
                 asOf={today.data.asOf}
               />
             }
-            asked={<AskedForYou handoffs={today.data.handoffs} />}
             upcoming={<ComingUp upcoming={today.data.upcoming} asOf={today.data.asOf} />}
             refused={<Refused refusals={today.data.refusals} />}
           />

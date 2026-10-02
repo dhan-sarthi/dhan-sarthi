@@ -1,7 +1,8 @@
-import type { RmInsights } from '@dhan/contracts'
+import type { BookRow, RmInsights } from '@dhan/contracts'
 import { ChevronRight } from 'lucide-react'
-import { useId } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router'
+import { useBook } from '../../api/queries.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatMonth, formatPct } from '../../lib/format.ts'
 import { Avatar, Card, CardHeader, DeltaPill, EmptyState, Money } from '../../ui/index.ts'
@@ -9,14 +10,26 @@ import { MOVER_WINDOW_POINTS, moverBase } from './derive.ts'
 
 type Mover = RmInsights['topMovers'][number]
 
+type Who = Pick<BookRow, 'age' | 'city'>
+
 /*
  * The customers whose balances moved most over the last three months, up or down. Each row is
  * the customer, twelve month-ends of balances with the three months that were measured drawn in
  * colour and the rest in grey, the change, and the rupees either side of it. A 38% fall on
- * ₹89k and on ₹89L are different calls, so the figures sit beside the percentage.
+ * ₹89k and on ₹89L are different calls, so the figures sit beside the percentage. The change is
+ * month-end to month-end, the same as the Book's 3-month column.
+ *
+ * Under each name is "age · city", as on every other list of customers. Insights does not carry
+ * them, so they come from the book, which is one cached read the Book page shares. Until it
+ * arrives the line is left empty, never filled with the CIF; the CIF is on the row's hover.
  */
 export function TopMovers({ insights }: { insights: RmInsights }) {
   const { topMovers, months } = insights
+  const book = useBook()
+  const who = useMemo(
+    () => new Map<string, Who>((book.data?.rows ?? []).map((r) => [r.cif, r])),
+    [book.data],
+  )
   const last = months[months.length - 1]
   const base = months[months.length - MOVER_WINDOW_POINTS]
   const lastLabel = last ? formatMonth(last, { year: false }) : null
@@ -28,7 +41,7 @@ export function TopMovers({ insights }: { insights: RmInsights }) {
         title={<span id="insights-movers">Top movers</span>}
         actions={
           <span className="text-caption text-ink-faint">
-            Biggest change in balances over three months
+            Biggest 3-month change in month-end balances
           </span>
         }
       />
@@ -45,14 +58,19 @@ export function TopMovers({ insights }: { insights: RmInsights }) {
             className="grid grid-cols-[minmax(11rem,1fr)_minmax(7rem,1.25fr)_6.5rem_9rem_1rem] items-end gap-x-5 border-b border-hairline-soft px-2 pb-2 text-micro tracking-micro text-ink-faint uppercase"
           >
             <span>Customer</span>
-            <span>Balances, 12 months</span>
+            <span>Month-end balances, 12 months</span>
             <span className="text-right">3 months</span>
             <span className="text-right">{lastLabel ? `End of ${lastLabel}` : 'Latest'}</span>
             <span />
           </div>
           <ul className="grid" aria-label="Customers whose balances moved most over three months">
             {topMovers.map((mover) => (
-              <MoverRow key={mover.cif} mover={mover} baseLabel={baseLabel} />
+              <MoverRow
+                key={mover.cif}
+                mover={mover}
+                who={who.get(mover.cif)}
+                baseLabel={baseLabel}
+              />
             ))}
           </ul>
         </div>
@@ -61,7 +79,15 @@ export function TopMovers({ insights }: { insights: RmInsights }) {
   )
 }
 
-function MoverRow({ mover, baseLabel }: { mover: Mover; baseLabel: string | null }) {
+function MoverRow({
+  mover,
+  who,
+  baseLabel,
+}: {
+  mover: Mover
+  who: Who | undefined
+  baseLabel: string | null
+}) {
   const latest = mover.series[mover.series.length - 1] ?? null
   const from = moverBase(mover.series)
   const falling = mover.changePct < 0
@@ -69,6 +95,7 @@ function MoverRow({ mover, baseLabel }: { mover: Mover; baseLabel: string | null
     <li className="border-b border-hairline-soft last:border-0">
       <Link
         to={`/customers/${encodeURIComponent(mover.cif)}`}
+        title={`${mover.name} · ${mover.cif}`}
         className="group grid grid-cols-[minmax(11rem,1fr)_minmax(7rem,1.25fr)_6.5rem_9rem_1rem] items-center gap-x-5 rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
       >
         <span className="flex min-w-0 items-center gap-3">
@@ -76,11 +103,9 @@ function MoverRow({ mover, baseLabel }: { mover: Mover; baseLabel: string | null
             <Avatar name={mover.name} size="md" />
           </span>
           <span className="grid min-w-0">
-            <span className="truncate text-label text-ink" title={mover.name}>
-              {mover.name}
-            </span>
-            <span className="truncate text-caption font-normal text-ink-faint tabular">
-              {mover.cif}
+            <span className="truncate text-label text-ink">{mover.name}</span>
+            <span className="h-4 truncate text-caption font-normal text-ink-faint">
+              {who ? `${who.age} · ${who.city}` : null}
             </span>
           </span>
         </span>
@@ -118,7 +143,9 @@ function MoverRow({ mover, baseLabel }: { mover: Mover; baseLabel: string | null
 
 /**
  * A sparkline that shows which part of the line the change measures: the months before the
- * window in grey, the last three months in the row's colour over a soft wash of it. The kit's
+ * window in grey, the last three months in the row's colour over a faint band that marks those
+ * months. The band is a span of time, full height, not a fill under the line: the line is not
+ * read from zero, and a fill would draw a 38% fall as most of the balance gone. The kit's
  * `Sparkline` draws one tone end to end, which made a customer whose year fell but whose last
  * quarter rose look like a faller beside a green "+35%".
  *
@@ -136,7 +163,6 @@ function WindowSparkline({
   label: string
   height?: number
 }) {
-  const gradientId = useId()
   if (values.length < 2) {
     return <span className="block h-8" aria-hidden />
   }
@@ -159,7 +185,6 @@ function WindowSparkline({
   const lastPoint = points[points.length - 1]
   const context = path(0, windowStart + 1)
   const window = path(windowStart, points.length)
-  const fill = `${window}L100,${height}L${windowX.toFixed(2)},${height}Z`
   const colour = tone === 'danger' ? 'text-danger' : 'text-chart-1'
 
   return (
@@ -170,14 +195,15 @@ function WindowSparkline({
         preserveAspectRatio="none"
         className="absolute inset-0 h-full w-full overflow-visible"
       >
-        <defs>
-          {/* The colour class sits on the gradient itself: `currentColor` in a stop resolves
-              where the gradient is defined, not where it is used. */}
-          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1" className={colour}>
-            <stop offset="0%" stopColor="currentColor" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
-          </linearGradient>
-        </defs>
+        <rect
+          x={windowX}
+          y={0}
+          width={100 - windowX}
+          height={height}
+          className={colour}
+          fill="currentColor"
+          fillOpacity={0.07}
+        />
         {windowStart > 0 ? (
           <path
             d={context}
@@ -191,7 +217,6 @@ function WindowSparkline({
           />
         ) : null}
         <g className={colour}>
-          <path d={fill} fill={`url(#${gradientId})`} />
           <path
             d={window}
             fill="none"

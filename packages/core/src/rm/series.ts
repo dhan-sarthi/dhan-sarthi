@@ -14,6 +14,7 @@
 import { accountFactsAsOf } from '../asof.ts'
 import { addMonths, daysInMonth, fromYmd, monthKey, ymd } from '../dates.ts'
 import type { Transaction } from '../types.ts'
+import { dateLabel, monthLabel } from './format.ts'
 import { isBalanceAccount, isIdbi } from './segment.ts'
 import { round1 } from './util.ts'
 
@@ -70,14 +71,7 @@ export function monthlyBalanceSeries(
   asOf: string,
   months = 12,
 ): BalancePoint[] {
-  const { year, month } = ymd(asOf)
-  const thisMonth = fromYmd(year, month, 1)
-  const lastClosed = asOf === monthEnd(asOf) ? thisMonth : addMonths(thisMonth, -1)
-  const dates: string[] = []
-  for (let back = months - 1; back >= 0; back -= 1) {
-    dates.push(monthEnd(addMonths(lastClosed, -back)))
-  }
-
+  const dates = monthEnds(asOf, months)
   const balanceAccounts = accounts.filter(isBalanceAccount)
   return dates.map((on) => {
     let total = 0
@@ -96,6 +90,54 @@ export function monthlyBalanceSeries(
     }
     return { month: monthKey(on), total: Math.round(total), withIdbi: Math.round(idbi) }
   })
+}
+
+/**
+ * The month-ends a series at `asOf` is read on, oldest first: the last `months` complete months.
+ * The as-of month counts only when the clock stands on its last day.
+ */
+export function monthEnds(asOf: string, months = 12): string[] {
+  const { year, month } = ymd(asOf)
+  const thisMonth = fromYmd(year, month, 1)
+  const lastClosed = asOf === monthEnd(asOf) ? thisMonth : addMonths(thisMonth, -1)
+  const dates: string[] = []
+  for (let back = months - 1; back >= 0; back -= 1) {
+    dates.push(monthEnd(addMonths(lastClosed, -back)))
+  }
+  return dates
+}
+
+/** Which date a figure is read at, and the words for it. The wire's `FigureBasis`. */
+export interface FigureBasis {
+  asOf: string
+  asOfLabel: string
+  seriesFrom: string
+  seriesTo: string
+  lastMonthEnd: string
+  seriesLabel: string
+  lastMonthEndLabel: string
+}
+
+/**
+ * The console's one scheme, in words: headline figures as at `asOf`, charts and the changes
+ * read off them at the last `months` month-ends. Every page labels a figure with these strings,
+ * so "With IDBI" as at the 1st and the August month-end beside it never read as one number
+ * that changed its mind.
+ */
+export function figureBasis(asOf: string, months = 12): FigureBasis {
+  const ends = monthEnds(asOf, months)
+  const first = ends[0] ?? asOf
+  const last = ends[ends.length - 1] ?? asOf
+  const count = ends.length
+  return {
+    asOf,
+    asOfLabel: `As at ${dateLabel(asOf)}`,
+    seriesFrom: monthKey(first),
+    seriesTo: monthKey(last),
+    lastMonthEnd: last,
+    seriesLabel: `${count} month-ends, ${monthLabel(first)} to ${monthLabel(last)}`,
+    lastMonthEndLabel: `Month-end, ${dateLabel(last)}`,
+  }
 }
 
 /**

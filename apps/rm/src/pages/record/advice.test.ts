@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { detailWords } from '../access/actions.ts'
-import { RULES, RULE_COUNT, isGenesis, ladder, ruleIndex, shortHash } from './advice.ts'
+import {
+  RULES,
+  RULE_COUNT,
+  VERDICT_WORDS,
+  isGenesis,
+  ladder,
+  refusedStake,
+  ruleIndex,
+  shortHash,
+  verdictSplit,
+} from './advice.ts'
 
 test('the rule book is the engine’s, in its order, each with a short name', () => {
   assert.equal(RULE_COUNT, RULES.length)
@@ -49,4 +59,40 @@ test('an access-log field id reads as words; free text passes through', () => {
   assert.equal(detailWords('dateOfBirth'), 'Date of birth')
   assert.equal(detailWords('UTI Nifty 50 Index Fund'), 'UTI Nifty 50 Index Fund')
   assert.equal(detailWords('pan'), 'pan')
+})
+
+test('one word per verdict: a refusal is "Refused", never "BLOCKED"', () => {
+  assert.equal(VERDICT_WORDS.BLOCKED, 'Refused')
+  assert.deepEqual(
+    verdictSplit([
+      { verdict: 'BLOCKED' },
+      { verdict: 'PASS' },
+      { verdict: 'BLOCKED' },
+      { verdict: 'UNKNOWN_PRODUCT' },
+    ]),
+    { refused: 2, passed: 1, other: 1 },
+  )
+})
+
+test('the stake sums refused amounts from the record, monthly and one-off apart', () => {
+  const stake = refusedStake([
+    {
+      verdict: 'BLOCKED',
+      amount: 5000,
+      recorded: 'Blocked: lock-in 15y exceeds goal horizon 11y.',
+    },
+    {
+      verdict: 'BLOCKED',
+      amount: 4200,
+      recorded: 'Blocked: proposed ₹4,200/month exceeds deployable surplus ₹2,589',
+    },
+    {
+      verdict: 'BLOCKED',
+      amount: 300000,
+      recorded: 'Blocked: one-off ₹3,00,000 exceeds reachable balance ₹1,20,000',
+    },
+    { verdict: 'BLOCKED', amount: null, recorded: 'Blocked: risk.' },
+    { verdict: 'PASS', amount: 9000, recorded: 'Pass.' },
+  ])
+  assert.deepEqual(stake, { monthly: 9200, oneOff: 300000, counted: 3 })
 })

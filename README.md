@@ -297,7 +297,7 @@ Held by `pnpm test` over the four generated ledgers, with no provider configured
 | Statement realism | every narration matches a declared rail template; the account's IFSC is IDBI's and the salary remitter's is the employer's; MCC on every merchant line and on nothing else |
 | Calibration | UPI debits per month, ticket distribution and the share of payments under ₹500 stay inside bands cited to NPCI and the RBI Payment System Report |
 | Two data paths, one answer | the in-memory profile and Postgres load the same customer file for every customer at six clock positions (CI's Postgres job) |
-| Tests | **1,168 passing**: core 331 · contracts 46 · fixtures 185 · api 351 · mobile 207 · rm 48, plus **55** Postgres integration tests that CI runs against a fresh database on every push to `main` |
+| Tests | **1,293 passing**: core 335 · contracts 52 · fixtures 185 · api 399 · mobile 207 · rm 115, plus **55** Postgres integration tests that CI runs against a fresh database on every push to `main` |
 
 ---
 
@@ -399,7 +399,7 @@ BANK_SOURCE=idbi-sandbox AVATAR_PROVIDER=none pnpm dev:api
 Checks:
 
 ```bash
-pnpm test                                    # builds packages, then all 1,168 tests
+pnpm test                                    # builds packages, then all 1,293 tests
 pnpm lint && pnpm typecheck && pnpm format:check
 pnpm --filter @dhan/api seed:check           # the database still matches the generator, by hash
 curl -s localhost:3001/api/v1/openapi.json   # every route, generated from the registry

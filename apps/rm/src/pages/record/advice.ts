@@ -66,10 +66,56 @@ export const SOURCE_WORDS: Record<AdviceSource, string> = {
   api: 'Bank system',
 }
 
+/**
+ * One word per verdict, the same on every page. A refusal is the rules working, so it is
+ * "Refused" in the brand's ink, never a red "BLOCKED": red would tell the RM something went wrong.
+ */
 export const VERDICT_WORDS: Record<VerdictOutcome, string> = {
-  PASS: 'PASS',
-  BLOCKED: 'BLOCKED',
-  UNKNOWN_PRODUCT: 'NOT ON SHELF',
+  PASS: 'Passed',
+  BLOCKED: 'Refused',
+  UNKNOWN_PRODUCT: 'Not on shelf',
+}
+
+/** "2 refused · 2 passed": the split under a record's count, in the verdict words. */
+export function verdictSplit(items: readonly Pick<AdviceItem, 'verdict'>[]): {
+  refused: number
+  passed: number
+  other: number
+} {
+  let refused = 0
+  let passed = 0
+  for (const item of items) {
+    if (item.verdict === 'BLOCKED') refused += 1
+    else if (item.verdict === 'PASS') passed += 1
+  }
+  return { refused, passed, other: items.length - refused - passed }
+}
+
+/**
+ * What the refused requests were worth, summed from the records themselves: the amount each
+ * customer asked to put into the product. The engine reads a product-check amount as a monthly
+ * commitment unless it was a one-off, and a one-off refusal says so in its recorded wording
+ * ("one-off ₹… exceeds reachable balance"), so the two are summed apart rather than mixed.
+ * A record with no amount (a question about the product alone) adds nothing.
+ */
+export function refusedStake(
+  items: readonly Pick<AdviceItem, 'verdict' | 'amount' | 'recorded'>[],
+): {
+  monthly: number
+  oneOff: number
+  /** Refusals that carried an amount. */
+  counted: number
+} {
+  let monthly = 0
+  let oneOff = 0
+  let counted = 0
+  for (const item of items) {
+    if (item.verdict !== 'BLOCKED' || item.amount === null || item.amount <= 0) continue
+    counted += 1
+    if (/\bone-off\b/i.test(item.recorded)) oneOff += item.amount
+    else monthly += item.amount
+  }
+  return { monthly, oneOff, counted }
 }
 
 /** The first eight hex digits: enough to tell two records apart at a glance, as git does. */

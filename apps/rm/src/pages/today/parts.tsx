@@ -1,9 +1,9 @@
-import type { QueueItem, SignalSeverity } from '@dhan/contracts'
+import type { Handoff, QueueItem, SignalSeverity } from '@dhan/contracts'
 import { SIGNAL_LABELS } from '@dhan/core'
-import { CircleAlert, Eye, Hand, Lightbulb } from 'lucide-react'
+import { Check, CircleAlert, Eye, Hand, Lightbulb } from 'lucide-react'
 import { cn } from '../../lib/cn.ts'
-import { Chip, SEVERITY, Tooltip } from '../../ui/index.ts'
-import { figureRuns } from './derive.ts'
+import { Chip, SEVERITY, Tooltip, useBadgeTabIndex } from '../../ui/index.ts'
+import { askedLabel, figureRuns } from './derive.ts'
 
 /*
  * Small pieces Today's cards share. Page-local: they are habits of this page's lists, not kit
@@ -14,9 +14,17 @@ import { figureRuns } from './derive.ts'
  * An engine sentence with its figures set in full ink and the words around them a step quieter,
  * so "₹14,200" is what the eye reads first. The sentence itself is printed exactly as sent.
  */
-export function Figures({ text, className }: { text: string; className?: string }) {
+export function Figures({
+  text,
+  className,
+  id,
+}: {
+  text: string
+  className?: string
+  id?: string
+}) {
   return (
-    <span className={className}>
+    <span id={id} className={className}>
       {figureRuns(text).map((run, i) =>
         run.figure ? (
           <span key={i} className="font-semibold whitespace-nowrap text-ink tabular">
@@ -43,16 +51,35 @@ const SEVERITY_INK: Record<SignalSeverity, string> = {
 }
 
 /**
- * Why a customer is in the queue. A request to talk is the customer's own words, so it gets the
- * brand fill; a signal names its kind in a quiet outline chip, with the severity carried by the
- * icon's shape and colour and spelled out on hover, so ten urgent rows do not become ten red
- * blocks down the page.
+ * Why a customer is in the queue. A request to talk is the customer's own, so it gets the brand
+ * fill and says how long they have waited ("Asked 6 days ago"), which leaves the row's line free
+ * to lead with a figure. A signal names its kind in a quiet outline chip, with the severity
+ * carried by the icon's shape and colour and spelled out on hover, so ten urgent rows do not
+ * become ten red blocks down the page.
+ *
+ * Inside a queue row (an `InteractiveRow`) the signal chip gives up its own Tab stop; the row's
+ * button names it through `aria-describedby`, by the `id` passed here.
  */
-export function SourceChip({ item }: { item: QueueItem }) {
+export function SourceChip({
+  item,
+  request,
+  id,
+}: {
+  item: QueueItem
+  request: Handoff | null
+  id?: string
+}) {
+  const tabIndex = useBadgeTabIndex()
   if (item.source === 'handoff') {
+    const contacted = request?.status === 'contacted'
     return (
-      <Chip tone="brand" icon={<Hand aria-hidden />}>
-        Asked for you
+      <Chip
+        id={id}
+        tone="brand"
+        icon={contacted ? <Check aria-hidden /> : <Hand aria-hidden />}
+        className="tabular"
+      >
+        {contacted ? 'Contacted' : request ? askedLabel(request.waitingDays) : 'Asked for a call'}
       </Chip>
     )
   }
@@ -62,7 +89,8 @@ export function SourceChip({ item }: { item: QueueItem }) {
   return (
     <Tooltip content={SEVERITY[severity].label}>
       <span
-        tabIndex={0}
+        id={id}
+        tabIndex={tabIndex}
         aria-label={`${SIGNAL_LABELS[kind]}. ${SEVERITY[severity].label}`}
         className="inline-flex rounded-sm focus-visible:outline-2 focus-visible:outline-focus"
       >

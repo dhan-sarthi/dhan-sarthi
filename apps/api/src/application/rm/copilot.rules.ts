@@ -49,6 +49,17 @@ function midSentence(title: string): string {
   return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t
 }
 
+/**
+ * The brief from the facts alone.
+ *
+ * Its talking points are the engine's signals in the engine's order, written as the signal's
+ * own title and detail; `copilot.arrange.ts` then tags each by its severity and holds "Talk
+ * about" and "Be careful about" to the engine's ranking, for this brief exactly as for a
+ * model's. Three records shape it most: a request waiting for the desk leads, because it is why
+ * the call is happening; a customer with no contact and no activity gets one sentence saying so,
+ * not two; and where nothing is urgent the brief says so rather than calling an opportunity
+ * pressing.
+ */
 export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] {
   const ix = sheet.index
   const first = sheet.first
@@ -58,24 +69,37 @@ export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] 
 
   const since: CitedSentence[] = []
   const contact = ix.contact.of
-  since.push(
-    contact === null
-      ? say(
-          `There is no RM contact on record, so this would be the desk's first conversation with ${first}.`,
-          ix.contact.id,
-        )
-      : say(`The last RM contact on record was on ${dated(contact.at)}.`, ix.contact.id),
-  )
-  const after = (at: string): boolean => contact === null || at > contact.at
   const handoff = ix.handoff.of
+  const lastActive = ix.activity.of.lastActivityAt
   if (handoff !== null) {
     since.push(
       say(
-        `${first} asked to talk to the RM on ${dated(handoff.requestedOn)} and has waited ${plural(handoff.waitingDays, 'day')}.`,
+        `${first} asked to talk to the RM on ${dated(handoff.requestedOn)} and has waited ${plural(handoff.waitingDays, 'day')}, so start by answering that.` +
+          (handoff.reason ? ` The request: "${unstop(handoff.reason)}".` : ''),
         ix.handoff.id,
       ),
     )
   }
+  // With nothing on record at all, one sentence says so; the activity line below is then spent.
+  const silent = contact === null && handoff === null && lastActive === null
+  since.push(
+    contact !== null
+      ? say(
+          `The last RM contact on record was on ${dated(contact.at)}: ${midSentence(contact.title)}.`,
+          ix.contact.id,
+        )
+      : silent
+        ? say(
+            `No RM contact and no app activity are on record, so this would be the desk's first conversation with ${first}.`,
+            ix.contact.id,
+            ix.activity.id,
+          )
+        : say(
+            `No ${handoff === null ? '' : 'earlier '}RM contact is on record, so this would be the desk's first conversation with ${first}.`,
+            ix.contact.id,
+          ),
+  )
+  const after = (at: string): boolean => contact === null || at > contact.at
   const decision = ix.decisions.find((d) => after(d.of.at))
   if (decision) {
     since.push(
@@ -103,40 +127,56 @@ export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] 
       ),
     )
   }
-  if (since.length < 3) {
-    const a = ix.activity.of
+  if (since.length < 3 && !silent) {
+    const calls = ix.activity.of.udayCalls
     since.push(
-      a.lastActivityAt === null
-        ? say(`There is no activity from ${first} in the app on record.`, ix.activity.id)
-        : say(`${first} was last active on ${dated(a.lastActivityAt)}.`, ix.activity.id),
+      lastActive === null
+        ? say(`There is no app activity from ${first} on record.`, ix.activity.id)
+        : say(
+            `${first} was last active on ${dated(lastActive)}` +
+              (calls > 0 ? ` and has had ${plural(calls, 'call')} with Uday.` : '.'),
+            ix.activity.id,
+          ),
     )
   }
 
   /* Talk about ------------------------------------------------------------ */
 
+  // The signals' own words, in the engine's order; the arrangement adds the severity tag.
   const talk: CitedSentence[] = []
-  const [lead, next] = ix.signals
-  if (lead) {
-    talk.push(
-      say(
-        `Lead with the most pressing issue: ${midSentence(lead.of.title)}. ${lead.of.detail}`,
-        lead.id,
-      ),
-    )
-  }
-  if (next) talk.push(say(`Next: ${midSentence(next.of.title)}. ${next.of.detail}`, next.id))
-  const stage = state.roadmap.stages[state.roadmap.currentStageIndex]
+  const urgent = ix.signals.some((s) => s.of.severity === 'urgent')
+  ix.signals.slice(0, 2).forEach((s, i) => {
+    // The title stays first, beside its tag, as on every other point; with nothing urgent the
+    // lead says so last, in words the arrangement reads as "not urgent". Where a request is
+    // waiting, the brief has already said to start with it.
+    const point = `${unstop(s.of.title)}. ${unstop(s.of.detail)}.`
+    const calm =
+      handoff === null ? 'Nothing urgent is open, so start here.' : 'Nothing urgent is open.'
+    talk.push(say(i === 0 && !urgent ? `${point} ${calm}` : point, s.id))
+  })
+  const stages = state.roadmap.stages
+  const stage = stages[state.roadmap.currentStageIndex]
   if (stage && ix.roadmap) {
+    // A stage label can hold its own colon ("Enough to stop working at 60: ₹1.5Cr by …").
+    const label = midSentence(revoice(stage.label)).replace(/: /g, ', ')
+    // Off track on the goal's own stage, its reason is the conversation: what the plan cannot
+    // fund and the choices left. On an earlier stage the reason is that stage's, said elsewhere.
+    const goalStage = stage.index === stages.length
+    const why = state.health === 'off_track' && goalStage ? ` ${unstop(revoice(stage.why))}.` : ''
     talk.push(
       say(
-        `${first}'s plan is on stage ${stage.index} of ${state.roadmap.stages.length}: ${midSentence(revoice(stage.label))}.`,
+        stages.length === 1
+          ? `${first}'s plan has one stage: ${label}.${why}`
+          : `${first}'s plan is at stage ${stage.index} of ${stages.length}: ${label}.${why}`,
         ix.roadmap,
       ),
     )
   }
   const gap = state.gaps[0]
   if (gap && ix.gaps) {
-    talk.push(say(`The rules pass ${gap.productName} for ${first} today: ${gap.why}`, ix.gaps))
+    talk.push(
+      say(`The rules pass ${gap.productName} for ${first} today: ${unstop(gap.why)}.`, ix.gaps),
+    )
   }
   const soon = ix.upcoming.of[0]
   if (soon) {
@@ -208,7 +248,7 @@ export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] 
     } else if (months < BUFFER_FLOOR_MONTHS) {
       careful.push(
         say(
-          `${first}'s savings cover only ${months} months of outgoings, so anything that locks money away should wait.`,
+          `${first}'s savings cover only ${months} ${months === 1 ? 'month' : 'months'} of outgoings, so anything that locks money away should wait.`,
           ix.buffer,
         ),
       )
@@ -217,8 +257,9 @@ export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] 
   if (careful.length === 0) {
     careful.push(
       say(
-        'Nothing on the record calls for extra care; the rules still check any product before it is named.',
-        ix.noRefusals ?? ix.profile,
+        `Nothing on the record calls for extra care. ${first}'s risk profile is ${state.file.customer.riskProfile.toLowerCase()}, and the rules still check any product before it is named.`,
+        ix.profile,
+        ix.noRefusals,
       ),
     )
   }
@@ -226,20 +267,20 @@ export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] 
   /* They may ask --------------------------------------------------------- */
 
   const ask: CitedSentence[] = []
+  if (handoff !== null) {
+    ask.push(
+      say(
+        `${first} will want to know what is happening with the request to talk to the RM, made on ${dated(handoff.requestedOn)}.`,
+        ix.handoff.id,
+      ),
+    )
+  }
   const lastRefusal = ix.refusals[0]
   if (lastRefusal) {
     ask.push(
       say(
         `${first} may ask why ${lastRefusal.of.productName ?? 'the product'} was refused: the rule was "${ruleLabel(lastRefusal.of.ruleId ?? '')}".`,
         lastRefusal.id,
-      ),
-    )
-  }
-  if (handoff !== null) {
-    ask.push(
-      say(
-        `${first} may ask what is happening with the request to talk to the RM, made on ${dated(handoff.requestedOn)}.`,
-        ix.handoff.id,
       ),
     )
   }
@@ -252,7 +293,10 @@ export function rulesBrief(state: CustomerState, sheet: FactSheet): BriefPart[] 
   if (ix.protection && p.gap > 0 && p.lifeCoverNeeded > 0) {
     ask.push(
       say(
-        `${first} may ask how much cover is enough: the record puts the need at ${rupees(p.lifeCoverNeeded)} against ${rupees(p.lifeCoverInForce)} held.`,
+        `${first} may ask how much cover is enough: the record puts the need at ${rupees(p.lifeCoverNeeded)}, ` +
+          (p.lifeCoverInForce > 0
+            ? `against ${rupees(p.lifeCoverInForce)} held.`
+            : 'with none held.'),
         ix.protection,
       ),
     )

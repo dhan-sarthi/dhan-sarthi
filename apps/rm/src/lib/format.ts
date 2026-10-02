@@ -2,7 +2,7 @@
  * Every figure the console prints goes through here, so ₹4,82,448 reads the same on every page.
  *
  * Indian grouping (lakh, crore), whole rupees by default, a true minus sign, and a short form for
- * dense places (₹4.8L, ₹1.2Cr). Dates are the simulation's calendar dates (`YYYY-MM-DD`), parsed
+ * dense places (₹4.82L, ₹1.2Cr). Dates are the simulation's calendar dates (`YYYY-MM-DD`), parsed
  * as UTC so a browser west of Greenwich never shows the day before.
  *
  * Pure, no React, no DOM: `format.test.ts` runs it under `node --test`.
@@ -23,7 +23,7 @@ function trim(n: number, digits: number): string {
 }
 
 export interface InrOptions {
-  /** ₹4.8L / ₹1.2Cr / ₹48k instead of the full figure. */
+  /** ₹4.82L / ₹1.2Cr / ₹48k instead of the full figure. */
   short?: boolean
   /** Two decimals (₹4,82,448.41). Ignored in short mode. */
   paise?: boolean
@@ -31,7 +31,7 @@ export interface InrOptions {
   signed?: boolean
 }
 
-/** ₹4,82,448 · ₹4.8L · −₹1,200 · +₹3.1L */
+/** ₹4,82,448 · ₹4.82L · −₹1,200 · +₹3.1L */
 export function formatInr(value: number, options: InrOptions = {}): string {
   const sign = value < 0 ? MINUS : options.signed && value > 0 ? '+' : ''
   const abs = Math.abs(value)
@@ -41,22 +41,49 @@ export function formatInr(value: number, options: InrOptions = {}): string {
 }
 
 /**
- * The magnitude part of a short figure: 4.8L, 48.2L, 1.2Cr, 48k, 950. Units are tried largest
+ * Where a sentence switches from the full figure to the short one: one lakh. Below it the full
+ * figure reads easily (₹22,501); above it the digits stop being read (₹2,27,70,000 is ₹2.28Cr).
+ */
+export const SHORT_FROM_INR = 100_000
+
+/** True when a figure is big enough that prose should say it short. */
+export function prefersShort(value: number): boolean {
+  return Math.abs(value) >= SHORT_FROM_INR
+}
+
+/**
+ * A rupee figure for a sentence: in full under ₹1 lakh, short from there up. "₹22,501 a month
+ * left after spending", "₹2.28Cr short on life cover". `<Money short="auto">` draws the same.
+ */
+export function formatInrProse(value: number, options: { signed?: boolean } = {}): string {
+  return formatInr(value, { short: prefersShort(value), ...options })
+}
+
+/**
+ * The magnitude part of a short figure: 4.82L, 48.2L, 1.2Cr, 48k, 950. Units are tried largest
  * first and kept once the figure *rounds* to at least one of them, so ₹99,96,000 reads "1Cr",
  * never "100L".
+ *
+ * Lakhs and crores keep two decimals under ten of the unit, as `rupeesShort` in `@dhan/core`
+ * does. Every sentence the API sends was written with that rule ("card at 34.8% — ₹1.86L
+ * outstanding"), so a figure drawn here beside it must not read ₹1.9L.
  */
 export function shortNumber(abs: number): string {
-  // [size, suffix, decimals once the figure reaches 10 of the unit]: ₹48.2L keeps its
-  // decimal because a lakh is a lot of money; ₹48k does not need one.
-  const units: readonly (readonly [number, string, number])[] = [
-    [1e7, 'Cr', 1],
-    [1e5, 'L', 1],
-    [1e3, 'k', 0],
+  // [size, suffix, decimals under 10 of the unit, decimals from 10]: ₹48.2L keeps its decimal
+  // because a lakh is a lot of money; ₹48k does not need one.
+  const units: readonly (readonly [number, string, number, number])[] = [
+    [1e7, 'Cr', 2, 1],
+    [1e5, 'L', 2, 1],
+    [1e3, 'k', 1, 0],
   ]
-  for (const [size, suffix, atTen] of units) {
+  for (const [size, suffix, underTen, atTen] of units) {
     const scaled = abs / size
-    const digits = scaled >= 100 ? 0 : scaled >= 10 ? atTen : 1
-    if (Number(scaled.toFixed(digits)) >= 1) return `${trim(scaled, digits)}${suffix}`
+    // The unit is chosen at one decimal, so ₹99,500 is "1L" and not "100k"; the figure is then
+    // printed at the unit's own precision, and never below the one it was chosen for.
+    if (Number(scaled.toFixed(1)) < 1) continue
+    const digits = scaled >= 100 ? 0 : scaled >= 10 ? atTen : underTen
+    const text = trim(scaled, digits)
+    return `${Number(text) < 1 ? '1' : text}${suffix}`
   }
   return whole.format(Math.round(abs))
 }
@@ -133,15 +160,33 @@ export function daysBetween(from: string, to: string): number {
 }
 
 /**
- * "Today", "Yesterday", "6 days ago", "3 weeks ago", "4 months ago", relative to the RM's
- * as-of date, never the wall clock: the book lives on the simulation's calendar.
+ * When a customer was last active: "Today", "Yesterday", "31 days ago". The one formatter for that
+ * fact, on every page, so the Book row, the preview, the customer's highlight and the strength
+ * reason beside it all read the same words.
+ *
+ * Whole days, never weeks or months, for two reasons. The strength reason the API writes
+ * (`relationshipStrength` in `@dhan/core`: "Active 31 days ago · 4 IDBI products · …") counts in
+ * days, and this has to agree with it word for word. And the thresholds behind that reason are
+ * in days (fully active within 30, lapsing within 90, the attrition watch past 60), so "31 days
+ * ago" tells the RM why a customer just dropped to Medium where "4 weeks ago" hides it.
+ *
+ * Measured to the RM's as-of date, never the wall clock: the book lives on the simulation's
+ * calendar. A date after the as-of date (a reviewer who moved their own clock on) reads "Today",
+ * as the API's reason does.
  */
-export function formatAgo(iso: string, asOf: string): string {
-  const days = daysBetween(iso, asOf)
-  if (days <= 0) return days === 0 ? 'Today' : `In ${formatDuration(-days)}`
+export function formatLastActive(iso: string, asOf: string): string {
+  const days = Math.max(0, daysBetween(iso, asOf))
+  if (days === 0) return 'Today'
   if (days === 1) return 'Yesterday'
-  return `${formatDuration(days)} ago`
+  // No digit grouping: the API's reason prints `${days}`, and the two must match exactly.
+  return `${days} days ago`
 }
+
+/**
+ * Last active, under its older name. Every caller of this was a "last active" figure, so it now
+ * says exactly what `formatLastActive` says; new code should call that.
+ */
+export const formatAgo = formatLastActive
 
 /** "in 12 days", used for maturities and deadlines. */
 export function formatIn(iso: string, asOf: string): string {

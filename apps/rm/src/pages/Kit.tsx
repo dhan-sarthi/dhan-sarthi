@@ -1,3 +1,5 @@
+import type { Projection } from '@dhan/contracts'
+import { futureValue } from '@dhan/core'
 import { chart, color, web } from '@dhan/design'
 import type { SortingState } from '@tanstack/react-table'
 import { createColumnHelper } from '@tanstack/react-table'
@@ -18,6 +20,8 @@ import {
   AllocationBar,
   AreaChart,
   Avatar,
+  BAND_SWATCH,
+  BandChart,
   BarChart,
   Button,
   Card,
@@ -46,12 +50,16 @@ import {
   MaskedField,
   Money,
   PageHeader,
+  PROJECTION_SWATCH,
+  ProjectionChart,
   Popover,
   PopoverContent,
   PopoverDescription,
   PopoverTitle,
   PopoverTrigger,
   PropertyList,
+  scenarioRoles,
+  SEGMENT,
   SectionLabel,
   SegmentBadge,
   SegmentTabs,
@@ -78,8 +86,11 @@ import {
   Tooltip,
   VerifiedBadge,
   modKey,
+  type CommandItemDef,
 } from '../ui/index.ts'
 import { ApiError } from '../api/client.ts'
+import { formatDate, formatInrProse, formatLastActive } from '../lib/format.ts'
+import { matchPage, rankCustomers } from '../lib/search.ts'
 import { Brand } from '../shell/Brand.tsx'
 
 /*
@@ -104,7 +115,17 @@ interface SampleRow {
   health: 'on_track' | 'at_risk' | 'off_track'
   signal: { severity: 'urgent' | 'important' | 'opportunity'; title: string } | null
   strength: { level: 'high' | 'medium' | 'low'; reason: string }
-  lastActive: string
+  /** A calendar date, read against `KIT_AS_OF` the way the console reads the RM's as-of date. */
+  lastActivityAt: string
+}
+
+/** The sample book's as-of date: every "last active" on this page is measured to it. */
+const KIT_AS_OF = '2026-09-01'
+
+/** The strength reason's first clause, worded as the API words it, from the same formatter. */
+function activeClause(at: string): string {
+  const ago = formatLastActive(at, KIT_AS_OF)
+  return `Active ${ago.charAt(0).toLowerCase()}${ago.slice(1)}`
 }
 
 const SAMPLE_ROWS: SampleRow[] = [
@@ -122,9 +143,9 @@ const SAMPLE_ROWS: SampleRow[] = [
     signal: { severity: 'opportunity', title: '₹3.1L idle in savings for 4 months' },
     strength: {
       level: 'high',
-      reason: 'Active 6 days ago · 3 IDBI products · 62% of balances with IDBI',
+      reason: `${activeClause('2026-08-26')} · 3 IDBI products · 62% of balances with IDBI`,
     },
-    lastActive: '6 days ago',
+    lastActivityAt: '2026-08-26',
   },
   {
     id: 's2',
@@ -140,9 +161,9 @@ const SAMPLE_ROWS: SampleRow[] = [
     signal: { severity: 'urgent', title: 'Card at 36.0% — ₹1.4L outstanding' },
     strength: {
       level: 'medium',
-      reason: 'Active 3 weeks ago · 1 IDBI product · 44% of balances with IDBI',
+      reason: `${activeClause('2026-08-11')} · 1 IDBI product · 44% of balances with IDBI`,
     },
-    lastActive: '3 weeks ago',
+    lastActivityAt: '2026-08-11',
   },
   {
     id: 's3',
@@ -158,9 +179,9 @@ const SAMPLE_ROWS: SampleRow[] = [
     signal: { severity: 'important', title: 'FD of ₹8L matures in 12 days' },
     strength: {
       level: 'high',
-      reason: 'Active 2 days ago · 4 IDBI products · 81% of balances with IDBI',
+      reason: `${activeClause('2026-08-30')} · 4 IDBI products · 81% of balances with IDBI`,
     },
-    lastActive: '2 days ago',
+    lastActivityAt: '2026-08-30',
   },
   {
     id: 's4',
@@ -176,9 +197,9 @@ const SAMPLE_ROWS: SampleRow[] = [
     signal: { severity: 'important', title: 'No health cover; ₹5L gap for his age' },
     strength: {
       level: 'low',
-      reason: 'No activity in 74 days · 1 IDBI product · 23% of balances with IDBI',
+      reason: `${activeClause('2026-06-19')} · 1 IDBI product · 23% of balances with IDBI`,
     },
-    lastActive: '2 months ago',
+    lastActivityAt: '2026-06-19',
   },
   {
     id: 's5',
@@ -194,9 +215,9 @@ const SAMPLE_ROWS: SampleRow[] = [
     signal: null,
     strength: {
       level: 'medium',
-      reason: 'Active 11 days ago · 2 IDBI products · 55% of balances with IDBI',
+      reason: `${activeClause('2026-08-21')} · 2 IDBI products · 55% of balances with IDBI`,
     },
-    lastActive: '11 days ago',
+    lastActivityAt: '2026-08-21',
   },
 ]
 
@@ -584,6 +605,53 @@ function Figures() {
             </Example>
           </Card>
         </Specimen>
+        <Specimen label="Money in prose">
+          <Card className="grid gap-3">
+            <p className="text-body text-ink">
+              <Money value={22501} short="auto" /> a month left after spending;{' '}
+              <Money value={22770000} short="auto" /> short on life cover; a card balance of{' '}
+              <Money value={186240} short="auto" />.
+            </p>
+            <p className="text-caption font-normal text-ink-faint">
+              <code>{'<Money short="auto">'}</code> and <code>formatInrProse</code>: in full under
+              ₹1 lakh, short from there up. The exact figure stays in the hover title. As a string:{' '}
+              {formatInrProse(99999)} · {formatInrProse(100000)} · {formatInrProse(-1862400)}
+            </p>
+          </Card>
+        </Specimen>
+        <Specimen label="Last active">
+          <Card padded={false}>
+            <table className="w-full text-label">
+              <thead>
+                <tr className="text-caption text-ink-faint">
+                  <th className="px-5 py-2.5 text-left font-medium">Last activity</th>
+                  <th className="px-5 py-2.5 text-left font-medium">
+                    <code>formatLastActive</code>, as at {formatDate(KIT_AS_OF)}
+                  </th>
+                  <th className="px-5 py-2.5 text-left font-medium">
+                    The strength reason&rsquo;s words
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {['2026-09-01', '2026-08-31', '2026-08-26', '2026-08-01', '2026-03-01'].map(
+                  (at) => (
+                    <tr key={at} className="border-t border-hairline-soft">
+                      <td className="px-5 py-2.5 tabular text-ink-soft">{formatDate(at)}</td>
+                      <td className="px-5 py-2.5 text-ink">{formatLastActive(at, KIT_AS_OF)}</td>
+                      <td className="px-5 py-2.5 text-ink-soft">{activeClause(at)}</td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </Card>
+          <p className="mt-2 max-w-3xl text-caption font-normal text-ink-faint">
+            Whole days to the RM&rsquo;s as-of date, never the wall clock, so the Book row, the
+            preview, the customer&rsquo;s highlight and the strength reason the API writes read the
+            same words for the same fact.
+          </p>
+        </Specimen>
         <Specimen label="Deltas">
           <div className="flex flex-wrap items-center gap-3">
             <DeltaPill value={2.4} />
@@ -837,6 +905,12 @@ function TableAndRail() {
 
   return (
     <Section id="table" title="Table and rail">
+      <p className="mb-4 max-w-3xl text-label font-normal text-ink-soft">
+        A clickable row is one Tab stop: the segment, allocation and strength badges inside it give
+        theirs up (<code>InteractiveRow</code>), and their words reach a screen reader through their
+        labels. The arrow keys walk the rows; with the preview open it follows the focus through{' '}
+        <code>onRowFocus</code>. Every row carries <code>data-row-id</code>.
+      </p>
       <SplitView
         open={row !== null}
         rail={
@@ -872,7 +946,14 @@ function TableAndRail() {
                   { label: 'Segment', value: <SegmentBadge segment={row.segment} /> },
                   { label: 'Goal', value: <HealthDot health={row.health} /> },
                   { label: 'Strength', value: <StrengthBadge strength={row.strength} /> },
-                  { label: 'Last active', value: row.lastActive },
+                  {
+                    label: 'Last active',
+                    value: (
+                      <span title={formatDate(row.lastActivityAt)}>
+                        {formatLastActive(row.lastActivityAt, KIT_AS_OF)}
+                      </span>
+                    ),
+                  },
                 ]}
               />
             </SideRail>
@@ -888,6 +969,7 @@ function TableAndRail() {
           onSortingChange={setSorting}
           selectedId={selected}
           onRowClick={(r) => setSelected((cur) => (cur === r.id ? null : r.id))}
+          onRowFocus={(r) => setSelected((cur) => (cur === null ? null : r.id))}
           columnVisibility={row ? { signal: false, allocation: false, strength: false } : {}}
           stickyTop={56}
           empty={
@@ -960,8 +1042,21 @@ function Forms() {
 
 /* ---------------------------------------------------------------- Overlays */
 
+const KIT_PAGE = { label: 'Book', hint: 'Every customer in your book' }
+
 function Overlays() {
   const [palette, setPalette] = useState(false)
+  const [query, setQuery] = useState('')
+  const toItem = (r: SampleRow, highlight: readonly [number, number] | null): CommandItemDef => ({
+    id: r.id,
+    label: r.name,
+    highlight,
+    hint: `${SEGMENT[r.segment].label} · ${r.city}`,
+    icon: <Avatar name={r.name} initials={r.initials} size="sm" />,
+    onSelect: () => toast(`Opening ${r.name}`),
+  })
+  const sample = SAMPLE_ROWS.map((r) => ({ ...r, cif: `IDBI00000${r.id.slice(1)}0001` }))
+  const ranked = rankCustomers(query, sample)
   return (
     <Section id="overlays" title="Overlays">
       <div className="flex flex-wrap items-center gap-3">
@@ -1025,31 +1120,40 @@ function Overlays() {
           Error toast
         </Button>
       </div>
+      <p className="mt-3 max-w-3xl text-caption font-normal text-ink-faint">
+        The palette ranks with <code>lib/search.ts</code>: whole name, CIF, start of the name, start
+        of a word, the CIF&rsquo;s ends, the city, then one typo in a longer word, offered only when
+        nothing else matches. Nothing weaker is listed. Empty, it offers the customers opened last.
+        Try &ldquo;sid&rdquo;, &ldquo;pune&rdquo; or &ldquo;Venkatasubramaniam&rdquo;.
+      </p>
       <CommandPalette
         open={palette}
-        onOpenChange={setPalette}
+        onOpenChange={(next) => {
+          if (!next) setQuery('')
+          setPalette(next)
+        }}
+        query={query}
+        onQueryChange={setQuery}
         groups={[
-          {
-            heading: 'Customers',
-            items: SAMPLE_ROWS.map((r) => ({
-              id: r.id,
-              label: r.name,
-              hint: r.city,
-              icon: <Avatar name={r.name} initials={r.initials} size="sm" />,
-              onSelect: () => toast(`Opening ${r.name}`),
-            })),
-          },
+          query.trim() === ''
+            ? { heading: 'Recent', items: SAMPLE_ROWS.slice(0, 2).map((r) => toItem(r, null)) }
+            : {
+                heading: 'Customers',
+                items: ranked.map(({ row, match }) => toItem(row, match.highlight)),
+              },
           {
             heading: 'Go to',
-            items: [
-              {
-                id: 'p1',
-                label: 'Book',
-                hint: 'Every customer in your book',
-                icon: <FileText aria-hidden />,
-                onSelect: () => undefined,
-              },
-            ],
+            items:
+              query.trim() === '' || matchPage(query, KIT_PAGE) !== null
+                ? [
+                    {
+                      id: 'p1',
+                      ...KIT_PAGE,
+                      icon: <FileText aria-hidden />,
+                      onSelect: () => undefined,
+                    },
+                  ]
+                : [],
           },
         ]}
       />
@@ -1139,6 +1243,29 @@ function Timeline() {
 
 /* ---------------------------------------------------------------- Charts */
 
+/** An invented projection whose corpora are core's own `futureValue`, so the band ends on them. */
+const SAMPLE_PROJECTION: Projection = (() => {
+  const monthly = 25000
+  const existing = 400000
+  const years = 14
+  const scenario = (label: string, ratePct: number) => ({
+    label,
+    ratePct,
+    corpus: futureValue(monthly, years, ratePct, existing),
+    realCorpus: futureValue(monthly, years, ratePct - 5, existing),
+    contributed: monthly * years * 12 + existing,
+  })
+  return {
+    monthlyContribution: monthly,
+    existingCorpus: existing,
+    years,
+    inflationPct: 5,
+    scenarios: [scenario('Cautious', 7), scenario('Expected', 10), scenario('Optimistic', 12)],
+    disclaimer: 'An illustration, not a promise.',
+  }
+})()
+const SAMPLE_ROLES = scenarioRoles(SAMPLE_PROJECTION)!
+
 function Charts() {
   const area = MONTHS.map((m, i) => ({
     month: m,
@@ -1211,6 +1338,73 @@ function Charts() {
             />
           </Card>
         </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6">
+          <Card>
+            <CardHeader title="Across a unit boundary" />
+            <AreaChart
+              data={MONTHS.map((m, i) => ({
+                month: m,
+                v:
+                  [96, 96.4, 97.1, 97.5, 98.2, 98.6, 99.3, 99.8, 100.4, 101.1, 101.6, 102][i]! *
+                  1e5,
+              }))}
+              x="month"
+              series={[{ key: 'v', label: 'Balances' }]}
+              label="Balances crossing one crore"
+            />
+            <p className="mt-2 text-caption font-normal text-ink-faint">
+              Round ticks, each with the decimals it needs: never &ldquo;₹1Cr&rdquo; twice.
+            </p>
+          </Card>
+          <Card>
+            <CardHeader title="Projection band" />
+            <ProjectionChart
+              projection={SAMPLE_PROJECTION}
+              roles={SAMPLE_ROLES}
+              startYear={2026}
+              startAge={41}
+              height={220}
+            />
+            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption text-ink-soft">
+              {(
+                [
+                  ['Cautious to optimistic', PROJECTION_SWATCH.high],
+                  ['Expected', PROJECTION_SWATCH.mid],
+                  ['Paid in', PROJECTION_SWATCH.paid],
+                ] as const
+              ).map(([name, swatch]) => (
+                <li key={name} className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="h-0.5 w-3 rounded-full"
+                    style={{ background: swatch }}
+                  />
+                  {name}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+        <Card>
+          <CardHeader title="Band chart" />
+          <BandChart
+            data={[0, 1, 2, 3, 4, 5].map((t) => ({
+              x: 2026 + t,
+              low: 1e7 + t * 6e5,
+              mid: 1e7 + t * 9e5,
+              high: 1e7 + t * 1.3e6,
+              comparison: 1e7,
+            }))}
+            labels={{ low: 'Low', mid: 'Middle', high: 'High', comparison: 'Today' }}
+            height={180}
+            label="A sample range over five years"
+          />
+          <p className="mt-2 text-caption font-normal text-ink-faint">
+            <code>BandChart</code> is the generic range (low, middle, high, and a grey comparison in{' '}
+            <span style={{ color: BAND_SWATCH.comparison }}>neutral</span>);{' '}
+            <code>ProjectionChart</code> draws a goal projection on it.
+          </p>
+        </Card>
         <div className="grid grid-cols-3 gap-4">
           <SmallMultiple
             title="Book value"

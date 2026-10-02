@@ -14,6 +14,22 @@ export type CopilotMode = 'brief' | 'ask'
 /** The panel's element id, for the buttons' `aria-controls`. */
 export const PANEL_ID = 'rm-copilot-panel'
 
+/**
+ * `?copilot=brief` on a customer's address opens the file with the copilot already on that mode,
+ * so a page outside the file (Today's call row) can hand the RM straight to a brief. The panel
+ * reads it once and takes it off the address, so Back and a reload do not open it again.
+ */
+export const COPILOT_PARAM = 'copilot'
+
+export function isCopilotMode(value: string | null): value is CopilotMode {
+  return value === 'brief' || value === 'ask'
+}
+
+/** `/customers/IDBI0003308471?copilot=brief` */
+export function copilotHref(cif: string, mode: CopilotMode = 'brief'): string {
+  return `/customers/${encodeURIComponent(cif)}?${COPILOT_PARAM}=${mode}`
+}
+
 interface CopilotUi {
   /** The customer the panel is open on, or null when it is closed. */
   openCif: string | null

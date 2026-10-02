@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { relationshipStrength } from '@dhan/core'
 import {
   daysBetween,
   formatAgo,
@@ -7,9 +8,12 @@ import {
   formatDuration,
   formatIn,
   formatInr,
+  formatInrProse,
+  formatLastActive,
   formatMonth,
   formatPct,
   initialsOf,
+  prefersShort,
   shortNumber,
   splitInr,
   stableIndex,
@@ -25,17 +29,18 @@ test('rupees use Indian grouping and a true minus sign', () => {
 })
 
 test('the short form picks its unit after rounding', () => {
-  assert.equal(formatInr(482448, { short: true }), '₹4.8L')
+  assert.equal(formatInr(482448, { short: true }), '₹4.82L')
   assert.equal(formatInr(12000000, { short: true }), '₹1.2Cr')
   assert.equal(formatInr(4820000, { short: true }), '₹48.2L')
   assert.equal(shortNumber(9996000), '1Cr')
   assert.equal(shortNumber(99960), '1L')
+  assert.equal(shortNumber(99500), '1L')
   assert.equal(shortNumber(48000), '48k')
   assert.equal(shortNumber(4500), '4.5k')
   assert.equal(shortNumber(950), '950')
   assert.equal(shortNumber(100000), '1L')
   assert.equal(shortNumber(1240000000), '124Cr')
-  assert.equal(formatInr(-186000, { short: true }), '−₹1.9L')
+  assert.equal(formatInr(-186000, { short: true }), '−₹1.86L')
 })
 
 test('paise split never rounds into the rupees', () => {
@@ -60,15 +65,52 @@ test('dates are calendar dates, whatever the browser time zone', () => {
   assert.equal(daysBetween('2026-08-26', '2026-09-01'), 6)
 })
 
-test('relative time is measured against the as-of date', () => {
-  assert.equal(formatAgo('2026-09-01', '2026-09-01'), 'Today')
-  assert.equal(formatAgo('2026-08-31', '2026-09-01'), 'Yesterday')
-  assert.equal(formatAgo('2026-08-26', '2026-09-01'), '6 days ago')
-  assert.equal(formatAgo('2026-08-01', '2026-09-01'), '4 weeks ago')
-  assert.equal(formatAgo('2026-03-01', '2026-09-01'), '6 months ago')
+test('last active is whole days to the as-of date, as the strength reason says it', () => {
+  assert.equal(formatLastActive('2026-09-01', '2026-09-01'), 'Today')
+  assert.equal(formatLastActive('2026-08-31', '2026-09-01'), 'Yesterday')
+  assert.equal(formatLastActive('2026-08-26', '2026-09-01'), '6 days ago')
+  // The walk's mismatch: the header said "Active 31 days ago", the highlight "4 weeks ago".
+  assert.equal(formatLastActive('2026-08-01', '2026-09-01'), '31 days ago')
+  assert.equal(formatLastActive('2026-03-01', '2026-09-01'), '184 days ago')
+  // A real instant reads as its UTC calendar date, as the API's `daysSince` does.
+  assert.equal(formatLastActive('2026-08-31T23:30:00.000Z', '2026-09-01'), 'Yesterday')
+  // After the as-of date (a reviewer's clock moved on): today, never "in 3 days".
+  assert.equal(formatLastActive('2026-09-04', '2026-09-01'), 'Today')
+  // The older name says the same words.
+  assert.equal(formatAgo('2026-08-01', '2026-09-01'), formatLastActive('2026-08-01', '2026-09-01'))
+})
+
+test('last active agrees word for word with the strength reason the API writes', () => {
+  const asOf = '2026-09-01'
+  for (const at of ['2026-09-01', '2026-08-31', '2026-08-01', '2025-12-15', '2026-09-03']) {
+    const { reason } = relationshipStrength({
+      lastActivityAt: at,
+      idbiProducts: 1,
+      walletSharePct: null,
+      asOf,
+    })
+    const clause = reason.split(' · ')[0]
+    const ours = formatLastActive(at, asOf)
+    assert.equal(clause, `Active ${ours.charAt(0).toLowerCase()}${ours.slice(1)}`)
+  }
+})
+
+test('maturities and deadlines count forward from the as-of date', () => {
   assert.equal(formatIn('2026-09-13', '2026-09-01'), 'In 12 days')
   assert.equal(formatIn('2026-09-02', '2026-09-01'), 'Tomorrow')
   assert.equal(formatDuration(1), '1 day')
+  assert.equal(formatDuration(28), '4 weeks')
+})
+
+test('prose shortens a figure from one lakh up', () => {
+  assert.equal(formatInrProse(22501), '₹22,501')
+  assert.equal(formatInrProse(99999), '₹99,999')
+  assert.equal(formatInrProse(100000), '₹1L')
+  assert.equal(formatInrProse(22770000), '₹2.28Cr')
+  assert.equal(formatInrProse(-186240), '−₹1.86L')
+  assert.equal(formatInrProse(4500, { signed: true }), '+₹4,500')
+  assert.equal(prefersShort(-100000), true)
+  assert.equal(prefersShort(99999), false)
 })
 
 test('initials and tint index are stable', () => {

@@ -29,8 +29,9 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
-import { useParams } from 'react-router'
+import { useOutletContext, useParams } from 'react-router'
 import { useCustomer } from '../../api/queries.ts'
+import type { OpenRequest } from './next-actions.ts'
 
 export function useCustomerFile() {
   const { cif = '' } = useParams()
@@ -38,6 +39,20 @@ export function useCustomerFile() {
 }
 
 export type CustomerFile = Customer360
+
+/**
+ * What the file's layout hands its tabs besides the cached read: the customer's open request to
+ * talk (pinned first on Overview), and the one way to log a call, so a tab's own "Log call"
+ * opens the same dialog as the header's.
+ */
+export interface FileContext {
+  request: OpenRequest | null
+  logCall: () => void
+}
+
+export function useFileContext(): FileContext {
+  return useOutletContext<FileContext>()
+}
 
 /** "Karan Deshpande" → "Karan". The RM speaks of a customer by first name, as on a call. */
 export function firstName(name: string): string {

@@ -1,11 +1,16 @@
 # RM Desk — the relationship manager's console
 
-Status: built and integrated, 2 October 2026, on branch `rm-console`, uncommitted and not
-deployed until the owner reviews it. Every page below works end to end for both RMs against the
-memory source, the API also runs it on Postgres (migration 0015), and the whole tree is green
-(`pnpm build`, `typecheck`, `lint`, `format:check`, `test`). This was the build spec; how to run
-it and the demo logins are in [`apps/rm/README.md`](../../apps/rm/README.md). Reference screens and
-what was taken from each: [`docs/assets/rm-console/refs/README.md`](../assets/rm-console/refs/README.md).
+Status: built, integrated and polished, 2 October 2026, on branch `rm-console`, uncommitted and
+not deployed until the owner reviews it. Every page below works end to end for both RMs against
+the memory source, and the API also runs it on Postgres (migrations 0015 and 0016). After the
+polish round the whole tree is green (`pnpm build`, `typecheck`, `lint`, `format:check`, `test`:
+1,293 tests, rm 115 and api 399 of them), and CI's Postgres sequence passes on a fresh
+`pgvector/pgvector:pg16` (migrate, seed, `seed --check`, 100 integration tests). A final walk at
+1440×900, both RMs, every page, Cmd-K and the copilot, showed no console errors other than the
+browser's own line for the designed 403 when Arjun opens one of Meera's customers. This was the
+build spec, and the page list below is what was built; how to run it and the demo logins are in
+[`apps/rm/README.md`](../../apps/rm/README.md). Reference screens and what was taken from each:
+[`docs/assets/rm-console/refs/README.md`](../assets/rm-console/refs/README.md).
 
 ## Why it exists
 
@@ -75,13 +80,16 @@ Pure functions, no I/O, unit-tested over literals. Every number on the console c
 | Term | Definition |
 |---|---|
 | **Assets we can see** | `netWorth(snapshot).assets`: every account balance (any bank, via the ledger and Account Aggregator) + holdings. |
-| **With IDBI** | balances of accounts whose institution is IDBI. **Wallet share** = With IDBI ÷ all balances. |
+| **As at / month-end** | One scheme on every page. A headline figure (a total, a share, a KPI, a highlight) is **as at** the as-of date, 1 Sep 2026. A chart is the **last twelve month-ends** before it (Sep 2025 to Aug 2026), and so is every change read off one (a month's delta, a 3-month change, a top mover). The two differ on purpose: the 1st is payday, so an as-at balance sits a salary above the month-end before it. Every month-end figure says so in its label; the API carries the words (`FigureBasis`). |
+| **With IDBI** | balances of accounts whose institution is IDBI. **Wallet share** = With IDBI ÷ all balances. Both as at the as-of date in a headline; charted at month-ends. |
+| **SIP book** | registered SIPs a month: the mandates on the holdings (`holdings.sipMonthly`), on every page. The investment debits on statements are a different series, labelled "SIP debits per statements". |
+| **Goals on track** | customers whose goal is on track, as a count of the book ("9 of 38"), never a percentage. |
 | **Relationship value** | Assets we can see. Book value = Σ over the book. |
 | **Segment** | by Relationship value: **Mass** < ₹10L, **Affluent** ₹10L–₹50L, **Priority** ≥ ₹50L. |
 | **Goal health** | **On track**: roadmap feasible, no monthly shortfall, no urgent insight. **At risk**: feasible but a shortfall or an urgent insight (missed repayment, expensive debt). **Off track**: roadmap not feasible. |
 | **Signals** | the customer's insights minus `human_handoff`, re-voiced for the RM in the third person ("Card at 34.8% — ₹1.86L outstanding"). Severity keeps the engine's three levels. |
 | **Call queue** | open handoffs first (oldest first), then one top signal per customer ranked by the engine's own ranking (severity → deadline ≤ 14 days → waterfall rank → monthly value). Each row: the customer, the signal, one sentence of why with its figure, a suggested opener. |
-| **Relationship strength** | High / Medium / Low from: days since last activity (any decision, call, session), number of IDBI products held, wallet share. The reason is always shown ("Active 6 days ago · 3 IDBI products · 62% of balances with IDBI"). |
+| **Relationship strength** | High / Medium / Low from: days since last activity (the latest decision, question, call, note, contact or open session on the customer's one history), number of IDBI products held, wallet share. The reason is always shown ("Active 6 days ago · 3 IDBI products · 62% of balances with IDBI"). |
 | **Attrition watch** | flagged only with reasons: IDBI balance down > 15% over 3 months, wallet share < 30%, no activity in 60 days, a SIP paused. |
 | **Balance history** | month-end balance per account from the ledger (`accountFactsAsOf` per account), 12 months. Holdings and debt are flat before the anchor in the generator, so history charts plot **balances**, labelled as such; holdings are shown "as at 1 Sep 2026". Never chart a flat line as growth. |
 | **Projection** | `project()` bands, Cautious 6 / Expected 10 / Optimistic 12, with the mandatory disclaimer. Never a single number. |
@@ -99,8 +107,19 @@ through the real services, never by writing rows by hand:
   fund) run through the same `evaluateProduct` path text chat uses, so refusals are real verdicts
   in a real hash chain;
 - for a deterministic subset, a recent `talk_to_rm` decision so the inbox is not empty;
-- deterministic by cif; idempotent (a customer that already has its journey is skipped); runs in
-  the background after boot and can be awaited by tests.
+- the months after the last enquiry land on a day of the month that is the customer's own (3rd to
+  28th, by cif), so "last active" reads like people rather than a book that all decided on the 1st;
+  reviewers' seeding is untouched (a test pins it byte for byte);
+- deterministic by cif; idempotent: a journey counts as done only once its completion marker is
+  written, last, and one cut off part way is resumed on the next boot; shutdown lets the customer
+  in hand finish, within a bound; runs in the background after boot and can be awaited by tests.
+
+A customer has **one history** on the console. Where sessions overlap (a hero walked by the
+simulator and then opened by a reviewer, or two reviewers on one hero), the most recent reviewer's
+seeded months are kept, since that is what the customer was shown, and the rest of those months
+are left out of the journey, last activity and the counts. Plan events say why in the RM's words
+("Plan refreshed for August 2026, …"), never the simulated clock. The advice record keeps every
+row on every chain.
 
 Uday **calls** are never simulated: the console shows real avatar sessions only, with an honest
 empty state. A reviewer who opens the mobile app as Karan and taps "Done" on *Talk to your
@@ -116,15 +135,19 @@ down to 1024.
    Right: deep IDBI-green panel, one serif-free display line ("Every customer, every goal, one
    view."), a soft preview card. Reference: `B09-origin-login-split`.
 2. **Today** — greeting with the as-of date. KPI strip: Book value (with month change in
-   balances), Monthly SIP book, Goals on track (%), Open handoffs. Main column: **Call today**
-   (ranked queue, ~10). Right column: **Asked for you** (handoffs with waiting time), **Uday
-   refused** (latest refusals, link to the record), **Coming up** (FD maturities, EMIs ending,
-   SIP dates in the next 30 days). References: `A01-copilotmoney`, `A02-xero`.
-3. **Book** — segment tabs with counts (All · Priority · Affluent · Mass · At risk · Idle cash ·
-   Asked for RM), search, sort. Dense table: customer (initials avatar, name, age · city), segment,
-   relationship value with a 12-month balance sparkline, allocation bar, goal health, top signal,
-   strength, last activity. Footer aggregates. Row click opens a right preview rail without
-   leaving the list. References: `A04-attio`, `A05-semrush`, `A06-mercury`.
+   month-end balances), Monthly SIP book (registered SIPs), Goals on track (count of the book),
+   Asked for a call. Main column: **Call today** (ranked queue, ~10). A customer who asked for a
+   call is handled on their own queue row: when they asked, how long they have waited, Uday's read
+   that day, Mark contacted and Resolve. Right column: **Coming up** (FD maturities, EMIs ending,
+   SIP dates in the next 30 days), then **Uday refused** (the count since October with the latest
+   three, linking to the record). References: `A01-copilotmoney`, `A02-xero`.
+3. **Book** — a one-line summary strip (Book value, With IDBI, SIP book, Asked for you) with a
+   chart that opens on demand, then tabs with counts (All · Priority · Affluent · Mass | At risk ·
+   Idle cash · Asked for you), search, sort. Dense table: customer (initials avatar, name, age ·
+   city), segment, relationship value with a 12-month balance sparkline, allocation bar, goal
+   health, top signal, strength, last activity. Footer aggregates. Row click opens a right preview
+   rail without leaving the list; beside it the table keeps customer, value, goal and top signal.
+   References: `A04-attio`, `A05-semrush`, `A06-mercury`.
 4. **Customer** — header (avatar, name, age · city · segment · risk profile, strength badge, CIF;
    actions: Log a call, Add note, Brief me). Highlights strip: Relationship value, Net worth,
    Monthly surplus, Goal, Last active. Tabs:
@@ -141,12 +164,14 @@ down to 1024.
      the recorded wording, hash; "Verify chain" runs the real verification.
    - Right rail: profile (date of birth masked; reveal needs a reason and is logged), KYC, consent
      status per scope, assigned RM. References: `B02-hubspot`, `B03-lightfield`, `B04-clay`.
-5. **Insights** — book analytics as small multiples (Book value, balances in/out, SIP book, goals on
-   track, activity, refusals), allocation (asset class / product / segment), goal-health
-   distribution, signals by kind, refusals by rule. References: `A03-adaline`, `A08-ynab`.
+5. **Insights** — book analytics as small multiples (balances, balances with IDBI, money in vs
+   out, SIP book, activity, refusals), top movers, allocation by asset class and by segment (not
+   yet by product), goal-health distribution, signals by kind, refusals by rule.
+   References: `A03-adaline`, `A08-ynab`.
 6. **Advice record (book)** — "Mis-sales prevented": every refusal across the book, filter by
    rule, verify all chains. The judges' moment.
-7. **Access log** — every customer open, reveal and suitability check this RM made, with purpose.
+7. **Access log** — every customer open, reveal and suitability check this RM made, with purpose,
+   and every attempt refused with 403 (`denied`).
 8. **Copilot** — a right slide-over, scoped to the open customer: "Brief me for a meeting" and a
    question box with suggested prompts. Answers carry footnote citations to their sources.
    Reference: `B08-rox`.
@@ -171,7 +196,8 @@ spinner alone is not a state.
 ## Compliance the UI visibly respects
 
 - Book scoping on every RM route (403 outside the book).
-- Masked by default; reveal asks for a reason; every open, reveal and check is in the access log.
+- Masked by default; reveal asks for a reason; every open, reveal and check is in the access log,
+  and so is every refused attempt on a customer outside the book.
 - Consent status shown per scope; a withdrawn scope greys its block and says why.
 - AI text labelled; advice vs information kept apart; no commission or incentive figures anywhere.
 - Refusals are never hidden or softened; the record shows the exact wording the customer heard.

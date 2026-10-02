@@ -1,36 +1,33 @@
 import type { Customer360Action, Signal } from '@dhan/contracts'
 import {
   CalendarCheck2,
-  ChevronDown,
   CircleCheck,
   CircleDashed,
+  Hand,
+  Phone,
   ShieldAlert,
   ShieldCheck,
   ShieldMinus,
 } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
-import { useToday } from '../../api/queries.ts'
+import type { ReactNode } from 'react'
 import { CopilotButton } from '../../features/copilot/index.tsx'
-import { cn } from '../../lib/cn.ts'
 import { formatDate, formatIn, formatMonth, formatPct } from '../../lib/format.ts'
 import {
   AiLabel,
   Button,
   Card,
+  CardDivider,
   CardFooter,
   CardHeader,
   Chip,
   EmptyState,
-  ErrorState,
   HealthDot,
-  Money,
   Popover,
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
   SectionLabel,
   SeverityChip,
-  Skeleton,
 } from '../../ui/index.ts'
 import {
   ACTION_ICON,
@@ -40,14 +37,21 @@ import {
   plural,
   possessive,
   useCustomerFile,
+  useFileContext,
   type CustomerFile,
 } from './customer-file.ts'
+import { rmActions, type RmAction } from './next-actions.ts'
+import { midSentence } from './prose.ts'
 import { Block, CardSkeleton, TAB_STACK, TabLoading } from './parts.tsx'
+import { ProseInr } from './figures.tsx'
 
 /**
- * Overview: the engine's read of the customer, what to do next and why, every signal, and what
- * they hold against what they could. The AI brief is one click away behind Brief me; this tab is
- * what the rules alone say, so it can never be wrong in a way the record would not show.
+ * Overview: the engine's read of the customer, then what to do next and why. Each signal is said
+ * once: under the action that answers it, or in one line under "Also seen" where no action does,
+ * so the RM's next step is on the first screen rather than below a second list of the same
+ * things. Then what they hold against what they could, and what falls due. The AI brief is one
+ * click away behind Brief me; this tab is what the rules alone say, so it can never be wrong in a
+ * way the record would not show.
  */
 export function CustomerOverview() {
   const { query } = useCustomerFile()
@@ -65,7 +69,6 @@ export function CustomerOverview() {
     <div className={TAB_STACK}>
       <UdaysRead customer={customer} />
       <NextActions customer={customer} />
-      <Signals customer={customer} />
       <div className="grid items-start gap-6 min-[87.5rem]:grid-cols-2">
         <Products customer={customer} />
         <ComingUp customer={customer} />
@@ -78,8 +81,9 @@ export function CustomerOverview() {
 
 /**
  * A deterministic read of the file, written by rules from the customer's own figures: the goal
- * and where it stands, the signal to raise first, the money, the cover, and any attrition flag.
- * Labelled as the rules' text; the model-written brief lives behind Brief me.
+ * and where it stands, the signal to raise first where no action below answers it, the money,
+ * the cover, and any attrition flag. Labelled as the rules' text; the model-written brief lives
+ * behind Brief me.
  */
 function UdaysRead({ customer }: { customer: CustomerFile }) {
   const name = firstName(customer.profile.name)
@@ -87,7 +91,7 @@ function UdaysRead({ customer }: { customer: CustomerFile }) {
   return (
     <Card>
       <CardHeader title="Uday’s read" actions={<AiLabel phrasedBy="rules" />} />
-      <dl className="grid gap-3.5">
+      <dl className="grid gap-3">
         {rows.map((row) => (
           <div
             key={row.label}
@@ -100,13 +104,23 @@ function UdaysRead({ customer }: { customer: CustomerFile }) {
       </dl>
       <CardFooter>
         <span>
-          From {possessive(name)} figures as at {formatDate(customer.asOf)}. For a cited meeting
-          brief, use Brief me.
+          From {possessive(name)} figures, {midSentence(customer.basis.asOfLabel)}. For a cited
+          meeting brief, use Brief me.
         </span>
-        <CopilotButton cif={customer.profile.cif} label={`Ask about ${name}`} />
+        <CopilotButton cif={customer.profile.cif} label={`Ask about ${name}`} mode="ask" />
       </CardFooter>
     </Card>
   )
+}
+
+/**
+ * The engine's top signal when no suggested action answers it: the read raises it, so the action
+ * card's "Also seen" leaves it out. Null when an action already says it.
+ */
+function raisedInRead(c: CustomerFile): Signal | null {
+  const top = c.signals[0]
+  if (!top || c.nextActions.some((a) => a.why.signal?.kind === top.kind)) return null
+  return top
 }
 
 interface ReadRow {
@@ -114,7 +128,10 @@ interface ReadRow {
   text: ReactNode
 }
 
+/** A figure in one of the read's sentences: short from a lakh, as the signals beside it are. */
 const strong = (children: ReactNode) => <span className="font-medium text-ink">{children}</span>
+const inr = (value: number, className?: string) =>
+  strong(<ProseInr value={value} {...(className ? { className } : {})} />)
 
 function readRows(c: CustomerFile): ReadRow[] {
   const rows: ReadRow[] = []
@@ -128,10 +145,10 @@ function readRows(c: CustomerFile): ReadRow[] {
   if (goal.health === 'on_track') {
     why =
       roadmap.monthlyCommitment > 0 ? (
-        <> {strong(<Money value={roadmap.monthlyCommitment} />)} a month gets there.</>
+        <> {inr(roadmap.monthlyCommitment)} a month gets there.</>
       ) : null
   } else if (shortfall > 0) {
-    why = <> The plan is {strong(<Money value={shortfall} />)} a month short.</>
+    why = <> The plan is {inr(shortfall)} a month short.</>
   } else if (goal.health === 'off_track') {
     why = <> The plan cannot reach it as set.</>
   } else if (urgent > 0) {
@@ -142,24 +159,27 @@ function readRows(c: CustomerFile): ReadRow[] {
     text: (
       <>
         <HealthDot health={goal.health} className="mr-1.5 align-[-1px]" />
-        <span className="text-ink-soft">·</span> {goal.label},{' '}
-        {strong(<Money value={goal.targetAmount} />)} by {formatMonth(goal.targetDate)}.{why}
+        <span className="text-ink-soft">·</span> {goal.label}, {inr(goal.targetAmount)}
+        {goal.amountBasis === 'today' && goal.kind !== 'debt_payoff'
+          ? ' in today’s money'
+          : ''} by {formatMonth(goal.targetDate)}.{why}
       </>
     ),
   })
 
-  // Raise first: the engine's own top signal, in its own RM-voiced words.
-  const top = signals[0]
-  rows.push({
-    label: 'Raise first',
-    text: top ? (
-      <>
-        {strong(top.title)}. <span className="text-ink-soft">{top.detail}</span>
-      </>
-    ) : (
-      <span className="text-ink-soft">Nothing flagged. The engine has no signal open.</span>
-    ),
-  })
+  // Raise first: the engine's top signal, only where no suggested action below already answers
+  // it. Where one does, that action says it, with this signal under it, so it is said once.
+  const top = raisedInRead(c)
+  if (top) {
+    rows.push({
+      label: 'Raise first',
+      text: (
+        <>
+          {strong(top.title)}. <span className="text-ink-soft">{top.detail}</span>
+        </>
+      ),
+    })
+  }
 
   // Money: what we can see, how much of it is with us, what is left each month.
   const banks = new Set(money.accounts.map((a) => a.institution)).size
@@ -168,19 +188,15 @@ function readRows(c: CustomerFile): ReadRow[] {
     label: 'Money',
     text: (
       <>
-        {strong(<Money value={highlights.relationshipValue} short />)} we can see across{' '}
-        {plural(banks, 'bank')}
+        {inr(highlights.relationshipValue)} we can see across {plural(banks, 'bank')}
         {money.walletSharePct !== null ? (
           <>, {strong(formatPct(Math.round(money.walletSharePct)))} with IDBI</>
         ) : null}
         .{' '}
         {surplus > 0 ? (
-          <>{strong(<Money value={surplus} />)} a month left after spending.</>
+          <>{inr(surplus)} a month left after spending.</>
         ) : surplus < 0 ? (
-          <>
-            Spending runs {strong(<Money value={-surplus} className="text-danger" />)} a month ahead
-            of income.
-          </>
+          <>Spending runs {inr(-surplus, 'text-danger')} a month ahead of income.</>
         ) : (
           <>Nothing is left after spending.</>
         )}
@@ -196,7 +212,7 @@ function readRows(c: CustomerFile): ReadRow[] {
         {protection.lifeCoverNeeded === 0 ? (
           <>No dependents, so no life cover is needed by the rule of thumb</>
         ) : protection.gap > 0 ? (
-          <>{strong(<Money value={protection.gap} />)} short on life cover</>
+          <>{inr(protection.gap)} short on life cover</>
         ) : (
           <>Life cover meets the need</>
         )}
@@ -217,7 +233,16 @@ function readRows(c: CustomerFile): ReadRow[] {
 /* ---------------------------------------------------------------- Next actions */
 
 function NextActions({ customer }: { customer: CustomerFile }) {
-  const actions = customer.nextActions
+  const { request, logCall } = useFileContext()
+  const name = firstName(customer.profile.name)
+  const raised = raisedInRead(customer)
+  const { actions, alsoSeen } = rmActions(
+    customer.nextActions,
+    // The signal Uday's read raises first is said there, not again here.
+    customer.signals.filter((signal) => signal !== raised),
+    { name, gender: customer.profile.gender },
+    request,
+  )
   return (
     <Block title="Suggested next actions" count={actions.length}>
       {actions.length === 0 ? (
@@ -225,52 +250,137 @@ function NextActions({ customer }: { customer: CustomerFile }) {
           className="py-5"
           icon={<CircleCheck />}
           title="Nothing to suggest today"
-          body={`The engine has no next step for ${firstName(customer.profile.name)}. The plan runs as it is.`}
+          body={`The engine has no next step for ${name}. The plan runs as it is.`}
         />
       ) : (
         <ul className="-my-1">
           {actions.map((action) => (
-            <ActionRow key={action.id} action={action} asOf={customer.asOf} />
+            <ActionRow key={action.id} action={action} asOf={customer.asOf} onLogCall={logCall} />
           ))}
         </ul>
       )}
+      {alsoSeen.length > 0 ? (
+        <>
+          <CardDivider />
+          <AlsoSeen signals={alsoSeen} />
+        </>
+      ) : null}
     </Block>
   )
 }
 
-function ActionRow({ action, asOf }: { action: Customer360Action; asOf: string }) {
-  const Icon = ACTION_ICON[action.kind]
+function ActionRow({
+  action,
+  asOf,
+  onLogCall,
+}: {
+  action: RmAction
+  asOf: string
+  onLogCall: () => void
+}) {
+  const Icon = action.kind === 'open_request' ? Phone : ACTION_ICON[action.kind]
   return (
     <li className="flex items-start gap-3 border-b border-hairline-soft py-3 last:border-0">
       <span
         aria-hidden
-        className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-ink-soft [&_svg]:size-3.5"
+        className={
+          action.asked
+            ? 'mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-on-brand [&_svg]:size-3.5'
+            : 'mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-ink-soft [&_svg]:size-3.5'
+        }
       >
         <Icon />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-label text-ink">{action.label}</p>
-        <p className="mt-0.5 text-caption font-normal text-ink-soft">{action.detail}</p>
+        <p className="text-label text-ink">{action.title}</p>
+        {action.reason ? (
+          <p className="mt-0.5 text-caption font-normal text-ink-soft">{action.reason}</p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2 pt-0.5">
-        {action.why.signal ? <SeverityChip severity={action.why.signal.severity} /> : null}
-        <WhyPopover action={action} asOf={asOf} />
+        {action.asked ? (
+          <>
+            <Chip tone="brand" icon={<Hand aria-hidden />}>
+              Asked for you
+            </Chip>
+            <Button size="sm" variant="primary" icon={<Phone aria-hidden />} onClick={onLogCall}>
+              Log call
+            </Button>
+          </>
+        ) : (
+          <>
+            {action.severity ? <SeverityChip severity={action.severity} /> : null}
+            {action.source ? (
+              <WhyPopover action={action.source} title={action.title} asOf={asOf} />
+            ) : null}
+          </>
+        )}
       </div>
     </li>
   )
 }
 
 /**
- * "Why this was suggested", after Lightfield: the signal behind the action, the evidence the
- * engine read, and what the suitability rules said. An action with no product has nothing for the
- * rules to judge, and the popover says that rather than borrowing a verdict.
+ * The signals no suggested action answers, one line each: severity, the figure-first title, and
+ * the detail where it fits. They are still on the file; they just have no step attached yet.
  */
-function WhyPopover({ action, asOf }: { action: Customer360Action; asOf: string }) {
+function AlsoSeen({ signals }: { signals: readonly Signal[] }) {
+  return (
+    <section aria-label="Also seen">
+      <SectionLabel as="h3" className="mb-2">
+        Also seen <span className="ml-1 tabular text-ink-hint">{signals.length}</span>
+      </SectionLabel>
+      <ul className="grid gap-1.5">
+        {signals.map((signal) => (
+          <li
+            key={signal.kind}
+            className="grid grid-cols-[7.25rem_minmax(0,1fr)] items-baseline gap-3 text-label"
+          >
+            <span>
+              <SeverityChip severity={signal.severity} />
+            </span>
+            <p className="min-w-0 truncate" title={`${signal.title}. ${signal.detail}`}>
+              <span className="text-ink">{signal.title}</span>
+              {signal.deadlineDays !== null ? (
+                <span className="text-ink-soft">
+                  {' '}
+                  ·{' '}
+                  {signal.deadlineDays <= 0
+                    ? 'due now'
+                    : `in ${plural(signal.deadlineDays, 'day')}`}
+                </span>
+              ) : null}
+              <span className="font-normal text-ink-faint"> · {signal.detail}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * "Why this was suggested", after Lightfield: the signal behind the action, the evidence the
+ * engine read, the product where there is one, and what the suitability rules said. An action
+ * with no product has nothing for the rules to judge, and the popover says that rather than
+ * borrowing a verdict.
+ */
+function WhyPopover({
+  action,
+  title,
+  asOf,
+}: {
+  action: Customer360Action
+  title: string
+  asOf: string
+}) {
   const { signal, evidence, rulesPassed, verdict } = action.why
+  // The product's own line, without the engine's advice to the customer after it.
+  const product = verdict !== null ? (action.detail.split('. ')[0] ?? null) : null
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={`Why: ${action.label}`}>
+        <Button variant="ghost" size="sm" aria-label={`Why: ${title}`}>
           Why?
         </Button>
       </PopoverTrigger>
@@ -294,6 +404,14 @@ function WhyPopover({ action, asOf }: { action: Customer360Action; asOf: string 
                 Evidence
               </SectionLabel>
               <EvidenceList lines={evidence} />
+            </div>
+          ) : null}
+          {product ? (
+            <div>
+              <SectionLabel as="p" className="mb-1.5">
+                Product
+              </SectionLabel>
+              <p className="text-label text-ink">{product.replace(/\.$/, '')}</p>
             </div>
           ) : null}
           <div>
@@ -372,75 +490,6 @@ function EvidenceList({ lines }: { lines: readonly string[] }) {
   )
 }
 
-/* ---------------------------------------------------------------- Signals */
-
-function Signals({ customer }: { customer: CustomerFile }) {
-  const signals = customer.signals
-  return (
-    <Block title="Signals" count={signals.length}>
-      {signals.length === 0 ? (
-        <EmptyState
-          className="py-5"
-          icon={<CircleCheck />}
-          title="No signals"
-          body={`The engine sees nothing in ${possessive(firstName(customer.profile.name))} money that needs a person today.`}
-        />
-      ) : (
-        <ul className="-my-1">
-          {signals.map((signal) => (
-            <SignalRow key={signal.kind} signal={signal} />
-          ))}
-        </ul>
-      )}
-    </Block>
-  )
-}
-
-function SignalRow({ signal }: { signal: Signal }) {
-  const [open, setOpen] = useState(false)
-  const id = useId()
-  return (
-    <li className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-4 border-b border-hairline-soft py-3 last:border-0">
-      <div className="pt-px">
-        <SeverityChip severity={signal.severity} />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="text-label text-ink">{signal.title}</p>
-          {signal.deadlineDays !== null ? (
-            <Chip tone="outline" className="shrink-0">
-              {signal.deadlineDays <= 0 ? 'Due now' : `In ${plural(signal.deadlineDays, 'day')}`}
-            </Chip>
-          ) : null}
-        </div>
-        <p className="mt-0.5 text-caption font-normal text-ink-soft">{signal.detail}</p>
-        {signal.evidence.length > 0 ? (
-          <>
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-controls={id}
-              onClick={() => setOpen((v) => !v)}
-              className="mt-1.5 inline-flex items-center gap-1 rounded-sm text-caption text-ink-faint transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
-            >
-              <ChevronDown
-                aria-hidden
-                className={cn('size-3.5 transition-transform duration-150', open && 'rotate-180')}
-              />
-              {open ? 'Hide evidence' : `Evidence (${signal.evidence.length})`}
-            </button>
-            {open ? (
-              <div id={id} className="mt-2">
-                <EvidenceList lines={signal.evidence} />
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </div>
-    </li>
-  )
-}
-
 /* ---------------------------------------------------------------- Products */
 
 /** What the customer holds with IDBI against what on the shelf would fit them. */
@@ -491,45 +540,15 @@ function Products({ customer }: { customer: CustomerFile }) {
 /* ---------------------------------------------------------------- Coming up */
 
 /**
- * This customer's dates in the next thirty days. The customer file does not carry them, so they
- * are read from Today's book-wide list (usually cached already) and filtered to this CIF.
+ * This customer's dates in the next thirty days, soonest first, from the file itself: the same
+ * items Today's Coming up lists for this CIF, with no book-wide read behind them.
  */
 function ComingUp({ customer }: { customer: CustomerFile }) {
-  const today = useToday()
-  const cif = customer.profile.cif
   const name = firstName(customer.profile.name)
-
-  let body: ReactNode
-  if (today.isPending) {
-    body = (
-      <div className="grid gap-3" aria-hidden>
-        {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <Skeleton className="h-9 w-10 rounded-md" />
-            <div className="grid flex-1 gap-1.5">
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-3 w-1/3" />
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  } else if (today.isError) {
-    body = (
-      <ErrorState
-        className="py-4"
-        title="Dates did not load"
-        error={today.error}
-        onRetry={() => void today.refetch()}
-        retrying={today.isFetching}
-      />
-    )
-  } else {
-    const items = today.data.upcoming
-      .filter((u) => u.cif === cif)
-      .sort((a, b) => a.date.localeCompare(b.date))
-    body =
-      items.length === 0 ? (
+  const items = customer.upcoming
+  return (
+    <Block title="Coming up" {...(items.length > 0 ? { count: items.length } : {})}>
+      {items.length === 0 ? (
         <EmptyState
           className="py-5"
           icon={<CalendarCheck2 />}
@@ -568,9 +587,9 @@ function ComingUp({ customer }: { customer: CustomerFile }) {
             )
           })}
         </ul>
-      )
-  }
-  return <Block title="Coming up">{body}</Block>
+      )}
+    </Block>
+  )
 }
 
 /** A calendar date some days on, for "before 1 Oct". UTC, as the simulation's calendar is. */
