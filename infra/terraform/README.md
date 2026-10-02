@@ -109,6 +109,9 @@ rehearsal in a clean account.
 
 ## Releasing the RM console the first time
 
+`infra/scripts/release-rm-console.sh $ENV` runs the six steps below in order, with each
+`terraform apply` targeted and waiting for your confirmation.
+
 The console (`apps/rm`) adds migrations 0015 and 0016, 46 more seeded customers and a `/rm*`
 CloudFront behaviour. Order matters for the first release, because the API does not migrate at
 boot and the new API reads tables only the new seed creates.
