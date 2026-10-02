@@ -1,8 +1,8 @@
-import { useMe } from '../api/queries.ts'
-import { useSession } from '../api/session.ts'
-import { formatDate } from '../lib/format.ts'
-import { PageHeader, Skeleton } from '../ui/index.ts'
-import { KpiStripSkeleton, ListCardSkeleton, PageLoading } from './placeholder.tsx'
+import { useMe } from '../../api/queries.ts'
+import { useSession } from '../../api/session.ts'
+import { formatDate } from '../../lib/format.ts'
+import { PageHeader, Skeleton } from '../../ui/index.ts'
+import { KpiStripSkeleton, ListCardSkeleton, PageLoading } from '../placeholder.tsx'
 
 /** The greeting goes by the wall clock; every figure under it goes by the as-of date. */
 function greeting(): string {

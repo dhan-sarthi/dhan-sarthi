@@ -1,6 +1,6 @@
 import { Outlet, useParams } from 'react-router'
-import { Card, LinkTabs, Skeleton } from '../ui/index.ts'
-import { ListCardSkeleton, PageLoading, ProseCardSkeleton } from './placeholder.tsx'
+import { Card, LinkTabs, Skeleton } from '../../ui/index.ts'
+import { ListCardSkeleton, PageLoading } from '../placeholder.tsx'
 
 /**
  * A customer's file. The tabs are addresses (`/customers/:cif/journey`), so a view can be
@@ -46,15 +46,5 @@ export function Customer() {
         </div>
       </div>
     </>
-  )
-}
-
-/** Each tab's body until its builder replaces it. */
-export function CustomerTabPlaceholder() {
-  return (
-    <div className="grid content-start gap-6">
-      <ProseCardSkeleton />
-      <ListCardSkeleton rows={5} />
-    </div>
   )
 }

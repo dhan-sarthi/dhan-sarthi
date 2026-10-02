@@ -4,14 +4,19 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { makeQueryClient } from './api/queries.ts'
 import { useSession } from './api/session.ts'
-import { Access } from './pages/Access.tsx'
-import { Book } from './pages/Book.tsx'
-import { Customer, CustomerTabPlaceholder } from './pages/Customer.tsx'
-import { Insights } from './pages/Insights.tsx'
+import { Access } from './pages/access/Access.tsx'
+import { Book } from './pages/book/Book.tsx'
+import { Customer } from './pages/customer/Customer.tsx'
+import { CustomerGoals } from './pages/customer/Goals.tsx'
+import { CustomerJourney } from './pages/customer/Journey.tsx'
+import { CustomerMoney } from './pages/customer/Money.tsx'
+import { CustomerOverview } from './pages/customer/Overview.tsx'
+import { CustomerRecord } from './pages/customer/RecordTab.tsx'
+import { Insights } from './pages/insights/Insights.tsx'
 import { Login } from './pages/login/Login.tsx'
 import { NotFound } from './pages/NotFound.tsx'
-import { Record } from './pages/Record.tsx'
-import { Today } from './pages/Today.tsx'
+import { Record } from './pages/record/Record.tsx'
+import { Today } from './pages/today/Today.tsx'
 import { RequireAuth } from './shell/RequireAuth.tsx'
 import { Toaster, TooltipProvider } from './ui/index.ts'
 
@@ -55,11 +60,11 @@ export function App() {
                 <Route index element={<Today />} />
                 <Route path="book" element={<Book />} />
                 <Route path="customers/:cif" element={<Customer />}>
-                  <Route index element={<CustomerTabPlaceholder />} />
-                  <Route path="journey" element={<CustomerTabPlaceholder />} />
-                  <Route path="money" element={<CustomerTabPlaceholder />} />
-                  <Route path="goals" element={<CustomerTabPlaceholder />} />
-                  <Route path="record" element={<CustomerTabPlaceholder />} />
+                  <Route index element={<CustomerOverview />} />
+                  <Route path="journey" element={<CustomerJourney />} />
+                  <Route path="money" element={<CustomerMoney />} />
+                  <Route path="goals" element={<CustomerGoals />} />
+                  <Route path="record" element={<CustomerRecord />} />
                 </Route>
                 <Route path="insights" element={<Insights />} />
                 <Route path="record" element={<Record />} />

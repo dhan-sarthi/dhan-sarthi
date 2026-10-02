@@ -1,5 +1,5 @@
-import { PageHeader, Skeleton } from '../ui/index.ts'
-import { KpiStripSkeleton, PageLoading, TableSkeleton } from './placeholder.tsx'
+import { PageHeader, Skeleton } from '../../ui/index.ts'
+import { KpiStripSkeleton, PageLoading, TableSkeleton } from '../placeholder.tsx'
 
 export function Record() {
   return (

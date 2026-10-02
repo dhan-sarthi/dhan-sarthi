@@ -1,5 +1,5 @@
-import { PageHeader, Skeleton } from '../ui/index.ts'
-import { ChartGridSkeleton, PageLoading } from './placeholder.tsx'
+import { PageHeader, Skeleton } from '../../ui/index.ts'
+import { ChartGridSkeleton, PageLoading } from '../placeholder.tsx'
 
 export function Insights() {
   return (
