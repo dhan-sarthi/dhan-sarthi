@@ -44,6 +44,11 @@ export interface ConnectOptions {
 export interface LiveConnection {
   /** The stage node changed — a remount, a rotation. Move the video, do not rebuild the call. */
   reattach: (node: HTMLDivElement | null) => void
+  /**
+   * Stop or resume sending the customer's voice, without leaving the call. The hook also turns
+   * the microphone track off itself; this is for the SDK's own copy and for telling the provider.
+   */
+  setMuted: (muted: boolean) => Promise<void>
   /** Idempotent. Tears down the SDK and removes every element it put in the document. */
   disconnect: () => Promise<void>
 }

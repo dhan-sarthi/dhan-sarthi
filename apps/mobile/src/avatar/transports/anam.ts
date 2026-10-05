@@ -58,6 +58,10 @@ export const connect: Connect = async ({ grant, stage, mic, onVideoLive, onVideo
     reattach: (node) => {
       if (node && !node.contains(video)) node.appendChild(video)
     },
+    setMuted: async (muted) => {
+      if (muted) anam.muteInputAudio()
+      else anam.unmuteInputAudio()
+    },
     disconnect: async () => {
       leaving = true
       try {
