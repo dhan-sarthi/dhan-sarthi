@@ -78,6 +78,9 @@ export type GlyphName =
   | 'bag'
   | 'home'
   | 'film'
+  // The call controls.
+  | 'mic'
+  | 'micOff'
 
 const PATHS: Record<GlyphName, React.ReactNode> = {
   ledger: <Path d="M5 4h11l3 3v13H5V4zM8 9h8M8 13h8M8 17h5" />,
@@ -288,6 +291,19 @@ const PATHS: Record<GlyphName, React.ReactNode> = {
     <>
       <Path d="M4 5h16v14H4z" />
       <Path d="M4 9h16M4 15h16M8 5v14M16 5v14" />
+    </>
+  ),
+  // A microphone, and the same microphone struck through for a muted call.
+  mic: (
+    <>
+      <Path d="M9 6a3 3 0 016 0v5a3 3 0 01-6 0V6z" />
+      <Path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21" />
+    </>
+  ),
+  micOff: (
+    <>
+      <Path d="M9 6a3 3 0 016 0v5a3 3 0 01-6 0V6z" />
+      <Path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M4 4l16 16" />
     </>
   ),
 }

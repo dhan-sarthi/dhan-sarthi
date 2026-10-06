@@ -65,6 +65,15 @@ export class InMemorySessionStore implements SessionStore {
     return this.byId.get(id) ?? null
   }
 
+  async listByCif(cif: string): Promise<Session[]> {
+    // Insertion order is creation order here; the sort makes it the contract rather than luck.
+    return [...this.byId.values()]
+      .filter((s) => s.cif === cif)
+      .sort((a, b) =>
+        a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1,
+      )
+  }
+
   async patch(id: string, patch: SessionPatch, expectedVersion: number): Promise<Session | null> {
     const current = this.byId.get(id)
     if (!current || current.version !== expectedVersion) return null

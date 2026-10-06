@@ -16,7 +16,11 @@ runway-1 → runway-2 → runway-3 → anam-1 → anam-2 → anam-3
 ```
 
 `AVATAR_PROVIDER=runway,anam` builds both providers. The accounts are numbered slots in
-`apps/api/.env`. A grant takes the first account that is:
+`apps/api/.env`. Since 6 October 2026, the slot number only breaks ties. Within each provider, the
+account with the most credit left goes first, by the balance the credit watch last read
+(`richestFirst` in `credential-health.ts`). Slot order had spent runway-1 down to 30 credits while
+runway-2 sat on 442, and an account run dry is a second customer who cannot be served at the same
+time. A grant takes the first account, in that order, that is:
 
 | Check | Where | Why an account is skipped |
 |---|---|---|

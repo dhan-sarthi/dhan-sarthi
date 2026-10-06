@@ -55,6 +55,10 @@ export const connect: Connect = async ({ grant, mic, onVideoStream, onLost }) =>
   const live: LiveConnection = {
     // The stage renders the stream by URL wherever it is mounted; there is no node to move.
     reattach: () => undefined,
+    setMuted: async (muted) => {
+      if (muted) anam.muteInputAudio()
+      else anam.unmuteInputAudio()
+    },
     disconnect: async () => {
       if (leaving) return
       leaving = true

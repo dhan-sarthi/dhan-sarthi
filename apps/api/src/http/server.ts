@@ -38,7 +38,8 @@ export interface ServerOptions {
 }
 
 const BODY_LIMIT_BYTES = 16 * 1024
-const GLOBAL_RATE_LIMIT = { max: 120, window: '1 minute' }
+/** Per address, on every route without a limit of its own; `register.ts` reuses it as a ceiling. */
+export const GLOBAL_RATE_LIMIT = { max: 120, window: '1 minute' }
 
 /** A log line must never be the place a bearer or a key survives. */
 const REDACT = [
@@ -57,18 +58,40 @@ function loggerOptions(config: Config, override: LoggerOption | undefined): Logg
   return config.NODE_ENV === 'production' ? base : { ...base, transport: { target: 'pino-pretty' } }
 }
 
+/**
+ * Fastify's `trustProxy` for the configured value.
+ *
+ * A hop count becomes a function because Fastify fails closed on a bare number (it cannot check
+ * that the peers are proxies, so it trusts nothing). A count is sound only where the network
+ * checks that instead, as the deployment's does: the ALB admits only CloudFront's origin-facing
+ * ranges and the task admits only the ALB, so with a count of 2 the socket is the ALB, the entry
+ * it appended is CloudFront, and the entry before that is the viewer CloudFront saw.
+ */
+function trustProxyOption(
+  value: Config['TRUST_PROXY'],
+): boolean | string[] | ((address: string, hop: number) => boolean) {
+  if (typeof value === 'number') return (_address, hop) => hop < value
+  return value
+}
+
 export async function createServer(
   config: Config,
   options: ServerOptions,
 ): Promise<FastifyInstance> {
   const serverOptions: FastifyHttpOptions<RawServerDefault> = {
     logger: loggerOptions(config, options.logger),
-    trustProxy: config.TRUST_PROXY,
+    trustProxy: trustProxyOption(config.TRUST_PROXY),
     bodyLimit: BODY_LIMIT_BYTES,
     requestTimeout: 60_000,
     exposeHeadRoutes: false,
   }
   const app = Fastify(serverOptions)
+  if (config.TRUST_PROXY === true && config.NODE_ENV === 'production') {
+    app.log.warn(
+      'TRUST_PROXY=true trusts every hop, so X-Forwarded-For picks request.ip and every ' +
+        'per-address limit; set the hop count instead (2 behind CloudFront and the ALB)',
+    )
+  }
 
   app.decorate('routeTable', new Set<string>())
   app.addHook('onRoute', (route) => {

@@ -8,7 +8,7 @@
  * time. Runway caps `personality` at 10,000 characters and `startScript` at 2,000; the caps
  * are enforced here so a long shelf degrades the brief rather than the request.
  */
-import { openingLine } from '@dhan/core'
+import { openingRead, planAhead } from '@dhan/core'
 import type { DecisionRecord } from '@dhan/contracts'
 import type { ServerView } from '../advisory.service.ts'
 import { factLines } from '../advisory-facts.ts'
@@ -89,9 +89,17 @@ export function buildBrief(
    * arrived malformed can misdirect the first sentence and cannot invent a number.
    */
   topic?: string | null,
+  /**
+   * Whether this customer has had a call with Uday before, on this session.
+   *
+   * It decides one sentence: "this is our first time meeting" is the warmest thing Uday can say
+   * on a first call and a small lie on the second.
+   */
+  metBefore = false,
 ): Brief {
   const s = view.snapshot
   const first = s.customer.name.split(' ')[0] ?? s.customer.name
+  const greeting = `Hey ${first}!`
 
   // The same block the text tier's prompt is built from, so the call and the chat cannot
   // quote different numbers at the same customer.
@@ -114,6 +122,82 @@ export function buildBrief(
       `- ${p.productId} · ${p.name}${p.aliases.length > 0 ? ` (also called: ${p.aliases.join(', ')})` : ''}`,
   )
 
+  /*
+   * The opening, as turns rather than a speech.
+   *
+   * Uday used to open with the whole diagnosis before the customer had said a word: "Hello Rohan.
+   * I have been through your statements…" and then every figure, straight into a suggestion. The
+   * owner found it abrupt and unnatural while preparing the demo, 6 October 2026, and asked for a
+   * greeting, a reply, and permission before the read. So `startScript` is only the greeting,
+   * and the read moves here, to be said once the customer has said yes.
+   *
+   * The read is still the engine's words, quoted with its figures, so the model says the numbers
+   * rather than working them out: `openingRead`, written to be said aloud, with round totals and
+   * every payment named from its own narration. It arrives after the customer has spoken, so it
+   * also comes in their language, which the old scripted opening, always English, never could.
+   */
+  /*
+   * What Uday suggests, once he has read them their month.
+   *
+   * It used to be the day's one action, "move ₹2,00,000 into a sweep-in", which is a product
+   * suggestion, not advice. Where the engine sees two or more moments close together (a deposit
+   * maturing, a loan ending, a family with no cover), `planAhead` joins them into one ordered
+   * plan with dates, and that becomes the suggestion. The products in it still go through
+   * check_suitability on the call, so the gate fires for every one of them, as the transcript
+   * reconciler expects.
+   */
+  const ahead = planAhead(s, view.roadmap, view.plan, shelf)
+  const read = openingRead(s, { lead: ahead === null })
+  const offer = metBefore
+    ? `Good to see you again, ${first}. I have been through your latest statements, and I have an updated read on where you stand. Would you like to hear it?`
+    : `Good to meet you, ${first}. This is our first time meeting, and I have already been through all your statements. I have a quick read on where you stand. Would you like to hear it?`
+  const opening = [
+    `How this call opens. You have said "${greeting}" and nothing more. Wait for them to answer.`,
+    ...(topic
+      ? [
+          '- When they greet you back, go straight to what they asked about: say you can see they',
+          '  asked about it, then take it head on, the finding first and then what you would do and',
+          '  why. They have already asked, so do not ask whether they want to hear it.',
+        ]
+      : [
+          '- When they greet you back, offer your read in a few short sentences, with no figures',
+          `  yet. Say something close to: "${offer}"`,
+          '- When they say yes, in any words ("okay", "sure", "go ahead", "haan"), talk them through',
+          '  this read the way you would across a desk, with a short pause between the parts. It',
+          '  comes from their statements and is already checked, so say it without calling a tool,',
+          '  keeping every number exactly as it is written:',
+          `  "${read}"`,
+          ...(ahead
+            ? [
+                '  Then tell them a couple of things are coming up for them, that you have a plan',
+                '  that joins them up, and ask whether they want to hear it.',
+              ]
+            : [
+                '  Then say you have one suggestion for today, and ask whether they want it or have',
+                '  something on their mind first.',
+              ]),
+        ]),
+    '- If their first words are a question rather than a greeting, answer it first, and keep the',
+    '  rest for when it fits.',
+    'Do not ask what their goals are. They have never had advice and cannot answer that. Propose,',
+    'and let them push back.',
+    ...(ahead
+      ? [
+          '',
+          'Your plan for them. When they want your suggestion or ask what to do next, do these in',
+          'order:',
+          ...ahead.products.map(
+            (p, i) => `${i + 1}. Call check_suitability with product_name "${p}".`,
+          ),
+          `${ahead.products.length + 1}. Only then talk them through the plan below, in this order, the way you`,
+          '   would across a desk, keeping every number exactly as it is written. Right after the',
+          '   step that names a product, say the sentence check_suitability returned for it. If it',
+          '   refused one, say the refusal instead of that step.',
+          `"${ahead.text}"`,
+        ]
+      : []),
+  ]
+
   const personality = [
     ...LANGUAGE,
     '',
@@ -125,11 +209,9 @@ export function buildBrief(
     'Speak the way a person speaks: plain words, short sentences, no dashes mid-sentence and',
     'no jargon they would have to look up. Say the number, then what it means for them.',
     '',
-    ...facts,
+    ...opening,
     '',
-    'Open by telling them what you already know from their statements. Do not ask what their',
-    'goals are. They have never had advice and cannot answer that. Propose, and let them push',
-    'back.',
+    ...facts,
     '',
     'Rules you must follow:',
     '- Before you recommend, endorse or agree to ANY specific product, including one the',
@@ -137,8 +219,11 @@ export function buildBrief(
     "  returns, in the customer's language. You do not decide suitability yourself, and you may",
     '  not soften a refusal.',
     '- For any figure about what they spent, earned, pay for or owe, call query_spend and say',
-    "  what it returns, in the customer's language. Never do the arithmetic yourself.",
-    '- When they ask where they stand or what to do next, call get_plan.',
+    "  what it returns, in the customer's language. Never do the arithmetic yourself. The",
+    `  exception${ahead ? 's are the opening read and the plan' : ' is the opening read'} above, already checked.`,
+    ahead
+      ? '- When they ask where they stand, call get_plan. What to do next is the plan above.'
+      : '- When they ask where they stand or what to do next, call get_plan.',
     '- Never state a figure that is not in this brief or in a tool result. If you do not have',
     '  it, say so.',
     '- Never promise a return. Say "assumed" and name the rate.',
@@ -165,32 +250,12 @@ export function buildBrief(
   // Runway speaks `startScript` verbatim — the first live call's transcript carried the old
   // instruction text ("Greet Rohan by name, briefly. Then say, in your own words…") as the
   // avatar's first turn, word for word. So this is the opening itself, not a direction for it.
-  // It names no product on purpose: a product Uday proposes has to go through
-  // check_suitability first, and a scripted line would bypass the gate the transcript is
-  // reconciled against.
-  /*
-   * Two openings, because arriving from a tapped insight is not the same event as opening the
-   * tab.
-   *
-   * A customer who pressed "Talk me through this" on a specific finding has already asked
-   * their question. Greeting them with the general position and "is there something on your
-   * mind?" makes them ask it twice, which is the single most irritating thing a voice product
-   * can do. So when there is a topic, the call opens on it and the general diagnosis is
-   * dropped — Uday has it in `personality` either way if the conversation goes there.
-   */
-  const startScript = (
-    topic
-      ? [
-          `Hello ${first}. You asked about this, so let me take it head on.`,
-          `${topic}`,
-          'Here is what I would do about it, and why.',
-        ]
-      : [
-          `Hello ${first}. I have been through your statements, so let me start with what I can see.`,
-          openingLine(s).text,
-          'I have one suggestion for today. Shall I take you through it, or is there something on your mind first?',
-        ]
-  ).join(' ')
+  //
+  // It is the greeting and nothing else, on every call. What follows it, the read or the topic
+  // the customer tapped, is in `personality` (see `opening`), to be said once they have answered.
+  // A customer who tapped "Talk me through this" still is not asked their question twice: the
+  // brief takes Uday straight to it after the hello.
+  const startScript = greeting
 
   return {
     personality: clamp(personality, PERSONALITY_MAX),

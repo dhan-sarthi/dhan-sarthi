@@ -13,7 +13,8 @@ function clientHint(userAgent: string | undefined, ip: string): string {
 
 export function sessionsRoutes(r: Registrar, s: AppServices): void {
   r(routeById('createSession'), async ({ body, request }) => {
-    const { token, session } = await s.sessions.create(
+    // `open`, not `create`: only a picker customer, or any customer where there is no picker.
+    const { token, session } = await s.sessions.open(
       body.cif,
       clientHint(request.headers['user-agent'], request.ip),
     )

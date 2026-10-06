@@ -15,7 +15,8 @@
  * renders as "Uday is with another customer" with a working typed conversation behind it.
  *
  * **Failover.** The pool is an ordered chain of accounts across providers — Runway's first,
- * Anam's last — and a grant walks it: the first account that is free, not benched and on a line
+ * Anam's last, and within each the account with the most credit left first — and a grant walks
+ * it: the first account that is free, not benched and on a line
  * that is up takes the call. If that account refuses (out of credits, busy with a session we do
  * not hold, a bad key, a provider having a bad minute) the attempt is torn down exactly as a
  * failed grant always was, the account is benched in `CredentialHealth`, and the next one is
@@ -68,6 +69,7 @@ import {
   type CredentialHealth,
   affordableSeconds,
   classifyFailure,
+  richestFirst,
 } from './credential-health.ts'
 import type { CredentialPool } from './credential-pool.ts'
 import type { LeaseReaper } from './lease-reaper.ts'
@@ -331,8 +333,8 @@ export class AvatarSessionService {
 
   /**
    * @param topic  The finding the customer tapped "Talk me through this" on, if any. Steers
-   *               the opening line only — see `buildBrief`, where every figure still comes
-   *               from the View or a tool result.
+   *               what Uday says after his greeting, nothing more. See `buildBrief`, where
+   *               every figure still comes from the View or a tool result.
    */
   async start(session: Session, ticket?: string, topic?: string | null): Promise<AvatarGrant> {
     this.assertUsable()
@@ -620,7 +622,13 @@ export class AvatarSessionService {
       advisory.view(session),
       audit.listForSession(session.id),
     ])
-    return { view, brief: buildBrief(view, trail.decisions, view.shelfProducts, topic) }
+    // A call is written to the trail at its grant, after this brief is built, so every granted
+    // call here is an earlier one.
+    const metBefore = trail.avatarSessions.some((call) => call.grantedAt !== null)
+    return {
+      view,
+      brief: buildBrief(view, trail.decisions, view.shelfProducts, topic, metBefore),
+    }
   }
 
   /**
@@ -794,7 +802,8 @@ export class AvatarSessionService {
   }
 
   /**
-   * The first account, in chain order, that has not been tried in this grant, is not benched,
+   * The first account, in chain order (each provider's richest first), that has not been tried
+   * in this grant, is not benched,
    * is on a provider whose line is up, and whose lease this session can take. `held` says
    * whether any account was passed over only because somebody else is on it — the difference
    * between "wait your turn" and "there is no turn to wait for".
@@ -816,7 +825,9 @@ export class AvatarSessionService {
         (ahead ? this.usableMs : 0),
     ).toISOString()
     let held = false
-    for (const cred of pool.list()) {
+    // Each provider's richest account first, so one account is not run dry while another sits
+    // full; an account with credit left is a second customer served at the same time.
+    for (const cred of richestFirst(pool.list(), (label) => health.credits(label))) {
       if (tried.has(cred.label) || downVendors.has(cred.provider)) continue
       if (provider.breakerState(cred) === 'open') continue
       // Readying ahead spends one of the account's daily sessions; leave the last few for taps.

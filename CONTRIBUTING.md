@@ -21,9 +21,10 @@ assign: the mass-market account that has a surplus and has never been told what 
 
 ```
 apps/api             the ONLY process that holds a secret or calls a provider (Fastify)
-apps/mobile          Expo + Expo Router + NativeWind — the product, and the only client
+apps/mobile          Expo + Expo Router + NativeWind — the product, and the customer's only client
+apps/rm              Vite + React — the relationship manager's console (RM Desk), /api/v1/rm/* only
 packages/core        domain logic — PURE, zero I/O; the suitability rules live here
-packages/contracts   request/response schemas shared by the API and the client (zod)
+packages/contracts   request/response schemas shared by the API and its clients (zod)
 packages/fixtures    synthetic customers and the product shelf; never real data
 packages/design      the design tokens, consumed twice: raw values, and the NativeWind preset
 packages/assets      generated imagery the app ships with (icons, portraits)
@@ -35,7 +36,7 @@ packages/assets      generated imagery the app ships with (icons, portraits)
 
 ### The mobile app is the product
 
-`apps/mobile` is the only client: a ground-up rewrite against **Cleo AI's** interaction design,
+`apps/mobile` is the customer's only client: a ground-up rewrite against **Cleo AI's** interaction design,
 pulled screen by screen from Mobbin, in IDBI green. It runs on iOS and Android through Expo, and
 in a browser through Expo's web target, which is what the deployment serves.
 
@@ -56,6 +57,13 @@ with Uday (the avatar) in Cleo's centre chat slot. Home's route and file are sti
 has four panes: Overview, Budget, Debt and Credit. `Grow` and `Protect` have no Cleo equivalent
 and are designed in the same language. Build vertically, one flow at a time, front to back; each
 flow has a note in [`docs/slices/`](docs/slices/).
+
+### The RM console is the bank's side
+
+`apps/rm` (2 October 2026) is not `apps/web` come back: it is the relationship manager's desk, a
+Vite + React app that calls only the `/api/v1/rm/*` routes with its own `rm_` bearer, and no
+customer ever sees it. Its spec is [`docs/product/rm-console.md`](docs/product/rm-console.md); how
+to run it, with the demo logins, is [`apps/rm/README.md`](apps/rm/README.md).
 
 ### Three rules that decide where code goes
 
@@ -197,9 +205,9 @@ says the same. What actually constrains a route change now:
    cannot exist, and `apps/api/test/contract/no-undeclared-route.test.ts` walks it both ways.
    Change the registry and the OpenAPI document, the validation and the client's types all move
    together.
-2. **A shape change fails at `tsc`, not at runtime.** `apps/mobile/src/api/client.ts` imports
-   every request and response type from `@dhan/contracts`, so the client will not compile against
-   a route it no longer matches.
+2. **A shape change fails at `tsc`, not at runtime.** `apps/mobile/src/api/client.ts` and
+   `apps/rm/src/api/client.ts` import every request and response type from `@dhan/contracts`, so
+   neither client will compile against a route it no longer matches.
 3. **The route table in `docs/architecture/DATA-AND-API.md` is tested.**
    `apps/api/test/contract/documented-surface.test.ts` fails if a route has no row or a row has no
    route. A route change is a documentation change.
@@ -218,9 +226,10 @@ carrying a card at 34.8%" without a generator. `*.testkit.ts` is a test helper: 
 `dist` by `packages/core/tsconfig.json`, loaded by `tsconfig.test.json`, and never picked up by
 `node --test`.
 
-The whole tree is **872 tests, zero failures** as of 22 September 2026: core 218, contracts 25,
-fixtures 171, api 256, mobile 202. The API's Postgres integration suite adds 73 more when
-`DATABASE_URL` is set, and CI runs it against a fresh database on every push to `main`.
+The whole tree is **1,311 tests, zero failures** as of 3 October 2026: core 335, contracts 52,
+fixtures 185, api 399, mobile 207, rm 133. The API's integration files run 100 tests when
+`DATABASE_URL` is set rather than the 45 that need no database, so Postgres adds 55 more, and CI
+runs them against a fresh database on every push to `main`.
 
 **The coverage has a deliberate gap.** Seven suites stay in `packages/fixtures/src` (`roadmap`,
 `suitability`, `waterfall`, `goal`, `query`, `challenge`, `credit`) because they assert outcomes

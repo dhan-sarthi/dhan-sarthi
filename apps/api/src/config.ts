@@ -38,6 +38,40 @@ const list = z.preprocess(
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD')
 
 /**
+ * Whom to believe about the caller's address: Fastify's `trustProxy`, as a hop count, a list of
+ * proxy addresses or CIDRs, or a boolean.
+ *
+ * A whole number is the hop count, so `1` means one proxy and not `true`. `true` trusts every
+ * hop, which makes `request.ip` the leftmost `X-Forwarded-For` entry — the one the client wrote,
+ * because CloudFront appends to a forwarded header rather than replacing it. Every per-address
+ * limit then keys on a value the caller picks. Behind CloudFront and the ALB the count is 2: the
+ * socket is the ALB, the last forwarded entry is CloudFront (the ALB appended it), and the one
+ * before that is the viewer CloudFront saw. `http/server.ts` says why a count needs a function.
+ */
+const trustProxy = z.preprocess(
+  (v) => {
+    if (typeof v !== 'string') return v
+    const s = v.trim().toLowerCase()
+    if (/^\d+$/.test(s)) return Number(s) === 0 ? false : Number(s)
+    if (TRUE.has(s)) return true
+    if (FALSE.has(s)) return false
+    return s
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+  },
+  z.union([
+    z.boolean(),
+    z.number().int().min(1).max(10),
+    z
+      .array(
+        z.string().regex(/^([0-9a-f.:/]+|loopback|linklocal|uniquelocal)$/, 'an address or CIDR'),
+      )
+      .min(1),
+  ]),
+)
+
+/**
  * How many numbered accounts a provider may carry: `RUNWAY_API_KEY_1` … `RUNWAY_API_KEY_9`.
  * One account is one concurrent call on both providers, so this is also the ceiling on calls
  * at once.
@@ -221,10 +255,36 @@ export const ConfigSchema = z
     /** The kill switch, matching AVATAR_ENABLED: false wires the null model without a deploy. */
     TEXT_MODEL_ENABLED: bool.default(true),
 
+    /*
+     * The RM console.
+     *
+     * The copilot has its own model instance, and so its own breaker and its own limits: a
+     * meeting brief is longer than a chat reply and can afford to wait longer for one, and a
+     * console that tripped the customer's breaker would take `/ask` down with it. The key is the
+     * text tier's, and `TEXT_MODEL_ENABLED` turns both off.
+     */
+    /** Unset uses `OPENAI_MODEL`. */
+    RM_COPILOT_MODEL: z.string().optional(),
+    RM_COPILOT_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(20_000),
+    RM_COPILOT_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(64).max(4_000).default(900),
+    /**
+     * Derive every book customer in the background after boot, so the first Book page is a
+     * read rather than a minute of `derive`. Off in the tests, which ask for what they read.
+     */
+    RM_WARM: bool.default(true),
+    /**
+     * Lay down each book customer's journey (sessions, decisions, enquiries, handoffs) through
+     * the real services after boot. Off in the tests unless a test turns it on.
+     */
+    RM_SIMULATE: bool.default(true),
+
     /** Allowed browser origins. Unset reflects any origin, which is only right in dev. */
     CORS_ORIGIN: list.optional(),
-    /** Behind CloudFront/ALB the client IP is in X-Forwarded-For; rate limits key on it. */
-    TRUST_PROXY: bool.default(false),
+    /**
+     * Behind CloudFront/ALB the client IP is in X-Forwarded-For; rate limits key on it. A hop
+     * count (2 there), proxy CIDRs, or a boolean; see `trustProxy` above for why not `true`.
+     */
+    TRUST_PROXY: trustProxy.default(false),
     /** Guards /operator/*. Absent means those routes answer 404. */
     OPERATOR_KEY: z.string().min(16, 'at least 16 characters').optional(),
 
@@ -564,6 +624,11 @@ export function describeConfig(config: Config): Record<string, unknown> {
     avatarMaxSessionSeconds: maxSessionSeconds(config),
     avatarDailyMinuteBudget: dailyMinuteBudget(config),
     textModel: textModelIsLive(config) ? config.OPENAI_MODEL : 'none (rules only)',
+    rmCopilotModel: textModelIsLive(config)
+      ? (config.RM_COPILOT_MODEL ?? config.OPENAI_MODEL)
+      : 'none (rules only)',
+    rmWarm: config.RM_WARM,
+    rmSimulate: config.RM_SIMULATE,
     corsOrigin: config.CORS_ORIGIN ?? 'any (dev)',
     trustProxy: config.TRUST_PROXY,
     operatorKey: config.OPERATOR_KEY ? 'set' : 'unset',

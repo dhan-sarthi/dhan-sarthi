@@ -103,8 +103,41 @@ rehearsal in a clean account.
 | Kill switch: stop all avatar spend now | Set `AVATAR_ENABLED = "false"` in `api_environment` (tfvars override or `-var`), `terraform apply`, which forces a new deployment. The product keeps running on the text tier. |
 | Deploy a new API build | `infra/scripts/deploy-api.sh $ENV <tag>` outside an announced demo window. Rolling with a 120 s drain; a live call at deploy time is ended gracefully with `end_reason='deploy'`. |
 | Deploy a new web build | `infra/scripts/deploy-web.sh $ENV` |
+| Deploy a new RM console build | `infra/scripts/deploy-rm.sh $ENV`. Published under `/rm/` in the same bucket; it refuses to run until the `/rm*` behaviour exists (below). |
 | See what is happening | CloudWatch dashboard `dhan-sarthi-$ENV`; logs in `/dhan-sarthi/$ENV/api`; `GET /api/v1/health` for db, seed hash, breaker and RPC count |
 | Tear down (team sandbox) | `terraform destroy -var-file=envs/team-sandbox.tfvars`. The bucket and ECR repository are `force_destroy` there; RDS skips the final snapshot. In `idbi-sandbox` both protections are on and must be lifted first. |
+
+## Releasing the RM console the first time
+
+`infra/scripts/release-rm-console.sh $ENV` runs the six steps below in order, with each
+`terraform apply` targeted and waiting for your confirmation.
+
+The console (`apps/rm`) adds migrations 0015 and 0016, 46 more seeded customers and a `/rm*`
+CloudFront behaviour. Order matters for the first release, because the API does not migrate at
+boot and the new API reads tables only the new seed creates.
+
+1. **Build and push the image without rolling the service.** From a clean tree:
+   `docker buildx build --platform linux/amd64 -f apps/api/Dockerfile -t $REPO:$TAG --push .`
+   (the build and push half of `deploy-api.sh`).
+2. **Point the seed task at it**:
+   `terraform apply -var-file=envs/$ENV.tfvars -var api_image_tag=$TAG -target=aws_ecs_task_definition.seed`.
+3. **Migrate and reseed**: `infra/scripts/seed-remote.sh $ENV --force`. This applies 0015 and
+   0016, writes all fifty customers and the RM desk, and **erases every live customer session**;
+   reviewers simply pick a customer again. Until step 4 the old API lists all fifty in the
+   picker.
+4. **Roll the API**:
+   `terraform apply -var-file=envs/$ENV.tfvars -var api_image_tag=$TAG -target=aws_ecs_service.api`,
+   then `aws ecs wait services-stable`. The new task warms the book and then lays down each
+   customer's journey (a few minutes on Postgres); the console works throughout.
+5. **Add the route**:
+   `terraform apply -var-file=envs/$ENV.tfvars -var api_image_tag=$TAG -target=aws_cloudfront_distribution.web`
+   (creates `aws_cloudfront_function.rm_spa` with it). CloudFront takes several minutes to
+   deploy the change.
+6. **Publish the console**: `infra/scripts/deploy-rm.sh $ENV`, then
+   `infra/scripts/smoke.sh $APP_URL` and open `$APP_URL/rm/`.
+
+Use `-target` here because a full plan also carries unrelated pending changes (on 25 Sep 2026, an
+RDS parameter group's `apply_method`); read `terraform plan` before any untargeted apply.
 
 ## Egress the bank's network team must allow
 

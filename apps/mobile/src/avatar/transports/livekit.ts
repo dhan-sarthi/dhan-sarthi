@@ -104,6 +104,10 @@ export const connect: Connect = async ({ grant, stage, mic, onVideoLive, onVideo
     reattach: (node) => {
       if (node && video && !node.contains(video)) node.appendChild(video)
     },
+    setMuted: async (muted) => {
+      // Mutes the published track by its source, whether we published it or the SDK opened it.
+      await room.localParticipant.setMicrophoneEnabled(!muted)
+    },
     disconnect: async () => {
       if (leaving) return
       leaving = true

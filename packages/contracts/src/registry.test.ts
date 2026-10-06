@@ -55,6 +55,52 @@ describe('the route registry', () => {
     }
   })
 
+  it('keeps the RM console behind the RM bearer, and only the console', () => {
+    // Sign-in is how a bearer is had, so it is the one row under the prefix that cannot ask
+    // for one. Everywhere else the prefix and the auth kind say the same thing, both ways: a
+    // console route on the customer bearer would open a book with a session token, and an RM
+    // route outside the prefix is one nobody would think to look for.
+    for (const r of ROUTES) {
+      const isRmPath = r.path.startsWith('/api/v1/rm/')
+      if (r.id === 'rmSignIn') {
+        assert.ok(isRmPath, r.id)
+        assert.equal(r.auth, 'none', r.id)
+        continue
+      }
+      assert.equal(r.auth === 'rm', isRmPath, r.id)
+    }
+  })
+
+  it('answers a cif outside the book apart from a cif that does not exist', () => {
+    const scoped = ROUTES.filter((r) => r.auth === 'rm' && r.path.includes('/:cif'))
+    assert.deepEqual(scoped.map((r) => r.id).sort(), [
+      'rmAddNote',
+      'rmAsk',
+      'rmBrief',
+      'rmCustomer',
+      'rmCustomerRecord',
+      'rmJourney',
+      'rmReveal',
+      'rmVerifyCustomerRecord',
+    ])
+    for (const r of scoped) {
+      assert.ok(403 in r.response, `${r.id} must declare 403 for a customer outside the book`)
+      assert.ok(404 in r.response, `${r.id} must declare 404 for an unknown customer`)
+    }
+  })
+
+  it('limits RM sign-in by address and the copilot by bearer', () => {
+    assert.deepEqual(routeById('rmSignIn').rateLimit, {
+      max: 30,
+      window: '15 minutes',
+      keyBy: 'ip',
+    })
+    for (const id of ['rmBrief', 'rmAsk'] as const) {
+      assert.equal(routeById(id).rateLimit.keyBy, 'session', id)
+      assert.ok(routeById(id).rateLimit.max <= 30, id)
+    }
+  })
+
   it('requires an Idempotency-Key wherever a replay would double-write', () => {
     for (const id of ['decideAction', 'startAvatarSession'] as const) {
       const r = routeById(id)
@@ -70,7 +116,7 @@ describe('the route registry', () => {
     assert.throws(() => routeById('nope' as never), /no route/)
   })
 
-  it('has the 52 routes of the API surface', () => {
+  it('has the 70 routes of the API surface', () => {
     // 28 before the IDBI integration; six for the two blocks no bank endpoint carries, and
     // six for the Account Aggregator consent flow — four the app drives and two the bank
     // posts at us.
@@ -89,7 +135,12 @@ describe('the route registry', () => {
     // limits on offer that writes nothing at all, the start, and the surrender.
     // The fifty-second readies an avatar call before the customer taps for one: Runway bills
     // nothing until a call is handed over, so the slow part can happen while they look.
-    assert.equal(ROUTES.length, 52)
+    // The last eighteen are the relationship manager's console: signing in and out and who is
+    // signed in; the book, today's queue and the book's analytics; one customer, their journey,
+    // their record and its verification, a note, a reveal, a brief and a question; a handoff
+    // marked as answered; and the refusals across the book, their verification and the log of
+    // every file the RM opened.
+    assert.equal(ROUTES.length, 70)
   })
 })
 

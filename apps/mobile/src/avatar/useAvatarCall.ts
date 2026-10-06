@@ -48,6 +48,9 @@ export type CallState = {
    */
   videoURL: string | null
   reason: string | null
+  /** The customer's microphone is off. Uday keeps talking; he just cannot hear them. */
+  muted: boolean
+  toggleMute: () => void
   start: (topic?: string | null) => Promise<void>
   hangUp: () => void
   attach: (node: HTMLDivElement | null) => void
@@ -116,6 +119,9 @@ export function useAvatarCall(): CallState {
   const [videoURL, setVideoURL] = useState<string | null>(null)
   const [reason, setReason] = useState<string | null>(null)
   const [providerDown, setProviderDown] = useState(false)
+  const [muted, setMuted] = useState(false)
+  // Read by the connect that lands after a mute tapped while still connecting.
+  const mutedNow = useRef(false)
 
   const stage = useRef<HTMLDivElement | null>(null)
   const live = useRef<LiveConnection | null>(null)
@@ -178,6 +184,9 @@ export function useAvatarCall(): CallState {
   )
 
   const cleanUp = useCallback(() => {
+    // Every call starts with the customer audible; a mute does not carry into the next one.
+    mutedNow.current = false
+    setMuted(false)
     setVideoLive(false)
     setVideoAspect(null)
     setVideoURL(null)
@@ -223,6 +232,7 @@ export function useAvatarCall(): CallState {
           return null
         }
         mic.current = stream
+        stream?.getAudioTracks().forEach((t) => (t.enabled = !mutedNow.current))
         return stream
       })
 
@@ -273,6 +283,7 @@ export function useAvatarCall(): CallState {
           return
         }
         live.current = connection
+        if (mutedNow.current) void connection.setMuted(true).catch(() => undefined)
         mark('connected')
         setMode('live')
       } catch (err) {
@@ -311,6 +322,19 @@ export function useAvatarCall(): CallState {
     [cleanUp],
   )
 
+  /**
+   * Off and on again without leaving the call. The track is switched off here, which sends
+   * silence on every transport at once; the SDK is told as well, so a microphone it opened
+   * itself goes quiet too and the provider knows the customer muted rather than went silent.
+   */
+  const toggleMute = useCallback(() => {
+    const next = !mutedNow.current
+    mutedNow.current = next
+    setMuted(next)
+    mic.current?.getAudioTracks().forEach((t) => (t.enabled = !next))
+    void live.current?.setMuted(next).catch(() => undefined)
+  }, [])
+
   const attach = useCallback((node: HTMLDivElement | null) => {
     stage.current = node
     live.current?.reattach(node)
@@ -330,6 +354,8 @@ export function useAvatarCall(): CallState {
     videoAspect,
     videoURL,
     reason,
+    muted,
+    toggleMute,
     providerDown,
     start,
     hangUp,

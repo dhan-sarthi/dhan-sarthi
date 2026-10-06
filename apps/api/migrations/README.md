@@ -25,6 +25,8 @@ demo-critical subset of that DDL, adapted to the reviewer-session model in
 | `0011_session_save_and_challenges.sql` | additive: `sessions.save_state` (the savings pot as one jsonb document, default `'{}'`) and `sessions.challenge` (the one running spend challenge, or null) |
 | `0012_session_goal_kind.sql` | additive: `sessions.goal_kind` — the goal kind the customer chose, checked against the five. Null means never chosen and the engine's ladder picks, so rows older than the column keep the plan they had |
 | `0013_aggregated_accounts_and_holdings.sql` | additive: `accounts` gains the institution, `is_primary` and `display_order`, so accounts at other banks keep their bank and their own ledger; `transactions.is_self_transfer`; `mf_holdings.position` and `insurance_policies.custodian`; the `other_holdings` table and view for EPF, NPS, PPF and listed shares. Null means IDBI, not a self-transfer, or unplaced |
+| `0015_rm_console.sql` | additive, the RM console (0014 is taken on another branch; the migrator allows the gap): `rm_users` (the desk, seeded, read-only to the API, scrypt hashes only), `rm_sessions` (sign-ins; only expiry, last-active and revocation may change, and a revocation is final), `rm_book` (one row per customer, read-only to the API), and the append-only `rm_notes`, `rm_handoff_status` and `rm_access_log`; plus a trigger on `sessions` that allows one simulated journey per customer |
+| `0016_rm_access_denied.sql` | additive: `rm_access_log.action` also takes `denied`, the entry a 403 on a customer outside the caller's book writes for the RM who tried. Only the CHECK widens; the table stays append-only |
 
 ## Decisions worth knowing before you add a migration
 

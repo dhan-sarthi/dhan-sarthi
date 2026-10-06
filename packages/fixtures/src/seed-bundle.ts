@@ -25,6 +25,7 @@ import type {
   Transaction,
 } from '@dhan/core'
 import { addMonths } from './calendar.ts'
+import { ALL_PERSONAS } from './book/index.ts'
 import { generateLedger, liabilityContract, sipContract } from './generate.ts'
 import { IDBI, PERSONAS, branchIfscFor } from './personas.ts'
 import type { PersonaSpec } from './personas.ts'
@@ -110,8 +111,12 @@ export interface SeedBundle {
    * Position on the picker, 1-based. Explicit rather than derived from a name or a cif, because
    * the picker tells a story in this order: the headline customer first, then the three narrower
    * refusals behind him.
+   *
+   * Null for every customer who is not one of `PERSONAS`: the relationship manager's book is
+   * seeded beside the heroes and must never appear on the mobile picker, which lists only the
+   * customers that carry a position. The column it lands in was already nullable.
    */
-  displayOrder: number
+  displayOrder: number | null
   consent: SeedConsent
   accounts: SeedAccountRow[]
   transactions: Transaction[]
@@ -149,7 +154,7 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
     customer: spec.customer,
     pitch: spec.pitch,
     demonstrates: spec.demonstrates,
-    displayOrder: index === -1 ? PERSONAS.length + 1 : index + 1,
+    displayOrder: index === -1 ? null : index + 1,
     consent: {
       // Keyed on the slug, not on the persona's position. A consent artefact identifies a
       // customer, and deriving it from an array index meant adding a persona silently
@@ -228,9 +233,9 @@ export function toSeedBundle(spec: PersonaSpec, options?: Partial<SeedBundleOpti
   }
 }
 
-/** Every persona, bundled. */
+/** Every persona, bundled: the four heroes first, in picker order, then the RM's book. */
 export function seedBundles(options?: Partial<SeedBundleOptions>): SeedBundle[] {
-  return PERSONAS.map((spec) => toSeedBundle(spec, options))
+  return ALL_PERSONAS.map((spec) => toSeedBundle(spec, options))
 }
 
 /**

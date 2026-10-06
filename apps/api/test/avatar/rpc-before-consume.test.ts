@@ -175,6 +175,44 @@ describe('the grant opens the gate before it consumes', () => {
   })
 })
 
+/*
+ * "This is our first time meeting" is true once per session. The service decides it from the
+ * calls already on the trail, so it has to be tested through the grant, not the builder alone.
+ */
+describe('the opening knows whether they have met', () => {
+  it('says first meeting on the first call and good to see you on the next', async () => {
+    const { root, provider } = await rootWithFakes()
+    try {
+      const { token } = await createSession(root.app)
+
+      const first = await start(root, token)
+      assert.equal(first.statusCode, 200, first.body)
+      const opened = provider.created.at(-1)?.opts
+      assert.ok(opened)
+      assert.match(opened.startScript, /^Hey \S+!$/)
+      assert.match(opened.personality, /This is our first time meeting/)
+
+      const { runwaySessionId } = first.json<AvatarGrant>()
+      const end = await root.app.inject({
+        method: 'POST',
+        url: `/api/v1/avatar/session/${runwaySessionId}/end`,
+        headers: bearer(token),
+      })
+      assert.equal(end.statusCode, 204)
+
+      const again = await start(root, token)
+      assert.equal(again.statusCode, 200, again.body)
+      const reopened = provider.created.at(-1)?.opts
+      assert.ok(reopened)
+      assert.notEqual(reopened, opened)
+      assert.match(reopened.personality, /Good to see you again/)
+      assert.doesNotMatch(reopened.personality, /first time meeting/)
+    } finally {
+      await root.close()
+    }
+  })
+})
+
 describe('a refused gate never issues a session', () => {
   it('cancels exactly once, consumes never, and frees the lease', async () => {
     const { root, provider, rpc, events } = await rootWithFakes()

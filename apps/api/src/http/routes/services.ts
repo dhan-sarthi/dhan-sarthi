@@ -39,6 +39,12 @@ import type { SaveService } from '../../application/save.service.ts'
 import type { SessionService } from '../../application/session.service.ts'
 import type { AvatarToolWebhook, ProductShelfPort } from '../../ports/index.ts'
 import type { AaConsentService } from '../../application/aa-consent.service.ts'
+import type { RmActivityService } from '../../application/rm/activity.service.ts'
+import type { RmBookScope } from '../../application/rm/book-scope.ts'
+import type { RmBookService } from '../../application/rm/book.service.ts'
+import type { RmConsoleService } from '../../application/rm/console.service.ts'
+import type { RmCopilotService } from '../../application/rm/copilot.service.ts'
+import type { RmAuthService } from '../../application/rm/rm-auth.service.ts'
 
 export interface AppServices {
   /** The statement, paged: the asOf clamp, the ordering and the cursor live behind this. */
@@ -68,4 +74,18 @@ export interface AppServices {
   avatarTools: AvatarToolWebhook
   health: () => Promise<HealthResponse>
   openapi: OpenApiDocument
+
+  /* The RM console. Every :cif handler asks `rmScope` before anything else. */
+  /** RM sign-in, the bearer behind `auth: 'rm'`, sign-out. */
+  rmAuth: RmAuthService
+  /** The book as a boundary: 403 outside it, 404 for a customer nobody holds. */
+  rmScope: RmBookScope
+  /** Each book customer read once at the RM clock: what the copilot and activity sides build on. */
+  rmBook: RmBookService
+  /** Me, Book, Today, one customer, Insights. */
+  rmConsole: RmConsoleService
+  /** Journeys, the record, notes, handoffs, reveals, refusals, the access log. */
+  rmActivity: RmActivityService
+  /** The meeting brief and "Ask about this customer". */
+  rmCopilot: RmCopilotService
 }

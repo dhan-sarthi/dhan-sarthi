@@ -33,7 +33,9 @@ import {
   suggestGoal,
 } from '@dhan/core'
 import type { Goal, Roadmap, Snapshot } from '@dhan/core'
+import { ALL_PERSONAS, RM_BOOK } from './book/index.ts'
 import { generateCustomerFile } from './generate.ts'
+import { snapshotOf } from './ledger.testkit.ts'
 import { PERSONAS, PRIYA, ROHAN } from './personas.ts'
 import { PRODUCT_SHELF } from './shelf.ts'
 
@@ -252,6 +254,23 @@ describe('a debt the payment does not clear', () => {
       }
     }
   })
+
+  it('lets only a debt the payment cannot beat lose its term, across the book', () => {
+    // The same claim over the relationship manager's book, where several customers carry a card
+    // and some of them cannot outrun it. A stage may have no end only because it is a balance
+    // growing faster than the plan can pay it down.
+    for (const spec of RM_BOOK) {
+      const snapshot = snapshotOf(spec)
+      for (const stage of suggested(snapshot).stages) {
+        if (stage.monthsToComplete > 0) continue
+        assert.equal(stage.kind, 'clear_debt', `${spec.slug}: ${stage.kind} lost its term`)
+        assert.ok(
+          stage.monthly <= monthlyInterest(stage.targetAmount, snapshot.debt.highestRate),
+          `${spec.slug}: an undated payoff whose payment would clear it`,
+        )
+      }
+    }
+  })
 })
 
 /* ------------------------------------------------------------------ *
@@ -265,8 +284,8 @@ describe('the stage the plan is on', () => {
      * correct, because it is a position into `stages` and not a `Stage.index` — those are
      * one-based. The two have been read for each other before, so this says which it is.
      */
-    for (const spec of PERSONAS) {
-      const snapshot = derive(generateCustomerFile(spec, OPTS), ASOF)
+    for (const spec of ALL_PERSONAS) {
+      const snapshot = snapshotOf(spec)
       const roadmap = suggested(snapshot)
       const stage = roadmap.stages[roadmap.currentStageIndex]
       assert.ok(stage, `${spec.slug}: currentStageIndex names no stage`)

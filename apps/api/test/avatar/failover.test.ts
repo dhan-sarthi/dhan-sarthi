@@ -1,11 +1,13 @@
 /**
- * The chain: Runway's accounts in slot order, then Anam's. A grant takes the first account that
- * is free and able; a refusal moves it to the next inside the same request; an account that is
- * out of credit or busy is benched so the next grant does not pay to be refused again.
+ * The chain: Runway's accounts, richest first (slot order breaks ties), then Anam's. A grant takes
+ * the first account that is free and able; a refusal moves it to the next inside the same request;
+ * an account that is out of credit or busy is benched so the next grant does not pay to be refused
+ * again.
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { AvatarAvailability, AvatarGrant, AvatarUnavailableBody } from '@dhan/contracts'
+import { richestFirst } from '../../src/application/avatar/credential-health.ts'
 import {
   AvatarProviderRouter,
   AvatarRpcRouter,
@@ -107,6 +109,46 @@ describe('the account chain', () => {
     } finally {
       await root.close()
     }
+  })
+
+  /*
+   * Slot order spent runway-1 down to 30 credits while runway-2 sat on 442. The call now comes
+   * out of the account with the most credit, and the next customer at the same time gets the
+   * next richest, so no account is run dry while another is full.
+   */
+  it('spends the account with the most credit first, and the next richest on a second call', async () => {
+    const { root, runway } = await chain({}, ({ runway }) => {
+      runway.balanceByLabel = { 'runway-1': 60, 'runway-2': 442, 'runway-3': 100 }
+    })
+    try {
+      const a = await createSession(root.app)
+      const b = await createSession(root.app, PRIYA_CIF)
+      const first = await call(root, a.token)
+      const second = await call(root, b.token)
+      assert.equal(first.statusCode, 200, first.body)
+      assert.equal(second.statusCode, 200, second.body)
+      assert.deepEqual(runway.createdOn, ['runway-2', 'runway-3'])
+    } finally {
+      await root.close()
+    }
+  })
+
+  it('orders richest first within a provider, keeps providers in place, and unread balances last', () => {
+    const cred = (provider: 'runway' | 'anam', label: string) =>
+      ({ provider, label }) as Parameters<typeof richestFirst>[0][number]
+    const order = richestFirst(
+      [
+        cred('runway', 'runway-1'),
+        cred('runway', 'runway-2'),
+        cred('runway', 'runway-3'),
+        cred('anam', 'anam-1'),
+        cred('anam', 'anam-2'),
+      ],
+      (label) => ({ 'runway-1': 30, 'runway-2': 442, 'anam-2': 900 })[label] ?? null,
+    ).map((c) => c.label)
+    // Anam's 900 does not jump the queue: Runway first is the owner's rule, credit only orders
+    // the accounts inside it. runway-3 has no balance read yet, so it waits behind those that do.
+    assert.deepEqual(order, ['runway-2', 'runway-1', 'runway-3', 'anam-2', 'anam-1'])
   })
 
   it('moves past an account that is out of credits, and does not ask it again', async () => {

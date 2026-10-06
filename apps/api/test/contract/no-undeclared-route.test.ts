@@ -35,7 +35,11 @@ describe('no undeclared route', () => {
     // kind: three for the pot — read it, set one hack, deposit by hand — and four for the
     // challenge — the view, the quote, the start and the surrender. And one for readying an
     // avatar call before the tap, which moves the provider's slow part off the customer's wait.
-    assert.equal(registered.size, 52)
+    // Then eighteen for the relationship manager's console: sign-in and out, me, the book,
+    // Today, a customer and their journey, record, record check, notes and reveal, a handoff's
+    // status, Insights, the book's refusals and their check, the access log, and the copilot's
+    // brief and question.
+    assert.equal(registered.size, 70)
   })
 
   it('answers an undeclared path with the declared error body', async () => {

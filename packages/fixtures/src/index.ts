@@ -11,6 +11,7 @@
  * nothing above it moves.
  */
 export * from './bank-lines.ts'
+export * from './book/index.ts'
 export * from './calendar.ts'
 export * from './calibration.ts'
 export * from './generate.ts'
@@ -18,6 +19,7 @@ export * from './merchants.ts'
 export * from './narration.ts'
 export * from './personas.ts'
 export * from './random.ts'
+export * from './rm-desk.ts'
 export * from './shelf.ts'
 export * from './summary.ts'
 export * from './seed-bundle.ts'

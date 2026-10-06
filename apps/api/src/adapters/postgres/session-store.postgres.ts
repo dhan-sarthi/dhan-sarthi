@@ -159,6 +159,15 @@ export class PostgresSessionStore implements SessionStore {
     return row ? toSession(row) : null
   }
 
+  async listByCif(cif: string): Promise<Session[]> {
+    // A subject per session, so the cif is read off the subject the join already brings in.
+    const { rows } = await this.db.query<SessionRow>(
+      `${SELECT_SQL} WHERE sub.cif = $1 ORDER BY s.created_at, s.id`,
+      [cif],
+    )
+    return rows.map(toSession)
+  }
+
   async patch(id: string, patch: SessionPatch, expectedVersion: number): Promise<Session | null> {
     const sets: string[] = ['version = s.version + 1', 'last_active_at = $3']
     const values: unknown[] = [id, expectedVersion, this.clock.now()]

@@ -35,6 +35,8 @@ import {
 } from './calibration.ts'
 import { generateCustomerFile, generateLedger } from './generate.ts'
 import { billersFor, DISCRETIONARY } from './merchants.ts'
+import { ALL_PERSONAS } from './book/index.ts'
+import { fileOf, ledgerOf } from './ledger.testkit.ts'
 import { achLoan, achSip, neftSalary, rrn, umrn } from './narration.ts'
 import { PERSONAS, ROHAN, SUNIL } from './personas.ts'
 import { rng } from './random.ts'
@@ -83,7 +85,7 @@ const TEMPLATES: readonly { name: string; pattern: RegExp }[] = [
 ]
 
 const ledgers = (): { slug: string; txns: Transaction[] }[] =>
-  PERSONAS.map((spec) => ({ slug: spec.slug, txns: generateLedger(spec, OPTS) }))
+  ALL_PERSONAS.map((spec) => ({ slug: spec.slug, txns: ledgerOf(spec) }))
 
 describe('narration grammar', () => {
   it('emits nothing that is not a declared template', () => {
@@ -99,10 +101,10 @@ describe('narration grammar', () => {
     // A template nobody emits is a template nobody has checked. This is what catches a rail
     // being quietly dropped from the generator while its regex stays in this file.
     //
-    // The minimum-balance charge is the one exception, and deliberately: none of these four
-    // ever runs an account thin enough to be charged one, and forcing a persona below ₹10,000
-    // to exercise a template would be inventing behaviour to satisfy a test. It is proved
-    // directly against `bankGeneratedLines` further down instead.
+    // The minimum-balance charge is the one exception, and deliberately: no persona ever runs
+    // an account thin enough to be charged one, and forcing one below ₹10,000 to exercise a
+    // template would be inventing behaviour to satisfy a test. It is proved directly against
+    // `bankGeneratedLines` further down instead.
     const exempt = new Set(['minimum balance charge'])
     const all = ledgers().flatMap((l) => l.txns)
 
@@ -124,8 +126,8 @@ describe('narration grammar', () => {
       }
     }
 
-    for (const spec of PERSONAS) {
-      const file = generateCustomerFile(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const file = fileOf(spec)
       for (const account of file.accounts) {
         assert.ok(account.branchIfsc, `${spec.slug}: no branch IFSC on ${account.accountType}`)
         assert.match(account.branchIfsc, IFSC)
@@ -143,9 +145,9 @@ describe('narration grammar', () => {
   })
 
   it('remits every salary from the employer’s bank, never from IDBI', () => {
-    for (const spec of PERSONAS) {
+    for (const spec of ALL_PERSONAS) {
       if (spec.income.splits > 1) continue
-      const salary = generateLedger(spec, OPTS).filter((t) => t.isSalaryCredit)
+      const salary = ledgerOf(spec).filter((t) => t.isSalaryCredit)
       assert.ok(salary.length >= 20, `${spec.slug}: only ${salary.length} salary credits`)
 
       for (const t of salary) {
@@ -251,7 +253,7 @@ describe('the fields the real feed carries', () => {
   })
 
   it('gives each persona a masked account number of their own', () => {
-    const masked = PERSONAS.map((p) => p.accountNumberMasked)
+    const masked = ALL_PERSONAS.map((p) => p.accountNumberMasked)
     assert.equal(new Set(masked).size, masked.length, 'two personas share a masked account number')
     for (const value of masked) assert.match(value, /^X{12}\d{4}$/)
   })
@@ -259,8 +261,8 @@ describe('the fields the real feed carries', () => {
 
 describe('city correctness', () => {
   it('bills each persona by the utilities that actually operate in their city', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const bills = txns.filter((t) => t.narration.startsWith('BIL/BBPS/'))
       const expected = new Set(billersFor(spec.customer.city).map((b) => b.biller))
 
@@ -298,8 +300,8 @@ describe('city correctness', () => {
   })
 
   it('keeps a persona’s local merchants inside their own city', () => {
-    for (const spec of PERSONAS) {
-      const txns = generateLedger(spec, OPTS)
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
       const foreign = Object.values(DISCRETIONARY)
         .flat()
         .filter((x) => x.city !== undefined && x.city !== spec.customer.city)
@@ -314,9 +316,9 @@ describe('city correctness', () => {
   })
 
   it('withdraws cash in a locality of the persona’s own city', () => {
-    for (const spec of PERSONAS) {
+    for (const spec of ALL_PERSONAS) {
       const localities = new Set(cityProfile(spec.customer.city).localities)
-      const cash = generateLedger(spec, OPTS).filter((t) => t.spendCategory === 'Cash')
+      const cash = ledgerOf(spec).filter((t) => t.spendCategory === 'Cash')
       assert.ok(cash.length > 5, `${spec.slug}: only ${cash.length} cash withdrawals`)
 
       for (const t of cash) {
@@ -408,6 +410,35 @@ describe('the lines the bank writes', () => {
     assert.ok(!generateLedger(ROHAN, OPTS).some((t) => t.narration.includes('PMJJBY')))
   })
 
+  it('debits a government cover only where the register holds the policy', () => {
+    // Every persona, both directions. A premium line with nothing on the register is cover the
+    // customer pays for and the protection screen denies; a policy with no premium is cover
+    // nobody pays for. PMJJBY also stops renewing at 55, so nobody older carries it.
+    for (const spec of ALL_PERSONAS) {
+      const txns = ledgerOf(spec)
+      const policies = spec.policies.map((p) => p.name)
+      for (const [scheme, debited] of [
+        ['PMJJBY', spec.govtCover.includes('pmjjby')],
+        ['PMSBY', spec.govtCover.includes('pmsby')],
+      ] as const) {
+        assert.equal(
+          txns.some((t) => t.narration.includes(scheme)),
+          debited,
+          `${spec.slug}: ${scheme} premium`,
+        )
+        assert.equal(
+          policies.some((n) => n.startsWith(scheme)),
+          debited,
+          `${spec.slug}: ${scheme} on the register`,
+        )
+      }
+      if (spec.govtCover.includes('pmjjby')) {
+        const born = Number(spec.customer.dateOfBirth.slice(0, 4))
+        assert.ok(2026 - born <= 55, `${spec.slug} is past PMJJBY's age limit`)
+      }
+    }
+  })
+
   it('charges for the mandate that came back, in the month it came back', () => {
     /*
      * Every persona carrying a returned mandate, not Sunil alone. Naming one persona is how
@@ -416,14 +447,16 @@ describe('the lines the bank writes', () => {
      * this test stayed green because it never looked at him. A loop over the condition rather
      * than over a name is what makes the next persona to carry one arrive already checked.
      */
-    const withReturn = PERSONAS.filter((p) => p.emis.some((e) => e.returnedMonthsAgo !== undefined))
+    const withReturn = ALL_PERSONAS.filter((p) =>
+      p.emis.some((e) => e.returnedMonthsAgo !== undefined),
+    )
     assert.ok(withReturn.length >= 2, 'the returned mandate is meant to be more than one story')
 
     for (const spec of withReturn) {
       const returned = spec.emis.find((e) => e.returnedMonthsAgo !== undefined)
       assert.ok(returned?.returnedMonthsAgo !== undefined)
 
-      const txns = generateLedger(spec, OPTS)
+      const txns = ledgerOf(spec)
       const month = monthKey(addMonths(ASOF, -returned.returnedMonthsAgo))
 
       const charge = txns.filter((t) => t.narration.startsWith('NACH RETURN CHGS'))
@@ -453,10 +486,10 @@ describe('the lines the bank writes', () => {
   })
 
   it('charges a minimum-balance shortfall only where the account really ran thin', () => {
-    // None of the four personas is a minimum-balance customer — every account opens in five
-    // figures or better (Rohan's ₹22,000 is the thinnest, Karan's ₹8,09,891 the fattest) and
-    // the generator never runs one thin — so none of them is charged, and that is the right
-    // answer rather than a gap. The charge is proved against the balances instead, on a ledger
+    // No persona is a minimum-balance customer — every hero's account opens in five figures or
+    // better (Rohan's ₹22,000 is the thinnest, Karan's ₹8,09,891 the fattest), the book's
+    // thinnest months still average well above ₹10,000, and the generator never runs one thin —
+    // so none of them is charged, and that is the right answer rather than a gap. The charge is proved against the balances instead, on a ledger
     // thin enough to earn one.
     for (const { slug, txns } of ledgers()) {
       assert.ok(
@@ -607,8 +640,8 @@ describe('calibration', () => {
 
 describe('bill payments', () => {
   it('quotes one consumer number per biller, unchanged while the amount moves', () => {
-    for (const spec of PERSONAS) {
-      const bills = generateLedger(spec, OPTS).filter((t) => t.narration.startsWith('BIL/BBPS/'))
+    for (const spec of ALL_PERSONAS) {
+      const bills = ledgerOf(spec).filter((t) => t.narration.startsWith('BIL/BBPS/'))
       const byBiller = new Map<string, Set<string>>()
       const amounts = new Map<string, Set<number>>()
 

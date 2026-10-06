@@ -57,6 +57,10 @@ export const connect: Connect = async ({ grant, mic, onVideoStream, onLost }) =>
   const live: LiveConnection = {
     // The stage renders the stream by URL wherever it is mounted; there is no node to move.
     reattach: () => undefined,
+    setMuted: async (muted) => {
+      // Mutes the published track by its source, whether we published it or the SDK opened it.
+      await room.localParticipant.setMicrophoneEnabled(!muted)
+    },
     disconnect: async () => {
       if (leaving) return
       leaving = true

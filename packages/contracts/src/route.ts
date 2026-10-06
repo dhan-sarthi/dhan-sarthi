@@ -11,8 +11,12 @@ import { ErrorBodySchema } from './common.ts'
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
-/** `session` is the reviewer's bearer; `operator` is the X-Operator-Key header. */
-export type RouteAuth = 'none' | 'session' | 'operator'
+/**
+ * `session` is the reviewer's bearer; `operator` is the X-Operator-Key header; `rm` is a
+ * relationship manager's bearer. The two bearers share a header and nothing else: an RM token
+ * opens a book of customers and a session token opens one, so neither may stand in for the other.
+ */
+export type RouteAuth = 'none' | 'session' | 'operator' | 'rm'
 
 export interface RateLimit {
   max: number
@@ -76,5 +80,13 @@ export const SESSION_ERRORS = {
 
 export const OPERATOR_ERRORS = {
   401: ErrorBodySchema,
+  500: ErrorBodySchema,
+} as const
+
+/** 403 is the book: an RM asking for a customer outside their own is refused, not shown empty. */
+export const RM_ERRORS = {
+  401: ErrorBodySchema,
+  403: ErrorBodySchema,
+  429: ErrorBodySchema,
   500: ErrorBodySchema,
 } as const

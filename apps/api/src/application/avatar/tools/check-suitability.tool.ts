@@ -100,9 +100,11 @@ export function makeCheckSuitability(ctx: ToolContext): ToolHandler {
       alternatives: view.shelfProducts,
     })
 
+    // A pass is said in the middle of a plan Uday is talking through, so it reads as him telling
+    // the customer he checked, not as a system message ("X passes the bank's suitability rules").
     const spoken =
       verdict.spoken ??
-      `${product.name} passes the bank's suitability rules for you${amount > 0 ? ` at ${inr(amount)} a month` : ''}.`
+      `I've checked ${product.name} against the bank's suitability rules, and it fits you${amount > 0 ? ` at ${inr(amount)} a month` : ''}.`
 
     const advice = await audit.appendAdvice({
       ...base,

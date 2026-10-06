@@ -117,7 +117,21 @@ export interface FestivalWindow {
   city: string | null
 }
 
-export function festivalsFor(year: number): FestivalWindow[] {
+/**
+ * The windows for one year, built once.
+ *
+ * Both functions below are pure over constants, and `festivalMultiplier` is asked about every
+ * day of every month the generator writes, twice over (once for the customer's lines, once for
+ * the bank's). Rebuilding three years of windows on each of those calls was most of what seeding
+ * cost once the book put fifty customers through it, so the windows and the answers are kept.
+ */
+const windowsByYear = new Map<number, readonly FestivalWindow[]>()
+const multiplierByDay = new Map<string, number>()
+
+function windowsFor(year: number): readonly FestivalWindow[] {
+  const hit = windowsByYear.get(year)
+  if (hit) return hit
+
   const windows: FestivalWindow[] = FESTIVAL_DAYS.filter((f) => ymd(f.on).year === year).map(
     (f) => ({
       name: f.name,
@@ -138,7 +152,13 @@ export function festivalsFor(year: number): FestivalWindow[] {
     city: null,
   })
 
+  windowsByYear.set(year, windows)
   return windows
+}
+
+export function festivalsFor(year: number): FestivalWindow[] {
+  // Copies, so a caller that edits what it was given cannot change the generator's calendar.
+  return windowsFor(year).map((w) => ({ ...w }))
 }
 
 /**
@@ -148,14 +168,19 @@ export function festivalsFor(year: number): FestivalWindow[] {
  * and the answer should be Diwali.
  */
 export function festivalMultiplier(iso: string, city?: string): number {
+  const key = `${iso}|${city ?? ''}`
+  const hit = multiplierByDay.get(key)
+  if (hit !== undefined) return hit
+
   const { year } = ymd(iso)
   let best = 1
   // A window can straddle the new year, so check the neighbouring years too.
   for (const y of [year - 1, year, year + 1]) {
-    for (const w of festivalsFor(y)) {
+    for (const w of windowsFor(y)) {
       if (w.city !== null && w.city !== city) continue
       if (iso >= w.from && iso <= w.to && w.intensity > best) best = w.intensity
     }
   }
+  multiplierByDay.set(key, best)
   return best
 }

@@ -629,7 +629,31 @@ export default function Uday() {
             reason={call.reason}
           />
           {onCall ? (
-            <Button label="End the call" variant="light" onPress={call.hangUp} />
+            <View className="flex-row items-center gap-sm">
+              {/* The microphone, beside the hang-up as on any video call: talk to someone in
+                  the room without Uday answering it. */}
+              <Tap
+                accessibilityRole="button"
+                accessibilityLabel={call.muted ? 'Unmute' : 'Mute'}
+                accessibilityState={{ selected: call.muted }}
+                onPress={call.toggleMute}
+                haptic="selection"
+                scale={0.92}
+                style={{ width: control.height }}
+                className={`h-control items-center justify-center rounded-pill ${
+                  call.muted ? 'bg-ground' : 'border border-on-ink/35'
+                }`}
+              >
+                <Glyph
+                  name={call.muted ? 'micOff' : 'mic'}
+                  size={22}
+                  tint={call.muted ? color.ink : color.onInk}
+                />
+              </Tap>
+              <View className="flex-1">
+                <Button label="End the call" variant="light" onPress={call.hangUp} />
+              </View>
+            </View>
           ) : callable ? (
             // Offered, never dialled for you: one slot, a daily minute budget, and a
             // microphone prompt are three things a customer should tap into knowingly.

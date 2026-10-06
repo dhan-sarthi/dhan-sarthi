@@ -15,7 +15,7 @@ import { after, before, describe, it } from 'node:test'
 import type pg from 'pg'
 import { EMPTY_SAVE_STATE, derive, idFor } from '@dhan/core'
 import type { SaveState } from '@dhan/core'
-import { PERSONAS, generateCustomerFile, seedBundles } from '@dhan/fixtures'
+import { ALL_PERSONAS, PERSONAS, generateCustomerFile, seedBundles } from '@dhan/fixtures'
 import { FixedClock } from '../../src/adapters/clock/fixed-clock.ts'
 import { seedContentHash as memorySeedHash } from '../../src/adapters/memory/bank-data.memory.ts'
 import {
@@ -129,10 +129,10 @@ describe(
       assert.ok(again.alreadyApplied >= 8)
     })
 
-    it('seeds the four personas and reproduces the headline numbers', () => {
+    it('seeds every persona, the RM book included, and reproduces the headline numbers', () => {
       assert.deepEqual(
         report.personas.map((p) => p.slug),
-        PERSONAS.map((p) => p.slug),
+        ALL_PERSONAS.map((p) => p.slug),
       )
       const rohan = report.personas.find((p) => p.slug === 'rohan')
       assert.ok(rohan)
@@ -154,7 +154,7 @@ describe(
       assert.ok(provenance)
       assert.deepEqual(
         provenance.personas,
-        PERSONAS.map((p) => p.slug),
+        ALL_PERSONAS.map((p) => p.slug),
       )
       assert.equal(provenance.anchor, options.anchor)
       const drift = await info.drift()
@@ -800,7 +800,8 @@ describe(
            GROUP BY 1 ORDER BY 1`,
         )
         assert.deepEqual(Object.fromEntries(tables.rows.map((r) => [r.table_schema, r.n])), {
-          app: 16,
+          // 0015 added the six RM tables.
+          app: 22,
           // 0013 added bank.other_holdings.
           bank: 13,
           ref: 7,

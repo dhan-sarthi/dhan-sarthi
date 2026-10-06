@@ -2,7 +2,7 @@
  * SnapshotStore in process: an LRU of derived snapshots, content-addressed like the Postgres
  * rows, and every roadmap version cut per session.
  *
- * Losing an entry costs one derivation, so the LRU is small. Roadmap versions are the audit
+ * Losing an entry costs one derivation, so the LRU is bounded. Roadmap versions are the audit
  * trail's "it learns" list and are never evicted.
  */
 import { randomUUID } from 'node:crypto'
@@ -18,7 +18,12 @@ import type {
   StoredSnapshot,
 } from '../../ports/index.ts'
 
-const LRU_SIZE = 64
+/**
+ * Fifty customers by thirteen month-ends (the RM book's history and the anchor), with room for
+ * the reviewers' sessions beside them. At 64 a book with a year of journey behind each customer
+ * evicted the snapshots its own roadmap versions cite, and `getById` began to miss.
+ */
+const LRU_SIZE = 1024
 
 export class InMemorySnapshotStore implements SnapshotStore {
   private readonly byKey = new Map<string, StoredSnapshot>()

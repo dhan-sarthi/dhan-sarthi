@@ -10,11 +10,18 @@
  * Idempotent by construction: the generator is deterministic, the run is one transaction, and
  * the content hash is recorded in staging.seed_runs. `--check` regenerates and compares.
  * Reseeding wipes the fixtures customers (cascading every reviewer session) and is refused
- * while sessions exist unless `--force`; the append-only record is never touched.
+ * while reviewer sessions exist unless `--force`; the RM simulator's journey sessions do not
+ * count, since nobody holds them and the API lays them down again. The append-only record is
+ * never touched.
  *
  * The last step re-derives every persona through the Postgres adapter and deep-compares the
  * snapshot to the generator's, so a seed that does not reproduce the memory path's numbers
  * fails here rather than in front of a reviewer.
+ *
+ * The RM desk (app.rm_users, app.rm_book, migration 0015) is written on every run, the no-op one
+ * included, because it is not in the content hash: that hash is the bank data's, and the memory
+ * adapter computes the same one for /health. So a database seeded before the desk existed gets
+ * its desk from the next `pnpm seed` without a reseed, and `--check` says when it is missing.
  */
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -25,7 +32,7 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { accountFactsAsOf, addMonths, derive, liabilityAsOf, ruleBook } from '@dhan/core'
 import type { Holding, Institution, Transaction } from '@dhan/core'
-import { PERSONAS, generateCustomerFile } from '@dhan/fixtures'
+import { ALL_PERSONAS, RM_ASSIGNMENTS, RM_USERS, generateCustomerFile } from '@dhan/fixtures'
 import type { SeedAccountRow, SeedBundle } from '@dhan/fixtures'
 import type pg from 'pg'
 import { recordedGeneratorVersion } from '../adapters/memory/generated-source.ts'
@@ -49,6 +56,8 @@ import { latestSeedRun } from '../adapters/postgres/seed-provenance.postgres.ts'
 import { withTransaction } from '../adapters/postgres/unit-of-work.ts'
 import { engineVersion } from '../application/engine-version.ts'
 import { sha256Hex } from '../application/hash.ts'
+import { hashPassword, verifyPassword } from '../application/rm/password.ts'
+import { JOURNEY_HINT } from '../application/rm/simulator.ts'
 import { loadConfig } from '../config.ts'
 import { migrate } from '../db/migrate.ts'
 import { createPool } from '../db/pool.ts'
@@ -74,6 +83,8 @@ export interface CheckReport {
   actualSha256: string
   /** False when the rows were written by an older projector: same content, stale shape. */
   projectorCurrent: boolean
+  /** False when app.rm_users or app.rm_book differ from the fixtures' desk; `pnpm seed` fixes it. */
+  deskCurrent: boolean
   recordedRowCounts: Record<string, number>
   liveRowCounts: Record<string, number>
 }
@@ -918,6 +929,108 @@ async function upsertRules(db: Db, engine: string, gitSha: string | undefined): 
 }
 
 /* ------------------------------------------------------------------ *
+ * The RM desk: who signs in to the console, and whose book each customer is in
+ * ------------------------------------------------------------------ */
+
+interface DeskUserRow {
+  rm_id: string
+  employee_no: string
+  name: string
+  desk: string
+  city: string
+  password_hash: string
+}
+
+/**
+ * The fixtures' desk, written so a second run changes nothing.
+ *
+ * scrypt salts afresh on every call, so a hash is kept for as long as it still verifies the demo
+ * password: rewriting it each run would turn every no-op seed into a write and every sign-in
+ * check into a different string for the same password. The book is upserted from
+ * `RM_ASSIGNMENTS`, and a fixtures customer the desk no longer assigns is taken out of it; a
+ * customer from any other source is never touched here. Users are only ever added or updated:
+ * a sign-in and an access entry name their RM, and those rows outlive any desk change.
+ */
+async function seedRmDesk(db: Db): Promise<{ users: number; assignments: number }> {
+  const { rows } = await db.query<{ rm_id: string; password_hash: string }>(
+    `SELECT rm_id, password_hash FROM app.rm_users WHERE rm_id = ANY($1::text[])`,
+    [RM_USERS.map((u) => u.rmId)],
+  )
+  const stored = new Map(rows.map((r) => [r.rm_id, r.password_hash]))
+  for (const user of RM_USERS) {
+    const current = stored.get(user.rmId)
+    const hash =
+      current !== undefined && (await verifyPassword(user.demoPassword, current))
+        ? current
+        : hashPassword(user.demoPassword)
+    await db.query(
+      `INSERT INTO app.rm_users (rm_id, employee_no, name, desk, city, password_hash)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (rm_id) DO UPDATE SET
+         employee_no = EXCLUDED.employee_no, name = EXCLUDED.name, desk = EXCLUDED.desk,
+         city = EXCLUDED.city, password_hash = EXCLUDED.password_hash
+       WHERE (app.rm_users.employee_no, app.rm_users.name, app.rm_users.desk, app.rm_users.city,
+              app.rm_users.password_hash)
+             IS DISTINCT FROM
+             (EXCLUDED.employee_no, EXCLUDED.name, EXCLUDED.desk, EXCLUDED.city, EXCLUDED.password_hash)`,
+      [user.rmId, user.employeeNo, user.name, user.desk, user.city, hash],
+    )
+  }
+
+  const book = Object.entries(RM_ASSIGNMENTS)
+  await db.query(
+    `INSERT INTO app.rm_book (cif, rm_id)
+     SELECT * FROM unnest($1::text[], $2::text[])
+     ON CONFLICT (cif) DO UPDATE SET rm_id = EXCLUDED.rm_id, assigned_at = now()
+     WHERE app.rm_book.rm_id IS DISTINCT FROM EXCLUDED.rm_id`,
+    [book.map(([cif]) => cif), book.map(([, rmId]) => rmId)],
+  )
+  await db.query(
+    `DELETE FROM app.rm_book
+     WHERE cif IN (SELECT cif FROM app.customers WHERE data_source = 'fixtures')
+       AND NOT (cif = ANY($1::text[]))`,
+    [book.map(([cif]) => cif)],
+  )
+  return { users: RM_USERS.length, assignments: book.length }
+}
+
+/** Whether the desk in the database is the fixtures' desk: every user, password and assignment. */
+async function deskMatchesFixtures(db: Db): Promise<boolean> {
+  // `--check` never migrates, so a database that has not had 0015 yet has no desk to compare:
+  // that is drift to report, not a crash.
+  const exists = await db.query<{ ok: boolean }>(
+    `SELECT to_regclass('app.rm_users') IS NOT NULL AND to_regclass('app.rm_book') IS NOT NULL AS ok`,
+  )
+  if (!exists.rows[0]?.ok) return false
+  const users = await db.query<DeskUserRow>(
+    `SELECT rm_id, employee_no, name, desk, city, password_hash FROM app.rm_users`,
+  )
+  const byId = new Map(users.rows.map((r) => [r.rm_id, r]))
+  for (const user of RM_USERS) {
+    const row = byId.get(user.rmId)
+    if (
+      !row ||
+      row.employee_no !== user.employeeNo ||
+      row.name !== user.name ||
+      row.desk !== user.desk ||
+      row.city !== user.city ||
+      !(await verifyPassword(user.demoPassword, row.password_hash))
+    ) {
+      return false
+    }
+  }
+  const book = await db.query<{ cif: string; rm_id: string }>(
+    `SELECT b.cif, b.rm_id FROM app.rm_book b
+     JOIN app.customers c ON c.cif = b.cif AND c.data_source = 'fixtures'`,
+  )
+  const expected = Object.entries(RM_ASSIGNMENTS)
+  const actual = new Map(book.rows.map((r) => [r.cif, r.rm_id]))
+  return (
+    actual.size === expected.length && expected.every(([cif, rmId]) => actual.get(cif) === rmId)
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * The run
  * ------------------------------------------------------------------ */
 
@@ -1006,11 +1119,19 @@ async function projectedByCurrentProjector(db: Db): Promise<boolean> {
   return rows[0]?.current ?? false
 }
 
-async function liveSessions(db: Db): Promise<number> {
-  const { rows } = await db.query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM app.sessions WHERE revoked_at IS NULL`,
+/**
+ * The sessions a reseed would erase. Only a reviewer's counts against it: a journey session is the
+ * RM activity simulator's, its bearer was never handed to anyone, and the API lays it down again
+ * on its next boot, so nobody loses a session they hold when it goes.
+ */
+async function liveSessions(db: Db): Promise<{ reviewers: number; journeys: number }> {
+  const { rows } = await db.query<{ reviewers: number; journeys: number }>(
+    `SELECT count(*) FILTER (WHERE revoked_at IS NULL AND client_hint IS DISTINCT FROM $1)::int AS reviewers,
+            count(*) FILTER (WHERE client_hint = $1)::int AS journeys
+     FROM app.sessions`,
+    [JOURNEY_HINT],
   )
-  return rows[0]?.n ?? 0
+  return { reviewers: rows[0]?.reviewers ?? 0, journeys: rows[0]?.journeys ?? 0 }
 }
 
 const inr = (n: number): string => `₹${Math.round(n).toLocaleString('en-IN')}`
@@ -1024,7 +1145,8 @@ async function verifyParity(
   const bank = await PostgresBankData.connect(pool)
   const out: SeedReport['personas'] = []
   for (const { bundle } of plan.personas) {
-    const spec = PERSONAS.find((p) => p.slug === bundle.slug)
+    // Every seeded customer, the RM book's as well as the four heroes the picker shows.
+    const spec = ALL_PERSONAS.find((p) => p.slug === bundle.slug)
     if (!spec) throw new Error(`no persona spec for ${bundle.slug}`)
     const expected = derive(
       generateCustomerFile(spec, {
@@ -1078,6 +1200,8 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
     (before['bank.transactions'] ?? 0) > 0
   ) {
     log(`already seeded: content ${plan.contentSha256.slice(0, 12)} matches run ${last.seedRunId}`)
+    const desk = await withTransaction(pool, (client) => seedRmDesk(client))
+    log(`rm desk: ${desk.users} users, ${desk.assignments} customers assigned`)
     const personas = await verifyParity(pool, plan, log)
     return {
       skipped: true,
@@ -1091,15 +1215,22 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
   // Only a seed that would change the rows can erase anyone; an identical one returned above.
   // This guard used to sit after that return, so it never ran and the refusal the header
   // promises never happened: a changed generator silently took every reviewer's session with it.
-  if (seeded && sessions > 0 && !opts.force) {
+  if (seeded && sessions.reviewers > 0 && !opts.force) {
     throw new Error(
-      `${sessions} reviewer session(s) are live and reseeding would erase them; pass --force to proceed`,
+      `${sessions.reviewers} reviewer session(s) are live and reseeding would erase them; pass --force to proceed`,
     )
   }
 
   const { seedRunId, rowCounts } = await withTransaction(pool, async (client) => {
     if (seeded) {
-      log(`wiping fixtures rows${sessions > 0 ? ` and ${sessions} live session(s)` : ''}`)
+      log(
+        `wiping fixtures rows${sessions.reviewers > 0 ? ` and ${sessions.reviewers} live session(s)` : ''}`,
+      )
+      if (sessions.journeys > 0) {
+        log(
+          `  and ${sessions.journeys} simulated journey(s), which the API lays down again on its next boot`,
+        )
+      }
       await client.query(`DELETE FROM app.avatar_leases`)
       await client.query(`DELETE FROM app.avatar_waitlist`)
       for (const statement of WIPE) await client.query(statement)
@@ -1119,6 +1250,11 @@ export async function seed(pool: pg.Pool, opts: SeedRunOptions): Promise<SeedRep
         counts[table] = (counts[table] ?? 0) + n
       }
     }
+
+    // After the customers: the book names them, and the wipe above cascaded it away with them.
+    const desk = await seedRmDesk(client)
+    counts['app.rm_users'] = desk.users
+    counts['app.rm_book'] = desk.assignments
 
     const run = await client.query<{ id: string }>(
       `INSERT INTO staging.seed_runs
@@ -1154,11 +1290,18 @@ export async function checkSeed(pool: pg.Pool, opts: SeedOptions): Promise<Check
     .filter(([table]) => table in live)
     .every(([table, n]) => live[table] === n)
   const projectorCurrent = await projectedByCurrentProjector(pool)
+  const deskCurrent = await deskMatchesFixtures(pool)
   return {
-    ok: last !== null && last.contentSha256 === plan.contentSha256 && countsOk && projectorCurrent,
+    ok:
+      last !== null &&
+      last.contentSha256 === plan.contentSha256 &&
+      countsOk &&
+      projectorCurrent &&
+      deskCurrent,
     expectedSha256: last?.contentSha256 ?? null,
     actualSha256: plan.contentSha256,
     projectorCurrent,
+    deskCurrent,
     recordedRowCounts: recorded,
     liveRowCounts: live,
   }
@@ -1216,6 +1359,9 @@ async function main(): Promise<void> {
         out(
           `  projector   rows predate ${PROJECTOR.name} v${PROJECTOR.version}; reseed to reproject`,
         )
+      }
+      if (!report.deskCurrent) {
+        out('  rm desk     users or book differ from the fixtures; `pnpm seed` writes them')
       }
       for (const [table, n] of Object.entries(report.liveRowCounts)) {
         const recorded = report.recordedRowCounts[table]

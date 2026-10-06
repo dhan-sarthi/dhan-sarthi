@@ -1,8 +1,9 @@
 /**
  * Which accounts in the pool are worth trying right now, and why not the others.
  *
- * The pool is an ordered chain — Runway's accounts, then Anam's — and the order is the policy:
- * a customer gets the first account that can actually take the call. "Can" has three parts the
+ * The pool is an ordered chain — Runway's accounts, then Anam's, each provider's richest account
+ * first (`richestFirst`, below) — and the order is the policy: a customer gets the first account
+ * that can actually take the call. "Can" has three parts the
  * lease store cannot see:
  *
  *   credit   Runway bills from the account's own balance (2 credits up front, 2 per six
@@ -247,6 +248,37 @@ export class CreditWatch {
  * The longest call an account's balance can pay for, in seconds, or null where the balance is
  * unknown. Runway: 2 credits up front, then 2 per six seconds.
  */
+/**
+ * The chain as a grant should walk it: providers in their order (Runway's accounts, then
+ * Anam's), and within each provider the account with the most credit left first.
+ *
+ * It used to be slot order, so runway-1 carried every call until it ran dry and only then did
+ * runway-2 take over. That spends one account to nothing while the other sits full, and an
+ * account with nothing left is a second customer who cannot be served at the same time (one
+ * live session per account). The owner asked on 6 October 2026 for the call to come out of the
+ * account with the most credit instead, when runway-1 had 30 left and runway-2 had 442.
+ *
+ * An account whose balance has not been read keeps its slot place, behind those that have: the
+ * boot-time sweep reads every one within a second, so that only orders the first few calls.
+ */
+export function richestFirst(
+  creds: readonly AvatarCredential[],
+  credits: (label: string) => number | null,
+): AvatarCredential[] {
+  const vendorRank = new Map<AvatarVendor, number>()
+  for (const c of creds)
+    if (!vendorRank.has(c.provider)) vendorRank.set(c.provider, vendorRank.size)
+  return creds
+    .map((cred, slot) => ({ cred, slot, credits: credits(cred.label) }))
+    .sort(
+      (a, b) =>
+        (vendorRank.get(a.cred.provider) ?? 0) - (vendorRank.get(b.cred.provider) ?? 0) ||
+        (b.credits ?? -1) - (a.credits ?? -1) ||
+        a.slot - b.slot,
+    )
+    .map((x) => x.cred)
+}
+
 export function affordableSeconds(vendor: AvatarVendor, credits: number | null): number | null {
   if (credits === null || vendor !== 'runway') return null
   return Math.max(0, Math.floor((credits - 2) / 2) * 6)

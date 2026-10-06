@@ -22,11 +22,13 @@
  * API still loads the generator at boot. It confines where fixtures is named, not whether it
  * ships.
  */
-import { seedBundles, shelfRows } from '@dhan/fixtures'
+import { RM_ASSIGNMENTS, RM_USERS, seedBundles, shelfRows } from '@dhan/fixtures'
+import { hashPassword } from '../../application/rm/password.ts'
 import { InMemoryBankData } from './bank-data.memory.ts'
 import { InMemoryDeclaredProfiles, declaredSeedsFrom } from './declared-profile.memory.ts'
 import { InMemoryProductShelf } from './product-shelf.memory.ts'
-import type { Clock } from '../../ports/index.ts'
+import { InMemoryRmDesk } from './rm-desk.memory.ts'
+import type { Clock, RmUser } from '../../ports/index.ts'
 
 /** The span the generator is asked for. The one triple, so three callers cannot disagree. */
 export interface LedgerOptions {
@@ -95,4 +97,23 @@ export function generatedDeclaredProfiles(
   clock: Clock,
 ): InMemoryDeclaredProfiles {
   return new InMemoryDeclaredProfiles(declaredSeedsFrom(seedBundles(options)), clock)
+}
+
+let deskUsers: RmUser[] | null = null
+
+/**
+ * The relationship managers' desk, from the fixtures: the two demo RMs and the book assignment.
+ *
+ * Here rather than beside the class for the reason the rest of this file exists: it is the one
+ * place outside the seed path that names `@dhan/fixtures`. The demo passwords are hashed on the
+ * way in, so the store only ever holds what the Postgres table will hold. Hashed once per
+ * process rather than once per root, because scrypt is slow on purpose and the test suite
+ * builds a root per file.
+ */
+export function generatedRmDesk(clock: Clock): InMemoryRmDesk {
+  deskUsers ??= RM_USERS.map(({ demoPassword, ...user }) => ({
+    ...user,
+    passwordHash: hashPassword(demoPassword),
+  }))
+  return new InMemoryRmDesk(deskUsers, RM_ASSIGNMENTS, clock)
 }
