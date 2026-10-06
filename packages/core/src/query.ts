@@ -20,7 +20,8 @@ import { addMonths, monthKey, ymd } from './dates.ts'
 import type { Snapshot } from './derive.ts'
 import { findInsights } from './insights.ts'
 import { subscriptions } from './recurring.ts'
-import type { CustomerFile, SpendCategory, Transaction } from './types.ts'
+import type { Series } from './recurring.ts'
+import type { CustomerFile, Product, SpendCategory, Transaction } from './types.ts'
 
 /**
  * What the caller already knows about today, so the answer quotes it rather than recomputing
@@ -466,6 +467,331 @@ export function openingLine(snapshot: Snapshot): Answer {
       ...(lead?.evidence ?? []),
     ],
   }
+}
+
+/**
+ * The diagnosis as Uday says it on a call: what comes in, where it goes, what is left over, and
+ * the one thing that stands out.
+ *
+ * `openingLine` is the written version, and spoken on a call it sounded like a statement being
+ * read aloud: "₹51,997 is spoken for before you decide anything". People do not talk in exact
+ * totals, so the totals here are rounded and say "about", while the payments the customer will
+ * recognise, the rent and the EMI, keep their exact figure. Each payment is named from its own
+ * narration (the FAMILY remark on a transfer, FEES on a school's), never guessed: calling a
+ * transfer "money to your parents" when the statement does not say so invents a family.
+ *
+ * Where the statement is too thin to say this much, it falls back to `openingLine`, which knows
+ * how to say less.
+ */
+export function openingRead(
+  snapshot: Snapshot,
+  /**
+   * Whether to end on the one thing that stands out. Off when a `planAhead` follows, which
+   * opens on those same moments and would otherwise say the deposit twice in a row.
+   */
+  { lead: withLead = true }: { lead?: boolean } = {},
+): string {
+  const s = snapshot
+  if (s.income.monthly <= 0 || s.commitments.total <= 0 || s.discretionary.monthly <= 0) {
+    return openingLine(s).text
+  }
+  const first = s.customer.name.split(' ')[0] ?? ''
+  const sentences: string[] = []
+
+  sentences.push(
+    s.income.source === 'salary-series'
+      ? `${first}, your salary is ${roughly(s.income.monthly)} a month.`
+      : `${first}, ${roughly(s.income.monthly)} comes in each month.`,
+  )
+
+  // The three biggest payments that can be named; the rest are summed up by kind.
+  const named: Series[] = []
+  const parts: string[] = []
+  for (const x of s.commitments.series) {
+    const name = paymentName(x)
+    if (name === null || named.length === 3) continue
+    named.push(x)
+    parts.push(`${inr(x.monthlyCost)} ${name}`)
+  }
+  const committed = sentenceCase(roughly(s.commitments.total))
+  sentences.push(
+    parts.length > 0
+      ? `${committed} of it is gone before you even start: ${list(parts)}.`
+      : `${committed} of it goes on payments that come round every month.`,
+  )
+  const rest = [
+    ...new Set(
+      s.commitments.series.filter((x) => !named.includes(x)).flatMap((x) => restName(x) ?? []),
+    ),
+  ]
+  // Largest first, and three at most: a list of six is a statement again, not a sentence.
+  if (parts.length > 0 && rest.length > 0) {
+    const said = rest.length > 3 ? [...rest.slice(0, 3), 'a few other payments'] : rest
+    sentences.push(`The rest of that is ${list(said)}.`)
+  }
+
+  const everyday = s.discretionary.byCategory.flatMap(([c]) => EVERYDAY[c] ?? []).slice(0, 3)
+  sentences.push(
+    `Then ${roughly(s.discretionary.monthly)} goes on everyday spending` +
+      (everyday.length > 0 ? `, mostly ${list(everyday)}.` : '.'),
+  )
+
+  // Under a thousand rounds to "about ₹0", which is no way to describe anyone's month.
+  if (s.surplus.deployable >= 1_000) {
+    sentences.push(`That leaves ${roughly(s.surplus.deployable)} spare each month.`)
+  }
+
+  const lead = withLead ? findInsights(s).find((i) => i.kind !== 'human_handoff') : undefined
+  if (lead) {
+    sentences.push(
+      /^You/.test(lead.headline)
+        ? `And one thing stands out: ${lead.headline.charAt(0).toLowerCase()}${lead.headline.slice(1)}`
+        : `And one thing stands out: ${lead.headline}`,
+    )
+  }
+  return sentences.join(' ')
+}
+
+/** The plan Uday talks through, and the products in it that the rules must clear on the call. */
+export interface PlanAhead {
+  text: string
+  /** Shelf names, in the order the plan recommends them, for `check_suitability`. */
+  products: string[]
+}
+
+/**
+ * The parts of a roadmap and a daily plan that `planAhead` reads. Structural rather than the
+ * full `Roadmap` and `DailyPlan`, so the API's View, which carries the contract versions of both,
+ * passes straight in.
+ */
+export interface AheadRoadmap {
+  stages: readonly {
+    kind: string
+    monthly: number
+    productId: string | null
+    productName: string | null
+  }[]
+  goal: { purpose?: string | null | undefined }
+}
+export interface AheadPlan {
+  primary: { kind: string; productId?: string | null | undefined } | null
+}
+
+/**
+ * The moments ahead, joined into one plan: what Uday says when the customer asks what to do.
+ *
+ * One fact at a time is what a chatbot does: "your deposit matures", then "move it into a
+ * sweep-in". An advisor reads a deposit maturing, a loan ending and a family with no cover as
+ * one situation, and says how they fit together, in order, with the dates and the price of
+ * waiting. The owner asked for exactly that on 6 October 2026, after hearing the single
+ * suggestion on a demo call and finding it flat. So this is built only when at least two such
+ * moments are live: a deposit maturing, an EMI ending within six months, a cover gap with
+ * people depending on the income. With fewer, the day's one suggestion is the honest answer.
+ *
+ * Every figure is the engine's. The dates and amounts are the snapshot's, the cover and its
+ * premium come from the roadmap's own stage (already past the rules), the cost of doing nothing
+ * is the deposit insight's monthly value, and the price a day is that premium over thirty days.
+ * The order is the roadmap's: protection first.
+ */
+export function planAhead(
+  snapshot: Snapshot,
+  roadmap: AheadRoadmap,
+  plan: AheadPlan,
+  shelf: readonly Product[],
+): PlanAhead | null {
+  const s = snapshot
+  const deposit = s.balances.maturingSoon
+  const loan =
+    s.debt.endingSoon !== null && s.debt.endingSoon.monthsLeft <= 6 ? s.debt.endingSoon : null
+  const cover =
+    s.protection.dependents > 0 && s.protection.gap > 0
+      ? (roadmap.stages.find((st) => st.kind === 'get_cover' && st.monthly > 0) ?? null)
+      : null
+  if ([deposit, loan, cover].filter((m) => m !== null).length < 2) return null
+
+  const first = s.customer.name.split(' ')[0] ?? ''
+  const changes: string[] = []
+  if (deposit) {
+    changes.push(
+      `In ${plural(deposit.daysLeft, 'day')}, your ${inr(deposit.amount)} deposit matures.`,
+    )
+  }
+  if (loan) {
+    changes.push(
+      `In ${plural(loan.monthsLeft, 'month')}, your ${loan.loanType.toLowerCase()} ends and ` +
+        `${inr(loan.emiAmount)} a month comes free.`,
+    )
+  }
+  const sentences = [
+    `${first}, ${changes.length === 2 ? 'two things are about to change for you' : 'something is about to change for you'}.`,
+    ...changes,
+    `Here's how I'd put ${changes.length === 2 ? 'them' : 'it'} together.`,
+  ]
+
+  const steps: string[] = []
+  const products: string[] = []
+  if (cover) {
+    const product = shelf.find((p) => p.productId === cover.productId)
+    const n = s.protection.dependents
+    const who = n === 1 ? 'One person depends' : `${sentenceCase(count(n))} people depend`
+    const held =
+      s.protection.lifeCoverInForce > 0
+        ? `your cover is ${lakhCrore(s.protection.gap)} short`
+        : 'you have no life cover'
+    const what =
+      product?.coverAmount !== undefined
+        ? `${lakhCrore(product.coverAmount)} of term cover`
+        : (cover.productName ?? 'Term cover')
+    const perDay = cover.monthly / 30
+    steps.push(
+      `your family. ${who} on your income, and ${held}. ${what} costs ${inr(cover.monthly)} a month. ` +
+        `That's ${Number.isInteger(perDay) ? inr(perDay) : `less than ${inr(Math.ceil(perDay))}`} a day.`,
+    )
+    if (product) products.push(product.name)
+  }
+  if (deposit) {
+    const cost = findInsights(s).find((i) => i.kind === 'deposit_maturing')?.monthlyValue ?? 0
+    const primary = plan.primary
+    const sweep =
+      primary?.kind === 'open_sweep_in'
+        ? shelf.find((p) => p.productId === primary.productId)
+        : undefined
+    steps.push(
+      `the ${inr(deposit.amount)}. If you do nothing, it renews at the counter rate` +
+        (cost > 0 ? `, and that costs you about ${inr(cost)} a month.` : '.') +
+        (sweep
+          ? ` Move it into a sweep-in instead` +
+            (sweep.indicativeReturn !== undefined ? `, at about ${sweep.indicativeReturn}%` : '') +
+            (sweep.lockInYears === 0 ? ': it keeps earning, and you can take it out any day.' : '.')
+          : ' Decide where it goes before then.'),
+    )
+    if (sweep) products.push(sweep.name)
+  }
+  if (loan) {
+    const grow = roadmap.stages.find((st) => st.kind === 'grow' && st.monthly > 0)
+    const share = grow
+      ? loan.emiAmount >= grow.monthly
+        ? 'all of'
+        : loan.emiAmount * 2 >= grow.monthly
+          ? 'most of'
+          : 'a good part of'
+      : null
+    const purpose = roadmap.goal.purpose
+    steps.push(
+      `when your ${loan.loanType.toLowerCase()} ends, put that ${inr(loan.emiAmount)} straight into a SIP.` +
+        (grow && share
+          ? ` That covers ${share} the ${inr(grow.monthly)} a month your goal needs` +
+            (purpose ? `: ${purpose.charAt(0).toLowerCase()}${purpose.slice(1)}.` : '.')
+          : '') +
+        " Set it up before the first month lands, and you'll never miss it.",
+    )
+  }
+
+  const ordinal = ['First', 'Second', 'Third']
+  steps.forEach((step, i) => sentences.push(`${ordinal[i] ?? 'Then'}, ${step}`))
+  sentences.push(
+    cover ? "Shall we start with your family's cover?" : 'Shall we start with the first one?',
+  )
+  return { text: sentences.join(' '), products }
+}
+
+function plural(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'}`
+}
+
+/** Small counts the way they are said: "two people", not "2 people". */
+function count(n: number): string {
+  return (
+    ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][n] ?? String(n)
+  )
+}
+
+/**
+ * A cover amount the way it is said: "₹1 crore", not "₹1,00,00,000". A balance stays exact
+ * (`inr`); a cover is a round target nobody should have to count the zeroes of.
+ */
+function lakhCrore(n: number): string {
+  const trim = (v: number): string => String(Number(v.toFixed(2)))
+  if (n >= 1_00_00_000) return `₹${trim(n / 1_00_00_000)} crore`
+  if (n >= 1_00_000) return `₹${trim(n / 1_00_000)} lakh`
+  return inr(n)
+}
+
+/** The spending categories, as a person names them. Anything else is not everyday spending. */
+const EVERYDAY: Partial<Record<SpendCategory, string>> = {
+  Groceries: 'groceries',
+  'Food & dining': 'eating out',
+  Shopping: 'shopping',
+  Transport: 'getting around',
+  Entertainment: 'entertainment',
+  Health: 'health',
+}
+
+/** What a recurring payment is for, said after its amount, or null when the narration cannot say. */
+function paymentName(x: Series): string | null {
+  switch (x.kind) {
+    case 'rent':
+      return 'on rent'
+    case 'emi':
+      return /CREDIT ?CARD/i.test(x.key) ? 'towards your credit card' : 'on your loan EMI'
+    case 'sip':
+      return x.merchant === 'Mutual fund' ? 'into your mutual fund' : 'into your savings scheme'
+    case 'obligation':
+    case 'transfer':
+      if (x.category === 'Education') return `on ${fees(x)}`
+      return toFamily(x) ? 'you send home to family' : null
+    default:
+      return null
+  }
+}
+
+/** A payment left out of the named three, in a word or two for "the rest of that is …". */
+function restName(x: Series): string | null {
+  switch (x.kind) {
+    case 'sip':
+      return 'your SIP'
+    case 'bill':
+      return 'bills'
+    case 'subscription':
+      return 'subscriptions'
+    case 'insurance':
+      return 'insurance'
+    case 'emi':
+      return /CREDIT ?CARD/i.test(x.key) ? 'your credit card' : 'another loan EMI'
+    case 'obligation':
+    case 'transfer':
+      if (x.category === 'Education') return fees(x)
+      return toFamily(x) ? 'what you send home' : 'regular transfers'
+    default:
+      return null
+  }
+}
+
+/** What a school or a daycare's narration says the fee is for. */
+function fees(x: Series): string {
+  return /DAYCARE/i.test(x.key) ? 'daycare' : /SCHOOL/i.test(x.key) ? 'school fees' : 'fees'
+}
+
+/** A transfer whose narration carries the customer's own remark that it goes to family. */
+function toFamily(x: Series): boolean {
+  return /FAMILY|HOME|PARENT/i.test(x.key)
+}
+
+/** A total the way a person says it: exact when it is a round thousand, "about" otherwise. */
+function roughly(n: number): string {
+  const r = Math.round(n / 1_000) * 1_000
+  return r === Math.round(n) ? inr(r) : `about ${inr(r)}`
+}
+
+function sentenceCase(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** "a, b and c": no serial comma, the way it is said. */
+function list(items: readonly string[]): string {
+  return items.length <= 1
+    ? (items[0] ?? '')
+    : `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`
 }
 
 /** Openers offered as taps, so a judge on a phone does not have to type. */

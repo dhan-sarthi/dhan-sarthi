@@ -331,8 +331,8 @@ export class AvatarSessionService {
 
   /**
    * @param topic  The finding the customer tapped "Talk me through this" on, if any. Steers
-   *               the opening line only — see `buildBrief`, where every figure still comes
-   *               from the View or a tool result.
+   *               what Uday says after his greeting, nothing more. See `buildBrief`, where
+   *               every figure still comes from the View or a tool result.
    */
   async start(session: Session, ticket?: string, topic?: string | null): Promise<AvatarGrant> {
     this.assertUsable()
@@ -620,7 +620,13 @@ export class AvatarSessionService {
       advisory.view(session),
       audit.listForSession(session.id),
     ])
-    return { view, brief: buildBrief(view, trail.decisions, view.shelfProducts, topic) }
+    // A call is written to the trail at its grant, after this brief is built, so every granted
+    // call here is an earlier one.
+    const metBefore = trail.avatarSessions.some((call) => call.grantedAt !== null)
+    return {
+      view,
+      brief: buildBrief(view, trail.decisions, view.shelfProducts, topic, metBefore),
+    }
   }
 
   /**

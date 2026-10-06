@@ -14,7 +14,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { buildDailyPlan } from './dailyplan.ts'
-import { answer, openingLine, suggestedQuestions } from './query.ts'
+import { findInsights } from './insights.ts'
+import { answer, openingLine, openingRead, planAhead, suggestedQuestions } from './query.ts'
+import type { AheadPlan, AheadRoadmap } from './query.ts'
+import type { Series } from './recurring.ts'
 import { buildRoadmap } from './roadmap.ts'
 import { SHELF, customerFile, snapshot, txn } from './snapshot.testkit.ts'
 
@@ -308,5 +311,306 @@ describe('openingLine', () => {
     assert.match(a.text, /44,805 comes in/)
     assert.doesNotMatch(a.text, /₹0/)
     assert.match(a.text, /Nothing else in this statement is clear enough to break down yet/)
+  })
+})
+
+/** A recurring payment as `detectRecurring` would report it, monthly unless told otherwise. */
+function series(overrides: Partial<Series> & Pick<Series, 'key' | 'kind' | 'monthlyCost'>): Series {
+  return {
+    merchant: null,
+    category: 'Transfers',
+    mode: 'IMPS',
+    cadence: 'monthly',
+    intervalDays: 30,
+    dayOfMonth: 2,
+    occurrences: 12,
+    firstSeen: '2025-09-02',
+    lastSeen: '2026-08-02',
+    amount: overrides.monthlyCost,
+    annualCost: overrides.monthlyCost * 12,
+    amountVariation: 0,
+    fixed: true,
+    active: true,
+    priceChanges: [],
+    reason: 'fixed-monthly',
+    txnIds: [],
+    ...overrides,
+  }
+}
+
+describe('openingRead', () => {
+  // Rohan's month, in the shape the engine derives it: ₹85,000 salary, ₹51,997 committed.
+  const rohan = snapshot({
+    customer: { name: 'Rohan Mehta' },
+    income: { monthly: 85_000, source: 'salary-series' },
+    commitments: {
+      total: 51_997,
+      rent: 24_500,
+      emis: 8_200,
+      bills: 4_030,
+      obligations: 8_000,
+      subscriptions: 2_267,
+      investments: 5_000,
+      series: [
+        series({
+          key: 'IMPS/P2A/SUDHIR PATEL/RENT',
+          kind: 'rent',
+          category: 'Rent & bills',
+          monthlyCost: 24_500,
+        }),
+        series({
+          key: 'ACH/DR/IDBI BANK RETAIL ASSETS',
+          kind: 'emi',
+          category: 'Loan EMI',
+          merchant: 'Lender',
+          monthlyCost: 8_200,
+        }),
+        series({ key: 'IMPS/P2A/MEENA MEHTA/FAMILY', kind: 'obligation', monthlyCost: 8_000 }),
+        series({
+          key: 'ACH/DR/INDIAN CLEARING CORP',
+          kind: 'sip',
+          category: 'Investment',
+          merchant: 'Mutual fund',
+          monthlyCost: 5_000,
+        }),
+        series({ key: 'ELECTRICITY', kind: 'bill', category: 'Rent & bills', monthlyCost: 2_152 }),
+        series({ key: 'CULT.FIT', kind: 'subscription', category: 'Health', monthlyCost: 1_499 }),
+      ],
+    },
+    discretionary: {
+      monthly: 22_070,
+      byCategory: [
+        ['Shopping', 93_234],
+        ['Food & dining', 77_259],
+        ['Groceries', 59_251],
+        ['Health', 38_034],
+      ],
+    },
+    surplus: { monthly: 10_933, deployable: 10_933 },
+  })
+
+  it('talks in round totals and names the payments the customer will recognise', () => {
+    const text = openingRead(rohan)
+
+    assert.match(text, /^Rohan, your salary is ₹85,000 a month\./)
+    assert.match(text, /About ₹52,000 of it is gone before you even start/)
+    assert.match(
+      text,
+      /₹24,500 on rent, ₹8,200 on your loan EMI and ₹8,000 you send home to family\./,
+    )
+    assert.match(text, /The rest of that is your SIP, bills and subscriptions\./)
+    assert.match(
+      text,
+      /Then about ₹22,000 goes on everyday spending, mostly shopping, eating out and groceries\./,
+    )
+    assert.match(text, /That leaves about ₹11,000 spare each month\./)
+    // No exact total read out like a statement line.
+    assert.doesNotMatch(text, /51,997|22,070|10,933/)
+  })
+
+  it('never names a transfer the narration does not explain', () => {
+    const unexplained = snapshot({
+      ...rohan,
+      commitments: {
+        ...rohan.commitments,
+        series: [series({ key: 'IMPS/P2A/A PERSON', kind: 'transfer', monthlyCost: 8_000 })],
+      },
+    })
+    const text = openingRead(unexplained)
+
+    assert.doesNotMatch(text, /family|parents/i)
+    assert.match(text, /of it goes on payments that come round every month\./)
+  })
+
+  it('says fees for a school or a daycare, and a card payment as a card payment', () => {
+    const text = openingRead(
+      snapshot({
+        ...rohan,
+        commitments: {
+          ...rohan.commitments,
+          series: [
+            series({
+              key: 'IMPS/P2A/SARASWATI VIDYALAYA/SCHOOL FEE',
+              kind: 'obligation',
+              category: 'Education',
+              monthlyCost: 12_400,
+            }),
+            series({
+              key: 'CREDITCARD PAYMENT XX',
+              kind: 'emi',
+              category: 'Loan EMI',
+              monthlyCost: 8_494,
+            }),
+          ],
+        },
+      }),
+    )
+    assert.match(text, /₹12,400 on school fees and ₹8,494 towards your credit card/)
+  })
+
+  it('sums up the rest in three at most, largest first, each named for what it is', () => {
+    // Karan's month: seven recurring payments after the three that get named.
+    const text = openingRead(
+      snapshot({
+        ...rohan,
+        commitments: {
+          ...rohan.commitments,
+          series: [
+            series({ key: 'IMPS/P2A/SANJEEV KULKARNI/RENT', kind: 'rent', monthlyCost: 42_000 }),
+            series({ key: 'ACH/DR/IDBI BANK RETAIL ASSETS', kind: 'emi', monthlyCost: 18_500 }),
+            series({
+              key: 'IMPS/P2A/SHUBHANGI DESHPANDE/FAMILY',
+              kind: 'obligation',
+              monthlyCost: 15_000,
+            }),
+            series({
+              key: 'IMPS/P2A/LITTLE WINGS DAYCARE/FEES',
+              kind: 'obligation',
+              category: 'Education',
+              monthlyCost: 12_000,
+            }),
+            series({ key: 'CREDITCARD PAYMENT XX', kind: 'emi', monthlyCost: 11_788 }),
+            series({ key: 'ACH/DR/NPCI NACH', kind: 'sip', monthlyCost: 7_000 }),
+            series({ key: 'ELECTRICITY', kind: 'bill', monthlyCost: 2_118 }),
+            series({ key: 'CULT.FIT', kind: 'subscription', monthlyCost: 1_599 }),
+          ],
+        },
+      }),
+    )
+    assert.match(
+      text,
+      /The rest of that is daycare, your credit card, your SIP and a few other payments\./,
+    )
+  })
+
+  it('says "about" only when a total is not already round, and income that is not a salary as what comes in', () => {
+    const text = openingRead(
+      snapshot({
+        ...rohan,
+        income: { ...rohan.income, monthly: 68_522, source: 'monthly-credits' },
+      }),
+    )
+    assert.match(text, /^Rohan, about ₹69,000 comes in each month\./)
+  })
+
+  it('falls back to the written opening when the statement is too thin to break down', () => {
+    const thin = snapshot({
+      income: { monthly: 44_805 },
+      commitments: { total: 0, rent: 0, emis: 0, bills: 0, subscriptions: 0, obligations: 0 },
+      discretionary: { monthly: 0, topHabits: [] },
+    })
+    assert.equal(openingRead(thin), openingLine(thin).text)
+  })
+})
+
+describe('planAhead', () => {
+  // Rohan on 1 September: a deposit ten days from maturity, a loan five months from its last
+  // EMI, and two people depending on an income with no life cover behind it.
+  const rohan = snapshot({
+    customer: { name: 'Rohan Mehta' },
+    balances: {
+      maturingSoon: {
+        accountType: 'FD',
+        amount: 200_000,
+        maturityDate: '2026-09-11',
+        daysLeft: 10,
+        interestRate: 7.1,
+      },
+    },
+    debt: { endingSoon: { loanType: 'Education Loan', emiAmount: 8_200, monthsLeft: 5 } },
+    protection: {
+      dependents: 2,
+      lifeCoverInForce: 0,
+      lifeCoverNeeded: 10_200_000,
+      gap: 10_200_000,
+    },
+  })
+  const roadmap: AheadRoadmap = {
+    stages: [
+      {
+        kind: 'get_cover',
+        monthly: 985,
+        productId: 'INS_TERM_201',
+        productName: 'IDBI Federal Term Cover',
+      },
+      {
+        kind: 'grow',
+        monthly: 9_948,
+        productId: 'MF_INDEX_103',
+        productName: 'Nifty 50 Index Fund',
+      },
+    ],
+    goal: { purpose: 'Enough to stop working at 60' },
+  }
+  const plan: AheadPlan = { primary: { kind: 'open_sweep_in', productId: 'IDBI_SWEEP_001' } }
+
+  it('joins the moments into one ordered plan, protection first, with dates and the price of waiting', () => {
+    const ahead = planAhead(rohan, roadmap, plan, SHELF)
+    assert.ok(ahead)
+    const cost = findInsights(rohan).find((i) => i.kind === 'deposit_maturing')?.monthlyValue ?? 0
+
+    assert.match(ahead.text, /^Rohan, two things are about to change for you\./)
+    assert.match(ahead.text, /In 10 days, your ₹2,00,000 deposit matures\./)
+    assert.match(
+      ahead.text,
+      /In 5 months, your education loan ends and ₹8,200 a month comes free\./,
+    )
+    assert.match(
+      ahead.text,
+      /First, your family\. Two people depend on your income, and you have no life cover\./,
+    )
+    assert.match(
+      ahead.text,
+      /₹1 crore of term cover costs ₹985 a month\. That's less than ₹33 a day\./,
+    )
+    assert.ok(ahead.text.includes(`costs you about ₹${cost.toLocaleString('en-IN')} a month`))
+    assert.match(ahead.text, /Move it into a sweep-in instead, at about 6\.9%/)
+    assert.match(
+      ahead.text,
+      /Third, when your education loan ends, put that ₹8,200 straight into a SIP\. That covers most of the ₹9,948 a month your goal needs: enough to stop working at 60\./,
+    )
+    assert.match(ahead.text, /Shall we start with your family's cover\?$/)
+    // Each product the plan recommends goes to the gate on the call, in the order it is said.
+    assert.deepEqual(ahead.products, ['IDBI Federal Term Cover', 'IDBI Sweep-in FD'])
+  })
+
+  it("stays quiet with only one moment, where the day's single suggestion is the honest answer", () => {
+    const coverOnly = snapshot({ ...rohan, balances: { ...rohan.balances, maturingSoon: null } })
+    assert.equal(
+      planAhead(
+        snapshot({ ...coverOnly, debt: { ...coverOnly.debt, endingSoon: null } }),
+        roadmap,
+        plan,
+        SHELF,
+      ),
+      null,
+    )
+  })
+
+  it('does not count a loan that ends more than six months out', () => {
+    const late = snapshot({
+      ...rohan,
+      balances: { ...rohan.balances, maturingSoon: null },
+      debt: {
+        ...rohan.debt,
+        endingSoon: { loanType: 'Car Loan', emiAmount: 12_000, monthsLeft: 9 },
+      },
+    })
+    assert.equal(planAhead(late, roadmap, plan, SHELF), null)
+  })
+
+  it('names a cover that is short rather than missing, and a whole-rupee price a day exactly', () => {
+    const ahead = planAhead(
+      snapshot({
+        ...rohan,
+        protection: { ...rohan.protection, lifeCoverInForce: 200_000, gap: 10_000_000 },
+      }),
+      { ...roadmap, stages: [{ ...roadmap.stages[0]!, monthly: 900 }] },
+      plan,
+      SHELF,
+    )
+    assert.ok(ahead)
+    assert.match(ahead.text, /your cover is ₹1 crore short/)
+    assert.match(ahead.text, /That's ₹30 a day\./)
   })
 })

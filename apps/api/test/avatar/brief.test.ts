@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import { openingRead, planAhead } from '@dhan/core'
 import { PERSONAS } from '@dhan/fixtures'
 import {
   PERSONALITY_MAX,
@@ -52,11 +53,23 @@ describe('the personality brief', () => {
         collect(view.plan)
         collect(view.goal)
         collect(view.roadmap)
+        // The read Uday gives on a yes ends on the lead finding's headline, written by the engine.
+        collect(view.insights)
         // The shelf lines quote product names as they are ("₹1 crore cover").
         collect(view.shelf)
-        for (const match of brief.personality.matchAll(/₹([\d,]+)/g)) {
-          const figure = Number((match[1] ?? '').replace(/,/g, ''))
-          assert.ok(known.has(figure), `${spec.slug} @ ${asOf}: ₹${figure} is not in the View`)
+        // A total said the way people say it ("about ₹52,000") is a View figure rounded to the
+        // nearest thousand, and a price a day ("less than ₹33 a day") is a View figure over thirty
+        // days, rounded up. Each is checked as the figure it came from.
+        const rounded = new Set([...known].map((n) => Math.round(n / 1_000) * 1_000))
+        const perDay = new Set([...known].map((n) => Math.ceil(n / 30)))
+        for (const match of brief.personality.matchAll(/([Aa]bout )?₹([\d,]+)( a day)?/g)) {
+          const figure = Number((match[2] ?? '').replace(/,/g, ''))
+          assert.ok(
+            known.has(figure) ||
+              (match[1] !== undefined && rounded.has(figure)) ||
+              (match[3] !== undefined && perDay.has(figure)),
+            `${spec.slug} @ ${asOf}: ${match[0]} is not in the View`,
+          )
         }
       }
     }
@@ -100,16 +113,17 @@ describe('the personality brief', () => {
   describe('an insight the customer tapped', () => {
     const TOPIC = '₹1,86,240 at 34.8% costs you ₹5,401 a month.'
 
-    it('opens the call on that finding instead of the general greeting', async () => {
+    it('goes straight to that finding after the greeting', async () => {
       const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
       const view = await root.services.advisory.view(session)
 
       const withTopic = buildBrief(view, [], view.shelfProducts, TOPIC)
-      assert.ok(withTopic.startScript.includes(TOPIC))
       assert.ok(withTopic.personality.includes(TOPIC))
-      // The generic "is there something on your mind?" opener is what the topic replaces; a
-      // customer who just asked a specific question must not be asked what they want.
-      assert.doesNotMatch(withTopic.startScript, /something on your mind/)
+      assert.match(withTopic.personality, /go straight to what they asked about/)
+      // A customer who just asked a specific question must not be offered the general read or
+      // asked what they want; that is asking them twice.
+      assert.doesNotMatch(withTopic.personality, /Would you like to hear it\?/)
+      assert.doesNotMatch(withTopic.personality, /something on your mind/)
     })
 
     it('falls back to the general opening when nothing was tapped', async () => {
@@ -118,7 +132,8 @@ describe('the personality brief', () => {
 
       for (const topic of [undefined, null]) {
         const brief = buildBrief(view, [], view.shelfProducts, topic)
-        assert.match(brief.startScript, /something on your mind/)
+        assert.match(brief.personality, /Would you like to hear it\?/)
+        assert.match(brief.personality, /something on their mind first/)
       }
     })
 
@@ -129,6 +144,84 @@ describe('the personality brief', () => {
 
       assert.ok(brief.personality.length <= PERSONALITY_MAX)
       assert.ok(brief.startScript.length <= START_SCRIPT_MAX)
+    })
+  })
+
+  /*
+   * The opening is a conversation, not a speech.
+   *
+   * Uday used to say the whole diagnosis before the customer had spoken. Now he says hello, the
+   * customer answers, he offers his read, and he gives it once they say yes. Runway speaks
+   * `startScript` verbatim, so that has to be the greeting alone; everything after it lives in
+   * the personality as instructions for the next turns.
+   */
+  describe('the opening', () => {
+    it('greets by name and says nothing else until the customer answers', async () => {
+      for (const spec of PERSONAS) {
+        const { session } = await root.services.sessions.create(spec.customer.cif)
+        const view = await root.services.advisory.view(session)
+        const first = view.snapshot.customer.name.split(' ')[0]
+
+        for (const topic of [null, '₹1,86,240 at 34.8% costs you ₹5,401 a month.']) {
+          const brief = buildBrief(view, [], view.shelfProducts, topic)
+          assert.equal(brief.startScript, `Hey ${first}!`, spec.slug)
+          assert.match(brief.personality, /Wait for them to answer\./, spec.slug)
+        }
+      }
+    })
+
+    it('offers the read first, and gives it with its figures only after a yes', async () => {
+      for (const spec of PERSONAS) {
+        const { session } = await root.services.sessions.create(spec.customer.cif)
+        const view = await root.services.advisory.view(session)
+        const { personality } = buildBrief(view, [], view.shelfProducts)
+
+        const offer = personality.indexOf('Would you like to hear it?')
+        const yes = personality.indexOf('When they say yes')
+        const ahead = planAhead(view.snapshot, view.roadmap, view.plan, view.shelfProducts)
+        const read = personality.indexOf(openingRead(view.snapshot, { lead: ahead === null }))
+        assert.ok(offer > 0 && yes > offer && read > yes, spec.slug)
+        assert.match(personality, /keeping every number exactly as it is written/, spec.slug)
+      }
+    })
+
+    it('suggests one joined-up plan where moments fall together, and the gate still fires', async () => {
+      const rohan = PERSONAS.find((p) => p.slug === 'rohan')!
+      const { session } = await root.services.sessions.create(rohan.customer.cif)
+      const view = await root.services.advisory.view(session)
+      const { personality } = buildBrief(view, [], view.shelfProducts)
+      const ahead = planAhead(view.snapshot, view.roadmap, view.plan, view.shelfProducts)
+      assert.ok(ahead)
+
+      assert.ok(personality.includes(ahead.text))
+      assert.match(personality, /a plan\s+that joins them up, and ask whether they want to hear it/)
+      assert.doesNotMatch(personality, /one suggestion for today/)
+      // Every product the plan recommends is named for check_suitability.
+      for (const product of ahead.products) assert.ok(personality.includes(`"${product}"`), product)
+      assert.match(personality, /What to do next is the plan above\./)
+    })
+
+    it('keeps the single suggestion where nothing falls together', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+      const { personality } = buildBrief(view, [], view.shelfProducts)
+
+      assert.equal(planAhead(view.snapshot, view.roadmap, view.plan, view.shelfProducts), null)
+      assert.match(personality, /one suggestion for today/)
+      assert.doesNotMatch(personality, /Your plan for them\./)
+    })
+
+    it('says this is their first meeting only on the first call', async () => {
+      const { session } = await root.services.sessions.create(PERSONAS[0]!.customer.cif)
+      const view = await root.services.advisory.view(session)
+
+      const firstCall = buildBrief(view, [], view.shelfProducts, null, false)
+      assert.match(firstCall.personality, /This is our first time meeting/)
+      assert.doesNotMatch(firstCall.personality, /Good to see you again/)
+
+      const returning = buildBrief(view, [], view.shelfProducts, null, true)
+      assert.match(returning.personality, /Good to see you again/)
+      assert.doesNotMatch(returning.personality, /first time meeting/)
     })
   })
 
